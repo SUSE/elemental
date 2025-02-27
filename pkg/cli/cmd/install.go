@@ -17,7 +17,7 @@ func NewInstallCommand(action func(*cli.Context) error) *cli.Command {
 	return &cli.Command{
 		Name:      "install",
 		Usage:     "Install an OCI image on a target system",
-		UsageText: fmt.Sprintf("%s install [OPTIONS]", appName),
+		UsageText: fmt.Sprintf("%s install [OPTIONS]", appName()),
 		Action:    action,
 		Flags: []cli.Flag{
 			&cli.StringFlag{

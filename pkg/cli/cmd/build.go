@@ -17,7 +17,7 @@ func NewBuildCommand(action func(*cli.Context) error) *cli.Command {
 	return &cli.Command{
 		Name:      "build",
 		Usage:     "Build new image",
-		UsageText: fmt.Sprintf("%s build [OPTIONS]", appName),
+		UsageText: fmt.Sprintf("%s build [OPTIONS]", appName()),
 		Action:    action,
 		Flags: []cli.Flag{
 			&cli.StringFlag{

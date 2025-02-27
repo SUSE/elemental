@@ -11,7 +11,7 @@ func NewVersionCommand(action func(*cli.Context) error) *cli.Command {
 		Name:      "version",
 		Aliases:   []string{"v"},
 		Usage:     "Inspect program version",
-		UsageText: fmt.Sprintf("%s version", appName),
+		UsageText: fmt.Sprintf("%s version", appName()),
 		Action:    action,
 	}
 }
