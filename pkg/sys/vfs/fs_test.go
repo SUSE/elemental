@@ -14,23 +14,29 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package sys_test
+package vfs_test
 
 import (
 	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
+	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/suse/elemental/v3/pkg/sys"
 	sysmock "github.com/suse/elemental/v3/pkg/sys/mock"
+	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
 
+func TestOSFSSuite(t *testing.T) {
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "OSFS test suite")
+}
+
 var _ = Describe("FS", Label("fs"), func() {
-	var tfs sys.FS
+	var tfs vfs.FS
 	var cleanup func()
 	var err error
 
@@ -38,7 +44,7 @@ var _ = Describe("FS", Label("fs"), func() {
 		tfs, cleanup, err = sysmock.TestFS(nil)
 		Expect(err).NotTo(HaveOccurred())
 
-		Expect(sys.MkdirAll(tfs, "/folder/subfolder", sys.DirPerm)).To(Succeed())
+		Expect(vfs.MkdirAll(tfs, "/folder/subfolder", vfs.DirPerm)).To(Succeed())
 		Expect(err).ShouldNot(HaveOccurred())
 		f, err := tfs.Create("/folder/file")
 		Expect(err).ShouldNot(HaveOccurred())
@@ -62,24 +68,24 @@ var _ = Describe("FS", Label("fs"), func() {
 			Expect(f.Truncate(1 * 1024 * 1024)).To(Succeed()) // 1MB
 		})
 		It("Returns the expected size of a test folder", func() {
-			size, err := sys.DirSize(tfs, "/folder")
+			size, err := vfs.DirSize(tfs, "/folder")
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(size).To(Equal(int64(1*1024*1024 + 2048 + 1024)))
-			usize, err := sys.DirSizeMB(tfs, "/folder")
+			usize, err := vfs.DirSizeMB(tfs, "/folder")
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(usize).To(Equal(uint(2)))
 		})
 		It("Returns the size of a test folder when skipping subdirectories", func() {
-			size, err := sys.DirSize(tfs, "/folder", "/folder/subfolder")
+			size, err := vfs.DirSize(tfs, "/folder", "/folder/subfolder")
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(size).To(Equal(int64(1024)))
 		})
 		It("Fails with permission denied", func() {
 			err := tfs.Chmod("/folder/subfolder", 0600)
 			Expect(err).ShouldNot(HaveOccurred())
-			_, err = sys.DirSize(tfs, "/folder")
+			_, err = vfs.DirSize(tfs, "/folder")
 			Expect(err).Should(HaveOccurred())
-			_, err = sys.DirSizeMB(tfs, "/folder")
+			_, err = vfs.DirSizeMB(tfs, "/folder")
 			Expect(err).Should(HaveOccurred())
 		})
 	})
@@ -87,38 +93,38 @@ var _ = Describe("FS", Label("fs"), func() {
 		It("discriminates directories and files", func() {
 			Expect(tfs.Symlink("subfolder", "/folder/linkToSubfolder")).To(Succeed())
 
-			dir, err := sys.IsDir(tfs, "/folder")
+			dir, err := vfs.IsDir(tfs, "/folder")
 			Expect(dir).To(BeTrue())
 			Expect(err).ToNot(HaveOccurred())
 
-			dir, err = sys.IsDir(tfs, "/folder/subfolder/file1")
+			dir, err = vfs.IsDir(tfs, "/folder/subfolder/file1")
 			Expect(dir).To(BeFalse())
 			Expect(err).ToNot(HaveOccurred())
 
 			// does not follow symlinks
-			dir, err = sys.IsDir(tfs, "/folder/linkToSubfolder")
+			dir, err = vfs.IsDir(tfs, "/folder/linkToSubfolder")
 			Expect(dir).To(BeFalse())
 			Expect(err).ToNot(HaveOccurred())
 
 			// follows symlinks
-			dir, err = sys.IsDir(tfs, "/folder/linkToSubfolder", true)
+			dir, err = vfs.IsDir(tfs, "/folder/linkToSubfolder", true)
 			Expect(dir).To(BeTrue())
 			Expect(err).ToNot(HaveOccurred())
 
-			dir, err = sys.IsDir(tfs, "/nonexisting")
+			dir, err = vfs.IsDir(tfs, "/nonexisting")
 			Expect(dir).To(BeFalse())
 			Expect(err).To(HaveOccurred())
 		})
 	})
 	Describe("RemoveAll", func() {
 		It("Removes nested files and folders", func() {
-			Expect(sys.RemoveAll(tfs, "/folder")).To(Succeed())
-			Expect(sys.Exists(tfs, "/folder/subfolder")).To(BeFalse())
-			Expect(sys.Exists(tfs, "/folder")).To(BeFalse())
+			Expect(vfs.RemoveAll(tfs, "/folder")).To(Succeed())
+			Expect(vfs.Exists(tfs, "/folder/subfolder")).To(BeFalse())
+			Expect(vfs.Exists(tfs, "/folder")).To(BeFalse())
 		})
 		It("Does not fail for nonexisting paths", func() {
-			Expect(sys.Exists(tfs, "/non-existing")).To(BeFalse())
-			Expect(sys.RemoveAll(tfs, "/non-existing")).To(Succeed())
+			Expect(vfs.Exists(tfs, "/non-existing")).To(BeFalse())
+			Expect(vfs.RemoveAll(tfs, "/non-existing")).To(Succeed())
 		})
 	})
 	Describe("Exists", func() {
@@ -126,79 +132,79 @@ var _ = Describe("FS", Label("fs"), func() {
 			Expect(tfs.Symlink("subfolder", "/folder/linkToSubfolder")).To(Succeed())
 			Expect(tfs.Symlink("nonexisting", "/folder/brokenlink")).To(Succeed())
 
-			Expect(sys.Exists(tfs, "/folder/subfolder")).To(BeTrue())
-			Expect(sys.Exists(tfs, "/folder/subfolder/file1")).To(BeTrue())
-			Expect(sys.Exists(tfs, "/folder/brokenlink")).To(BeTrue())
-			Expect(sys.Exists(tfs, "/folder/brokenlink", true)).To(BeFalse())
-			_, err := sys.Exists(tfs, "/folder/brokenlink", true)
+			Expect(vfs.Exists(tfs, "/folder/subfolder")).To(BeTrue())
+			Expect(vfs.Exists(tfs, "/folder/subfolder/file1")).To(BeTrue())
+			Expect(vfs.Exists(tfs, "/folder/brokenlink")).To(BeTrue())
+			Expect(vfs.Exists(tfs, "/folder/brokenlink", true)).To(BeFalse())
+			_, err := vfs.Exists(tfs, "/folder/brokenlink", true)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(sys.Exists(tfs, "/folder/linkToSubfolder")).To(BeTrue())
-			Expect(sys.Exists(tfs, "/folder/linkToSubfolder", true)).To(BeTrue())
+			Expect(vfs.Exists(tfs, "/folder/linkToSubfolder")).To(BeTrue())
+			Expect(vfs.Exists(tfs, "/folder/linkToSubfolder", true)).To(BeTrue())
 		})
 	})
 	Describe("ReadLink", func() {
-		var osFS sys.FS
+		var osFS vfs.FS
 		It("Reads symlinks in TestFS", func() {
 			Expect(tfs.Symlink("subfolder", "/folder/linkToSubfolder")).To(Succeed())
 			Expect(tfs.Symlink("nonexisting", "/folder/brokenlink")).To(Succeed())
 
-			path, err := sys.ReadLink(tfs, "/folder/linkToSubfolder")
+			path, err := vfs.ReadLink(tfs, "/folder/linkToSubfolder")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(path).To(Equal("subfolder"))
 
-			path, err = sys.ReadLink(tfs, "/folder/brokenlink")
+			path, err = vfs.ReadLink(tfs, "/folder/brokenlink")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(path).To(Equal("nonexisting"))
 
-			path, err = sys.ReadLink(tfs, "/folder/subfolder")
+			path, err = vfs.ReadLink(tfs, "/folder/subfolder")
 			Expect(err).To(HaveOccurred())
 		})
 		It("Reads symlinks in OSFS", func() {
-			osFS = sys.OSFS()
-			tempDir, err := sys.TempDir(osFS, "", "testing")
+			osFS = vfs.OSFS()
+			tempDir, err := vfs.TempDir(osFS, "", "testing")
 			Expect(err).NotTo(HaveOccurred())
-			defer sys.RemoveAll(osFS, tempDir)
+			defer vfs.RemoveAll(osFS, tempDir)
 
-			Expect(sys.MkdirAll(tfs, filepath.Join(tempDir, "subfolder"), sys.DirPerm)).To(Succeed())
+			Expect(vfs.MkdirAll(tfs, filepath.Join(tempDir, "subfolder"), vfs.DirPerm)).To(Succeed())
 			Expect(tfs.Symlink("subfolder", filepath.Join(tempDir, "linkToSubfolder"))).To(Succeed())
 			Expect(tfs.Symlink("nonexisting", filepath.Join(tempDir, "brokenlink"))).To(Succeed())
 
-			path, err := sys.ReadLink(tfs, filepath.Join(tempDir, "linkToSubfolder"))
+			path, err := vfs.ReadLink(tfs, filepath.Join(tempDir, "linkToSubfolder"))
 			Expect(err).NotTo(HaveOccurred())
 			Expect(path).To(Equal("subfolder"))
 
-			path, err = sys.ReadLink(tfs, filepath.Join(tempDir, "brokenlink"))
+			path, err = vfs.ReadLink(tfs, filepath.Join(tempDir, "brokenlink"))
 			Expect(err).NotTo(HaveOccurred())
 			Expect(path).To(Equal("nonexisting"))
 
-			path, err = sys.ReadLink(tfs, tempDir)
+			path, err = vfs.ReadLink(tfs, tempDir)
 			Expect(err).To(HaveOccurred())
 		})
 	})
 	Describe("TempDir", func() {
-		var osFS sys.FS
+		var osFS vfs.FS
 		It("Creates a deterministic temporary directory on TestFS", func() {
-			tempDir, err := sys.TempDir(tfs, "/customTmp", "testing")
+			tempDir, err := vfs.TempDir(tfs, "/customTmp", "testing")
 			Expect(err).ToNot(HaveOccurred())
 			Expect(tempDir).To(Equal("/customTmp/testing"))
 		})
 		It("Creates a randomized directory under os.TempDir with a deterministic prefix", func() {
-			osFS = sys.OSFS()
-			tempDir, err := sys.TempDir(osFS, "", "testing")
+			osFS = vfs.OSFS()
+			tempDir, err := vfs.TempDir(osFS, "", "testing")
 			Expect(err).NotTo(HaveOccurred())
-			defer sys.RemoveAll(osFS, tempDir)
+			defer vfs.RemoveAll(osFS, tempDir)
 
 			Expect(tempDir).NotTo(Equal(filepath.Join(os.TempDir(), "testing")))
 			Expect(strings.HasPrefix(tempDir, filepath.Join(os.TempDir(), "testing"))).To(BeTrue())
 		})
 	})
 	Describe("TempFile", func() {
-		var osFS sys.FS
+		var osFS vfs.FS
 		It("Creates a randomized file with a deterministic prefix", func() {
-			osFS = sys.OSFS()
-			tempFile, err := sys.TempFile(osFS, "", "testing")
+			osFS = vfs.OSFS()
+			tempFile, err := vfs.TempFile(osFS, "", "testing")
 			Expect(err).ToNot(HaveOccurred())
-			defer sys.RemoveAll(osFS, tempFile.Name())
+			defer vfs.RemoveAll(osFS, tempFile.Name())
 			Expect(tempFile.Name()).NotTo(Equal(filepath.Join(os.TempDir(), "testing")))
 			Expect(strings.HasPrefix(tempFile.Name(), filepath.Join(os.TempDir(), "testing"))).To(BeTrue())
 		})
@@ -221,7 +227,7 @@ var _ = Describe("FS", Label("fs"), func() {
 				foundPaths = append(foundPaths, path)
 				return err
 			}
-			sys.WalkDirFs(tfs, "/", f)
+			vfs.WalkDirFs(tfs, "/", f)
 			Expect(len(foundPaths)).To(Equal(len(currentPahts)))
 			Expect(foundPaths).To(Equal(currentPahts))
 		})

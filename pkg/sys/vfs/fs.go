@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package sys
+package vfs
 
 import (
 	"fmt"
@@ -29,6 +29,13 @@ import (
 	"time"
 
 	"github.com/twpayne/go-vfs/v4"
+)
+
+const (
+	DirPerm        = os.ModeDir | os.ModePerm
+	FilePerm       = 0666
+	NoWriteDirPerm = 0555 | os.ModeDir
+	TempDirPerm    = os.ModePerm | os.ModeSticky | os.ModeDir
 )
 
 type FS interface {
@@ -94,7 +101,7 @@ func DirSizeMB(fs FS, path string, excludes ...string) (uint, error) {
 	if sizeMB > 0 {
 		return uint(sizeMB), nil
 	}
-	return 0, fmt.Errorf("Negative size calculation: %d", sizeMB)
+	return 0, fmt.Errorf("negative size calculation: %d", sizeMB)
 }
 
 // Check if a file or directory exists, follow flag determines to

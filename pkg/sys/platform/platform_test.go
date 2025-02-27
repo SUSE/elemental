@@ -14,37 +14,50 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package sys_test
+package platform_test
 
 import (
+	"runtime"
+	"testing"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/suse/elemental/v3/pkg/sys"
+	"github.com/suse/elemental/v3/pkg/sys/platform"
 )
+
+func TestPlatformSuite(t *testing.T) {
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "Platform test suite")
+}
 
 var _ = Describe("Platform", Label("platform"), func() {
 	Describe("Source", func() {
 		It("initiates platform as expected", func() {
-			platform, err := sys.NewPlatform("linux", "x86_64")
+			platform, err := platform.NewPlatform("linux", "x86_64")
 			Expect(err).To(BeNil())
 			Expect(platform.OS).To(Equal("linux"))
 			Expect(platform.Arch).To(Equal("x86_64"))
 			Expect(platform.GolangArch).To(Equal("amd64"))
 		})
 		It("parses platform as expected", func() {
-			platform, err := sys.ParsePlatform("linux/amd64")
+			platform, err := platform.ParsePlatform("linux/amd64")
 			Expect(err).To(BeNil())
 			Expect(platform.OS).To(Equal("linux"))
 			Expect(platform.Arch).To(Equal("x86_64"))
 			Expect(platform.GolangArch).To(Equal("amd64"))
 		})
 		It("initiates arm64 platform as expected", func() {
-			platform, err := sys.NewPlatformFromArch("arm64")
+			platform, err := platform.NewPlatformFromArch("arm64")
 			Expect(err).To(BeNil())
 			Expect(platform.OS).To(Equal("linux"))
 			Expect(platform.Arch).To(Equal("arm64"))
 			Expect(platform.GolangArch).To(Equal("arm64"))
+		})
+		It("initiates a default platform", func() {
+			platform, err := platform.NewDefaultPlatform()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(platform.GolangArch).To(Equal(runtime.GOARCH))
 		})
 	})
 })

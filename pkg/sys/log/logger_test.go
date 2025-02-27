@@ -14,44 +14,50 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package sys_test
+package log_test
 
 import (
 	"bytes"
 	"reflect"
+	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/sirupsen/logrus" // TODO it should not be required, bad isolation
 
-	"github.com/suse/elemental/v3/pkg/sys"
+	"github.com/suse/elemental/v3/pkg/sys/log"
 )
+
+func TestLogSuite(t *testing.T) {
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "Log test suite")
+}
 
 var _ = Describe("logger", Label("log"), func() {
 	It("TestNewLogger returns a logger interface", func() {
-		l1 := sys.NewLogger()
+		l1 := log.NewLogger()
 		l2 := logrus.New()
 		Expect(reflect.TypeOf(l1).Kind()).To(Equal(reflect.TypeOf(l2).Kind()))
 	})
 	It("TestNewNullLogger returns logger interface", func() {
-		l1 := sys.NewNullLogger()
+		l1 := log.NewNullLogger()
 		l2 := logrus.New()
 		Expect(reflect.TypeOf(l1).Kind()).To(Equal(reflect.TypeOf(l2).Kind()))
 	})
 	It("DebugLevel returns the proper log level for debug output", func() {
-		Expect(sys.DebugLevel()).To(Equal(uint32(logrus.DebugLevel)))
+		Expect(log.DebugLevel()).To(Equal(uint32(logrus.DebugLevel)))
 	})
 	It("Returns true on IsDebugLevel when log level is set to debug", func() {
-		l := sys.NewLogger()
-		l.SetLevel(sys.DebugLevel())
-		Expect(sys.IsDebugLevel(l)).To(BeTrue())
+		l := log.NewLogger()
+		l.SetLevel(log.DebugLevel())
+		Expect(log.IsDebugLevel(l)).To(BeTrue())
 	})
 	It("Returns false on IsDebugLevel when log level is not set to debug", func() {
-		Expect(sys.IsDebugLevel(sys.NewLogger())).To(BeFalse())
+		Expect(log.IsDebugLevel(log.NewLogger())).To(BeFalse())
 	})
 	It("NewBufferLogger stores content in a buffer", func() {
 		b := &bytes.Buffer{}
-		l1 := sys.NewBufferLogger(b)
+		l1 := log.NewBufferLogger(b)
 		l1.Info("TEST")
 		Expect(b).To(ContainSubstring("TEST"))
 	})

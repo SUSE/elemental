@@ -14,12 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package sys
+package runner
 
 import (
 	"fmt"
 	"os/exec"
 	"strings"
+
+	"github.com/suse/elemental/v3/pkg/sys/log"
 )
 
 type Runner interface {
@@ -27,12 +29,12 @@ type Runner interface {
 	Run(string, ...string) ([]byte, error)
 	RunCmd(cmd *exec.Cmd) ([]byte, error)
 	CommandExists(command string) bool
-	GetLogger() Logger
-	SetLogger(logger Logger)
+	GetLogger() log.Logger
+	SetLogger(logger log.Logger)
 }
 
 type RealRunner struct {
-	Logger Logger
+	Logger log.Logger
 }
 
 func (r RealRunner) CommandExists(command string) bool {
@@ -59,11 +61,11 @@ func (r RealRunner) Run(command string, args ...string) ([]byte, error) {
 	return out, err
 }
 
-func (r RealRunner) GetLogger() Logger {
+func (r RealRunner) GetLogger() log.Logger {
 	return r.Logger
 }
 
-func (r *RealRunner) SetLogger(logger Logger) {
+func (r *RealRunner) SetLogger(logger log.Logger) {
 	r.Logger = logger
 }
 

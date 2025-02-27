@@ -19,57 +19,66 @@ package sys
 import (
 	"runtime"
 	"sync"
+
+	"github.com/suse/elemental/v3/pkg/sys/log"
+	"github.com/suse/elemental/v3/pkg/sys/mounter"
+	"github.com/suse/elemental/v3/pkg/sys/platform"
+	"github.com/suse/elemental/v3/pkg/sys/runner"
+	"github.com/suse/elemental/v3/pkg/sys/syscall"
+	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
 
 type system struct {
-	Logger   Logger
-	FS       FS
-	Mounter  Mounter
-	Runner   Runner
-	Syscall  SyscallInterface
-	Platform *Platform
+	Logger   log.Logger
+	FS       vfs.FS
+	Mounter  mounter.Mounter
+	Runner   runner.Runner
+	Syscall  syscall.SyscallInterface
+	Platform *platform.Platform
+
+	initiated bool
 }
 
-var sysInstance *system
+var sysObj system
 var lock = &sync.Mutex{}
 
 type SystemOpts func(a *system)
 
-func WithFS(fs FS) func(r *system) {
+func WithFS(fs vfs.FS) func(r *system) {
 	return func(s *system) {
 		s.FS = fs
 	}
 }
 
-func WithLogger(logger Logger) func(r *system) {
+func WithLogger(logger log.Logger) func(r *system) {
 	return func(s *system) {
 		s.Logger = logger
 	}
 }
 
-func WithSyscall(syscall SyscallInterface) func(r *system) {
+func WithSyscall(syscall syscall.SyscallInterface) func(r *system) {
 	return func(s *system) {
 		s.Syscall = syscall
 	}
 }
 
-func WithMounter(mounter Mounter) func(r *system) {
+func WithMounter(mounter mounter.Mounter) func(r *system) {
 	return func(r *system) {
 		r.Mounter = mounter
 	}
 }
 
-func WithRunner(runner Runner) func(r *system) {
+func WithRunner(runner runner.Runner) func(r *system) {
 	return func(r *system) {
 		r.Runner = runner
 	}
 }
 
-func WithPlatform(platform string) func(r *system) {
+func WithPlatform(pf string) func(r *system) {
 	return func(s *system) {
-		p, err := ParsePlatform(platform)
+		p, err := platform.ParsePlatform(pf)
 		if err != nil {
-			s.Logger.Errorf("error parsing provided platform (%s): %s", platform, err.Error())
+			s.Logger.Errorf("error parsing provided platform (%s): %s", pf, err.Error())
 			return
 		}
 		s.Platform = p
@@ -77,53 +86,60 @@ func WithPlatform(platform string) func(r *system) {
 }
 
 func SetSystem(opts ...SystemOpts) {
-	if sysInstance == nil {
-		lock.Lock()
-		defer lock.Unlock()
+	lock.Lock()
+	defer lock.Unlock()
 
-		log := NewLogger()
-		sysInstance = &system{
-			FS:      OSFS(),
-			Logger:  log,
-			Syscall: &RealSyscall{},
-			Runner:  &RealRunner{Logger: log},
-			Mounter: NewMounter(MountBinary),
-		}
+	if !sysObj.initiated {
+		logger := log.NewLogger()
+		sysObj.FS = vfs.OSFS()
+		sysObj.Logger = logger
+		sysObj.Syscall = &syscall.RealSyscall{}
+		sysObj.Runner = &runner.RealRunner{Logger: logger}
+		sysObj.Mounter = mounter.NewMounter(mounter.Binary)
+
 		for _, o := range opts {
-			o(sysInstance)
+			o(&sysObj)
 		}
 
 		// Now check if the runner has a logger inside, otherwise point our logger into it
 		// This can happen if we set the WithRunner option as that doesn't set a logger
-		if sysInstance.Runner.GetLogger() == nil {
-			sysInstance.Runner.SetLogger(sysInstance.Logger)
+		if sysObj.Runner.GetLogger() == nil {
+			sysObj.Runner.SetLogger(sysObj.Logger)
 		}
 
-		if sysInstance.Platform == nil {
-			defaultPlatform, err := NewPlatformFromArch(runtime.GOARCH)
+		if sysObj.Platform == nil {
+			defaultPlatform, err := platform.NewPlatformFromArch(runtime.GOARCH)
 			if err != nil {
-				sysInstance.Logger.Errorf("error parsing default platform (%s): %s", runtime.GOARCH, err.Error())
-				sysInstance = nil
+				sysObj.Logger.Errorf("error parsing default platform (%s): %s", runtime.GOARCH, err.Error())
 				return
 			}
-			sysInstance.Platform = defaultPlatform
+			sysObj.Platform = defaultPlatform
 		}
+		sysObj.initiated = true
 		return
 	}
-	sysInstance.Logger.Debug("can't set system instance, it is already initalized")
+	sysObj.Logger.Debug("can't set system instance, it is already initalized")
 }
 
 func GetSystem() *system {
 	lock.Lock()
 	defer lock.Unlock()
 
-	if sysInstance == nil {
+	if !sysObj.initiated {
 		panic("system instance not initialized")
 	}
-	return sysInstance
+	return &sysObj
 }
 
 // ClearSystem clears the system singleton varible, this is meant to be used ONLY in tests
 func ClearSystem() {
-	sysInstance = nil
+	lock.Lock()
+	defer lock.Unlock()
+
+	sysObj.FS = nil
+	sysObj.Logger = nil
+	sysObj.Syscall = nil
+	sysObj.Runner = nil
+	sysObj.Mounter = nil
+	sysObj.initiated = false
 }

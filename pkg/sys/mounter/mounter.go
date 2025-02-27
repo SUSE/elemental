@@ -14,10 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package sys
+package mounter
 
 import (
 	"k8s.io/mount-utils"
+)
+
+const (
+	Binary = "/usr/bin/mount"
 )
 
 // This is is just a redefinition of mount.Interface to types.Mounter types

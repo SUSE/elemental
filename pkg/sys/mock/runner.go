@@ -21,7 +21,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/suse/elemental/v3/pkg/sys"
+	"github.com/suse/elemental/v3/pkg/sys/log"
 )
 
 type FakeRunner struct {
@@ -29,7 +29,7 @@ type FakeRunner struct {
 	ReturnValue []byte
 	SideEffect  func(command string, args ...string) ([]byte, error)
 	ReturnError error
-	Logger      sys.Logger
+	Logger      log.Logger
 	CmdNotFound string
 }
 
@@ -137,11 +137,11 @@ func (r FakeRunner) GetCmds() [][]string {
 	return r.cmds
 }
 
-func (r FakeRunner) GetLogger() sys.Logger {
+func (r FakeRunner) GetLogger() log.Logger {
 	return r.Logger
 }
 
-func (r *FakeRunner) SetLogger(logger sys.Logger) {
+func (r *FakeRunner) SetLogger(logger log.Logger) {
 	r.Logger = logger
 }
 

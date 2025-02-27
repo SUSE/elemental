@@ -19,11 +19,11 @@ package mock
 import (
 	"errors"
 
-	"github.com/suse/elemental/v3/pkg/sys"
+	"github.com/suse/elemental/v3/pkg/sys/mounter"
 	"k8s.io/mount-utils"
 )
 
-var _ sys.Mounter = (*FakeMounter)(nil)
+var _ mounter.Mounter = (*FakeMounter)(nil)
 
 // FakeMounter is a fake mounter for tests that can error out.
 type FakeMounter struct {

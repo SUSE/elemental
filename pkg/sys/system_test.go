@@ -18,32 +18,42 @@ package sys_test
 
 import (
 	"runtime"
+	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	"github.com/suse/elemental/v3/pkg/sys"
+	"github.com/suse/elemental/v3/pkg/sys/log"
 	mocksys "github.com/suse/elemental/v3/pkg/sys/mock"
+	"github.com/suse/elemental/v3/pkg/sys/platform"
+	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
+
+func TestSysSuite(t *testing.T) {
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "Sys test suite")
+}
+
+var _ = AfterEach(func() {
+	sys.ClearSystem()
+})
 
 var _ = Describe("System", Label("system"), func() {
 	var mounter *mocksys.FakeMounter
 	var runner *mocksys.FakeRunner
 	var syscall *mocksys.FakeSyscall
-	var logger sys.Logger
-	var fs sys.FS
+	var logger log.Logger
+	var fs vfs.FS
 	BeforeEach(func() {
 		mounter = mocksys.NewFakeMounter()
 		runner = mocksys.NewFakeRunner()
 		syscall = &mocksys.FakeSyscall{}
-		logger = sys.NewNullLogger()
+		logger = log.NewNullLogger()
 		fs, _, _ = mocksys.TestFS(nil)
 	})
-	It("It exits out when tyring to get an unitialized system instance", func() {
-		Expect(func() { _ = sys.GetSystem() }).To(Panic())
-	})
 	It("Can be set to use custom implementations", func() {
-		platform, err := sys.ParsePlatform("linux/arm64")
+		platform, err := platform.ParsePlatform("linux/arm64")
 		Expect(err).NotTo(HaveOccurred())
 		sys.SetSystem(
 			sys.WithFS(fs), sys.WithLogger(logger),
@@ -58,13 +68,18 @@ var _ = Describe("System", Label("system"), func() {
 		Expect(s.Syscall).To(BeIdenticalTo(syscall))
 		Expect(s.Platform).To(Equal(platform))
 	})
-	It("It it is initalized with all defaults", func() {
-		platform, err := sys.NewPlatformFromArch(runtime.GOARCH)
+	It("It is initalized with all defaults and can be cleared", func() {
+		platform, err := platform.NewPlatformFromArch(runtime.GOARCH)
 		Expect(err).NotTo(HaveOccurred())
 		sys.SetSystem()
 		s := sys.GetSystem()
 		Expect(s.Runner).NotTo(BeIdenticalTo(runner))
 		Expect(s.Platform).To(Equal(platform))
-	})
+		sys.ClearSystem()
+		Expect(s.Runner).To(BeNil())
 
+	})
+	It("Panics if GetSystem is called before initializing it", func() {
+		Expect(func() { _ = sys.GetSystem() }).To(Panic())
+	})
 })

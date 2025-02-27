@@ -19,18 +19,18 @@ package mock
 import (
 	"fmt"
 
-	"github.com/suse/elemental/v3/pkg/sys"
-	"github.com/twpayne/go-vfs/v4"
+	"github.com/suse/elemental/v3/pkg/sys/vfs"
+	gvfs "github.com/twpayne/go-vfs/v4"
 	"github.com/twpayne/go-vfs/v4/vfst"
 )
 
-func TestFS(root any) (sys.FS, func(), error) {
+func TestFS(root any) (vfs.FS, func(), error) {
 	return vfst.NewTestFS(root)
 }
 
-func ReadOnlyTestFS(fs sys.FS) (sys.FS, error) {
+func ReadOnlyTestFS(fs vfs.FS) (vfs.FS, error) {
 	if tfs, isTestFs := fs.(*vfst.TestFS); isTestFs {
-		return vfs.NewReadOnlyFS(tfs), nil
+		return gvfs.NewReadOnlyFS(tfs), nil
 	}
 	return nil, fmt.Errorf("provided FS is not a vfst instance")
 }

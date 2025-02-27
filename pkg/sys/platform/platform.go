@@ -14,14 +14,24 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package sys
+package platform
 
 import (
 	"fmt"
+	"runtime"
 	"strings"
 
 	registry "github.com/google/go-containerregistry/pkg/v1"
 	"gopkg.in/yaml.v3"
+)
+
+const (
+	// Architectures
+	ArchAmd64   = "amd64"
+	Archx86     = "x86_64"
+	ArchArm64   = "arm64"
+	ArchAarch64 = "aarch64"
+	ArchRiscV64 = "riscv64"
 )
 
 type Platform struct {
@@ -50,6 +60,10 @@ func NewPlatform(os, arch string) (*Platform, error) {
 
 func NewPlatformFromArch(arch string) (*Platform, error) {
 	return NewPlatform("linux", arch)
+}
+
+func NewDefaultPlatform() (*Platform, error) {
+	return NewPlatformFromArch(runtime.GOARCH)
 }
 
 func ParsePlatform(platform string) (*Platform, error) {
