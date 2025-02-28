@@ -19,16 +19,16 @@ package mock
 import (
 	"fmt"
 
-	"github.com/suse/elemental/v3/pkg/sys/vfs"
+	"github.com/suse/elemental/v3/pkg/sys"
 	gvfs "github.com/twpayne/go-vfs/v4"
 	"github.com/twpayne/go-vfs/v4/vfst"
 )
 
-func TestFS(root any) (vfs.FS, func(), error) {
+func TestFS(root any) (sys.FS, func(), error) {
 	return vfst.NewTestFS(root)
 }
 
-func ReadOnlyTestFS(fs vfs.FS) (vfs.FS, error) {
+func ReadOnlyTestFS(fs sys.FS) (sys.FS, error) {
 	if tfs, isTestFs := fs.(*vfst.TestFS); isTestFs {
 		return gvfs.NewReadOnlyFS(tfs), nil
 	}

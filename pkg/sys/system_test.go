@@ -27,7 +27,6 @@ import (
 	"github.com/suse/elemental/v3/pkg/sys"
 	mocksys "github.com/suse/elemental/v3/pkg/sys/mock"
 	"github.com/suse/elemental/v3/pkg/sys/platform"
-	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
 
 func TestSysSuite(t *testing.T) {
@@ -40,7 +39,7 @@ var _ = Describe("System", Label("system"), func() {
 	var runner *mocksys.Runner
 	var syscall *mocksys.Syscall
 	var logger log.Logger
-	var fs vfs.FS
+	var fs sys.FS
 	BeforeEach(func() {
 		mounter = mocksys.NewMounter()
 		runner = mocksys.NewRunner()

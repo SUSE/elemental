@@ -51,7 +51,7 @@ type Syscall interface {
 
 type System struct {
 	Logger   log.Logger
-	FS       vfs.FS
+	FS       FS
 	Mounter  Mounter
 	Runner   Runner
 	Syscall  Syscall
@@ -60,7 +60,7 @@ type System struct {
 
 type SystemOpts func(a *System) error
 
-func WithFS(fs vfs.FS) SystemOpts {
+func WithFS(fs FS) SystemOpts {
 	return func(s *System) error {
 		s.FS = fs
 		return nil
