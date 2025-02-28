@@ -1,0 +1,205 @@
+/*
+Copyright © 2022-2025 SUSE LLC
+SPDX-License-Identifier: Apache-2.0
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package lsblk_test
+
+import (
+	"fmt"
+	"testing"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+
+	"github.com/suse/elemental/v3/pkg/block"
+	"github.com/suse/elemental/v3/pkg/block/lsblk"
+	"github.com/suse/elemental/v3/pkg/sys"
+	sysmock "github.com/suse/elemental/v3/pkg/sys/mock"
+)
+
+const fullLsblkTmpl = `{
+   "blockdevices": [
+      {
+         "label": "EFI",
+         "partlabel": "efi",
+         "size": 272629760,
+         "fstype": "vfat",
+         "mountpoints": [
+             "/boot/efi"
+         ],
+         "path": "/dev/sda1",
+         "pkname": "/dev/sda",
+         "type": "part"
+      }%s%s
+   ]
+}
+`
+const diskPortionLsblkOut = `,{
+         "label": "DATA",
+         "partlabel": "data",
+         "size": 2147819008,
+         "fstype": "ext4",
+         "mountpoints": [
+             "/data"
+         ],
+         "path": "/dev/sdb1",
+         "pkname": "/dev/sdb",
+         "type": "part"
+      }`
+
+const partsPortionLslbkOut = `,{
+         "label": "STATE",
+         "partlabel": "state",
+         "size": 351333777408,
+         "fstype": "btrfs",
+         "mountpoints": [
+             "/.snapshots", "/", "/etc"
+         ],
+         "path": "/dev/sda2",
+         "pkname": "/dev/sda",
+         "type": "part"
+      },{
+         "label": "PERSISTENT",
+         "partlabel": "persistent",
+         "size": 670454251520,
+         "fstype": "xfs",
+         "mountpoints": [
+             "/home"
+         ],
+         "path": "/dev/sda3",
+         "pkname": "/dev/sda",
+         "type": "part"
+      }`
+
+func TestLsBlockSuite(t *testing.T) {
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "LsBlock test suite")
+}
+
+var _ = Describe("BlockDevice", Label("lsblk"), func() {
+	var runner *sysmock.Runner
+	var b block.Device
+	var json string
+	var lsblkErr error
+	var s *sys.System
+	var err error
+	BeforeEach(func() {
+		runner = sysmock.NewRunner()
+
+		s, err = sys.NewSystem(sys.WithRunner(runner))
+		Expect(err).ToNot(HaveOccurred())
+		runner.SideEffect = func(command string, args ...string) ([]byte, error) {
+			if command == "lsblk" {
+				if lsblkErr != nil {
+					return []byte{}, lsblkErr
+				}
+				return []byte(json), nil
+			}
+			return []byte{}, nil
+		}
+		lsblkErr = nil
+		b = lsblk.NewLsDevice(s)
+	})
+	Describe("GetPartitionFS", func() {
+		BeforeEach(func() {
+			json = fmt.Sprintf(fullLsblkTmpl, "", "")
+		})
+		It("returns the filesystem for the given partition", func() {
+			fst, err := b.GetPartitionFS("/dev/sda1")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(fst).To(Equal("vfat"))
+		})
+		It("lsblk call fails", func() {
+			lsblkErr = fmt.Errorf("new lsblk error")
+			_, err := b.GetPartitionFS("/dev/sda1")
+			Expect(err).To(HaveOccurred())
+		})
+		It("fails when multiple partitions are listed", func() {
+			json = fmt.Sprintf(fullLsblkTmpl, partsPortionLslbkOut, "")
+			_, err := b.GetPartitionFS("/dev/sda")
+			Expect(err).To(HaveOccurred())
+		})
+	})
+	Describe("GetDevicePartitions", func() {
+		BeforeEach(func() {
+			json = fmt.Sprintf(fullLsblkTmpl, partsPortionLslbkOut, "")
+		})
+		It("lists all partitions found by lsblk", func() {
+			pl, err := b.GetDevicePartitions("/dev/sda")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(len(pl)).To(Equal(3))
+			part := pl.GetByLabel("STATE")
+			Expect(part).NotTo(BeNil())
+			Expect(part.Path).To(Equal("/dev/sda2"))
+			part = pl.GetByName("persistent")
+			Expect(part).NotTo(BeNil())
+			Expect(part.FS).To(Equal("xfs"))
+			part = pl.GetByNameOrLabel("wrongname", "EFI")
+			Expect(part).NotTo(BeNil())
+			Expect(part.Name).To(Equal("efi"))
+		})
+		It("lsblk call fails", func() {
+			lsblkErr = fmt.Errorf("new lsblk error")
+			_, err := b.GetDevicePartitions("/dev/sda")
+			Expect(err).To(HaveOccurred())
+		})
+	})
+	Describe("GetAllPartitions", func() {
+		BeforeEach(func() {
+			json = fmt.Sprintf(fullLsblkTmpl, partsPortionLslbkOut, diskPortionLsblkOut)
+		})
+		It("lists all partitions found by lsblk", func() {
+			pl, err := b.GetAllPartitions()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(len(pl)).To(Equal(4))
+			part := pl.GetByLabel("STATE")
+			Expect(part).NotTo(BeNil())
+			Expect(part.Path).To(Equal("/dev/sda2"))
+			part = pl.GetByName("persistent")
+			Expect(part).NotTo(BeNil())
+			Expect(part.FS).To(Equal("xfs"))
+			part = pl.GetByNameOrLabel("wrongname", "EFI")
+			Expect(part).NotTo(BeNil())
+			Expect(part.Name).To(Equal("efi"))
+			part = pl.GetByNameOrLabel("data", "wronglable")
+			Expect(part).NotTo(BeNil())
+			Expect(part.FilesystemLabel).To(Equal("DATA"))
+		})
+		It("lsblk call fails", func() {
+			lsblkErr = fmt.Errorf("new lsblk error")
+			_, err := b.GetAllPartitions()
+			Expect(err).To(HaveOccurred())
+		})
+	})
+	Describe("GetPartitionByLabel", func() {
+		var cmds [][]string
+		BeforeEach(func() {
+			json = fmt.Sprintf(fullLsblkTmpl, partsPortionLslbkOut, diskPortionLsblkOut)
+			cmds = [][]string{{"udevadm", "settle"}, {"lsblk"}}
+		})
+		It("returns found device", func() {
+			out, err := block.GetPartitionDeviceByLabel(s, b, "STATE", 1)
+			Expect(err).To(BeNil())
+			Expect(out).To(Equal("/dev/sda2"))
+			Expect(runner.CmdsMatch(cmds)).To(BeNil())
+		})
+		It("fails if no device is found in two attempts", func() {
+			_, err := block.GetPartitionDeviceByLabel(s, b, "FAKE", 2)
+			Expect(err).NotTo(BeNil())
+			Expect(runner.CmdsMatch(append(cmds, cmds...))).To(BeNil())
+		})
+	})
+})
