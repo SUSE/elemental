@@ -18,29 +18,30 @@ package mock
 
 import (
 	"errors"
+	"fmt"
 
-	"github.com/suse/elemental/v3/pkg/sys/mounter"
+	"github.com/suse/elemental/v3/pkg/sys"
 	"k8s.io/mount-utils"
 )
 
-var _ mounter.Mounter = (*FakeMounter)(nil)
+var _ sys.Mounter = (*Mounter)(nil)
 
 // FakeMounter is a fake mounter for tests that can error out.
-type FakeMounter struct {
+type Mounter struct {
 	ErrorOnMount   bool
 	ErrorOnUnmount bool
 	FakeMounter    mount.Interface
 }
 
 // NewFakeMounter returns an FakeMounter with an instance of FakeMounter inside so we can use its functions
-func NewFakeMounter() *FakeMounter {
-	return &FakeMounter{
+func NewMounter() *Mounter {
+	return &Mounter{
 		FakeMounter: &mount.FakeMounter{},
 	}
 }
 
 // Mount will return an error if ErrorOnMount is true
-func (e FakeMounter) Mount(source string, target string, fstype string, options []string) error {
+func (e Mounter) Mount(source string, target string, fstype string, options []string) error {
 	if e.ErrorOnMount {
 		return errors.New("mount error")
 	}
@@ -48,25 +49,47 @@ func (e FakeMounter) Mount(source string, target string, fstype string, options 
 }
 
 // Unmount will return an error if ErrorOnUnmount is true
-func (e FakeMounter) Unmount(target string) error {
+func (e Mounter) Unmount(target string) error {
 	if e.ErrorOnUnmount {
 		return errors.New("unmount error")
 	}
 	return e.FakeMounter.Unmount(target)
 }
 
-func (e FakeMounter) IsLikelyNotMountPoint(file string) (bool, error) {
+func (e Mounter) IsMountPoint(file string) (bool, error) {
 	mnts, _ := e.List()
 
 	for _, mnt := range mnts {
 		if file == mnt.Path {
-			return false, nil
+			return true, nil
 		}
 	}
-	return true, nil
+	return false, nil
+}
+
+func (e Mounter) GetMountRefs(pathname string) ([]string, error) {
+	var device string
+	mntPaths := []string{}
+
+	mnts, _ := e.List()
+	for _, mnt := range mnts {
+		if pathname == mnt.Path {
+			device = mnt.Device
+			break
+		}
+	}
+	if device == "" {
+		return mntPaths, fmt.Errorf("no mountpoint found for '%s'", pathname)
+	}
+	for _, mnt := range mnts {
+		if device == mnt.Device && pathname != mnt.Path {
+			mntPaths = append(mntPaths, mnt.Path)
+		}
+	}
+	return mntPaths, nil
 }
 
 // This is not part of the interface, just a helper method for tests
-func (e FakeMounter) List() ([]mount.MountPoint, error) {
+func (e Mounter) List() ([]mount.MountPoint, error) {
 	return e.FakeMounter.List()
 }

@@ -23,8 +23,8 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"github.com/suse/elemental/v3/pkg/log"
 	"github.com/suse/elemental/v3/pkg/sys"
-	"github.com/suse/elemental/v3/pkg/sys/log"
 	mocksys "github.com/suse/elemental/v3/pkg/sys/mock"
 	"github.com/suse/elemental/v3/pkg/sys/platform"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
@@ -36,16 +36,16 @@ func TestSysSuite(t *testing.T) {
 }
 
 var _ = Describe("System", Label("system"), func() {
-	var mounter *mocksys.FakeMounter
-	var runner *mocksys.FakeRunner
-	var syscall *mocksys.FakeSyscall
+	var mounter *mocksys.Mounter
+	var runner *mocksys.Runner
+	var syscall *mocksys.Syscall
 	var logger log.Logger
 	var fs vfs.FS
 	BeforeEach(func() {
-		mounter = mocksys.NewFakeMounter()
-		runner = mocksys.NewFakeRunner()
-		syscall = &mocksys.FakeSyscall{}
-		logger = log.NewNullLogger()
+		mounter = mocksys.NewMounter()
+		runner = mocksys.NewRunner()
+		syscall = &mocksys.Syscall{}
+		logger = log.New(log.WithDiscardAll())
 		fs, _, _ = mocksys.TestFS(nil)
 	})
 	It("Can be set to use custom implementations", func() {

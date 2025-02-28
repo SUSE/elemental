@@ -20,17 +20,16 @@ import (
 	"syscall"
 )
 
-type SyscallInterface interface {
-	Chroot(string) error
-	Chdir(string) error
+type systemCall struct{}
+
+func Syscall() *systemCall {
+	return &systemCall{}
 }
 
-type RealSyscall struct{}
-
-func (r *RealSyscall) Chroot(path string) error {
+func (r *systemCall) Chroot(path string) error {
 	return syscall.Chroot(path)
 }
 
-func (r *RealSyscall) Chdir(path string) error {
+func (r *systemCall) Chdir(path string) error {
 	return syscall.Chdir(path)
 }

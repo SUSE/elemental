@@ -33,7 +33,6 @@ type Logger interface {
 	Debug(...any)
 	Error(...any)
 	Fatal(...any)
-	Success(...any)
 	Warning(...any)
 	Panic(...any)
 	Trace(...any)
@@ -52,9 +51,9 @@ type Logger interface {
 	SetContext(string)
 	SpinnerStop()
 	Spinner()
-	Ask() bool
-	Screen(string)
 }
+
+var _ Logger = (*logrusWrapper)(nil)
 
 func DebugLevel() uint32 {
 	l, _ := log.ParseLevel("debug")
@@ -65,24 +64,28 @@ func IsDebugLevel(l Logger) bool {
 	return l.GetLevel() == DebugLevel()
 }
 
-type LoggerOptions func(l Logger) error
+type LoggerOptions func(l *log.Logger)
 
-func NewLogger() Logger {
-	return newLogrusWrapper(log.New())
-}
-
-// NewNullLogger will return a logger that discards all logs, used mainly for testing
-func NewNullLogger() Logger {
+func New(opts ...LoggerOptions) Logger {
 	logger := log.New()
-	logger.SetOutput(io.Discard)
+	for _, o := range opts {
+		o(logger)
+	}
 	return newLogrusWrapper(logger)
 }
 
-// NewBufferLogger will return a logger that stores all logs in a buffer, used mainly for testing
-func NewBufferLogger(b *bytes.Buffer) Logger {
-	logger := log.New()
-	logger.SetOutput(b)
-	return newLogrusWrapper(logger)
+// WithDiscardAll will set a logger that discards all logs, used mainly for testing
+func WithDiscardAll() LoggerOptions {
+	return func(l *log.Logger) {
+		l.SetOutput(io.Discard)
+	}
+}
+
+// WithBuffer will set a logger that stores all logs in a buffer, used mainly for testing
+func WithBuffer(b *bytes.Buffer) LoggerOptions {
+	return func(l *log.Logger) {
+		l.SetOutput(b)
+	}
 }
 
 type logrusWrapper struct {
@@ -99,26 +102,6 @@ func (w logrusWrapper) GetLevel() uint32 {
 
 func (w *logrusWrapper) SetLevel(level uint32) {
 	w.Logger.SetLevel(log.Level(level))
-}
-
-func (w *logrusWrapper) Ask() bool {
-	var input string
-	w.Info("Do you want to continue with this operation? [y/N]: ")
-	_, err := fmt.Scanln(&input)
-	if err != nil {
-		return false
-	}
-	input = strings.ToLower(input)
-
-	if input == "y" || input == "yes" {
-		return true
-	}
-	return false
-}
-
-func (w *logrusWrapper) Success(r ...any) {
-	// Will redirect to the Info method below and be cleaned there
-	w.Info(r...)
 }
 
 var emojiStrip = regexp.MustCompile(`[:][\w]+[:]`)
@@ -166,4 +149,3 @@ func convert(args []any) string {
 func (w *logrusWrapper) SetContext(string) {}
 func (w *logrusWrapper) Spinner()          {}
 func (w *logrusWrapper) SpinnerStop()      {}
-func (w *logrusWrapper) Screen(_ string)   {}

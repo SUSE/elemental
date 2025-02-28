@@ -23,9 +23,8 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/sirupsen/logrus" // TODO it should not be required, bad isolation
-
-	"github.com/suse/elemental/v3/pkg/sys/log"
+	"github.com/sirupsen/logrus"
+	"github.com/suse/elemental/v3/pkg/log"
 )
 
 func TestLogSuite(t *testing.T) {
@@ -35,12 +34,12 @@ func TestLogSuite(t *testing.T) {
 
 var _ = Describe("logger", Label("log"), func() {
 	It("TestNewLogger returns a logger interface", func() {
-		l1 := log.NewLogger()
+		l1 := log.New()
 		l2 := logrus.New()
 		Expect(reflect.TypeOf(l1).Kind()).To(Equal(reflect.TypeOf(l2).Kind()))
 	})
 	It("TestNewNullLogger returns logger interface", func() {
-		l1 := log.NewNullLogger()
+		l1 := log.New(log.WithDiscardAll())
 		l2 := logrus.New()
 		Expect(reflect.TypeOf(l1).Kind()).To(Equal(reflect.TypeOf(l2).Kind()))
 	})
@@ -48,16 +47,16 @@ var _ = Describe("logger", Label("log"), func() {
 		Expect(log.DebugLevel()).To(Equal(uint32(logrus.DebugLevel)))
 	})
 	It("Returns true on IsDebugLevel when log level is set to debug", func() {
-		l := log.NewLogger()
+		l := log.New()
 		l.SetLevel(log.DebugLevel())
 		Expect(log.IsDebugLevel(l)).To(BeTrue())
 	})
 	It("Returns false on IsDebugLevel when log level is not set to debug", func() {
-		Expect(log.IsDebugLevel(log.NewLogger())).To(BeFalse())
+		Expect(log.IsDebugLevel(log.New())).To(BeFalse())
 	})
 	It("NewBufferLogger stores content in a buffer", func() {
 		b := &bytes.Buffer{}
-		l1 := log.NewBufferLogger(b)
+		l1 := log.New(log.WithBuffer(b))
 		l1.Info("TEST")
 		Expect(b).To(ContainSubstring("TEST"))
 	})

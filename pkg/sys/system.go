@@ -17,9 +17,10 @@ limitations under the License.
 package sys
 
 import (
+	"os/exec"
 	"runtime"
 
-	"github.com/suse/elemental/v3/pkg/sys/log"
+	"github.com/suse/elemental/v3/pkg/log"
 	"github.com/suse/elemental/v3/pkg/sys/mounter"
 	"github.com/suse/elemental/v3/pkg/sys/platform"
 	"github.com/suse/elemental/v3/pkg/sys/runner"
@@ -27,12 +28,33 @@ import (
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
 
+type Mounter interface {
+	Mount(source string, target string, fstype string, options []string) error
+	Unmount(target string) error
+	IsMountPoint(path string) (bool, error)
+	// GetMountRefs finds all mount references to pathname, returning a slice of
+	// paths. The returned slice does not include the given path.
+	GetMountRefs(pathname string) ([]string, error)
+}
+
+type Runner interface {
+	InitCmd(string, ...string) *exec.Cmd
+	Run(string, ...string) ([]byte, error)
+	RunCmd(cmd *exec.Cmd) ([]byte, error)
+	CommandExists(command string) bool
+}
+
+type Syscall interface {
+	Chroot(string) error
+	Chdir(string) error
+}
+
 type System struct {
 	Logger   log.Logger
 	FS       vfs.FS
-	Mounter  mounter.Mounter
-	Runner   runner.Runner
-	Syscall  syscall.SyscallInterface
+	Mounter  Mounter
+	Runner   Runner
+	Syscall  Syscall
 	Platform *platform.Platform
 }
 
@@ -52,21 +74,21 @@ func WithLogger(logger log.Logger) SystemOpts {
 	}
 }
 
-func WithSyscall(syscall syscall.SyscallInterface) SystemOpts {
+func WithSyscall(syscall Syscall) SystemOpts {
 	return func(s *System) error {
 		s.Syscall = syscall
 		return nil
 	}
 }
 
-func WithMounter(mounter mounter.Mounter) SystemOpts {
+func WithMounter(mounter Mounter) SystemOpts {
 	return func(r *System) error {
 		r.Mounter = mounter
 		return nil
 	}
 }
 
-func WithRunner(runner runner.Runner) SystemOpts {
+func WithRunner(runner Runner) SystemOpts {
 	return func(r *System) error {
 		r.Runner = runner
 		return nil
@@ -85,12 +107,12 @@ func WithPlatform(pf string) SystemOpts {
 }
 
 func NewSystem(opts ...SystemOpts) (*System, error) {
-	logger := log.NewLogger()
+	logger := log.New()
 	sysObj := &System{
 		FS:      vfs.OSFS(),
 		Logger:  logger,
-		Syscall: &syscall.RealSyscall{},
-		Runner:  &runner.RealRunner{},
+		Syscall: syscall.Syscall(),
+		Runner:  runner.NewRunner(),
 		Mounter: mounter.NewMounter(mounter.Binary),
 	}
 
@@ -101,16 +123,14 @@ func NewSystem(opts ...SystemOpts) (*System, error) {
 		}
 	}
 
-	// Now check if the runner has a logger inside, otherwise point our logger into it
-	// This can happen if we set the WithRunner option as that doesn't set a logger
-	if sysObj.Runner.GetLogger() == nil {
-		sysObj.Runner.SetLogger(sysObj.Logger)
+	// Defer the runner creation in case the caller set a custom logger
+	if sysObj.Runner == nil {
+		sysObj.Runner = runner.NewRunner(runner.WithLogger(sysObj.Logger))
 	}
 
 	if sysObj.Platform == nil {
 		defaultPlatform, err := platform.NewPlatformFromArch(runtime.GOARCH)
 		if err != nil {
-			sysObj.Logger.Errorf("error parsing default platform (%s): %s", runtime.GOARCH, err.Error())
 			return nil, err
 		}
 		sysObj.Platform = defaultPlatform

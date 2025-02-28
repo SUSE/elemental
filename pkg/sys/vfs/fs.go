@@ -25,7 +25,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/twpayne/go-vfs/v4"
@@ -41,7 +40,6 @@ const (
 type FS interface {
 	Chmod(name string, mode fs.FileMode) error
 	Create(name string) (*os.File, error)
-	Glob(pattern string) ([]string, error)
 	Link(oldname, newname string) error
 	Lstat(name string) (fs.FileInfo, error)
 	Mkdir(name string, perm fs.FileMode) error
@@ -61,10 +59,6 @@ type FS interface {
 
 func OSFS() FS {
 	return vfs.OSFS
-}
-
-func ReadOnlyFS() FS {
-	return vfs.NewReadOnlyFS(vfs.OSFS)
 }
 
 // DirSize returns the accumulated size of all files in folder. Result in bytes
@@ -163,15 +157,6 @@ func ReadLink(fs FS, name string) (string, error) {
 	}
 	raw, err := fs.RawPath(name)
 	return strings.TrimPrefix(res, strings.TrimSuffix(raw, name)), err
-}
-
-// permError returns an *os.PathError with Err syscall.EPERM.
-func permError(op, path string) error {
-	return &os.PathError{
-		Op:   op,
-		Path: path,
-		Err:  syscall.EPERM,
-	}
 }
 
 // Random number state.

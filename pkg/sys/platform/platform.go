@@ -20,9 +20,6 @@ import (
 	"fmt"
 	"runtime"
 	"strings"
-
-	registry "github.com/google/go-containerregistry/pkg/v1"
-	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -31,7 +28,6 @@ const (
 	Archx86     = "x86_64"
 	ArchArm64   = "arm64"
 	ArchAarch64 = "aarch64"
-	ArchRiscV64 = "riscv64"
 )
 
 type Platform struct {
@@ -66,23 +62,24 @@ func NewDefaultPlatform() (*Platform, error) {
 	return NewPlatformFromArch(runtime.GOARCH)
 }
 
-func ParsePlatform(platform string) (*Platform, error) {
-	p, err := registry.ParsePlatform(platform)
-	if err != nil {
-		return nil, err
+// ParsePlatform parses a string representing a Platform, if possible.
+// code ported from go-containerregistry library
+func ParsePlatform(s string) (*Platform, error) {
+	var architecture, os string
+	parts := strings.Split(strings.TrimSpace(s), ":")
+	// We ignore parts[1] if any, as it represents the OS Version
+	parts = strings.Split(parts[0], "/")
+	if len(parts) > 0 {
+		os = parts[0]
 	}
-
-	return NewPlatform(p.OS, p.Architecture)
-}
-
-func (p *Platform) updateFrom(platform *Platform) {
-	if platform == nil || p == nil {
-		return
+	if len(parts) > 1 {
+		architecture = parts[1]
 	}
-
-	p.OS = platform.OS
-	p.Arch = platform.Arch
-	p.GolangArch = platform.GolangArch
+	// We ignore parts[2] if any, as this represents the arch variant
+	if len(parts) > 3 {
+		return nil, fmt.Errorf("too many slashes in platform spec: %s", s)
+	}
+	return NewPlatform(os, architecture)
 }
 
 func (p *Platform) String() string {
@@ -91,30 +88,6 @@ func (p *Platform) String() string {
 	}
 
 	return fmt.Sprintf("%s/%s", p.OS, p.GolangArch)
-}
-
-func (p Platform) MarshalYAML() (interface{}, error) {
-	return p.String(), nil
-}
-
-func (p *Platform) UnmarshalYAML(value *yaml.Node) error {
-	parsed, err := ParsePlatform(value.Value)
-	if err != nil {
-		return err
-	}
-	p.updateFrom(parsed)
-	return nil
-}
-
-func (p *Platform) CustomUnmarshal(data interface{}) (bool, error) {
-	str, ok := data.(string)
-	if !ok {
-		return false, fmt.Errorf("can't unmarshal %+v to a Platform type", data)
-	}
-
-	parsed, err := ParsePlatform(str)
-	p.updateFrom(parsed)
-	return false, err
 }
 
 var errInvalidArch = fmt.Errorf("invalid arch")
@@ -129,8 +102,6 @@ func archToGolangArch(arch string) (string, error) {
 		return ArchArm64, nil
 	case ArchAarch64:
 		return ArchArm64, nil
-	case ArchRiscV64:
-		return ArchRiscV64, nil
 	default:
 		return "", errInvalidArch
 	}
@@ -146,8 +117,6 @@ func golangArchToArch(arch string) (string, error) {
 		return ArchArm64, nil
 	case ArchAarch64:
 		return ArchArm64, nil
-	case ArchRiscV64:
-		return ArchRiscV64, nil
 	default:
 		return "", errInvalidArch
 	}

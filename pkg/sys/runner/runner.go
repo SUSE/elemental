@@ -21,36 +21,43 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/suse/elemental/v3/pkg/sys/log"
+	"github.com/suse/elemental/v3/pkg/log"
 )
 
-type Runner interface {
-	InitCmd(string, ...string) *exec.Cmd
-	Run(string, ...string) ([]byte, error)
-	RunCmd(cmd *exec.Cmd) ([]byte, error)
-	CommandExists(command string) bool
-	GetLogger() log.Logger
-	SetLogger(logger log.Logger)
+type run struct {
+	logger log.Logger
 }
 
-type RealRunner struct {
-	Logger log.Logger
+type RunOption func(r *run)
+
+func WithLogger(l log.Logger) RunOption {
+	return func(r *run) {
+		r.logger = l
+	}
 }
 
-func (r RealRunner) CommandExists(command string) bool {
+func NewRunner(opts ...RunOption) *run {
+	r := &run{}
+	for _, o := range opts {
+		o(r)
+	}
+	return r
+}
+
+func (r run) CommandExists(command string) bool {
 	_, err := exec.LookPath(command)
 	return err == nil
 }
 
-func (r RealRunner) InitCmd(command string, args ...string) *exec.Cmd {
+func (r run) InitCmd(command string, args ...string) *exec.Cmd {
 	return exec.Command(command, args...)
 }
 
-func (r RealRunner) RunCmd(cmd *exec.Cmd) ([]byte, error) {
+func (r run) RunCmd(cmd *exec.Cmd) ([]byte, error) {
 	return cmd.CombinedOutput()
 }
 
-func (r RealRunner) Run(command string, args ...string) ([]byte, error) {
+func (r run) Run(command string, args ...string) ([]byte, error) {
 	r.debug(fmt.Sprintf("Running cmd: '%s %s'", command, strings.Join(args, " ")))
 	cmd := r.InitCmd(command, args...)
 	out, err := r.RunCmd(cmd)
@@ -61,16 +68,8 @@ func (r RealRunner) Run(command string, args ...string) ([]byte, error) {
 	return out, err
 }
 
-func (r RealRunner) GetLogger() log.Logger {
-	return r.Logger
-}
-
-func (r *RealRunner) SetLogger(logger log.Logger) {
-	r.Logger = logger
-}
-
-func (r RealRunner) debug(msg string) {
-	if r.Logger != nil {
-		r.Logger.Debug(msg)
+func (r run) debug(msg string) {
+	if r.logger != nil {
+		r.logger.Debug(msg)
 	}
 }

@@ -21,10 +21,10 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/suse/elemental/v3/pkg/sys/log"
+	"github.com/suse/elemental/v3/pkg/log"
 )
 
-type FakeRunner struct {
+type Runner struct {
 	cmds        [][]string
 	ReturnValue []byte
 	SideEffect  func(command string, args ...string) ([]byte, error)
@@ -33,15 +33,15 @@ type FakeRunner struct {
 	CmdNotFound string
 }
 
-func NewFakeRunner() *FakeRunner {
-	return &FakeRunner{cmds: [][]string{}, ReturnValue: []byte{}, SideEffect: nil, ReturnError: nil}
+func NewRunner() *Runner {
+	return &Runner{cmds: [][]string{}, ReturnValue: []byte{}, SideEffect: nil, ReturnError: nil}
 }
 
-func (r *FakeRunner) CommandExists(command string) bool {
+func (r *Runner) CommandExists(command string) bool {
 	return command != r.CmdNotFound
 }
 
-func (r *FakeRunner) Run(command string, args ...string) ([]byte, error) {
+func (r *Runner) Run(command string, args ...string) ([]byte, error) {
 	r.debug(fmt.Sprintf("Running cmd: '%s %s'", command, strings.Join(args, " ")))
 	r.InitCmd(command, args...)
 	out, err := r.RunCmd(nil)
@@ -51,7 +51,7 @@ func (r *FakeRunner) Run(command string, args ...string) ([]byte, error) {
 	return out, err
 }
 
-func (r *FakeRunner) RunCmd(_ *exec.Cmd) ([]byte, error) {
+func (r *Runner) RunCmd(_ *exec.Cmd) ([]byte, error) {
 	if r.SideEffect != nil {
 		if len(r.cmds) > 0 {
 			lastCmd := len(r.cmds) - 1
@@ -61,19 +61,19 @@ func (r *FakeRunner) RunCmd(_ *exec.Cmd) ([]byte, error) {
 	return r.ReturnValue, r.ReturnError
 }
 
-func (r *FakeRunner) InitCmd(command string, args ...string) *exec.Cmd {
+func (r *Runner) InitCmd(command string, args ...string) *exec.Cmd {
 	r.cmds = append(r.cmds, append([]string{command}, args...))
 	return nil
 }
 
-func (r *FakeRunner) ClearCmds() {
+func (r *Runner) ClearCmds() {
 	r.cmds = [][]string{}
 }
 
 // CmdsMatch matches the commands list in order. Note HasPrefix is being used to evaluate the
 // match, so expecting initial part of the command is enough to get a match.
 // It facilitates testing commands with dynamic arguments (aka temporary files)
-func (r FakeRunner) CmdsMatch(cmdList [][]string) error {
+func (r Runner) CmdsMatch(cmdList [][]string) error {
 	if len(cmdList) != len(r.cmds) {
 		return fmt.Errorf("number of calls mismatch, expected %d calls but got %d", len(cmdList), len(r.cmds))
 	}
@@ -89,7 +89,7 @@ func (r FakeRunner) CmdsMatch(cmdList [][]string) error {
 
 // IncludesCmds checks the given commands were executed in any order.
 // Note it uses HasPrefix to match commands, see CmdsMatch.
-func (r FakeRunner) IncludesCmds(cmdList [][]string) error {
+func (r Runner) IncludesCmds(cmdList [][]string) error {
 	for _, cmd := range cmdList {
 		expect := strings.Join(cmd[:], " ")
 		found := false
@@ -109,7 +109,7 @@ func (r FakeRunner) IncludesCmds(cmdList [][]string) error {
 
 // MatchMilestones matches all the given commands were executed in the provided
 // order. Note it uses HasPrefix to match commands, see CmdsMatch.
-func (r FakeRunner) MatchMilestones(cmdList [][]string) error {
+func (r Runner) MatchMilestones(cmdList [][]string) error {
 	var match string
 	for _, cmd := range r.cmds {
 		if len(cmdList) == 0 {
@@ -133,25 +133,25 @@ func (r FakeRunner) MatchMilestones(cmdList [][]string) error {
 
 // GetCmds returns the list of commands recorded by this FakeRunner instance
 // this is helpful to debug tests
-func (r FakeRunner) GetCmds() [][]string {
+func (r Runner) GetCmds() [][]string {
 	return r.cmds
 }
 
-func (r FakeRunner) GetLogger() log.Logger {
+func (r Runner) GetLogger() log.Logger {
 	return r.Logger
 }
 
-func (r *FakeRunner) SetLogger(logger log.Logger) {
+func (r *Runner) SetLogger(logger log.Logger) {
 	r.Logger = logger
 }
 
-func (r FakeRunner) error(msg string) {
+func (r Runner) error(msg string) {
 	if r.Logger != nil {
 		r.Logger.Error(msg)
 	}
 }
 
-func (r FakeRunner) debug(msg string) {
+func (r Runner) debug(msg string) {
 	if r.Logger != nil {
 		r.Logger.Debug(msg)
 	}

@@ -24,21 +24,10 @@ const (
 	Binary = "/usr/bin/mount"
 )
 
-// This is is just a redefinition of mount.Interface to types.Mounter types
-type Mounter interface {
-	Mount(source string, target string, fstype string, options []string) error
-	Unmount(target string) error
-	IsLikelyNotMountPoint(path string) (bool, error)
-
-	// Other potentially interesting but unused methods from the interface
-	//IsMountPoint(path string) (bool, error)
-	//GetMountRefs(path string) ([]string, error)
-}
-
-func NewMounter(binary string) Mounter {
+func NewMounter(binary string) mount.Interface {
 	return mount.NewWithoutSystemd(binary)
 }
 
-func NewDummyMounter() Mounter {
+func NewDummyMounter() mount.Interface {
 	return mount.NewFakeMounter([]mount.MountPoint{})
 }

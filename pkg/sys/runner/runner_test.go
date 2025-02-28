@@ -23,7 +23,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/suse/elemental/v3/pkg/sys/log"
+	"github.com/suse/elemental/v3/pkg/log"
 	"github.com/suse/elemental/v3/pkg/sys/runner"
 )
 
@@ -34,43 +34,35 @@ func TestRunnerSuite(t *testing.T) {
 
 var _ = Describe("Runner", Label("runner"), func() {
 	It("Runs commands on the real Runner", func() {
-		r := runner.RealRunner{}
+		r := runner.NewRunner()
 		_, err := r.Run("pwd")
 		Expect(err).To(BeNil())
 	})
-	It("Sets and gets the logger on the real runner", func() {
-		r := runner.RealRunner{}
-		Expect(r.GetLogger()).To(BeNil())
-		logger := log.NewNullLogger()
-		r.SetLogger(logger)
-		Expect(r.GetLogger()).To(Equal(logger))
-	})
-
 	It("logs the command when on debug", func() {
 		memLog := &bytes.Buffer{}
-		logger := log.NewBufferLogger(memLog)
+		logger := log.New(log.WithBuffer(memLog))
 		logger.SetLevel(log.DebugLevel())
-		r := runner.RealRunner{Logger: logger}
+		r := runner.NewRunner(runner.WithLogger(logger))
 		_, err := r.Run("echo", "-n", "Some message")
 		Expect(err).To(BeNil())
 		Expect(memLog.String()).To(ContainSubstring("echo -n Some message"))
 	})
 	It("logs when command is not found in debug mode", func() {
 		memLog := &bytes.Buffer{}
-		logger := log.NewBufferLogger(memLog)
+		logger := log.New(log.WithBuffer(memLog))
 		logger.SetLevel(log.DebugLevel())
-		r := runner.RealRunner{Logger: logger}
+		r := runner.NewRunner(runner.WithLogger(logger))
 		_, err := r.Run("IAmMissing")
 		Expect(err).NotTo(BeNil())
 		Expect(memLog.String()).To(ContainSubstring("not found"))
 	})
 	It("returns false if command does not exists", func() {
-		r := runner.RealRunner{}
+		r := runner.NewRunner()
 		exists := r.CommandExists("THISCOMMANDSHOULDNOTBETHERECOMEON")
 		Expect(exists).To(BeFalse())
 	})
 	It("returns true if command exists", func() {
-		r := runner.RealRunner{}
+		r := runner.NewRunner()
 		exists := r.CommandExists("true")
 		Expect(exists).To(BeTrue())
 	})
