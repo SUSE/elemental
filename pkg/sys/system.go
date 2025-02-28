@@ -50,47 +50,47 @@ type Syscall interface {
 }
 
 type System struct {
-	Logger   log.Logger
-	FS       FS
-	Mounter  Mounter
-	Runner   Runner
-	Syscall  Syscall
-	Platform *platform.Platform
+	logger   log.Logger
+	fs       FS
+	mounter  Mounter
+	runner   Runner
+	syscall  Syscall
+	platform *platform.Platform
 }
 
 type SystemOpts func(a *System) error
 
 func WithFS(fs FS) SystemOpts {
 	return func(s *System) error {
-		s.FS = fs
+		s.fs = fs
 		return nil
 	}
 }
 
 func WithLogger(logger log.Logger) SystemOpts {
 	return func(s *System) error {
-		s.Logger = logger
+		s.logger = logger
 		return nil
 	}
 }
 
 func WithSyscall(syscall Syscall) SystemOpts {
 	return func(s *System) error {
-		s.Syscall = syscall
+		s.syscall = syscall
 		return nil
 	}
 }
 
 func WithMounter(mounter Mounter) SystemOpts {
 	return func(r *System) error {
-		r.Mounter = mounter
+		r.mounter = mounter
 		return nil
 	}
 }
 
 func WithRunner(runner Runner) SystemOpts {
 	return func(r *System) error {
-		r.Runner = runner
+		r.runner = runner
 		return nil
 	}
 }
@@ -101,7 +101,7 @@ func WithPlatform(pf string) SystemOpts {
 		if err != nil {
 			return err
 		}
-		s.Platform = p
+		s.platform = p
 		return nil
 	}
 }
@@ -109,11 +109,11 @@ func WithPlatform(pf string) SystemOpts {
 func NewSystem(opts ...SystemOpts) (*System, error) {
 	logger := log.New()
 	sysObj := &System{
-		FS:      vfs.OSFS(),
-		Logger:  logger,
-		Syscall: syscall.Syscall(),
-		Runner:  runner.NewRunner(),
-		Mounter: mounter.NewMounter(mounter.Binary),
+		fs:      vfs.OSFS(),
+		logger:  logger,
+		syscall: syscall.Syscall(),
+		runner:  runner.NewRunner(),
+		mounter: mounter.NewMounter(mounter.Binary),
 	}
 
 	for _, o := range opts {
@@ -124,16 +124,40 @@ func NewSystem(opts ...SystemOpts) (*System, error) {
 	}
 
 	// Defer the runner creation in case the caller set a custom logger
-	if sysObj.Runner == nil {
-		sysObj.Runner = runner.NewRunner(runner.WithLogger(sysObj.Logger))
+	if sysObj.runner == nil {
+		sysObj.runner = runner.NewRunner(runner.WithLogger(sysObj.logger))
 	}
 
-	if sysObj.Platform == nil {
+	if sysObj.platform == nil {
 		defaultPlatform, err := platform.NewPlatformFromArch(runtime.GOARCH)
 		if err != nil {
 			return nil, err
 		}
-		sysObj.Platform = defaultPlatform
+		sysObj.platform = defaultPlatform
 	}
 	return sysObj, nil
+}
+
+func (s System) Platform() *platform.Platform {
+	return s.platform
+}
+
+func (s System) FS() FS {
+	return s.fs
+}
+
+func (s System) Syscall() Syscall {
+	return s.syscall
+}
+
+func (s System) Mounter() Mounter {
+	return s.mounter
+}
+
+func (s System) Runner() Runner {
+	return s.runner
+}
+
+func (s System) Logger() log.Logger {
+	return s.logger
 }

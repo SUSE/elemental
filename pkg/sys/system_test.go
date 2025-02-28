@@ -56,20 +56,20 @@ var _ = Describe("System", Label("system"), func() {
 			sys.WithRunner(runner), sys.WithSyscall(syscall),
 		)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(s.Runner).To(BeIdenticalTo(runner))
-		Expect(s.Mounter).To(BeIdenticalTo(mounter))
-		Expect(s.FS).To(BeIdenticalTo(fs))
-		Expect(s.Logger).To(BeIdenticalTo(logger))
-		Expect(s.Syscall).To(BeIdenticalTo(syscall))
-		Expect(s.Platform).To(Equal(platform))
+		Expect(s.Runner()).To(BeIdenticalTo(runner))
+		Expect(s.Mounter()).To(BeIdenticalTo(mounter))
+		Expect(s.FS()).To(BeIdenticalTo(fs))
+		Expect(s.Logger()).To(BeIdenticalTo(logger))
+		Expect(s.Syscall()).To(BeIdenticalTo(syscall))
+		Expect(s.Platform()).To(Equal(platform))
 	})
-	It("It is initalized with all defaults and can be cleared", func() {
+	It("It is initalized with all defaults", func() {
 		platform, err := platform.NewPlatformFromArch(runtime.GOARCH)
 		Expect(err).NotTo(HaveOccurred())
 		s, err := sys.NewSystem()
 		Expect(err).ToNot(HaveOccurred())
-		Expect(s.Runner).NotTo(BeIdenticalTo(runner))
-		Expect(s.Platform).To(Equal(platform))
+		Expect(s.Runner()).NotTo(BeIdenticalTo(runner))
+		Expect(s.Platform()).To(Equal(platform))
 	})
 	It("Fails with invalid platform", func() {
 		_, err := sys.NewSystem(
