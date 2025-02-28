@@ -4,8 +4,8 @@ import (
 	"log"
 	"os"
 
-	"github.com/suse/elemental/pkg/cli/action"
-	"github.com/suse/elemental/pkg/cli/cmd"
+	"github.com/suse/elemental/internal/cli/action"
+	"github.com/suse/elemental/internal/cli/cmd"
 	"github.com/urfave/cli/v2"
 )
 

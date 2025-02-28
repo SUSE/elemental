@@ -3,12 +3,12 @@ package action
 import (
 	"log"
 
-	"github.com/suse/elemental/pkg/cli/cmd"
+	"github.com/suse/elemental/internal/cli/cmd"
 	"github.com/urfave/cli/v2"
 )
 
-func Build(*cli.Context) error {
-	args := &cmd.BuildArgs
+func Install(*cli.Context) error {
+	args := &cmd.InstallArgs
 
 	log.Printf("args: %+v", args)
 
