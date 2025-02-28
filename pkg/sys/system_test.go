@@ -35,10 +35,6 @@ func TestSysSuite(t *testing.T) {
 	RunSpecs(t, "Sys test suite")
 }
 
-var _ = AfterEach(func() {
-	sys.ClearSystem()
-})
-
 var _ = Describe("System", Label("system"), func() {
 	var mounter *mocksys.FakeMounter
 	var runner *mocksys.FakeRunner
@@ -55,12 +51,12 @@ var _ = Describe("System", Label("system"), func() {
 	It("Can be set to use custom implementations", func() {
 		platform, err := platform.ParsePlatform("linux/arm64")
 		Expect(err).NotTo(HaveOccurred())
-		sys.SetSystem(
+		s, err := sys.NewSystem(
 			sys.WithFS(fs), sys.WithLogger(logger),
 			sys.WithMounter(mounter), sys.WithPlatform("linux/arm64"),
 			sys.WithRunner(runner), sys.WithSyscall(syscall),
 		)
-		s := sys.GetSystem()
+		Expect(err).ToNot(HaveOccurred())
 		Expect(s.Runner).To(BeIdenticalTo(runner))
 		Expect(s.Mounter).To(BeIdenticalTo(mounter))
 		Expect(s.FS).To(BeIdenticalTo(fs))
@@ -71,15 +67,17 @@ var _ = Describe("System", Label("system"), func() {
 	It("It is initalized with all defaults and can be cleared", func() {
 		platform, err := platform.NewPlatformFromArch(runtime.GOARCH)
 		Expect(err).NotTo(HaveOccurred())
-		sys.SetSystem()
-		s := sys.GetSystem()
+		s, err := sys.NewSystem()
+		Expect(err).ToNot(HaveOccurred())
 		Expect(s.Runner).NotTo(BeIdenticalTo(runner))
 		Expect(s.Platform).To(Equal(platform))
-		sys.ClearSystem()
-		Expect(s.Runner).To(BeNil())
-
 	})
-	It("Panics if GetSystem is called before initializing it", func() {
-		Expect(func() { _ = sys.GetSystem() }).To(Panic())
+	It("Fails with invalid platform", func() {
+		_, err := sys.NewSystem(
+			sys.WithFS(fs), sys.WithLogger(logger),
+			sys.WithMounter(mounter), sys.WithPlatform("linux/s390"),
+			sys.WithRunner(runner), sys.WithSyscall(syscall),
+		)
+		Expect(err).To(HaveOccurred())
 	})
 })

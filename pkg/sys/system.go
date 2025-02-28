@@ -18,7 +18,6 @@ package sys
 
 import (
 	"runtime"
-	"sync"
 
 	"github.com/suse/elemental/v3/pkg/sys/log"
 	"github.com/suse/elemental/v3/pkg/sys/mounter"
@@ -28,118 +27,93 @@ import (
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
 
-type system struct {
+type System struct {
 	Logger   log.Logger
 	FS       vfs.FS
 	Mounter  mounter.Mounter
 	Runner   runner.Runner
 	Syscall  syscall.SyscallInterface
 	Platform *platform.Platform
-
-	initiated bool
 }
 
-var sysObj system
-var lock = &sync.Mutex{}
+type SystemOpts func(a *System) error
 
-type SystemOpts func(a *system)
-
-func WithFS(fs vfs.FS) func(r *system) {
-	return func(s *system) {
+func WithFS(fs vfs.FS) SystemOpts {
+	return func(s *System) error {
 		s.FS = fs
+		return nil
 	}
 }
 
-func WithLogger(logger log.Logger) func(r *system) {
-	return func(s *system) {
+func WithLogger(logger log.Logger) SystemOpts {
+	return func(s *System) error {
 		s.Logger = logger
+		return nil
 	}
 }
 
-func WithSyscall(syscall syscall.SyscallInterface) func(r *system) {
-	return func(s *system) {
+func WithSyscall(syscall syscall.SyscallInterface) SystemOpts {
+	return func(s *System) error {
 		s.Syscall = syscall
+		return nil
 	}
 }
 
-func WithMounter(mounter mounter.Mounter) func(r *system) {
-	return func(r *system) {
+func WithMounter(mounter mounter.Mounter) SystemOpts {
+	return func(r *System) error {
 		r.Mounter = mounter
+		return nil
 	}
 }
 
-func WithRunner(runner runner.Runner) func(r *system) {
-	return func(r *system) {
+func WithRunner(runner runner.Runner) SystemOpts {
+	return func(r *System) error {
 		r.Runner = runner
+		return nil
 	}
 }
 
-func WithPlatform(pf string) func(r *system) {
-	return func(s *system) {
+func WithPlatform(pf string) SystemOpts {
+	return func(s *System) error {
 		p, err := platform.ParsePlatform(pf)
 		if err != nil {
-			s.Logger.Errorf("error parsing provided platform (%s): %s", pf, err.Error())
-			return
+			return err
 		}
 		s.Platform = p
+		return nil
 	}
 }
 
-func SetSystem(opts ...SystemOpts) {
-	lock.Lock()
-	defer lock.Unlock()
-
-	if !sysObj.initiated {
-		logger := log.NewLogger()
-		sysObj.FS = vfs.OSFS()
-		sysObj.Logger = logger
-		sysObj.Syscall = &syscall.RealSyscall{}
-		sysObj.Runner = &runner.RealRunner{Logger: logger}
-		sysObj.Mounter = mounter.NewMounter(mounter.Binary)
-
-		for _, o := range opts {
-			o(&sysObj)
-		}
-
-		// Now check if the runner has a logger inside, otherwise point our logger into it
-		// This can happen if we set the WithRunner option as that doesn't set a logger
-		if sysObj.Runner.GetLogger() == nil {
-			sysObj.Runner.SetLogger(sysObj.Logger)
-		}
-
-		if sysObj.Platform == nil {
-			defaultPlatform, err := platform.NewPlatformFromArch(runtime.GOARCH)
-			if err != nil {
-				sysObj.Logger.Errorf("error parsing default platform (%s): %s", runtime.GOARCH, err.Error())
-				return
-			}
-			sysObj.Platform = defaultPlatform
-		}
-		sysObj.initiated = true
-		return
+func NewSystem(opts ...SystemOpts) (*System, error) {
+	logger := log.NewLogger()
+	sysObj := &System{
+		FS:      vfs.OSFS(),
+		Logger:  logger,
+		Syscall: &syscall.RealSyscall{},
+		Runner:  &runner.RealRunner{},
+		Mounter: mounter.NewMounter(mounter.Binary),
 	}
-	sysObj.Logger.Debug("can't set system instance, it is already initalized")
-}
 
-func GetSystem() *system {
-	lock.Lock()
-	defer lock.Unlock()
-
-	if !sysObj.initiated {
-		panic("system instance not initialized")
+	for _, o := range opts {
+		err := o(sysObj)
+		if err != nil {
+			return nil, err
+		}
 	}
-	return &sysObj
-}
 
-// ClearSystem clears the system singleton varible, this is meant to be used ONLY in tests
-func ClearSystem() {
-	lock.Lock()
-	defer lock.Unlock()
+	// Now check if the runner has a logger inside, otherwise point our logger into it
+	// This can happen if we set the WithRunner option as that doesn't set a logger
+	if sysObj.Runner.GetLogger() == nil {
+		sysObj.Runner.SetLogger(sysObj.Logger)
+	}
 
-	sysObj.FS = nil
-	sysObj.Logger = nil
-	sysObj.Syscall = nil
-	sysObj.Runner = nil
-	sysObj.Mounter = nil
-	sysObj.initiated = false
+	if sysObj.Platform == nil {
+		defaultPlatform, err := platform.NewPlatformFromArch(runtime.GOARCH)
+		if err != nil {
+			sysObj.Logger.Errorf("error parsing default platform (%s): %s", runtime.GOARCH, err.Error())
+			return nil, err
+		}
+		sysObj.Platform = defaultPlatform
+	}
+	return sysObj, nil
 }
