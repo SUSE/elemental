@@ -151,7 +151,7 @@ var _ = Describe("FS", Label("fs"), func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(path).To(Equal("nonexisting"))
 
-			path, err = sys.ReadLink(tfs, "/folder/subfolder")
+			_, err = sys.ReadLink(tfs, "/folder/subfolder")
 			Expect(err).To(HaveOccurred())
 		})
 		It("Reads symlinks in OSFS", func() {
@@ -172,7 +172,7 @@ var _ = Describe("FS", Label("fs"), func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(path).To(Equal("nonexisting"))
 
-			path, err = sys.ReadLink(tfs, tempDir)
+			_, err = sys.ReadLink(tfs, tempDir)
 			Expect(err).To(HaveOccurred())
 		})
 	})

@@ -18,39 +18,24 @@ package log
 
 import (
 	"bytes"
-	"fmt"
 	"io"
-	"regexp"
-	"strings"
 
 	log "github.com/sirupsen/logrus"
 )
 
 // Logger is the interface we want for our logger, so we can plug different ones easily
 type Logger interface {
-	Info(...any)
-	Warn(...any)
-	Debug(...any)
-	Error(...any)
-	Fatal(...any)
-	Warning(...any)
-	Panic(...any)
-	Trace(...any)
-	Infof(string, ...any)
-	Warnf(string, ...any)
-	Debugf(string, ...any)
-	Errorf(string, ...any)
-	Fatalf(string, ...any)
-	Panicf(string, ...any)
-	Tracef(string, ...any)
+	Info(string, ...any)
+	Warn(string, ...any)
+	Debug(string, ...any)
+	Error(string, ...any)
+	Fatal(string, ...any)
+	Panic(string, ...any)
+	Trace(string, ...any)
 
 	SetLevel(level uint32)
 	GetLevel() uint32
 	SetOutput(writer io.Writer)
-
-	SetContext(string)
-	SpinnerStop()
-	Spinner()
 }
 
 var _ Logger = (*logrusWrapper)(nil)
@@ -104,48 +89,30 @@ func (w *logrusWrapper) SetLevel(level uint32) {
 	w.Logger.SetLevel(log.Level(level))
 }
 
-var emojiStrip = regexp.MustCompile(`[:][\w]+[:]`)
-
-func (w *logrusWrapper) Debug(args ...any) {
-	converted := convert(args)
-	w.Logger.Debug(converted)
+func (w *logrusWrapper) Debug(msg string, args ...any) {
+	w.Logger.Debugf(msg, args...)
 }
 
-func (w *logrusWrapper) Info(args ...any) {
-	converted := convert(args)
-	w.Logger.Info(converted)
+func (w *logrusWrapper) Info(msg string, args ...any) {
+	w.Logger.Infof(msg, args...)
 }
 
-func (w *logrusWrapper) Warn(args ...any) {
-	converted := convert(args)
-	w.Logger.Warn(converted)
+func (w *logrusWrapper) Warn(msg string, args ...any) {
+	w.Logger.Warnf(msg, args...)
 }
 
-func (w *logrusWrapper) Error(args ...any) {
-	converted := convert(args)
-	w.Logger.Error(converted)
+func (w *logrusWrapper) Error(msg string, args ...any) {
+	w.Logger.Errorf(msg, args...)
 }
 
-func (w *logrusWrapper) Fatal(args ...any) {
-	converted := convert(args)
-	w.Logger.Fatal(converted)
+func (w *logrusWrapper) Fatal(msg string, args ...any) {
+	w.Logger.Fatalf(msg, args...)
 }
 
-// convert changes a list of interfaces into a proper joined string ready to log
-func convert(args []any) string {
-	var together []string
-	// Matches a :WORD: and any extra space after that and the next word to remove emojis
-	// which are like ":house: realMessageStartsHere"
-	emojiStrip = regexp.MustCompile(`[:][\w]+[:]\s`)
-	for _, a := range args {
-		toClean := fmt.Sprintf("%v", a)                     // coerce into string
-		cleaned := emojiStrip.ReplaceAllString(toClean, "") // remove any emoji
-		trimmed := strings.Trim(cleaned, " ")               // trim any spaces in prefix/suffix
-		together = append(together, trimmed)
-	}
-	return strings.Join(together, " ") // return them nicely joined with spaces like a normal phrase
+func (w *logrusWrapper) Panic(msg string, args ...any) {
+	w.Logger.Panicf(msg, args...)
 }
 
-func (w *logrusWrapper) SetContext(string) {}
-func (w *logrusWrapper) Spinner()          {}
-func (w *logrusWrapper) SpinnerStop()      {}
+func (w *logrusWrapper) Trace(msg string, args ...any) {
+	w.Logger.Tracef(msg, args...)
+}
