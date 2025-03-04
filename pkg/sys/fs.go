@@ -20,6 +20,7 @@ package sys
 import (
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -355,4 +356,58 @@ func readDir(vfs FS, dirname string) ([]fs.DirEntry, error) {
 	}
 	sort.Slice(dirs, func(i, j int) bool { return dirs[i].Name() < dirs[j].Name() })
 	return dirs, nil
+}
+
+// CopyFile Copies source file to target file using Fs interface. If target
+// is  directory source is copied into that directory using source name file.
+// File mode is preserved.
+func CopyFile(fs FS, source string, target string) error {
+	return ConcatFiles(fs, []string{source}, target)
+}
+
+// ConcatFiles Copies source files to target file using Fs interface.
+// Source files are concatenated into target file in the given order.
+// If target is a directory source is copied into that directory using
+// 1st source name file. The result keeps the file mode of the 1st source.
+func ConcatFiles(fs FS, sources []string, target string) (err error) {
+	if len(sources) == 0 {
+		return fmt.Errorf("empty sources list")
+	}
+	if dir, _ := IsDir(fs, target); dir {
+		target = filepath.Join(target, filepath.Base(sources[0]))
+	}
+	fInf, err := fs.Stat(sources[0])
+	if err != nil {
+		return err
+	}
+
+	targetFile, err := fs.Create(target)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err == nil {
+			err = targetFile.Close()
+		} else {
+			_ = fs.Remove(target)
+		}
+	}()
+
+	var sourceFile *os.File
+	for _, source := range sources {
+		sourceFile, err = fs.OpenFile(source, os.O_RDONLY, FilePerm)
+		if err != nil {
+			return err
+		}
+		_, err = io.Copy(targetFile, sourceFile)
+		if err != nil {
+			return err
+		}
+		err = sourceFile.Close()
+		if err != nil {
+			return err
+		}
+	}
+
+	return fs.Chmod(target, fInf.Mode())
 }
