@@ -33,12 +33,12 @@ func TestLogSuite(t *testing.T) {
 }
 
 var _ = Describe("logger", Label("log"), func() {
-	It("TestNewLogger returns a logger interface", func() {
+	It("New returns a logger interface based on logrus", func() {
 		l1 := log.New()
 		l2 := logrus.New()
 		Expect(reflect.TypeOf(l1).Kind()).To(Equal(reflect.TypeOf(l2).Kind()))
 	})
-	It("TestNewNullLogger returns logger interface", func() {
+	It("New with options returns a logger interface based on logrus", func() {
 		l1 := log.New(log.WithDiscardAll())
 		l2 := logrus.New()
 		Expect(reflect.TypeOf(l1).Kind()).To(Equal(reflect.TypeOf(l2).Kind()))
