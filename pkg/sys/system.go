@@ -41,7 +41,6 @@ type Runner interface {
 	InitCmd(string, ...string) *exec.Cmd
 	Run(string, ...string) ([]byte, error)
 	RunCmd(cmd *exec.Cmd) ([]byte, error)
-	CommandExists(command string) bool
 }
 
 type Syscall interface {
@@ -160,4 +159,10 @@ func (s System) Runner() Runner {
 
 func (s System) Logger() log.Logger {
 	return s.logger
+}
+
+// CommandExists
+func CommandExists(command string) bool {
+	_, err := exec.LookPath(command)
+	return err == nil
 }

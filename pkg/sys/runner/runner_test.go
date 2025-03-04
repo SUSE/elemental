@@ -56,14 +56,4 @@ var _ = Describe("Runner", Label("runner"), func() {
 		Expect(err).NotTo(BeNil())
 		Expect(memLog.String()).To(ContainSubstring("not found"))
 	})
-	It("returns false if command does not exists", func() {
-		r := runner.NewRunner()
-		exists := r.CommandExists("THISCOMMANDSHOULDNOTBETHERECOMEON")
-		Expect(exists).To(BeFalse())
-	})
-	It("returns true if command exists", func() {
-		r := runner.NewRunner()
-		exists := r.CommandExists("true")
-		Expect(exists).To(BeTrue())
-	})
 })

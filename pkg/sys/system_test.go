@@ -79,4 +79,10 @@ var _ = Describe("System", Label("system"), func() {
 		)
 		Expect(err).To(HaveOccurred())
 	})
+	It("Checks command existence in path", func() {
+		Expect(sys.CommandExists("true")).To(BeTrue())
+		Expect(sys.CommandExists("non-existing-command")).To(BeFalse())
+		// If full path provided it does not check on PATH
+		Expect(sys.CommandExists("/sh")).To(BeFalse())
+	})
 })
