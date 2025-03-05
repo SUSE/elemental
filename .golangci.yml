@@ -31,7 +31,7 @@ linters-settings:
     min-complexity: 20 # default is 30 which is too high
   goheader:
     template: |-
-      Copyright © 2022 - {{year}} SUSE LLC
+      Copyright © {{year-range}} SUSE LLC
 
       Licensed under the Apache License, Version 2.0 (the "License");
       you may not use this file except in compliance with the License.
