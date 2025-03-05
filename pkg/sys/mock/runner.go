@@ -18,11 +18,13 @@ limitations under the License.
 package mock
 
 import (
+	"bufio"
+	"context"
 	"fmt"
-	"os/exec"
 	"strings"
 
 	"github.com/suse/elemental/v3/pkg/log"
+	"github.com/suse/elemental/v3/pkg/sys"
 )
 
 type Runner struct {
@@ -31,40 +33,43 @@ type Runner struct {
 	SideEffect  func(command string, args ...string) ([]byte, error)
 	ReturnError error
 	Logger      log.Logger
-	CmdNotFound string
 }
+
+var _ sys.Runner = (*Runner)(nil)
 
 func NewRunner() *Runner {
 	return &Runner{cmds: [][]string{}, ReturnValue: []byte{}, SideEffect: nil, ReturnError: nil}
 }
 
-func (r *Runner) CommandExists(command string) bool {
-	return command != r.CmdNotFound
-}
-
 func (r *Runner) Run(command string, args ...string) ([]byte, error) {
+	err := r.ReturnError
+	out := r.ReturnValue
+
 	r.debug(fmt.Sprintf("Running cmd: '%s %s'", command, strings.Join(args, " ")))
-	r.InitCmd(command, args...)
-	out, err := r.RunCmd(nil)
+	r.cmds = append(r.cmds, append([]string{command}, args...))
+	if r.SideEffect != nil {
+		if len(r.cmds) > 0 {
+			lastCmd := len(r.cmds) - 1
+			out, err = r.SideEffect(r.cmds[lastCmd][0], r.cmds[lastCmd][1:]...)
+		}
+	}
 	if err != nil {
 		r.error(fmt.Sprintf("Error running command: %s", err.Error()))
 	}
 	return out, err
 }
 
-func (r *Runner) RunCmd(_ *exec.Cmd) ([]byte, error) {
-	if r.SideEffect != nil {
-		if len(r.cmds) > 0 {
-			lastCmd := len(r.cmds) - 1
-			return r.SideEffect(r.cmds[lastCmd][0], r.cmds[lastCmd][1:]...)
-		}
-	}
-	return r.ReturnValue, r.ReturnError
+func (r *Runner) RunContext(_ context.Context, command string, args ...string) ([]byte, error) {
+	return r.Run(command, args...)
 }
 
-func (r *Runner) InitCmd(command string, args ...string) *exec.Cmd {
-	r.cmds = append(r.cmds, append([]string{command}, args...))
-	return nil
+func (r *Runner) RunContextParseOutput(_ context.Context, stdoutH, _ func(string), command string, args ...string) error {
+	out, err := r.Run(command, args...)
+	scanner := bufio.NewScanner(strings.NewReader(string(out)))
+	for scanner.Scan() {
+		stdoutH(scanner.Text())
+	}
+	return err
 }
 
 func (r *Runner) ClearCmds() {

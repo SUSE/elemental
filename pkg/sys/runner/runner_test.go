@@ -19,7 +19,12 @@ package runner_test
 
 import (
 	"bytes"
+	"context"
+	"fmt"
+	"slices"
+	"sync"
 	"testing"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -56,5 +61,65 @@ var _ = Describe("Runner", Label("runner"), func() {
 		_, err := r.Run("IAmMissing")
 		Expect(err).NotTo(BeNil())
 		Expect(memLog.String()).To(ContainSubstring("not found"))
+	})
+	It("runs a command with context and it can be cancelled", func() {
+		r := runner.NewRunner()
+		ctx, cancel := context.WithCancel(context.Background())
+
+		var wg sync.WaitGroup
+		var err error
+
+		runWrapper := func() {
+			_, err = r.RunContext(ctx, "sleep", "300")
+			wg.Done()
+		}
+		before := time.Now()
+		wg.Add(1)
+		go runWrapper()
+		time.Sleep(300 * time.Millisecond)
+		cancel()
+		wg.Wait()
+
+		Expect(time.Now().After(before.Add(300 * time.Millisecond))).To(BeTrue())
+		Expect(time.Now().Before(before.Add(1 * time.Second))).To(BeTrue())
+		Expect(err).NotTo(BeNil())
+		Expect(err.Error()).To(ContainSubstring("killed"))
+	})
+	It("runs a command with context, it can be cancelled and parses output in real time", func() {
+		r := runner.NewRunner()
+		ctx, cancel := context.WithCancel(context.Background())
+
+		var wg sync.WaitGroup
+		var err error
+		var stderr, stdout []string
+
+		stdoutH := func(line string) {
+			stdout = append(stdout, line)
+		}
+		stderrH := func(line string) {
+			stderr = append(stderr, line)
+		}
+
+		runWrapper := func() {
+			err = r.RunContextParseOutput(ctx, stdoutH, stderrH, "sh", "-c", "while true; do echo stdout; echo stderr 1>&2; sleep 1; done")
+			wg.Done()
+		}
+		before := time.Now()
+		wg.Add(1)
+		go runWrapper()
+		time.Sleep(2500 * time.Millisecond)
+		cancel()
+		wg.Wait()
+
+		Expect(time.Now().After(before.Add(2500 * time.Millisecond))).To(BeTrue())
+		Expect(time.Now().Before(before.Add(3 * time.Second))).To(BeTrue())
+		Expect(err).NotTo(BeNil())
+		Expect(err.Error()).To(ContainSubstring("killed"))
+		Expect(len(stdout)).To(Equal(3))
+		Expect(slices.Contains(stdout, "stdout")).To(BeTrue())
+		Expect(len(stderr)).To(Equal(3))
+		Expect(slices.Contains(stderr, "stderr")).To(BeTrue())
+		fmt.Println(stdout)
+		fmt.Println(stderr)
 	})
 })

@@ -18,6 +18,7 @@ limitations under the License.
 package sys
 
 import (
+	"context"
 	"os/exec"
 	"runtime"
 
@@ -39,9 +40,9 @@ type Mounter interface {
 }
 
 type Runner interface {
-	InitCmd(string, ...string) *exec.Cmd
-	Run(string, ...string) ([]byte, error)
-	RunCmd(cmd *exec.Cmd) ([]byte, error)
+	Run(cmd string, args ...string) ([]byte, error)
+	RunContext(cxt context.Context, cmd string, args ...string) ([]byte, error)
+	RunContextParseOutput(ctx context.Context, stdoutH, stderrH func(line string), cmd string, args ...string) error
 }
 
 type Syscall interface {

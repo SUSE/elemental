@@ -1,6 +1,6 @@
-GINKGO?= "github.com/onsi/ginkgo/v2/ginkgo"
+GINKGO?="github.com/onsi/ginkgo/v2/ginkgo"
 
-PKG:=./pkg/...
+PKG?=./pkg/...
 
 .PHONY: unit-tests
 unit-tests:
