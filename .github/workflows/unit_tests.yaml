@@ -1,0 +1,43 @@
+name: Unit Tests
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          cache-dependency-path: go.sum
+          go-version-file: go.mod
+      - name: Run tests
+        env:
+          COV_THRESHOLD: "70"
+        run: |
+          set -e
+
+          make unit-tests
+
+          # Remove mock files from coverage analysis
+          sed -n -i '/\/mock\//!p' coverprofile.out
+          coverage=$(go tool cover -func=coverprofile.out | grep total | grep -Eo "[0-9]+\.[0-9]+")
+
+          if (( $(echo "${coverage} ${COV_THRESHOLD}" | awk '{print ($1 > $2)}') )); then
+            echo "Total Coverage is: ${coverage}%"
+          else
+            echo "Current test coverage (${coverage}%) is below the threshold (${COV_THRESHOLD}%)."
+            echo "Failed"
+            exit 1
+          fi
