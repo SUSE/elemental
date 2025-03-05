@@ -79,10 +79,10 @@ func (r Runner) CmdsMatch(cmdList [][]string) error {
 		return fmt.Errorf("number of calls mismatch, expected %d calls but got %d", len(cmdList), len(r.cmds))
 	}
 	for i, cmd := range cmdList {
-		expect := strings.Join(cmd[:], " ")
-		got := strings.Join(r.cmds[i][:], " ")
+		expect := strings.Join(cmd, " ")
+		got := strings.Join(r.cmds[i], " ")
 		if !strings.HasPrefix(got, expect) {
-			return fmt.Errorf("Expected command: '%s.*' got: '%s'", expect, got)
+			return fmt.Errorf("expected command: '%s.*' got: '%s'", expect, got)
 		}
 	}
 	return nil
@@ -92,10 +92,10 @@ func (r Runner) CmdsMatch(cmdList [][]string) error {
 // Note it uses HasPrefix to match commands, see CmdsMatch.
 func (r Runner) IncludesCmds(cmdList [][]string) error {
 	for _, cmd := range cmdList {
-		expect := strings.Join(cmd[:], " ")
+		expect := strings.Join(cmd, " ")
 		found := false
 		for _, rcmd := range r.cmds {
-			got := strings.Join(rcmd[:], " ")
+			got := strings.Join(rcmd, " ")
 			if strings.HasPrefix(got, expect) {
 				found = true
 				break
@@ -116,8 +116,8 @@ func (r Runner) MatchMilestones(cmdList [][]string) error {
 		if len(cmdList) == 0 {
 			break
 		}
-		got := strings.Join(cmd[:], " ")
-		match = strings.Join(cmdList[0][:], " ")
+		got := strings.Join(cmd, " ")
+		match = strings.Join(cmdList[0], " ")
 		if !strings.HasPrefix(got, match) {
 			continue
 		}

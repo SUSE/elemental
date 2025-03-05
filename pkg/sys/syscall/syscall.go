@@ -23,7 +23,7 @@ import (
 
 type systemCall struct{}
 
-func Syscall() *systemCall {
+func Syscall() *systemCall { //nolint:revive
 	return &systemCall{}
 }
 

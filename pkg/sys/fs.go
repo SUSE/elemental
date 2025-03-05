@@ -209,7 +209,7 @@ var (
 )
 
 func reseed() uint32 {
-	return uint32(time.Now().UnixNano() + int64(os.Getpid()))
+	return uint32(time.Now().UnixNano() + int64(os.Getpid())) //nolint:gosec // disable G115
 }
 
 func nextRandom() string {
@@ -312,7 +312,7 @@ func WalkDirFs(fs FS, root string, fn fs.WalkDirFunc) error {
 	} else {
 		err = walkDir(fs, root, &statDirEntry{info}, fn)
 	}
-	if err == filepath.SkipDir {
+	if errors.Is(err, filepath.SkipDir) {
 		return nil
 	}
 	return err
@@ -320,7 +320,7 @@ func WalkDirFs(fs FS, root string, fn fs.WalkDirFunc) error {
 
 func walkDir(fs FS, path string, d fs.DirEntry, walkDirFn fs.WalkDirFunc) error {
 	if err := walkDirFn(path, d, nil); err != nil || !d.IsDir() {
-		if err == filepath.SkipDir && d.IsDir() {
+		if errors.Is(err, filepath.SkipDir) && d.IsDir() {
 			// Successfully skipped directory.
 			err = nil
 		}
@@ -339,7 +339,7 @@ func walkDir(fs FS, path string, d fs.DirEntry, walkDirFn fs.WalkDirFunc) error 
 	for _, d1 := range dirs {
 		path1 := filepath.Join(path, d1.Name())
 		if err := walkDir(fs, path1, d1, walkDirFn); err != nil {
-			if err == filepath.SkipDir {
+			if errors.Is(err, filepath.SkipDir) {
 				break
 			}
 			return err

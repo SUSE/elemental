@@ -28,7 +28,7 @@ type vfsOS struct {
 	osfs vfs.FS
 }
 
-func OSFS() *vfsOS {
+func OSFS() *vfsOS { //nolint:revive
 	return &vfsOS{osfs: vfs.OSFS}
 }
 

@@ -37,7 +37,7 @@ func WithLogger(l log.Logger) RunOption {
 	}
 }
 
-func NewRunner(opts ...RunOption) *run {
+func NewRunner(opts ...RunOption) *run { //nolint:revive
 	r := &run{}
 	for _, o := range opts {
 		o(r)
