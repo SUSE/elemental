@@ -88,7 +88,7 @@ func (pl PartitionList) GetByNameOrLabel(name, label string) *Partition {
 	return part
 }
 
-// GetPartitionByLabel works like GetPartitionByLabel, but it will try to get as much info as possible from the existing
+// GetPartitionByLabel works like GetPartitionDeviceByLabel, but it will try to get as much info as possible from the existing
 // partition and return a Partition object
 func GetPartitionByLabel(s *sys.System, b Device, label string, attempts int) (*Partition, error) {
 	for range attempts {

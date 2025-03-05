@@ -41,13 +41,15 @@ func NewGhwDevice(s *sys.System) *ghwDevice { //nolint:revive
 var _ block.Device = (*ghwDevice)(nil)
 
 // ghwPartitionToInternalPartition transforms a block.Partition from ghw lib to our types.Partition type
-func ghwPartitionToInternalPartition(m sys.Mounter, partition *ghwblock.Partition) *block.Partition {
+func ghwPartitionToInternalPartition(m sys.Mounter, partition *ghwblock.Partition) (*block.Partition, error) {
 	mnts := []string{partition.MountPoint}
 	if partition.MountPoint != "" {
 		extraMnts, err := m.GetMountRefs(partition.MountPoint)
-		if err == nil {
-			mnts = append(mnts, extraMnts...)
+		if err != nil {
+			return nil, err
+
 		}
+		mnts = append(mnts, extraMnts...)
 	}
 	return &block.Partition{
 		FilesystemLabel: partition.FilesystemLabel,
@@ -58,7 +60,7 @@ func ghwPartitionToInternalPartition(m sys.Mounter, partition *ghwblock.Partitio
 		MountPoints:     mnts,
 		Path:            filepath.Join("/dev", partition.Name),
 		Disk:            filepath.Join("/dev", partition.Disk.Name),
-	}
+	}, nil
 }
 
 // GetAllPartitions returns all partitions in the system for all disks
@@ -70,7 +72,11 @@ func (b ghwDevice) GetAllPartitions() (block.PartitionList, error) {
 	}
 	for _, d := range blockDevices.Disks {
 		for _, part := range d.Partitions {
-			parts = append(parts, ghwPartitionToInternalPartition(b.mounter, part))
+			p, err := ghwPartitionToInternalPartition(b.mounter, part)
+			if err != nil {
+				return nil, err
+			}
+			parts = append(parts, p)
 		}
 	}
 
@@ -92,7 +98,11 @@ func (b ghwDevice) GetDevicePartitions(device string) (block.PartitionList, erro
 	for _, disk := range blockDevices.Disks {
 		if filepath.Join("/dev", disk.Name) == device {
 			for _, part := range disk.Partitions {
-				parts = append(parts, ghwPartitionToInternalPartition(b.mounter, part))
+				p, err := ghwPartitionToInternalPartition(b.mounter, part)
+				if err != nil {
+					return nil, err
+				}
+				parts = append(parts, p)
 			}
 		}
 	}
