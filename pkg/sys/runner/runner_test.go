@@ -20,7 +20,6 @@ package runner_test
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"slices"
 	"sync"
 	"testing"
@@ -119,7 +118,5 @@ var _ = Describe("Runner", Label("runner"), func() {
 		Expect(slices.Contains(stdout, "stdout")).To(BeTrue())
 		Expect(len(stderr)).To(Equal(3))
 		Expect(slices.Contains(stderr, "stderr")).To(BeTrue())
-		fmt.Println(stdout)
-		fmt.Println(stderr)
 	})
 })

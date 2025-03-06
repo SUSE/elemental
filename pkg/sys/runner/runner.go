@@ -21,6 +21,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"os/exec"
 	"strings"
@@ -71,10 +72,28 @@ func (r run) RunContext(ctx context.Context, command string, args ...string) ([]
 	return out, err
 }
 
-func (r run) RunContextParseOutput(ctx context.Context, stdoutH, stderrH func(string), command string, args ...string) error {
+func (r run) RunContextParseOutput(ctx context.Context, stdoutH, stderrH func(string), command string, args ...string) (retErr error) {
 	var err error
 	var stdoutP, stderrP io.ReadCloser
 	var wg sync.WaitGroup
+
+	closePipes := func() error {
+		var err error
+		if stderrP != nil {
+			err = stderrP.Close()
+		}
+		if stdoutP != nil {
+			err = errors.Join(err, stdoutP.Close())
+		}
+		return err
+	}
+	deferClose := func() {
+		err := closePipes()
+		if retErr == nil && err != nil {
+			retErr = err
+		}
+	}
+	defer deferClose()
 
 	r.debug("Running cmd: '%s %s'", command, strings.Join(args, " "))
 	cmd := exec.CommandContext(ctx, command, args...)
@@ -84,7 +103,6 @@ func (r run) RunContextParseOutput(ctx context.Context, stdoutH, stderrH func(st
 			r.debug("cound not pipe stdout for command '%s': %s", command, err.Error())
 			return err
 		}
-		defer stdoutP.Close()
 	}
 	if stderrH != nil {
 		stderrP, err = cmd.StderrPipe()
@@ -92,7 +110,6 @@ func (r run) RunContextParseOutput(ctx context.Context, stdoutH, stderrH func(st
 			r.debug("cound not pipe stderr for command '%s': %s", command, err.Error())
 			return err
 		}
-		defer stderrP.Close()
 	}
 	err = cmd.Start()
 	if err != nil {
@@ -116,16 +133,10 @@ func (r run) RunContextParseOutput(ctx context.Context, stdoutH, stderrH func(st
 		return err
 	}
 
-	if stderrP != nil {
-		_ = stderrP.Close()
-	}
-
-	if stdoutP != nil {
-		_ = stdoutP.Close()
-	}
+	err = closePipes()
 
 	wg.Wait()
-	return nil
+	return err
 }
 
 func (r run) debug(msg string, args ...any) {
