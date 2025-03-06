@@ -275,4 +275,162 @@ var _ = Describe("FS", Label("fs"), func() {
 			Expect(err).NotTo(BeNil())
 		})
 	})
+	Describe("ResolveLink", func() {
+		var rootDir, file, relSymlink, absSymlink, nestSymlink, brokenSymlink string
+
+		BeforeEach(func() {
+			// The root directory
+			rootDir = "/some/root"
+			Expect(sys.MkdirAll(tfs, rootDir, sys.DirPerm)).To(Succeed())
+
+			// The target file of all symlinks
+			file = "/path/with/needle/findme.extension"
+			Expect(sys.MkdirAll(tfs, filepath.Join(rootDir, filepath.Dir(file)), sys.DirPerm)).To(Succeed())
+			Expect(tfs.WriteFile(filepath.Join(rootDir, file), []byte("some data"), sys.FilePerm)).To(Succeed())
+
+			// A symlink pointing to a relative path
+			relSymlink = "/path/to/symlink/pointing-to-file"
+			Expect(sys.MkdirAll(tfs, filepath.Join(rootDir, filepath.Dir(relSymlink)), sys.DirPerm)).To(Succeed())
+			Expect(tfs.Symlink("../../with/needle/findme.extension", filepath.Join(rootDir, relSymlink))).To(Succeed())
+
+			// A symlink pointing to an absolute path
+			absSymlink = "/path/to/symlink/absolute-pointer"
+			Expect(sys.MkdirAll(tfs, filepath.Join(rootDir, filepath.Dir(absSymlink)), sys.DirPerm)).To(Succeed())
+			Expect(tfs.Symlink(file, filepath.Join(rootDir, absSymlink))).To(Succeed())
+
+			// A bunch of nested symlinks
+			nestSymlink = "/path/to/symlink/nested-pointer"
+			nestFst := "/path/to/symlink/nestFst"
+			nest2nd := "/path/to/nest2nd"
+			nest3rd := "/path/with/nest3rd"
+			Expect(tfs.Symlink("nestFst", filepath.Join(rootDir, nestSymlink))).To(Succeed())
+			Expect(tfs.Symlink(nest2nd, filepath.Join(rootDir, nestFst))).To(Succeed())
+			Expect(tfs.Symlink("../with/nest3rd", filepath.Join(rootDir, nest2nd))).To(Succeed())
+			Expect(tfs.Symlink("./needle/findme.extension", filepath.Join(rootDir, nest3rd))).To(Succeed())
+
+			// A broken symlink
+			brokenSymlink = "/path/to/symlink/broken"
+			Expect(tfs.Symlink("/path/to/nowhere", filepath.Join(rootDir, brokenSymlink))).To(Succeed())
+		})
+
+		It("resolves a simple relative symlink", func() {
+			systemPath := filepath.Join(rootDir, relSymlink)
+			Expect(sys.ResolveLink(tfs, systemPath, rootDir, sys.MaxLinkDepth)).To(Equal(filepath.Join(rootDir, file)))
+		})
+
+		It("resolves a simple absolute symlink", func() {
+			systemPath := filepath.Join(rootDir, absSymlink)
+			Expect(sys.ResolveLink(tfs, systemPath, rootDir, sys.MaxLinkDepth)).To(Equal(filepath.Join(rootDir, file)))
+		})
+
+		It("resolves some nested symlinks", func() {
+			systemPath := filepath.Join(rootDir, nestSymlink)
+			Expect(sys.ResolveLink(tfs, systemPath, rootDir, sys.MaxLinkDepth)).To(Equal(filepath.Join(rootDir, file)))
+		})
+
+		It("does not resolve broken links", func() {
+			systemPath := filepath.Join(rootDir, brokenSymlink)
+			// Return the symlink path without resolving it
+			resolved, err := sys.ResolveLink(tfs, systemPath, rootDir, sys.MaxLinkDepth)
+			Expect(resolved).To(Equal(systemPath))
+			Expect(err).To(HaveOccurred())
+		})
+
+		It("does not resolve too many levels of netsed links", func() {
+			systemPath := filepath.Join(rootDir, nestSymlink)
+			// Returns the symlink resolution up to the second level
+			resolved, err := sys.ResolveLink(tfs, systemPath, rootDir, 2)
+			Expect(resolved).To(Equal(filepath.Join(rootDir, "/path/to/nest2nd")))
+			Expect(err).To(HaveOccurred())
+		})
+	})
+	Describe("FindFile", func() {
+		var rootDir, file1, file2, relSymlink string
+
+		BeforeEach(func() {
+			// The root directory
+			rootDir = "/some/root"
+			Expect(sys.MkdirAll(tfs, rootDir, sys.DirPerm)).To(Succeed())
+
+			// Files to find
+			file1 = "/path/with/needle/findme.extension"
+			Expect(sys.MkdirAll(tfs, filepath.Join(rootDir, filepath.Dir(file1)), sys.DirPerm)).To(Succeed())
+			Expect(tfs.WriteFile(filepath.Join(rootDir, file1), []byte("some data"), sys.FilePerm)).To(Succeed())
+			file2 = "/path/with/needle.aarch64/findme.ext"
+			Expect(sys.MkdirAll(tfs, filepath.Join(rootDir, filepath.Dir(file2)), sys.DirPerm)).To(Succeed())
+			Expect(tfs.WriteFile(filepath.Join(rootDir, file2), []byte("some data"), sys.FilePerm)).To(Succeed())
+
+			// A symlink pointing to a relative path
+			relSymlink = "/path/to/symlink/pointing-to-file"
+			Expect(sys.MkdirAll(tfs, filepath.Join(rootDir, filepath.Dir(relSymlink)), sys.DirPerm)).To(Succeed())
+			Expect(tfs.Symlink("../../with/needle/findme.extension", filepath.Join(rootDir, relSymlink))).To(Succeed())
+		})
+		It("finds a matching file, first match wins file1", func() {
+			f, err := sys.FindFile(tfs, rootDir, "/path/with/*dle*/*me.*", "/path/with/*aarch64/find*")
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(f).To(Equal(filepath.Join(rootDir, file1)))
+		})
+		It("finds a matching file, first match wins file2", func() {
+			f, err := sys.FindFile(tfs, rootDir, "/path/with/*aarch64/find*", "/path/with/*dle*/*me.*")
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(f).To(Equal(filepath.Join(rootDir, file2)))
+		})
+		It("finds a matching file and resolves the link", func() {
+			f, err := sys.FindFile(tfs, rootDir, "/path/*/symlink/pointing-to-*", "/path/with/*aarch64/find*")
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(f).To(Equal(filepath.Join(rootDir, file1)))
+		})
+		It("fails if there is no match", func() {
+			_, err := sys.FindFile(tfs, rootDir, "/path/*/symlink/*no-match-*")
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).Should(ContainSubstring("failed to find"))
+		})
+		It("fails on invalid parttern", func() {
+			_, err := sys.FindFile(tfs, rootDir, "/path/*/symlink/badformat[]")
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).Should(ContainSubstring("syntax error"))
+		})
+	})
+	Describe("FindFiles", func() {
+		var rootDir, file1, file2, file3, relSymlink string
+		BeforeEach(func() {
+			// The root directory
+			rootDir = "/some/root"
+			Expect(sys.MkdirAll(tfs, rootDir, sys.DirPerm)).To(Succeed())
+
+			// Files to find
+			file1 = "/path/with/needle/findme.extension1"
+			file2 = "/path/with/needle/findme.extension2"
+			file3 = "/path/with/needle/hardtofindme"
+			Expect(sys.MkdirAll(tfs, filepath.Join(rootDir, filepath.Dir(file1)), sys.DirPerm)).To(Succeed())
+			Expect(tfs.WriteFile(filepath.Join(rootDir, file1), []byte("file1"), sys.FilePerm)).To(Succeed())
+			Expect(tfs.WriteFile(filepath.Join(rootDir, file2), []byte("file2"), sys.FilePerm)).To(Succeed())
+			Expect(tfs.WriteFile(filepath.Join(rootDir, file3), []byte("file3"), sys.FilePerm)).To(Succeed())
+
+			// A symlink pointing to a relative path
+			relSymlink = "/path/with/needle/findme.symlink"
+			Expect(tfs.Symlink("hardtofindme", filepath.Join(rootDir, relSymlink))).To(Succeed())
+		})
+		It("finds all matching files", func() {
+			f, err := sys.FindFiles(tfs, rootDir, "/path/with/*dle*/find*")
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(len(f)).To(Equal(3))
+			Expect(f).Should(ContainElement(filepath.Join(rootDir, file1)))
+			Expect(f).Should(ContainElement(filepath.Join(rootDir, file2)))
+			Expect(f).Should(ContainElement(filepath.Join(rootDir, file3)))
+		})
+		It("finds all matching files when pattern starts with magic character", func() {
+			f, err := sys.FindFiles(tfs, rootDir, "*/with/*dle*/find*")
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(len(f)).To(Equal(3))
+			Expect(f).Should(ContainElement(filepath.Join(rootDir, file1)))
+			Expect(f).Should(ContainElement(filepath.Join(rootDir, file2)))
+			Expect(f).Should(ContainElement(filepath.Join(rootDir, file3)))
+		})
+		It("Returns empty list if there is no match", func() {
+			f, err := sys.FindFiles(tfs, rootDir, "/path/with/needle/notthere*")
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(len(f)).Should(Equal(0))
+		})
+	})
 })

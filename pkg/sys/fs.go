@@ -36,6 +36,9 @@ const (
 	FilePerm       = 0666
 	NoWriteDirPerm = 0555 | os.ModeDir
 	TempDirPerm    = os.ModePerm | os.ModeSticky | os.ModeDir
+
+	// Maxium number of nested symlinks to resolve
+	MaxLinkDepth = 4
 )
 
 type FS interface {
@@ -198,6 +201,135 @@ func ReadLink(fs FS, name string) (string, error) {
 	}
 	raw, err := fs.RawPath(name)
 	return strings.TrimPrefix(res, strings.TrimSuffix(raw, name)), err
+}
+
+// resolveLink attempts to resolve a symlink, if any. Returns the original given path
+// if not a symlink. In case of error returns error and the original given path.
+func resolveLink(vfs FS, path string, rootDir string, d fs.DirEntry, depth int) (string, error) {
+	var err error
+	var resolved string
+	var f fs.FileInfo
+
+	f, err = d.Info()
+	if err != nil {
+		return path, err
+	}
+
+	if f.Mode()&os.ModeSymlink == os.ModeSymlink {
+		if depth <= 0 {
+			return path, fmt.Errorf("can't resolve this path '%s', too many nested links", path)
+		}
+		resolved, err = ReadLink(vfs, path)
+		if err == nil {
+			if !filepath.IsAbs(resolved) {
+				resolved = filepath.Join(filepath.Dir(path), resolved)
+			} else {
+				resolved = filepath.Join(rootDir, resolved)
+			}
+			if f, err = vfs.Lstat(resolved); err == nil {
+				return resolveLink(vfs, resolved, rootDir, &statDirEntry{f}, depth-1)
+			}
+			return path, err
+		}
+		return path, err
+	}
+	return path, nil
+}
+
+// ResolveLink attempts to resolve a symlink, if any. Returns the original given path
+// if not a symlink or if it can't be resolved.
+func ResolveLink(vfs FS, path string, rootDir string, depth int) (string, error) {
+	f, err := vfs.Lstat(path)
+	if err != nil {
+		return path, err
+	}
+
+	return resolveLink(vfs, path, rootDir, &statDirEntry{f}, depth)
+}
+
+// FindFile attempts to find a file from a list of patterns on top of a given root path.
+// Returns first match if any and returns error otherwise.
+func FindFile(vfs FS, rootDir string, patterns ...string) (string, error) {
+	var err error
+	var found string
+
+	for _, pattern := range patterns {
+		found, err = findFile(vfs, rootDir, pattern)
+		if err != nil {
+			return "", err
+		} else if found != "" {
+			break
+		}
+	}
+	if found == "" {
+		return "", fmt.Errorf("failed to find file matching %v in %v", patterns, rootDir)
+	}
+	return found, nil
+}
+
+// FindFiles attempts to find files from a given pattern on top of a root path.
+// Returns empty list if no files are found.
+func FindFiles(vfs FS, rootDir string, pattern string) ([]string, error) {
+	return findFiles(vfs, rootDir, pattern, false)
+}
+
+// findFile attempts to find a file from a given pattern on top of a root path.
+// Returns empty path if no file is found.
+func findFile(vfs FS, rootDir, pattern string) (string, error) {
+	files, err := findFiles(vfs, rootDir, pattern, true)
+	if err != nil {
+		return "", err
+	}
+
+	if len(files) > 0 {
+		return files[0], nil
+	}
+	return "", nil
+}
+
+func findFiles(vfs FS, rootDir, pattern string, fristMatchReturn bool) ([]string, error) {
+	foundFiles := []string{}
+
+	base := filepath.Join(rootDir, getBaseDir(pattern))
+	if ok, _ := Exists(vfs, base); ok {
+		err := WalkDirFs(vfs, base, func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			match, err := filepath.Match(filepath.Join(rootDir, pattern), path)
+			if err != nil {
+				return err
+			}
+			if match {
+				foundFile, err := resolveLink(vfs, path, rootDir, d, MaxLinkDepth)
+				if err != nil {
+					return err
+				}
+				foundFiles = append(foundFiles, foundFile)
+				if fristMatchReturn {
+					return io.EOF
+				}
+				return nil
+			}
+			return nil
+		})
+		if err != nil && !errors.Is(err, io.EOF) {
+			return []string{}, err
+		}
+	}
+	return foundFiles, nil
+}
+
+// getBaseDir returns the base directory of a shell path pattern
+func getBaseDir(path string) string {
+	magicChars := `*?[`
+	i := strings.IndexAny(path, magicChars)
+	if i > 0 {
+		return filepath.Dir(path[:i])
+	} else if i == 0 {
+		return ""
+	}
+	return path
 }
 
 // Random number state.
