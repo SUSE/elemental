@@ -27,7 +27,7 @@ const (
 
 type CleanFunc func() error
 
-// CleanJob represents a clean task. In can be of three different types. ErrorOnly type
+// CleanJob represents a clean task. It can be of three different types: errorOnly type
 // is a clean job only executed on error, successOnly type is executed only on sucess and always
 // is always executed regardless the error value.
 type CleanJob struct {
