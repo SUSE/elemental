@@ -138,8 +138,8 @@ func parseReader(wg *sync.WaitGroup, reader io.Reader, parser func(string)) {
 	scanner := bufio.NewScanner(reader)
 	scanner.Split(scanLines)
 	for scanner.Scan() {
-		line := scanner.Text()
-		if strings.TrimSpace(line) == "" {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
 			continue
 		}
 		parser(line)
@@ -152,12 +152,13 @@ func scanLines(data []byte, atEOF bool) (advance int, token []byte, err error) {
 	if atEOF && len(data) == 0 {
 		return 0, nil, nil
 	}
-	if i := bytes.IndexByte(data, '\n'); i >= 0 {
-		// We have a full newline-terminated line.
-		return i + 1, data[0:i], nil
+	newLine := func(c rune) bool {
+		if c == '\n' || c == '\r' {
+			return true
+		}
+		return false
 	}
-	if i := bytes.IndexByte(data, '\r'); i >= 0 {
-		// We have a full newline-terminated line.
+	if i := bytes.IndexFunc(data, newLine); i >= 0 {
 		return i + 1, data[0:i], nil
 	}
 	// If we're at EOF, we have a final, non-terminated line. Return it.
