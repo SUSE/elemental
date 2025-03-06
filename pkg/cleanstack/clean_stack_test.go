@@ -25,7 +25,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/suse/elemental/v3/pkg/utils/cleanstack"
+	"github.com/suse/elemental/v3/pkg/cleanstack"
 )
 
 func TestCleanStackSuite(t *testing.T) {

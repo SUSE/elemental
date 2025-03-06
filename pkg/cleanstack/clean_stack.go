@@ -25,23 +25,23 @@ const (
 	always
 )
 
-type CleanFunc func() error
+type Task func() error
 
-// CleanJob represents a clean task. It can be of three different types: errorOnly type
-// is a clean job only executed on error, successOnly type is executed only on sucess and always
+// Job represents a task. It can be of three different types: errorOnly type
+// is a job only executed on error, successOnly type is executed only on sucess and always
 // is always executed regardless the error value.
-type CleanJob struct {
-	cleanFunc CleanFunc
-	jobType   int
+type Job struct {
+	task    Task
+	jobType int
 }
 
 // Run executes the defined job
-func (cj CleanJob) Run() error {
-	return cj.cleanFunc()
+func (cj Job) Run() error {
+	return cj.task()
 }
 
 // Type returns the CleanJob type
-func (cj CleanJob) Type() int {
+func (cj Job) Type() int {
 	return cj.jobType
 }
 
@@ -52,30 +52,30 @@ func NewCleanStack() *CleanStack {
 
 // Stack is a basic LIFO stack that resizes as needed.
 type CleanStack struct {
-	jobs  []*CleanJob
+	jobs  []*Job
 	count int
 }
 
 // Push adds a node to the stack that will be always executed
-func (clean *CleanStack) Push(cFunc CleanFunc) {
-	clean.jobs = append(clean.jobs[:clean.count], &CleanJob{cleanFunc: cFunc, jobType: always})
+func (clean *CleanStack) Push(task Task) {
+	clean.jobs = append(clean.jobs[:clean.count], &Job{task: task, jobType: always})
 	clean.count++
 }
 
 // PushErrorOnly adds an error only node to the stack
-func (clean *CleanStack) PushErrorOnly(cFunc CleanFunc) {
-	clean.jobs = append(clean.jobs[:clean.count], &CleanJob{cleanFunc: cFunc, jobType: errorOnly})
+func (clean *CleanStack) PushErrorOnly(task Task) {
+	clean.jobs = append(clean.jobs[:clean.count], &Job{task: task, jobType: errorOnly})
 	clean.count++
 }
 
 // PushSuccessOnly adds a success only node to the stack
-func (clean *CleanStack) PushSuccessOnly(cFunc CleanFunc) {
-	clean.jobs = append(clean.jobs[:clean.count], &CleanJob{cleanFunc: cFunc, jobType: successOnly})
+func (clean *CleanStack) PushSuccessOnly(task Task) {
+	clean.jobs = append(clean.jobs[:clean.count], &Job{task: task, jobType: successOnly})
 	clean.count++
 }
 
 // Pop removes and returns a node from the stack in last to first order.
-func (clean *CleanStack) Pop() *CleanJob {
+func (clean *CleanStack) Pop() *Job {
 	if clean.count == 0 {
 		return nil
 	}
@@ -108,7 +108,7 @@ func (clean *CleanStack) Cleanup(err error) error {
 	return errs
 }
 
-func runCleanJob(job *CleanJob, errs error) error {
+func runCleanJob(job *Job, errs error) error {
 	err := job.Run()
 	if err != nil {
 		errs = errors.Join(errs, err)
