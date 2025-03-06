@@ -24,6 +24,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/suse/elemental/v3/pkg/chroot"
+	"github.com/suse/elemental/v3/pkg/log"
 	"github.com/suse/elemental/v3/pkg/sys"
 	sysmock "github.com/suse/elemental/v3/pkg/sys/mock"
 )
@@ -51,6 +52,7 @@ var _ = Describe("Chroot", Label("chroot"), func() {
 		s, err = sys.NewSystem(
 			sys.WithMounter(mounter), sys.WithRunner(runner),
 			sys.WithFS(fs), sys.WithSyscall(syscall),
+			sys.WithLogger(log.New(log.WithDiscardAll())),
 		)
 		Expect(err).NotTo(HaveOccurred())
 		chr = chroot.NewChroot(s, "/whatever")
