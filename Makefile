@@ -1,6 +1,6 @@
 GINKGO?="github.com/onsi/ginkgo/v2/ginkgo"
 
-PKG?=./pkg/...
+PKG?=./pkg/... ./internal/...
 
 .PHONY: unit-tests
 unit-tests:
