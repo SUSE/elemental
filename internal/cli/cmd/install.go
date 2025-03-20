@@ -26,6 +26,7 @@ import (
 type InstallFlags struct {
 	OperatingSystemImage string
 	Target               string
+	ConfigFile           string
 }
 
 var InstallArgs InstallFlags
@@ -38,6 +39,11 @@ func NewInstallCommand(action func(*cli.Context) error) *cli.Command {
 		Action:    action,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
+				Name:        "config",
+				Usage:       "Config file to read installation details",
+				Destination: &InstallArgs.ConfigFile,
+			},
+			&cli.StringFlag{
 				Name:        "os-image",
 				Usage:       "OCI image containing the operating system",
 				Destination: &InstallArgs.OperatingSystemImage,
@@ -47,6 +53,7 @@ func NewInstallCommand(action func(*cli.Context) error) *cli.Command {
 				Aliases:     []string{"t"},
 				Usage:       "Target device for the installation process",
 				Destination: &InstallArgs.Target,
+				Required:    true,
 			},
 		},
 	}
