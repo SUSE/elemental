@@ -18,19 +18,60 @@ limitations under the License.
 package action
 
 import (
-	"log"
+	"fmt"
 
 	"github.com/urfave/cli/v2"
+	"sigs.k8s.io/yaml"
 
 	"github.com/suse/elemental/v3/internal/cli/cmd"
+	"github.com/suse/elemental/v3/pkg/deployment"
+	"github.com/suse/elemental/v3/pkg/sys"
 )
 
-func Install(*cli.Context) error {
+func Install(ctx *cli.Context) error {
+	var s *sys.System
 	args := &cmd.InstallArgs
+	if ctx.App.Metadata == nil || ctx.App.Metadata["system"] == nil {
+		return fmt.Errorf("error setting up initial configuration")
+	}
+	s = ctx.App.Metadata["system"].(*sys.System)
 
-	log.Printf("args: %+v", args)
+	s.Logger().Info("Starting install action with args: %+v", args)
 
-	// Perform args & input validation, initial setup and branch off to the actual business logic
+	_, err := digestInstallSetup(s, args)
+	if err != nil {
+		return err
+	}
+
+	s.Logger().Info("Checked configuration, running installation process")
+
+	// Branch to business logic
 
 	return nil
+}
+
+func digestInstallSetup(s *sys.System, flags *cmd.InstallFlags) (*deployment.Deployment, error) {
+	d := deployment.DefaultDeployment()
+	if flags.ConfigFile != "" {
+		if ok, err := sys.Exists(s.FS(), flags.ConfigFile); !ok {
+			return nil, fmt.Errorf("config file '%s' not found: %w", flags.ConfigFile, err)
+		}
+		data, err := s.FS().ReadFile(flags.ConfigFile)
+		if err != nil {
+			return nil, fmt.Errorf("could not read config file '%s': %w", flags.ConfigFile, err)
+		}
+		err = yaml.Unmarshal(data, d)
+		if err != nil {
+			return nil, fmt.Errorf("could not unmarshal config file: %w", err)
+		}
+	}
+	if flags.Target != "" && len(d.Disks) > 0 {
+		d.Disks[0].Device = flags.Target
+	}
+	d.SourceOS = flags.OperatingSystemImage
+	err := d.Sanitize(s)
+	if err != nil {
+		return nil, fmt.Errorf("inconsistent deployment setup found: %w", err)
+	}
+	return d, nil
 }
