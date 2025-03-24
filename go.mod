@@ -7,7 +7,7 @@ require (
 	github.com/containerd/containerd/v2 v2.0.4
 	github.com/google/go-containerregistry v0.20.3
 	github.com/jaypipes/ghw v0.15.0
-	github.com/onsi/ginkgo/v2 v2.23.0
+	github.com/onsi/ginkgo/v2 v2.23.3
 	github.com/onsi/gomega v1.36.2
 	github.com/sirupsen/logrus v1.9.3
 	github.com/twpayne/go-vfs/v4 v4.3.0
