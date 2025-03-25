@@ -32,7 +32,7 @@ func main() {
 	app.Commands = []*cli.Command{
 		cmd.NewBuildCommand(action.Build),
 		cmd.NewInstallCommand(action.Install),
-		cmd.NewVersionCommand(action.Version),
+		cmd.NewVersionCommand(),
 	}
 
 	if err := app.Run(os.Args); err != nil {
