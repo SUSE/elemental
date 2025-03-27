@@ -63,7 +63,7 @@ func (m Device) GetPartitionFS(partition string) (string, error) {
 
 	for _, part := range m.partitions {
 		if part.Path == partition {
-			return part.FS, nil
+			return part.FileSystem, nil
 		}
 	}
 	return "", fmt.Errorf("MockBlockDevice: partition '%s' not found", partition)

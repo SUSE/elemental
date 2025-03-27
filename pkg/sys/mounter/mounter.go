@@ -17,18 +17,26 @@ limitations under the License.
 
 package mounter
 
-import (
-	"k8s.io/mount-utils"
-)
-
 const (
 	Binary = "/usr/bin/mount"
 )
 
-func NewMounter(binary string) mount.Interface {
-	return mount.NewWithoutSystemd(binary)
+type Interface interface {
+	Mount(source string, target string, fstype string, options []string) error
+	Unmount(target string) error
+	// IsMountPoint check /proc/mounts or equivalent data to check if the given path is listed there
+	IsMountPoint(path string) (bool, error)
+	// GetMountRefs finds all mount references to pathname, returning a slice of
+	// paths. The returned slice does not include the given path.
+	GetMountRefs(pathname string) ([]string, error)
+	// GetMountPoints parses /proc/mounts or equivalent data to fetch all available mountpoints for the given device
+	GetMountPoints(device string) ([]MountPoint, error)
 }
 
-func NewDummyMounter() mount.Interface {
-	return mount.NewFakeMounter([]mount.MountPoint{})
+// MountPoint represents a single line in /proc/mounts or /etc/fstab.
+type MountPoint struct {
+	Device string
+	Path   string
+	Type   string
+	Opts   []string // Opts may contain sensitive mount options (like passwords) and MUST be treated as such (e.g. not logged).
 }

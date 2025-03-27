@@ -22,11 +22,11 @@ import (
 	"fmt"
 	"os"
 	"regexp"
-	"strings"
 	"time"
 
 	"github.com/suse/elemental/v3/pkg/block"
 	"github.com/suse/elemental/v3/pkg/block/lsblk"
+	"github.com/suse/elemental/v3/pkg/deployment"
 	"github.com/suse/elemental/v3/pkg/diskrepart/partitioner"
 	"github.com/suse/elemental/v3/pkg/diskrepart/partitioner/gdisk"
 	"github.com/suse/elemental/v3/pkg/diskrepart/partitioner/parted"
@@ -104,10 +104,9 @@ func NewDisk(s *sys.System, device string, opts ...DiskOptions) *Disk {
 }
 
 // FormatDevice formats a block device with the given parameters
-func FormatDevice(s *sys.System, device string, fileSystem string, label string, opts ...string) error {
-	mkfs := NewMkfsCall(s, device, fileSystem, label, opts...)
-	_, err := mkfs.Apply()
-	return err
+func FormatDevice(s *sys.System, device string, fileSystem string, label string, uuid string, opts ...string) error {
+	mkfs := NewMkfsCall(s, device, fileSystem, label, uuid, opts...)
+	return mkfs.Apply()
 }
 
 func (dev Disk) String() string {
@@ -329,13 +328,13 @@ func (dev *Disk) AddPartition(size uint, fileSystem string, pLabel string, flags
 	return partNum, nil
 }
 
-func (dev Disk) FormatPartition(partNum int, fileSystem string, label string) (string, error) {
+func (dev Disk) FormatPartition(partNum int, fileSystem string, label string, uuid string) error {
 	pDev, err := dev.FindPartitionDevice(partNum)
 	if err != nil {
-		return "", err
+		return err
 	}
 
-	mkfs := NewMkfsCall(dev.sys, pDev, fileSystem, label)
+	mkfs := NewMkfsCall(dev.sys, pDev, fileSystem, label, uuid)
 	return mkfs.Apply()
 }
 
@@ -362,15 +361,17 @@ func (dev Disk) FindPartitionDevice(partNum int) (string, error) {
 		}
 		time.Sleep(1 * time.Second)
 	}
-	return "", fmt.Errorf("could not find partition device '%s' for partition %d", device, partNum)
+	errMsg := "partition '%d' not found in '%s' device"
+	dev.sys.Logger().Error(errMsg, partNum, device)
+	return "", fmt.Errorf(errMsg, partNum, device)
 }
 
 // ExpandLastPartition expands the latest partition in the disk. Size is expressed in MiB here
 // Size is expressed in MiB here
-func (dev *Disk) ExpandLastPartition(size uint) (string, error) {
+func (dev *Disk) ExpandLastPartition(size uint) error {
 	pc, err := dev.newPartitioner(dev.String())
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	// Check we have loaded partition table data
@@ -378,17 +379,17 @@ func (dev *Disk) ExpandLastPartition(size uint) (string, error) {
 		err = dev.Reload()
 		if err != nil {
 			dev.sys.Logger().Error("Failed analyzing disk: %v\n", err)
-			return "", err
+			return err
 		}
 	}
 
 	err = pc.SetPartitionTableLabel(dev.label)
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	if len(dev.parts) == 0 {
-		return "", errors.New("there is no partition to expand")
+		return errors.New("there is no partition to expand")
 	}
 
 	part := dev.parts[len(dev.parts)-1]
@@ -396,11 +397,11 @@ func (dev *Disk) ExpandLastPartition(size uint) (string, error) {
 		size = MiBToSectors(size, dev.sectorS)
 		part := dev.parts[len(dev.parts)-1]
 		if size < part.SizeS {
-			return "", errors.New("layout plugin can only expand a partition, not shrink it")
+			return errors.New("layout plugin can only expand a partition, not shrink it")
 		}
 		freeS := dev.computeFreeSpaceWithoutLast()
 		if size > freeS {
-			return "", fmt.Errorf("not enough free space for to expand last partition up to %d sectors", size)
+			return fmt.Errorf("not enough free space for to expand last partition up to %d sectors", size)
 		}
 	}
 	part.SizeS = size
@@ -408,52 +409,55 @@ func (dev *Disk) ExpandLastPartition(size uint) (string, error) {
 	pc.CreatePartition(&part)
 	out, err := pc.WriteChanges()
 	if err != nil {
-		return out, err
+		dev.sys.Logger().Error("failed writing partition changes: %s", out)
+		return err
 	}
 	err = dev.Reload()
 	if err != nil {
-		return "", err
+		return err
 	}
 	pDev, err := dev.FindPartitionDevice(part.Number)
 	if err != nil {
-		return "", err
+		return err
 	}
 	return dev.expandFilesystem(pDev)
 }
 
-func (dev Disk) expandFilesystem(device string) (outStr string, err error) {
+func (dev Disk) expandFilesystem(device string) (err error) {
 	var out []byte
 	var tmpDir, fs string
 
 	fs, err = dev.blockDevice.GetPartitionFS(device)
 	if err != nil {
-		return fs, err
+		return err
 	}
 
-	switch strings.TrimSpace(fs) {
-	case "ext2", "ext3", "ext4":
+	f, _ := deployment.ParseFileSystem(fs)
+
+	switch f {
+	case deployment.Ext2, deployment.Ext4:
 		out, err = dev.sys.Runner().Run("e2fsck", "-fy", device)
 		if err != nil {
-			return string(out), err
+			dev.sys.Logger().Error("failed e2fsck call: %s", string(out))
+			return err
 		}
 		out, err = dev.sys.Runner().Run("resize2fs", device)
-
 		if err != nil {
-			return string(out), err
+			dev.sys.Logger().Error("failed resize2fs call: %s", string(out))
+			return err
 		}
-	case "xfs", "btrfs":
+	case deployment.XFS, deployment.Btrfs:
 		// to grow an xfs or btrfs fs it needs to be mounted :/
 		tmpDir, err = sys.TempDir(dev.sys.FS(), "", "partitioner")
 		defer func(fs sys.FS, path string) {
 			_ = fs.RemoveAll(path)
 		}(dev.sys.FS(), tmpDir)
-
 		if err != nil {
-			return string(out), err
+			return err
 		}
 		err = dev.sys.Mounter().Mount(device, tmpDir, "auto", []string{})
 		if err != nil {
-			return "", err
+			return err
 		}
 		defer func() {
 			err2 := dev.sys.Mounter().Unmount(tmpDir)
@@ -461,22 +465,24 @@ func (dev Disk) expandFilesystem(device string) (outStr string, err error) {
 				err = err2
 			}
 		}()
-		if strings.TrimSpace(fs) == "xfs" {
+		if f == deployment.XFS {
 			out, err = dev.sys.Runner().Run("xfs_growfs", tmpDir)
 			if err != nil {
-				return string(out), err
+				dev.sys.Logger().Error("failed xfs_growfs call: %s", string(out))
+				return err
 			}
 		} else {
 			out, err = dev.sys.Runner().Run("btrfs", "filesystem", "resize", "max", tmpDir)
 			if err != nil {
-				return string(out), err
+				dev.sys.Logger().Error("failed btrfs call: %s", string(out))
+				return err
 			}
 		}
 	default:
-		return "", fmt.Errorf("could not find filesystem for %s, not resizing the filesystem", device)
+		return fmt.Errorf("could not find filesystem for %s, not resizing the filesystem", device)
 	}
 
-	return "", nil
+	return nil
 }
 
 func (dev Disk) newPartitioner(device string) (partitioner.Partitioner, error) {

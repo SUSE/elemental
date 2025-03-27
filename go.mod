@@ -6,6 +6,7 @@ require (
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/containerd/containerd/v2 v2.0.4
 	github.com/google/go-containerregistry v0.20.3
+	github.com/google/uuid v1.6.0
 	github.com/jaypipes/ghw v0.16.0
 	github.com/onsi/ginkgo/v2 v2.23.3
 	github.com/onsi/gomega v1.36.3

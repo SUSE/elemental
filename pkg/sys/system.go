@@ -24,20 +24,12 @@ import (
 
 	"github.com/suse/elemental/v3/pkg/log"
 	"github.com/suse/elemental/v3/pkg/sys/mounter"
+	"github.com/suse/elemental/v3/pkg/sys/mounter/k8smounter"
 	"github.com/suse/elemental/v3/pkg/sys/platform"
 	"github.com/suse/elemental/v3/pkg/sys/runner"
 	"github.com/suse/elemental/v3/pkg/sys/syscall"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
-
-type Mounter interface {
-	Mount(source string, target string, fstype string, options []string) error
-	Unmount(target string) error
-	IsMountPoint(path string) (bool, error)
-	// GetMountRefs finds all mount references to pathname, returning a slice of
-	// paths. The returned slice does not include the given path.
-	GetMountRefs(pathname string) ([]string, error)
-}
 
 type Runner interface {
 	Run(cmd string, args ...string) ([]byte, error)
@@ -53,7 +45,7 @@ type Syscall interface {
 type System struct {
 	logger   log.Logger
 	fs       FS
-	mounter  Mounter
+	mounter  mounter.Interface
 	runner   Runner
 	syscall  Syscall
 	platform *platform.Platform
@@ -82,7 +74,7 @@ func WithSyscall(syscall Syscall) SystemOpts {
 	}
 }
 
-func WithMounter(mounter Mounter) SystemOpts {
+func WithMounter(mounter mounter.Interface) SystemOpts {
 	return func(r *System) error {
 		r.mounter = mounter
 		return nil
@@ -113,7 +105,7 @@ func NewSystem(opts ...SystemOpts) (*System, error) {
 		fs:      vfs.OSFS(),
 		logger:  logger,
 		syscall: syscall.Syscall(),
-		mounter: mounter.NewMounter(mounter.Binary),
+		mounter: k8smounter.NewMounter(mounter.Binary),
 	}
 
 	for _, o := range opts {
@@ -150,7 +142,7 @@ func (s System) Syscall() Syscall {
 	return s.syscall
 }
 
-func (s System) Mounter() Mounter {
+func (s System) Mounter() mounter.Interface {
 	return s.mounter
 }
 
