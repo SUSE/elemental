@@ -5,6 +5,7 @@ go 1.24.0
 require (
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/containerd/containerd/v2 v2.0.4
+	github.com/distribution/reference v0.6.0
 	github.com/google/go-containerregistry v0.20.3
 	github.com/jaypipes/ghw v0.16.0
 	github.com/onsi/ginkgo/v2 v2.23.3
@@ -28,7 +29,6 @@ require (
 	github.com/containerd/stargz-snapshotter/estargz v0.16.3 // indirect
 	github.com/containerd/typeurl/v2 v2.2.3 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.6 // indirect
-	github.com/distribution/reference v0.6.0 // indirect
 	github.com/docker/cli v27.5.0+incompatible // indirect
 	github.com/docker/distribution v2.8.3+incompatible // indirect
 	github.com/docker/docker v27.5.0+incompatible // indirect
