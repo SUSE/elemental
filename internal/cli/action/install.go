@@ -68,8 +68,12 @@ func digestInstallSetup(s *sys.System, flags *cmd.InstallFlags) (*deployment.Dep
 	if flags.Target != "" && len(d.Disks) > 0 {
 		d.Disks[0].Device = flags.Target
 	}
-	d.SourceOS = flags.OperatingSystemImage
-	err := d.Sanitize(s)
+	srcOS, err := deployment.NewSrcFromURI(flags.OperatingSystemImage)
+	if err != nil {
+		return nil, fmt.Errorf("failed parsing OS source URI ('%s'): %w", flags.OperatingSystemImage, err)
+	}
+	d.SourceOS = srcOS
+	err = d.Sanitize(s)
 	if err != nil {
 		return nil, fmt.Errorf("inconsistent deployment setup found: %w", err)
 	}

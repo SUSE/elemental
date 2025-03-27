@@ -20,6 +20,9 @@ package deployment
 import (
 	"encoding/json"
 	"fmt"
+	"path/filepath"
+	"sort"
+	"strings"
 
 	"github.com/suse/elemental/v3/pkg/sys"
 )
@@ -169,6 +172,7 @@ type Partition struct {
 	MountPoint  string     `json:"mountPoint,omitempty"`
 	MountOpts   string     `json:"mountOpts,omitempty"`
 	RWVolumes   []RWVolume `json:"rwVolumes,omitempty"`
+	UUID        string     `json:"uuid,omitempty"`
 }
 
 type Disk struct {
@@ -178,8 +182,8 @@ type Disk struct {
 }
 
 type Deployment struct {
-	SourceOS string  `json:"sourceOS"`
-	Disks    []*Disk `json:"disks"`
+	SourceOS *ImageSource `json:"sourceOS"`
+	Disks    []*Disk      `json:"disks"`
 	// Consider adding a systemd-sysext list here and
 	// some other well known set of structers such as charts.
 	// Also abitrary data would be intersting (e.g. tarballs).
@@ -194,7 +198,34 @@ type SanitizeDeployment func(*sys.System, *Deployment) error
 var sanitizers = []SanitizeDeployment{
 	checkSystemPart, checkEFIPart, checkRecoveryPart,
 	checkAllAvailableSize, checkDiskDeviceExists,
-	checkPartitionsFS,
+	checkPartitionsFS, checkSnapshottedVolumes,
+	checkRWVolumes,
+}
+
+// GetSystemPartition gets the data of the system partition.
+// returns nil if not found
+func (d Deployment) GetSystemPartition() *Partition {
+	for _, disk := range d.Disks {
+		for _, part := range disk.Partitions {
+			if part.Role == System {
+				return part
+			}
+		}
+	}
+	return nil
+}
+
+// GetSystemDisk gets the disk data including the system partition.
+// returns nil if not found
+func (d Deployment) GetSystemDisk() *Disk {
+	for _, disk := range d.Disks {
+		for _, part := range disk.Partitions {
+			if part.Role == System {
+				return disk
+			}
+		}
+	}
+	return nil
 }
 
 // Sanitize checks the consistency of the current Disk structure
@@ -375,6 +406,56 @@ func checkPartitionsFS(_ *sys.System, d *Deployment) error {
 			if part.FileSystem.String() == Unknown {
 				part.FileSystem = Btrfs
 			}
+		}
+	}
+	return nil
+}
+
+// checkSnapshottedVolumes ensures all snapshotted rw volumes are defined in
+// system partition
+func checkSnapshottedVolumes(_ *sys.System, d *Deployment) error {
+	for _, disk := range d.Disks {
+		for _, part := range disk.Partitions {
+			for _, rwVol := range part.RWVolumes {
+				if rwVol.Snapshotted && part.Role != System {
+					return fmt.Errorf("snapshotted rw volumes are only supported in system partition")
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// checkRWVolumes ensures all rw volumes are at a unique absolute path, not
+// nested and defined on a btrfs partition
+func checkRWVolumes(_ *sys.System, d *Deployment) error {
+	pathMap := map[string]bool{}
+	for _, disk := range d.Disks {
+		for _, part := range disk.Partitions {
+			if part.FileSystem != Btrfs && len(part.RWVolumes) > 0 {
+				return fmt.Errorf("RW volumes are only supported in partitions formatted with btrfs")
+			}
+			for _, rwVol := range part.RWVolumes {
+				if !filepath.IsAbs(rwVol.Path) {
+					return fmt.Errorf("rw volume paths must be absolute")
+				}
+				if _, ok := pathMap[rwVol.Path]; !ok {
+					pathMap[rwVol.Path] = true
+					continue
+				}
+				return fmt.Errorf("rw volume paths must be unique. Duplicated '%s'", rwVol.Path)
+			}
+		}
+	}
+
+	paths := []string{}
+	for k := range pathMap {
+		paths = append(paths, k)
+	}
+	sort.Strings(paths)
+	for i := range len(paths) - 1 {
+		if strings.HasPrefix(paths[i+1], paths[i]) {
+			return fmt.Errorf("nested rw volumes is not supported")
 		}
 	}
 	return nil

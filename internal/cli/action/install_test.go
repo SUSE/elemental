@@ -107,4 +107,11 @@ var _ = Describe("Install action", Label("install"), func() {
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("inconsistent deployment"))
 	})
+	It("fails if the given OS uri is not valid", func() {
+		cmd.InstallArgs.Target = "/dev/device"
+		cmd.InstallArgs.OperatingSystemImage = "https://example.com/my/image"
+		err = action.Install(ctx)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("image source type not supported"))
+	})
 })
