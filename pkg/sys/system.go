@@ -43,7 +43,7 @@ type Syscall interface {
 
 type System struct {
 	logger   log.Logger
-	fs       FS
+	fs       vfs.FS
 	mounter  mounter.Interface
 	runner   Runner
 	syscall  Syscall
@@ -52,7 +52,7 @@ type System struct {
 
 type SystemOpts func(a *System) error
 
-func WithFS(fs FS) SystemOpts {
+func WithFS(fs vfs.FS) SystemOpts {
 	return func(s *System) error {
 		s.fs = fs
 		return nil
@@ -101,7 +101,7 @@ func WithPlatform(pf string) SystemOpts {
 func NewSystem(opts ...SystemOpts) (*System, error) {
 	logger := log.New()
 	sysObj := &System{
-		fs:      vfs.OSFS(),
+		fs:      vfs.New(),
 		logger:  logger,
 		syscall: syscall.Syscall(),
 		mounter: mounter.NewMounter(mounter.Binary),
@@ -133,7 +133,7 @@ func (s System) Platform() *platform.Platform {
 	return s.platform
 }
 
-func (s System) FS() FS {
+func (s System) FS() vfs.FS {
 	return s.fs
 }
 

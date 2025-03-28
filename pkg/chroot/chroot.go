@@ -28,6 +28,7 @@ import (
 	"github.com/suse/elemental/v3/pkg/log"
 	"github.com/suse/elemental/v3/pkg/sys"
 	"github.com/suse/elemental/v3/pkg/sys/mounter"
+	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
 
 // Chroot represents the struct that will allow us to run commands inside a given chroot
@@ -36,7 +37,7 @@ type Chroot struct {
 	defaultMounts []string
 	extraMounts   map[string]string
 	activeMounts  []string
-	fs            sys.FS
+	fs            vfs.FS
 	mounter       mounter.Interface
 	logger        log.Logger
 	runner        sys.Runner
@@ -92,7 +93,7 @@ func (c *Chroot) Prepare() error {
 
 	for _, mnt := range c.defaultMounts {
 		mountPoint := fmt.Sprintf("%s%s", strings.TrimSuffix(c.path, "/"), mnt)
-		err = sys.MkdirAll(c.fs, mountPoint, sys.DirPerm)
+		err = vfs.MkdirAll(c.fs, mountPoint, vfs.DirPerm)
 		if err != nil {
 			return err
 		}
@@ -110,7 +111,7 @@ func (c *Chroot) Prepare() error {
 	sort.Strings(keys)
 	for _, k := range keys {
 		mountPoint := fmt.Sprintf("%s%s", strings.TrimSuffix(c.path, "/"), c.extraMounts[k])
-		err = sys.MkdirAll(c.fs, mountPoint, sys.DirPerm)
+		err = vfs.MkdirAll(c.fs, mountPoint, vfs.DirPerm)
 		if err != nil {
 			return err
 		}
@@ -176,7 +177,7 @@ func (c *Chroot) RunCallback(callback func() error) (err error) {
 	}
 
 	// Store current root
-	oldRootF, err = c.fs.OpenFile("/", os.O_RDONLY, sys.DirPerm)
+	oldRootF, err = c.fs.OpenFile("/", os.O_RDONLY, vfs.DirPerm)
 	if err != nil {
 		c.logger.Error("Can't open current root")
 		return err

@@ -15,7 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package sys
+package vfs
 
 import (
 	"errors"
@@ -29,6 +29,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	gvfs "github.com/twpayne/go-vfs/v4"
 )
 
 const (
@@ -59,6 +61,10 @@ type FS interface {
 	Stat(name string) (fs.FileInfo, error)
 	Symlink(oldname, newname string) error
 	WriteFile(filename string, data []byte, perm fs.FileMode) error
+}
+
+func New() FS {
+	return gvfs.OSFS
 }
 
 // DirSize returns the accumulated size of all files in folder. Result in bytes

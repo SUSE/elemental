@@ -27,6 +27,7 @@ import (
 	"github.com/suse/elemental/v3/pkg/log"
 	"github.com/suse/elemental/v3/pkg/sys"
 	sysmock "github.com/suse/elemental/v3/pkg/sys/mock"
+	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
 
 func TestDeploymentSuite(t *testing.T) {
@@ -36,7 +37,7 @@ func TestDeploymentSuite(t *testing.T) {
 
 var _ = Describe("Deployment", Label("deployment"), func() {
 	var s *sys.System
-	var tfs sys.FS
+	var tfs vfs.FS
 	var cleanup func()
 	var err error
 	var buffer *bytes.Buffer

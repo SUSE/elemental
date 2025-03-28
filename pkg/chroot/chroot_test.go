@@ -27,6 +27,7 @@ import (
 	"github.com/suse/elemental/v3/pkg/log"
 	"github.com/suse/elemental/v3/pkg/sys"
 	sysmock "github.com/suse/elemental/v3/pkg/sys/mock"
+	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
 
 func TestChrootSuite(t *testing.T) {
@@ -38,7 +39,7 @@ var _ = Describe("Chroot", Label("chroot"), func() {
 	var runner *sysmock.Runner
 	var mounter *sysmock.Mounter
 	var syscall *sysmock.Syscall
-	var fs sys.FS
+	var fs vfs.FS
 	var s *sys.System
 	var cleanup func()
 	var chr *chroot.Chroot

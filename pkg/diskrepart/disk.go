@@ -31,6 +31,7 @@ import (
 	"github.com/suse/elemental/v3/pkg/diskrepart/partitioner/gdisk"
 	"github.com/suse/elemental/v3/pkg/diskrepart/partitioner/parted"
 	"github.com/suse/elemental/v3/pkg/sys"
+	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
 
 const (
@@ -356,7 +357,7 @@ func (dev Disk) FindPartitionDevice(partNum int) (string, error) {
 	for tries := 0; tries <= partitionTries; tries++ {
 		dev.sys.Logger().Debug("Trying to find the partition device %d of device %s (try number %d)", partNum, dev, tries+1)
 		_, _ = dev.sys.Runner().Run("udevadm", "settle")
-		if exists, _ := sys.Exists(dev.sys.FS(), device); exists {
+		if exists, _ := vfs.Exists(dev.sys.FS(), device); exists {
 			return device, nil
 		}
 		time.Sleep(1 * time.Second)
@@ -448,8 +449,8 @@ func (dev Disk) expandFilesystem(device string) (err error) {
 		}
 	case deployment.XFS, deployment.Btrfs:
 		// to grow an xfs or btrfs fs it needs to be mounted :/
-		tmpDir, err = sys.TempDir(dev.sys.FS(), "", "partitioner")
-		defer func(fs sys.FS, path string) {
+		tmpDir, err = vfs.TempDir(dev.sys.FS(), "", "partitioner")
+		defer func(fs vfs.FS, path string) {
 			_ = fs.RemoveAll(path)
 		}(dev.sys.FS(), tmpDir)
 		if err != nil {
