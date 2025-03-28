@@ -15,7 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package unpacker_test
+package unpack_test
 
 import (
 	"context"
@@ -26,12 +26,12 @@ import (
 	"github.com/suse/elemental/v3/pkg/sys"
 	sysmock "github.com/suse/elemental/v3/pkg/sys/mock"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
-	"github.com/suse/elemental/v3/pkg/unpacker"
+	"github.com/suse/elemental/v3/pkg/unpack"
 )
 
 var _ = Describe("OCIUnpacker", Label("oci", "rootlesskit"), func() {
 	var tfs vfs.FS
-	var unpack *unpacker.OCI
+	var unpacker *unpack.OCI
 	var s *sys.System
 	var cleanup func()
 	BeforeEach(func() {
@@ -40,14 +40,14 @@ var _ = Describe("OCIUnpacker", Label("oci", "rootlesskit"), func() {
 		Expect(err).NotTo(HaveOccurred())
 		s, err = sys.NewSystem(sys.WithFS(tfs))
 		Expect(err).NotTo(HaveOccurred())
-		unpack = unpacker.NewOCIUnpacker(s)
+		unpacker = unpack.NewOCIUnpacker(s, "docker.io/library/alpine:3.21.3")
 	})
 	AfterEach(func() {
 		cleanup()
 	})
 	It("Unpacks a remote alpine image", func() {
 		Expect(vfs.MkdirAll(tfs, "/target/root", vfs.DirPerm)).To(Succeed())
-		digest, err := unpack.Unpack(context.Background(), "docker.io/library/alpine:3.21.3", "/target/root")
+		digest, err := unpacker.Unpack(context.Background(), "/target/root")
 		Expect(err).NotTo(HaveOccurred())
 		exists, _ := vfs.Exists(tfs, "/target/root/etc/os-release")
 		Expect(exists).To(BeTrue())
