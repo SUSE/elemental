@@ -22,6 +22,7 @@ import (
 	"fmt"
 
 	"github.com/suse/elemental/v3/pkg/sys"
+	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
 
 type MiB int64
@@ -357,7 +358,7 @@ func checkDiskDeviceExists(s *sys.System, d *Deployment) error {
 		if disk.Device == "" {
 			return nil
 		}
-		ok, err := sys.Exists(s.FS(), disk.Device)
+		ok, err := vfs.Exists(s.FS(), disk.Device)
 		if err != nil {
 			return fmt.Errorf("failed to check target device '%s' existence: %w", disk.Device, err)
 		}

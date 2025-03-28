@@ -28,6 +28,7 @@ import (
 	"github.com/suse/elemental/v3/pkg/diskrepart"
 	"github.com/suse/elemental/v3/pkg/sys"
 	sysmock "github.com/suse/elemental/v3/pkg/sys/mock"
+	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
 
 const sgdiskPrint = `Disk /dev/sda: 500118192 sectors, 238.5 GiB
@@ -58,7 +59,7 @@ func TestDiskRepartSuite(t *testing.T) {
 var _ = Describe("DiskRepart", Label("diskrepart"), func() {
 	var runner *sysmock.Runner
 	var mounter *sysmock.Mounter
-	var fs sys.FS
+	var fs vfs.FS
 	var cleanup func()
 	var s *sys.System
 	var dev *diskrepart.Disk
@@ -73,7 +74,7 @@ var _ = Describe("DiskRepart", Label("diskrepart"), func() {
 		Expect(err).ToNot(HaveOccurred())
 		s, err = sys.NewSystem(sys.WithMounter(mounter), sys.WithRunner(runner), sys.WithFS(fs))
 		Expect(err).ToNot(HaveOccurred())
-		err = sys.MkdirAll(fs, "/dev", sys.DirPerm)
+		err = vfs.MkdirAll(fs, "/dev", vfs.DirPerm)
 		Expect(err).To(BeNil())
 		_, err = fs.Create("/dev/device")
 		Expect(err).To(BeNil())

@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/suse/elemental/v3/pkg/sys"
+	"github.com/suse/elemental/v3/pkg/sys/vfs"
 
 	backoff "github.com/cenkalti/backoff/v4"
 	"github.com/containerd/containerd/v2/pkg/archive"
@@ -35,7 +36,7 @@ import (
 )
 
 type OCI struct {
-	fs          sys.FS
+	fs          vfs.FS
 	platformRef string
 	local       bool
 	verify      bool
