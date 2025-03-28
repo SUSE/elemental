@@ -35,14 +35,15 @@ type Device interface {
 
 // Partition struct represents a partition with its commonly configurable values, size in MiB
 type Partition struct {
-	Name            string
-	FilesystemLabel string
-	Size            uint
-	FS              string
-	Flags           []string
-	MountPoints     []string
-	Path            string
-	Disk            string
+	Name        string
+	Label       string
+	Size        uint
+	FileSystem  string
+	UUID        string
+	Flags       []string
+	MountPoints []string
+	Path        string
+	Disk        string
 }
 
 type PartitionList []*Partition
@@ -68,7 +69,7 @@ func (pl PartitionList) GetByLabel(label string) *Partition {
 	var part *Partition
 
 	for _, p := range pl {
-		if p.FilesystemLabel == label {
+		if p.Label == label {
 			part = p
 			// Prioritize mounted partitions if there are multiple matches
 			if len(part.MountPoints) > 0 {
@@ -79,17 +80,33 @@ func (pl PartitionList) GetByLabel(label string) *Partition {
 	return part
 }
 
-// GetByNameOrLabel gets a partition by its name or label. It tries by name first
-func (pl PartitionList) GetByNameOrLabel(name, label string) *Partition {
-	part := pl.GetByName(name)
-	if part == nil {
-		part = pl.GetByLabel(label)
+// GetByUUID gets a partition by its filesystem UUID from the PartitionList
+func (pl PartitionList) GetByUUID(uuid string) *Partition {
+	var part *Partition
+
+	for _, p := range pl {
+		if p.UUID == uuid {
+			return part
+		}
 	}
 	return part
 }
 
-// GetPartitionByLabel works like GetPartitionDeviceByLabel, but it will try to get as much info as possible from the existing
-// partition and return a Partition object
+// GetByNameOrLabel gets a partition by its uuid, name or label. It tries by uuid first and label as the option.
+func (pl PartitionList) GetByUUIDNameOrLabel(uuid, name, label string) *Partition {
+	part := pl.GetByUUID(uuid)
+	if part == nil {
+		part = pl.GetByName(name)
+		if part == nil {
+			part = pl.GetByLabel(label)
+		}
+	}
+	return part
+}
+
+// GetPartitionByLabel tries to return the partition that matches the given label.
+// attempts value sets the number of attempts to find the device, it
+// waits a second between attempts.
 func GetPartitionByLabel(s *sys.System, b Device, label string, attempts int) (*Partition, error) {
 	for range attempts {
 		_, _ = s.Runner().Run("udevadm", "settle")
@@ -98,6 +115,25 @@ func GetPartitionByLabel(s *sys.System, b Device, label string, attempts int) (*
 			return nil, err
 		}
 		part := parts.GetByLabel(label)
+		if part != nil {
+			return part, nil
+		}
+		time.Sleep(1 * time.Second)
+	}
+	return nil, errors.New("no device found")
+}
+
+// GetPartitionByUUID tries to return the partition that matches the given filesystem UUID.
+// attempts value sets the number of attempts to find the device, it
+// waits a second between attempts.
+func GetPartitionByUUID(s *sys.System, b Device, uuid string, attempts int) (*Partition, error) {
+	for range attempts {
+		_, _ = s.Runner().Run("udevadm", "settle")
+		parts, err := b.GetAllPartitions()
+		if err != nil {
+			return nil, err
+		}
+		part := parts.GetByUUID(uuid)
 		if part != nil {
 			return part, nil
 		}

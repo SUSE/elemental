@@ -21,11 +21,11 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/suse/elemental/v3/pkg/sys"
+	"github.com/suse/elemental/v3/pkg/sys/mounter"
 	"k8s.io/mount-utils"
 )
 
-var _ sys.Mounter = (*Mounter)(nil)
+var _ mounter.Interface = (*Mounter)(nil)
 
 // FakeMounter is a fake mounter for tests that can error out.
 type Mounter struct {
@@ -58,7 +58,10 @@ func (e Mounter) Unmount(target string) error {
 }
 
 func (e Mounter) IsMountPoint(file string) (bool, error) {
-	mnts, _ := e.List()
+	mnts, err := e.List()
+	if err != nil {
+		return false, err
+	}
 
 	for _, mnt := range mnts {
 		if file == mnt.Path {
@@ -90,7 +93,33 @@ func (e Mounter) GetMountRefs(pathname string) ([]string, error) {
 	return mntPaths, nil
 }
 
-// This is not part of the interface, just a helper method for tests
-func (e Mounter) List() ([]mount.MountPoint, error) {
-	return e.FakeMounter.List()
+func (e Mounter) GetMountPoints(device string) ([]mounter.MountPoint, error) {
+	lst, err := e.List()
+	if err != nil {
+		return nil, err
+	}
+	var mntLst []mounter.MountPoint
+	for _, mnt := range lst {
+		if device == mnt.Device {
+			mntLst = append(mntLst, mnt)
+		}
+	}
+	return mntLst, nil
+}
+
+func (e Mounter) List() ([]mounter.MountPoint, error) {
+	lst, err := e.FakeMounter.List()
+	if err != nil {
+		return nil, err
+	}
+	var mntList []mounter.MountPoint
+	for _, mnt := range lst {
+		mntList = append(mntList, mounter.MountPoint{
+			Device: mnt.Device,
+			Path:   mnt.Path,
+			Type:   mnt.Type,
+			Opts:   mnt.Opts,
+		})
+	}
+	return mntList, nil
 }

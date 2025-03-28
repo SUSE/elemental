@@ -27,6 +27,7 @@ import (
 
 	"github.com/suse/elemental/v3/pkg/log"
 	"github.com/suse/elemental/v3/pkg/sys"
+	"github.com/suse/elemental/v3/pkg/sys/mounter"
 )
 
 // Chroot represents the struct that will allow us to run commands inside a given chroot
@@ -36,7 +37,7 @@ type Chroot struct {
 	extraMounts   map[string]string
 	activeMounts  []string
 	fs            sys.FS
-	mounter       sys.Mounter
+	mounter       mounter.Interface
 	logger        log.Logger
 	runner        sys.Runner
 	syscall       sys.Syscall

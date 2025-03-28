@@ -19,6 +19,7 @@ package diskrepart_test
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -29,6 +30,8 @@ import (
 	"github.com/suse/elemental/v3/pkg/sys"
 	sysmock "github.com/suse/elemental/v3/pkg/sys/mock"
 )
+
+const uuid = "236dacf0-b37e-4bca-a21a-59e4aef3ea4c"
 
 const sgdiskPrint = `Disk /dev/sda: 500118192 sectors, 238.5 GiB
 Logical sector size: 512 bytes
@@ -144,10 +147,9 @@ var _ = Describe("DiskRepart", Label("diskrepart"), func() {
 	})
 	Describe("Modify disk", func() {
 		It("Format an already existing partition", func() {
-			err := diskrepart.FormatDevice(s, "/dev/device1", "ext4", "MY_LABEL")
-			Expect(err).To(BeNil())
+			Expect(diskrepart.FormatDevice(s, "/dev/device1", "ext4", "MY_LABEL", uuid)).To(Succeed())
 			Expect(runner.CmdsMatch([][]string{
-				{"mkfs.ext4", "-L", "MY_LABEL", "/dev/device1"},
+				{"mkfs.ext4", "-L", "MY_LABEL", "-U", uuid, "/dev/device1"},
 			})).To(BeNil())
 		})
 		It("Fails to create an unsupported partition table label", func() {
@@ -205,10 +207,9 @@ var _ = Describe("DiskRepart", Label("diskrepart"), func() {
 			Expect(err).To(BeNil())
 			cmds = [][]string{
 				{"udevadm", "settle"},
-				{"mkfs.xfs", "-L", "OEM", "/dev/device4"},
+				{"mkfs.xfs", "-L", "OEM", "-m", fmt.Sprintf("uuid=%s", uuid), "/dev/device4"},
 			}
-			_, err = dev.FormatPartition(4, "xfs", "OEM")
-			Expect(err).To(BeNil())
+			Expect(dev.FormatPartition(4, "xfs", "OEM", uuid)).To(Succeed())
 			Expect(runner.CmdsMatch(cmds)).To(BeNil())
 		})
 		It("Clears filesystem header from a partition", func() {
@@ -250,12 +251,12 @@ var _ = Describe("DiskRepart", Label("diskrepart"), func() {
 				}
 				bd.SetPartitions([]*block.Partition{
 					{
-						Disk: "device",
-						Path: "/dev/device4",
-						FS:   "ext4",
+						Disk:       "device",
+						Path:       "/dev/device4",
+						FileSystem: "ext4",
 					},
 				})
-				_, err = dev.ExpandLastPartition(0)
+				err = dev.ExpandLastPartition(0)
 				Expect(err).To(BeNil())
 				Expect(runner.CmdsMatch(append(cmds, extCmds...))).To(BeNil())
 			})
@@ -265,12 +266,12 @@ var _ = Describe("DiskRepart", Label("diskrepart"), func() {
 				xfsCmds := [][]string{{"xfs_growfs"}}
 				bd.SetPartitions([]*block.Partition{
 					{
-						Disk: "device",
-						Path: "/dev/device4",
-						FS:   "xfs",
+						Disk:       "device",
+						Path:       "/dev/device4",
+						FileSystem: "xfs",
 					},
 				})
-				_, err = dev.ExpandLastPartition(0)
+				err = dev.ExpandLastPartition(0)
 				Expect(err).To(BeNil())
 				Expect(runner.CmdsMatch(append(cmds, xfsCmds...))).To(BeNil())
 			})
@@ -280,12 +281,12 @@ var _ = Describe("DiskRepart", Label("diskrepart"), func() {
 				xfsCmds := [][]string{{"btrfs", "filesystem", "resize"}}
 				bd.SetPartitions([]*block.Partition{
 					{
-						Disk: "device",
-						Path: "/dev/device4",
-						FS:   "btrfs",
+						Disk:       "device",
+						Path:       "/dev/device4",
+						FileSystem: "btrfs",
 					},
 				})
-				_, err = dev.ExpandLastPartition(0)
+				err = dev.ExpandLastPartition(0)
 				Expect(err).To(BeNil())
 				Expect(runner.CmdsMatch(append(cmds, xfsCmds...))).To(BeNil())
 			})

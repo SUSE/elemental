@@ -27,11 +27,12 @@ import (
 	ghwUtil "github.com/jaypipes/ghw/pkg/util"
 	"github.com/suse/elemental/v3/pkg/block"
 	"github.com/suse/elemental/v3/pkg/sys"
+	"github.com/suse/elemental/v3/pkg/sys/mounter"
 )
 
 type ghwDevice struct {
 	runner  sys.Runner
-	mounter sys.Mounter
+	mounter mounter.Interface
 }
 
 func NewGhwDevice(s *sys.System) *ghwDevice { //nolint:revive
@@ -41,7 +42,7 @@ func NewGhwDevice(s *sys.System) *ghwDevice { //nolint:revive
 var _ block.Device = (*ghwDevice)(nil)
 
 // ghwPartitionToInternalPartition transforms a block.Partition from ghw lib to our types.Partition type
-func ghwPartitionToInternalPartition(m sys.Mounter, partition *ghwblock.Partition) (*block.Partition, error) {
+func ghwPartitionToInternalPartition(m mounter.Interface, partition *ghwblock.Partition) (*block.Partition, error) {
 	mnts := []string{partition.MountPoint}
 	if partition.MountPoint != "" {
 		extraMnts, err := m.GetMountRefs(partition.MountPoint)
@@ -52,14 +53,15 @@ func ghwPartitionToInternalPartition(m sys.Mounter, partition *ghwblock.Partitio
 		mnts = append(mnts, extraMnts...)
 	}
 	return &block.Partition{
-		FilesystemLabel: partition.FilesystemLabel,
-		Size:            uint(partition.SizeBytes / (1024 * 1024)), // Converts B to MB
-		Name:            partition.Label,
-		FS:              partition.Type,
-		Flags:           nil,
-		MountPoints:     mnts,
-		Path:            filepath.Join("/dev", partition.Name),
-		Disk:            filepath.Join("/dev", partition.Disk.Name),
+		Label:       partition.FilesystemLabel,
+		Size:        uint(partition.SizeBytes / (1024 * 1024)), // Converts B to MB
+		Name:        partition.Label,
+		FileSystem:  partition.Type,
+		UUID:        partition.UUID,
+		Flags:       nil,
+		MountPoints: mnts,
+		Path:        filepath.Join("/dev", partition.Name),
+		Disk:        filepath.Join("/dev", partition.Disk.Name),
 	}, nil
 }
 

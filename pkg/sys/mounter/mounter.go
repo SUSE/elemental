@@ -17,18 +17,79 @@ limitations under the License.
 
 package mounter
 
-import (
-	"k8s.io/mount-utils"
-)
+import "k8s.io/mount-utils"
 
 const (
 	Binary = "/usr/bin/mount"
 )
 
-func NewMounter(binary string) mount.Interface {
-	return mount.NewWithoutSystemd(binary)
+type Interface interface {
+	Mount(source string, target string, fstype string, options []string) error
+	Unmount(target string) error
+	// IsMountPoint check /proc/mounts or equivalent data to check if the given path is listed there
+	IsMountPoint(path string) (bool, error)
+	// GetMountRefs finds all mount references to pathname, returning a slice of
+	// paths. The returned slice does not include the given path.
+	GetMountRefs(pathname string) ([]string, error)
+	// GetMountPoints parses /proc/mounts or equivalent data to fetch all available mountpoints for the given device
+	GetMountPoints(device string) ([]MountPoint, error)
 }
 
-func NewDummyMounter() mount.Interface {
-	return mount.NewFakeMounter([]mount.MountPoint{})
+// MountPoint represents a single line in /proc/mounts or /etc/fstab.
+type MountPoint struct {
+	Device string
+	Path   string
+	Type   string
+	Opts   []string // Opts may contain sensitive mount options (like passwords) and MUST be treated as such (e.g. not logged).
+}
+
+type Mounter struct {
+	mnt mount.Interface
+}
+
+func NewMounter(binary string) Interface {
+	return &Mounter{
+		mnt: mount.NewWithoutSystemd(binary),
+	}
+}
+
+func NewDummyMounter() *Mounter {
+	return &Mounter{
+		mnt: mount.NewFakeMounter([]mount.MountPoint{}),
+	}
+}
+
+func (m Mounter) Mount(source string, target string, fstype string, options []string) error {
+	return m.mnt.Mount(source, target, fstype, options)
+}
+
+func (m Mounter) Unmount(target string) error {
+	return m.mnt.Unmount(target)
+}
+
+func (m Mounter) IsMountPoint(path string) (bool, error) {
+	return m.mnt.IsMountPoint(path)
+}
+
+func (m Mounter) GetMountRefs(path string) ([]string, error) {
+	return m.mnt.GetMountRefs(path)
+}
+
+func (m Mounter) GetMountPoints(device string) ([]MountPoint, error) {
+	mntLst, err := m.mnt.List()
+	if err != nil {
+		return nil, err
+	}
+	var lst []MountPoint
+	for _, mp := range mntLst {
+		if mp.Device == device {
+			lst = append(lst, MountPoint{
+				Device: mp.Device,
+				Path:   mp.Path,
+				Opts:   mp.Opts,
+				Type:   mp.Type,
+			})
+		}
+	}
+	return lst, nil
 }

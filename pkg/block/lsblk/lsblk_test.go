@@ -35,6 +35,7 @@ const fullLsblkTmpl = `{
       {
          "label": "EFI",
          "partlabel": "efi",
+         "uuid": "236dacf0",
          "size": 272629760,
          "fstype": "vfat",
          "mountpoints": [
@@ -63,6 +64,7 @@ const diskPortionLsblkOut = `,{
 const partsPortionLslbkOut = `,{
          "label": "STATE",
          "partlabel": "state",
+         "uuid": "34a8abb8-ddb3-48a2-8ecc-2443e92c7510",
          "size": 351333777408,
          "fstype": "btrfs",
          "mountpoints": [
@@ -74,6 +76,7 @@ const partsPortionLslbkOut = `,{
       },{
          "label": "PERSISTENT",
          "partlabel": "persistent",
+         "uuid": "236dacf0-b37e-4bca-a21a-59e4aef3ea4c",
          "size": 670454251520,
          "fstype": "xfs",
          "mountpoints": [
@@ -146,8 +149,8 @@ var _ = Describe("BlockDevice", Label("lsblk"), func() {
 			Expect(part.Path).To(Equal("/dev/sda2"))
 			part = pl.GetByName("persistent")
 			Expect(part).NotTo(BeNil())
-			Expect(part.FS).To(Equal("xfs"))
-			part = pl.GetByNameOrLabel("wrongname", "EFI")
+			Expect(part.FileSystem).To(Equal("xfs"))
+			part = pl.GetByUUIDNameOrLabel("invalidUUID", "wrongname", "EFI")
 			Expect(part).NotTo(BeNil())
 			Expect(part.Name).To(Equal("efi"))
 		})
@@ -170,13 +173,13 @@ var _ = Describe("BlockDevice", Label("lsblk"), func() {
 			Expect(part.Path).To(Equal("/dev/sda2"))
 			part = pl.GetByName("persistent")
 			Expect(part).NotTo(BeNil())
-			Expect(part.FS).To(Equal("xfs"))
-			part = pl.GetByNameOrLabel("wrongname", "EFI")
+			Expect(part.FileSystem).To(Equal("xfs"))
+			part = pl.GetByUUIDNameOrLabel("invalidUUID", "wrongname", "EFI")
 			Expect(part).NotTo(BeNil())
 			Expect(part.Name).To(Equal("efi"))
-			part = pl.GetByNameOrLabel("data", "wronglable")
+			part = pl.GetByUUIDNameOrLabel("invalidUUID", "data", "wronglable")
 			Expect(part).NotTo(BeNil())
-			Expect(part.FilesystemLabel).To(Equal("DATA"))
+			Expect(part.Label).To(Equal("DATA"))
 		})
 		It("lsblk call fails", func() {
 			lsblkErr = fmt.Errorf("new lsblk error")

@@ -30,15 +30,6 @@ import (
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
 
-type Mounter interface {
-	Mount(source string, target string, fstype string, options []string) error
-	Unmount(target string) error
-	IsMountPoint(path string) (bool, error)
-	// GetMountRefs finds all mount references to pathname, returning a slice of
-	// paths. The returned slice does not include the given path.
-	GetMountRefs(pathname string) ([]string, error)
-}
-
 type Runner interface {
 	Run(cmd string, args ...string) ([]byte, error)
 	RunContext(cxt context.Context, cmd string, args ...string) ([]byte, error)
@@ -53,7 +44,7 @@ type Syscall interface {
 type System struct {
 	logger   log.Logger
 	fs       FS
-	mounter  Mounter
+	mounter  mounter.Interface
 	runner   Runner
 	syscall  Syscall
 	platform *platform.Platform
@@ -82,7 +73,7 @@ func WithSyscall(syscall Syscall) SystemOpts {
 	}
 }
 
-func WithMounter(mounter Mounter) SystemOpts {
+func WithMounter(mounter mounter.Interface) SystemOpts {
 	return func(r *System) error {
 		r.mounter = mounter
 		return nil
@@ -150,7 +141,7 @@ func (s System) Syscall() Syscall {
 	return s.syscall
 }
 
-func (s System) Mounter() Mounter {
+func (s System) Mounter() mounter.Interface {
 	return s.mounter
 }
 

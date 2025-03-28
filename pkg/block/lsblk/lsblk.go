@@ -39,6 +39,7 @@ var _ block.Device = (*lsDevice)(nil)
 type jPart struct {
 	Label       string   `json:"label,omitempty"`
 	Name        string   `json:"partlabel,omitempty"`
+	UUID        string   `json:"uuid,omitempty"`
 	Size        uint64   `json:"size,omitempty"`
 	FS          string   `json:"fstype,omitempty"`
 	MountPoints []string `json:"mountpoints,omitempty"`
@@ -52,14 +53,15 @@ type jParts []*block.Partition
 func (p jPart) Partition() *block.Partition {
 	// Converts B to MB
 	return &block.Partition{
-		FilesystemLabel: p.Label,
-		Size:            uint(p.Size / (1024 * 1024)),
-		FS:              p.FS,
-		Flags:           []string{},
-		MountPoints:     p.MountPoints,
-		Path:            p.Path,
-		Disk:            p.Disk,
-		Name:            p.Name,
+		Label:       p.Label,
+		Size:        uint(p.Size / (1024 * 1024)),
+		FileSystem:  p.FS,
+		UUID:        p.UUID,
+		Flags:       []string{},
+		MountPoints: p.MountPoints,
+		Path:        p.Path,
+		Disk:        p.Disk,
+		Name:        p.Name,
 	}
 }
 
@@ -104,7 +106,7 @@ func unmarshalLsblk(lsblkOut []byte) ([]*block.Partition, error) {
 // GetAllPartitions gets a slice of all partition devices found in the host
 // mapped into a v1.PartitionList object.
 func (l lsDevice) GetAllPartitions() (block.PartitionList, error) {
-	out, err := l.runner.Run("lsblk", "-p", "-b", "-n", "-J", "--output", "LABEL,PARTLABEL,SIZE,FSTYPE,MOUNTPOINTS,PATH,PKNAME,TYPE")
+	out, err := l.runner.Run("lsblk", "-p", "-b", "-n", "-J", "--output", "LABEL,PARTLABEL,UUID,SIZE,FSTYPE,MOUNTPOINTS,PATH,PKNAME,TYPE")
 	if err != nil {
 		return nil, err
 	}
@@ -116,7 +118,7 @@ func (l lsDevice) GetAllPartitions() (block.PartitionList, error) {
 // into a v1.PartitionList object. If the device is a disk it will list all disk
 // partitions, if the device is already a partition it will simply list a single partition.
 func (l lsDevice) GetDevicePartitions(device string) (block.PartitionList, error) {
-	out, err := l.runner.Run("lsblk", "-p", "-b", "-n", "-J", "--output", "LABEL,PARTLABEL,SIZE,FSTYPE,MOUNTPOINTS,PATH,PKNAME,TYPE", device)
+	out, err := l.runner.Run("lsblk", "-p", "-b", "-n", "-J", "--output", "LABEL,PARTLABEL,UUID,SIZE,FSTYPE,MOUNTPOINTS,PATH,PKNAME,TYPE", device)
 	if err != nil {
 		return nil, err
 	}
@@ -134,5 +136,5 @@ func (l lsDevice) GetPartitionFS(partition string) (string, error) {
 	if len(pLst) != 1 {
 		return "", fmt.Errorf("could not parse a single partition: %v", pLst)
 	}
-	return pLst[0].FS, nil
+	return pLst[0].FileSystem, nil
 }

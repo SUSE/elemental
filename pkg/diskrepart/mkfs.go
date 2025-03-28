@@ -20,20 +20,29 @@ package diskrepart
 import (
 	"fmt"
 	"regexp"
+	"strings"
 
+	"github.com/google/uuid"
+
+	"github.com/suse/elemental/v3/pkg/log"
 	"github.com/suse/elemental/v3/pkg/sys"
 )
 
 type MkfsCall struct {
 	fileSystem string
 	label      string
+	uuid       string
 	customOpts []string
 	dev        string
 	runner     sys.Runner
+	logger     log.Logger
 }
 
-func NewMkfsCall(s *sys.System, dev string, fileSystem string, label string, customOpts ...string) *MkfsCall {
-	return &MkfsCall{dev: dev, fileSystem: fileSystem, label: label, runner: s.Runner(), customOpts: customOpts}
+func NewMkfsCall(s *sys.System, dev, fileSystem, label, uuid string, customOpts ...string) *MkfsCall {
+	return &MkfsCall{
+		dev: dev, fileSystem: fileSystem, label: label, uuid: uuid,
+		runner: s.Runner(), customOpts: customOpts, logger: s.Logger(),
+	}
 }
 
 func (mkfs MkfsCall) buildOptions() ([]string, error) {
@@ -42,11 +51,27 @@ func (mkfs MkfsCall) buildOptions() ([]string, error) {
 	linuxFS, _ := regexp.MatchString("ext[2-4]|xfs|btrfs", mkfs.fileSystem)
 	fatFS, _ := regexp.MatchString("fat|vfat", mkfs.fileSystem)
 
+	if mkfs.uuid != "" {
+		_, err := uuid.Parse(mkfs.uuid)
+		if err != nil {
+			return []string{}, fmt.Errorf("provided UUID ('%s') is not valid: %w", mkfs.uuid, err)
+		}
+	}
+
 	switch {
 	case linuxFS:
 		if mkfs.label != "" {
 			opts = append(opts, "-L")
 			opts = append(opts, mkfs.label)
+		}
+		if mkfs.uuid != "" {
+			if mkfs.fileSystem == "xfs" {
+				opts = append(opts, "-m")
+				opts = append(opts, fmt.Sprintf("uuid=%s", mkfs.uuid))
+			} else {
+				opts = append(opts, "-U")
+				opts = append(opts, mkfs.uuid)
+			}
 		}
 		if len(mkfs.customOpts) > 0 {
 			opts = append(opts, mkfs.customOpts...)
@@ -60,6 +85,10 @@ func (mkfs MkfsCall) buildOptions() ([]string, error) {
 			opts = append(opts, "-n")
 			opts = append(opts, mkfs.label)
 		}
+		if mkfs.uuid != "" {
+			opts = append(opts, "-i")
+			opts = append(opts, strings.Split(mkfs.uuid, "-")[0])
+		}
 		if len(mkfs.customOpts) > 0 {
 			opts = append(opts, mkfs.customOpts...)
 		}
@@ -70,12 +99,16 @@ func (mkfs MkfsCall) buildOptions() ([]string, error) {
 	return opts, nil
 }
 
-func (mkfs MkfsCall) Apply() (string, error) {
+func (mkfs MkfsCall) Apply() error {
 	opts, err := mkfs.buildOptions()
 	if err != nil {
-		return "", err
+		mkfs.logger.Error("failed preparing mkfs arguments: %v", err)
+		return err
 	}
 	tool := fmt.Sprintf("mkfs.%s", mkfs.fileSystem)
 	out, err := mkfs.runner.Run(tool, opts...)
-	return string(out), err
+	if err != nil {
+		mkfs.logger.Error("mkfs failed with: %s", string(out))
+	}
+	return err
 }
