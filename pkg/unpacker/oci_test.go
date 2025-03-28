@@ -25,11 +25,12 @@ import (
 
 	"github.com/suse/elemental/v3/pkg/sys"
 	sysmock "github.com/suse/elemental/v3/pkg/sys/mock"
+	"github.com/suse/elemental/v3/pkg/sys/vfs"
 	"github.com/suse/elemental/v3/pkg/unpacker"
 )
 
 var _ = Describe("OCIUnpacker", Label("oci", "rootlesskit"), func() {
-	var tfs sys.FS
+	var tfs vfs.FS
 	var unpack *unpacker.OCI
 	var s *sys.System
 	var cleanup func()
@@ -45,10 +46,10 @@ var _ = Describe("OCIUnpacker", Label("oci", "rootlesskit"), func() {
 		cleanup()
 	})
 	It("Unpacks a remote alpine image", func() {
-		Expect(sys.MkdirAll(tfs, "/target/root", sys.DirPerm)).To(Succeed())
+		Expect(vfs.MkdirAll(tfs, "/target/root", vfs.DirPerm)).To(Succeed())
 		digest, err := unpack.Unpack(context.Background(), "docker.io/library/alpine:3.21.3", "/target/root")
 		Expect(err).NotTo(HaveOccurred())
-		exists, _ := sys.Exists(tfs, "/target/root/etc/os-release")
+		exists, _ := vfs.Exists(tfs, "/target/root/etc/os-release")
 		Expect(exists).To(BeTrue())
 		data, err := tfs.ReadFile("/target/root/etc/os-release")
 		Expect(err).NotTo(HaveOccurred())

@@ -26,6 +26,7 @@ import (
 	"github.com/suse/elemental/v3/internal/cli/cmd"
 	"github.com/suse/elemental/v3/pkg/deployment"
 	"github.com/suse/elemental/v3/pkg/sys"
+	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
 
 func Install(ctx *cli.Context) error {
@@ -53,7 +54,7 @@ func Install(ctx *cli.Context) error {
 func digestInstallSetup(s *sys.System, flags *cmd.InstallFlags) (*deployment.Deployment, error) {
 	d := deployment.DefaultDeployment()
 	if flags.ConfigFile != "" {
-		if ok, err := sys.Exists(s.FS(), flags.ConfigFile); !ok {
+		if ok, err := vfs.Exists(s.FS(), flags.ConfigFile); !ok {
 			return nil, fmt.Errorf("config file '%s' not found: %w", flags.ConfigFile, err)
 		}
 		data, err := s.FS().ReadFile(flags.ConfigFile)

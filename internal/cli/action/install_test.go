@@ -30,6 +30,7 @@ import (
 	"github.com/suse/elemental/v3/pkg/log"
 	"github.com/suse/elemental/v3/pkg/sys"
 	sysmock "github.com/suse/elemental/v3/pkg/sys/mock"
+	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
 
 const (
@@ -51,7 +52,7 @@ disks:
 
 var _ = Describe("Install action", Label("install"), func() {
 	var s *sys.System
-	var tfs sys.FS
+	var tfs vfs.FS
 	var cleanup func()
 	var err error
 	var ctx *cli.Context
