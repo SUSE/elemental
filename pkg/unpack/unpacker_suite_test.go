@@ -15,10 +15,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package unpacker
+package unpack_test
 
-import "context"
+import (
+	"testing"
 
-type Unpacker interface {
-	Unpack(ctx context.Context, source, destination string) (string, error)
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+)
+
+func TestUnpackerSuite(t *testing.T) {
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "Unpacker test suite")
 }

@@ -129,5 +129,8 @@ func (r Rsync) rsyncWrapper(source string, target string, flags []string) error 
 }
 
 func DefaultFlags() []string {
-	return []string{"--info=progress2", "--human-readable", "--partial", "--archive", "--xattrs", "--acls", "--filter=-x security.selinux"}
+	return []string{
+		"--info=progress2", "--human-readable", "--partial", "--archive",
+		"--checksum", "--xattrs", "--acls", "--filter=-x security.selinux",
+	}
 }
