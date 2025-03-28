@@ -24,7 +24,6 @@ import (
 
 	"github.com/suse/elemental/v3/pkg/log"
 	"github.com/suse/elemental/v3/pkg/sys/mounter"
-	"github.com/suse/elemental/v3/pkg/sys/mounter/k8smounter"
 	"github.com/suse/elemental/v3/pkg/sys/platform"
 	"github.com/suse/elemental/v3/pkg/sys/runner"
 	"github.com/suse/elemental/v3/pkg/sys/syscall"
@@ -105,7 +104,7 @@ func NewSystem(opts ...SystemOpts) (*System, error) {
 		fs:      vfs.OSFS(),
 		logger:  logger,
 		syscall: syscall.Syscall(),
-		mounter: k8smounter.NewMounter(mounter.Binary),
+		mounter: mounter.NewMounter(mounter.Binary),
 	}
 
 	for _, o := range opts {

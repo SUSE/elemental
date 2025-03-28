@@ -17,6 +17,8 @@ limitations under the License.
 
 package mounter
 
+import "k8s.io/mount-utils"
+
 const (
 	Binary = "/usr/bin/mount"
 )
@@ -39,4 +41,55 @@ type MountPoint struct {
 	Path   string
 	Type   string
 	Opts   []string // Opts may contain sensitive mount options (like passwords) and MUST be treated as such (e.g. not logged).
+}
+
+type Mounter struct {
+	mnt mount.Interface
+}
+
+func NewMounter(binary string) Interface {
+	return &Mounter{
+		mnt: mount.NewWithoutSystemd(binary),
+	}
+}
+
+func NewDummyMounter() *Mounter {
+	return &Mounter{
+		mnt: mount.NewFakeMounter([]mount.MountPoint{}),
+	}
+}
+
+func (m Mounter) Mount(source string, target string, fstype string, options []string) error {
+	return m.mnt.Mount(source, target, fstype, options)
+}
+
+func (m Mounter) Unmount(target string) error {
+	return m.mnt.Unmount(target)
+}
+
+func (m Mounter) IsMountPoint(path string) (bool, error) {
+	return m.mnt.IsMountPoint(path)
+}
+
+func (m Mounter) GetMountRefs(path string) ([]string, error) {
+	return m.mnt.GetMountRefs(path)
+}
+
+func (m Mounter) GetMountPoints(device string) ([]MountPoint, error) {
+	mntLst, err := m.mnt.List()
+	if err != nil {
+		return nil, err
+	}
+	var lst []MountPoint
+	for _, mp := range mntLst {
+		if mp.Device == device {
+			lst = append(lst, MountPoint{
+				Device: mp.Device,
+				Path:   mp.Path,
+				Opts:   mp.Opts,
+				Type:   mp.Type,
+			})
+		}
+	}
+	return lst, nil
 }
