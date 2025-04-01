@@ -18,7 +18,7 @@ elemental:
 .PHONY: unit-tests
 unit-tests:
 	go run $(GINKGO) --label-filter '!rootlesskit' --race --cover --coverpkg=github.com/suse/elemental/... --github-output -p -r ${PKG}
-ifeq (, $(shell which rootlesskit))
+ifeq (, $(shell which rootlesskit 2>/dev/null))
 	@echo "No rootlesskit utility found, not executing tests requiring it"
 else
 	@mv coverprofile.out coverprofile.out.bk
