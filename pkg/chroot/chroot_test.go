@@ -57,6 +57,10 @@ var _ = Describe("Chroot", Label("chroot"), func() {
 		)
 		Expect(err).NotTo(HaveOccurred())
 		chr = chroot.NewChroot(s, "/whatever")
+
+		for _, path := range []string{"/dev", "/dev/pts", "/proc", "/sys"} {
+			Expect(vfs.MkdirAll(fs, path, vfs.DirPerm)).To(Succeed())
+		}
 	})
 	AfterEach(func() {
 		cleanup()
@@ -82,7 +86,13 @@ var _ = Describe("Chroot", Label("chroot"), func() {
 			Expect(syscall.WasChrootCalledWith("/whatever")).To(BeTrue())
 		})
 		It("commands should be called with a customized chroot", func() {
-			chr.SetExtraMounts(map[string]string{"/real/path": "/in/chroot/path"})
+			binds := map[string]string{
+				"/host/dir":  "/in/chroot/path",
+				"/host/file": "/in/chroot/file",
+			}
+			Expect(vfs.MkdirAll(fs, "/host/dir", vfs.DirPerm)).To(Succeed())
+			Expect(fs.WriteFile("/host/file", []byte("data"), vfs.FilePerm)).To(Succeed())
+			chr.SetExtraMounts(binds)
 			Expect(chr.Prepare()).To(BeNil())
 			defer chr.Close()
 			_, err := chr.Run("chroot-command")

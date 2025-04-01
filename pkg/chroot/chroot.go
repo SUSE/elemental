@@ -22,8 +22,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
-	"strings"
 
 	"github.com/suse/elemental/v3/pkg/log"
 	"github.com/suse/elemental/v3/pkg/sys"
@@ -37,6 +37,7 @@ type Chroot struct {
 	defaultMounts []string
 	extraMounts   map[string]string
 	activeMounts  []string
+	touchedFiles  []string
 	fs            vfs.FS
 	mounter       mounter.Interface
 	logger        log.Logger
@@ -50,6 +51,7 @@ func NewChroot(s *sys.System, path string) *Chroot {
 		defaultMounts: []string{"/dev", "/dev/pts", "/proc", "/sys"},
 		extraMounts:   map[string]string{},
 		activeMounts:  []string{},
+		touchedFiles:  []string{},
 		runner:        s.Runner(),
 		logger:        s.Logger(),
 		mounter:       s.Mounter(),
@@ -76,33 +78,24 @@ func (c *Chroot) SetExtraMounts(extraMounts map[string]string) {
 }
 
 // Prepare will mount the defaultMounts as bind mounts, to be ready when we run chroot
-func (c *Chroot) Prepare() error {
-	var err error
+func (c *Chroot) Prepare() (err error) {
 	keys := []string{}
-	mountOptions := []string{"bind"}
 
 	if len(c.activeMounts) > 0 {
-		return errors.New("there are already active mountpoints for this instance")
+		return fmt.Errorf("there are already active mountpoints for this instance")
 	}
 
 	defer func() {
 		if err != nil {
-			c.Close()
+			_ = c.Close()
 		}
 	}()
 
 	for _, mnt := range c.defaultMounts {
-		mountPoint := fmt.Sprintf("%s%s", strings.TrimSuffix(c.path, "/"), mnt)
-		err = vfs.MkdirAll(c.fs, mountPoint, vfs.DirPerm)
+		err = c.bindMount(mnt, filepath.Join(c.path, mnt))
 		if err != nil {
 			return err
 		}
-		c.logger.Debug("Mounting %s to chroot", mountPoint)
-		err = c.mounter.Mount(mnt, mountPoint, "bind", mountOptions)
-		if err != nil {
-			return err
-		}
-		c.activeMounts = append(c.activeMounts, mountPoint)
 	}
 
 	for k := range c.extraMounts {
@@ -110,43 +103,92 @@ func (c *Chroot) Prepare() error {
 	}
 	sort.Strings(keys)
 	for _, k := range keys {
-		mountPoint := fmt.Sprintf("%s%s", strings.TrimSuffix(c.path, "/"), c.extraMounts[k])
-		err = vfs.MkdirAll(c.fs, mountPoint, vfs.DirPerm)
+		err = c.bindMount(k, filepath.Join(c.path, c.extraMounts[k]))
 		if err != nil {
 			return err
 		}
-		c.logger.Debug("Mounting %s to chroot", mountPoint)
-		err = c.mounter.Mount(k, mountPoint, "bind", mountOptions)
-		if err != nil {
-			return err
-		}
-		c.activeMounts = append(c.activeMounts, mountPoint)
 	}
 
 	return nil
 }
 
+func (c *Chroot) bindMount(source, mountPoint string) error {
+	info, err := c.fs.Stat(source)
+	if err != nil {
+		return err
+	}
+	if info.IsDir() {
+		return c.bindMountDir(source, mountPoint)
+	}
+	return c.bindMountFile(source, mountPoint)
+}
+
+func (c *Chroot) bindMountDir(source, mountPoint string) error {
+	err := vfs.MkdirAll(c.fs, mountPoint, vfs.DirPerm)
+	if err != nil {
+		return err
+	}
+	c.logger.Debug("Mounting %s to chroot", mountPoint)
+	err = c.mounter.Mount(source, mountPoint, "", []string{"bind"})
+	if err != nil {
+		return err
+	}
+	c.activeMounts = append(c.activeMounts, mountPoint)
+	return nil
+}
+
+func (c *Chroot) bindMountFile(source, target string) error {
+	ok, err := vfs.Exists(c.fs, target)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		err = c.fs.WriteFile(target, []byte{}, vfs.FilePerm)
+		if err != nil {
+			return err
+		}
+		c.touchedFiles = append(c.touchedFiles, target)
+	}
+	c.logger.Debug("Mounting %s to chroot", target)
+	err = c.mounter.Mount(source, target, "", []string{"bind"})
+	if err != nil {
+		return err
+	}
+	c.activeMounts = append(c.activeMounts, target)
+	return nil
+}
+
 // Close will unmount all active mounts created in Prepare on reverse order
-func (c *Chroot) Close() error {
-	failures := []string{}
+func (c *Chroot) Close() (err error) {
+	uFailures := []string{}
 	// syncing before unmounting chroot paths as it has been noted that on
 	// empty, trivial or super fast callbacks unmounting fails with a device busy error.
 	// Having lazy unmount could also fix it, but continuing without being sure they were
 	// really unmounted is dangerous.
 	_, _ = c.runner.Run("sync")
-	for len(c.activeMounts) > 0 {
-		curr := c.activeMounts[len(c.activeMounts)-1]
-		c.logger.Debug("Unmounting %s from chroot", curr)
-		c.activeMounts = c.activeMounts[:len(c.activeMounts)-1]
-		err := c.mounter.Unmount(curr)
-		if err != nil {
-			c.logger.Error("Error unmounting %s: %s", curr, err)
-			failures = append(failures, curr)
+	slices.Reverse(c.activeMounts)
+	for _, mnt := range c.activeMounts {
+		c.logger.Debug("Unmounting %s from chroot", mnt)
+		e := c.mounter.Unmount(mnt)
+		if e != nil {
+			c.logger.Error("error unmounting %s", mnt)
+			uFailures = append(uFailures, mnt)
+			err = errors.Join(err, e)
+			continue
+		}
+		if i := slices.Index(c.touchedFiles, mnt); i >= 0 {
+			e = vfs.RemoveAll(c.fs, mnt)
+			if e != nil {
+				c.logger.Error("error removing %s", mnt)
+				err = errors.Join(err, e)
+				err = errors.Join(err, e)
+			}
+			c.touchedFiles = slices.Delete(c.touchedFiles, i, i)
 		}
 	}
-	if len(failures) > 0 {
-		c.activeMounts = failures
-		return fmt.Errorf("failed closing chroot environment. Unmount failures: %v", failures)
+	c.activeMounts = uFailures
+	if err != nil {
+		return fmt.Errorf("failed closing chroot environment. Unmount or removal failures: %w", err)
 	}
 	return nil
 }
