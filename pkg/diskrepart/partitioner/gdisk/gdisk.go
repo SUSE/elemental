@@ -169,7 +169,7 @@ func (gd gdiskCall) GetLastSector(printOut string) (uint, error) {
 
 // Parses the output of a gdiskCall.Print call
 func (gd gdiskCall) GetSectorSize(printOut string) (uint, error) {
-	re := regexp.MustCompile(`[Ss]ector size.* (\d+) bytes`)
+	re := regexp.MustCompile(`[Ss]ector size.* (\d+)(/\d+)? bytes`)
 	match := re.FindStringSubmatch(printOut)
 	if match != nil {
 		size, err := strconv.ParseUint(match[1], 10, 0)

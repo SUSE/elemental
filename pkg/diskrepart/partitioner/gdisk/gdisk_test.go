@@ -29,7 +29,7 @@ import (
 )
 
 const sgdiskPrint = `Disk /dev/sda: 500118192 sectors, 238.5 GiB
-Logical sector size: 512 bytes
+Sector size (logical/physical): 512/512 bytes
 Disk identifier (GUID): CE4AA9A2-59DF-4DCC-B55A-A27A80676B33
 Partition table holds up to 128 entries
 First usable sector is 34, last usable sector is 500118158
