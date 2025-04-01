@@ -228,7 +228,7 @@ var _ = Describe("Sync tests", Label("rsync"), func() {
 			err = r.SyncData(sourceDir, destDir)
 			wg.Done()
 		}()
-		time.Sleep(1 * time.Second)
+		time.Sleep(2 * time.Second)
 		cancel()
 		wg.Wait()
 		Expect(err).NotTo(BeNil())

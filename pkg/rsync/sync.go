@@ -20,9 +20,12 @@ package rsync
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 
+	"github.com/suse/elemental/v3/pkg/log"
 	"github.com/suse/elemental/v3/pkg/sys"
 )
 
@@ -110,9 +113,7 @@ func (r Rsync) rsyncWrapper(source string, target string, flags []string) error 
 	args = append(args, source, target)
 
 	if r.ctx != nil {
-		err = r.s.Runner().RunContextParseOutput(r.ctx, func(msg string) {
-			log.Debug("synchronizing: %s", msg)
-		}, func(msg string) {
+		err = r.s.Runner().RunContextParseOutput(r.ctx, parseProgress(log), func(msg string) {
 			log.Debug("rsync stderr: %s", msg)
 		}, "rsync", args...)
 	} else {
@@ -130,4 +131,19 @@ func (r Rsync) rsyncWrapper(source string, target string, flags []string) error 
 
 func DefaultFlags() []string {
 	return []string{"--info=progress2", "--human-readable", "--partial", "--archive", "--xattrs", "--acls", "--filter=-x security.selinux"}
+}
+
+func parseProgress(log log.Logger) func(string) {
+	var progress int
+	re := regexp.MustCompile(`.* (\d+(.\d+)?)% .*`)
+	return func(line string) {
+		match := re.FindStringSubmatch(line)
+		if match != nil {
+			i, _ := strconv.Atoi(match[1])
+			if i != progress {
+				log.Debug("synchronizing: %s", line)
+				progress = i
+			}
+		}
+	}
 }
