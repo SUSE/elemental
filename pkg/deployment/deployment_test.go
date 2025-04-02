@@ -129,7 +129,7 @@ var _ = Describe("Deployment", Label("deployment"), func() {
 		d := &deployment.Deployment{
 			Disks: []*deployment.Disk{
 				{Partitions: []*deployment.Partition{
-					{Role: deployment.System},
+					{Role: deployment.System, Size: 1024},
 					{Role: deployment.EFI, RWVolumes: []deployment.RWVolume{{Path: "/some/path"}}},
 					{Role: deployment.Data, Size: deployment.AllAvailableSize},
 				}},
@@ -142,5 +142,18 @@ var _ = Describe("Deployment", Label("deployment"), func() {
 		Expect(d.Disks[0].Partitions[1].MountPoint).To(Equal(deployment.EfiMnt))
 		Expect(len(d.Disks[0].Partitions[1].RWVolumes)).To(Equal(0))
 		Expect(d.Disks[0].Partitions[2].FileSystem).To(Equal(deployment.Btrfs))
+	})
+	It("writes and reads deployment files", func() {
+		d := deployment.DefaultDeployment()
+		Expect(d.WriteDeploymentFile(s, "/some/dir")).To(Succeed())
+		rD, err := deployment.ReadDeployment(s, "/some/dir")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(len(rD.Disks)).To(Equal(1))
+		Expect(len(rD.Disks[0].Partitions)).To(Equal(2))
+		Expect(rD.Sanitize(s)).To(Succeed())
+	})
+	It("fails to read a non existing deployment", func() {
+		_, err := deployment.ReadDeployment(s, "/some/dir")
+		Expect(err).To(HaveOccurred())
 	})
 })

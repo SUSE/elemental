@@ -24,24 +24,28 @@ import (
 	"sort"
 	"strings"
 
+	"sigs.k8s.io/yaml"
+
 	"github.com/suse/elemental/v3/pkg/sys"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
 
-type MiB int64
+type MiB uint
 
 const (
 	EfiLabel     = "EFI"
 	EfiMnt       = "/boot"
 	EfiSize  MiB = 1024
 
-	RecoveryLabel = "Recovery"
+	RecoveryLabel = "RECOVERY"
 	RecoveryMnt   = "/run/elemental/recovery"
 	RecoverySize  = 0
 
 	SystemLabel          = "SYSTEM"
 	SystemMnt            = "/"
-	AllAvailableSize MiB = -1
+	AllAvailableSize MiB = 0
+
+	DeploymentFile = "/etc/elemental/deployment.yaml"
 
 	Unknown = "unknown"
 )
@@ -164,6 +168,8 @@ type RWVolume struct {
 	MountOpts     []string `json:"mountOpts,omitempty"`
 }
 
+type RWVolumes []RWVolume
+
 type Partition struct {
 	Label       string     `json:"label,omitempty"`
 	FileSystem  FileSystem `json:"fileSystem,omitempty"`
@@ -171,8 +177,8 @@ type Partition struct {
 	Role        PartRole   `json:"function"`
 	StartSector uint       `json:"startSector,omitempty"`
 	MountPoint  string     `json:"mountPoint,omitempty"`
-	MountOpts   string     `json:"mountOpts,omitempty"`
-	RWVolumes   []RWVolume `json:"rwVolumes,omitempty"`
+	MountOpts   []string   `json:"mountOpts,omitempty"`
+	RWVolumes   RWVolumes  `json:"rwVolumes,omitempty"`
 	UUID        string     `json:"uuid,omitempty"`
 }
 
@@ -237,6 +243,43 @@ func (d *Deployment) Sanitize(s *sys.System) error {
 		}
 	}
 	return nil
+}
+
+func (d *Deployment) WriteDeploymentFile(s *sys.System, root string) error {
+	data, err := yaml.Marshal(d)
+	if err != nil {
+		s.Logger().Error("failed marshalling deployment info")
+		return err
+	}
+
+	path := filepath.Join(root, DeploymentFile)
+	err = vfs.MkdirAll(s.FS(), filepath.Dir(path), vfs.DirPerm)
+	if err != nil {
+		s.Logger().Error("failed creating elemental directory")
+	}
+
+	err = s.FS().WriteFile(path, data, vfs.FilePerm)
+	if err != nil {
+		s.Logger().Error("failed writing deployment file: %s", path)
+		return err
+	}
+	return nil
+}
+
+func ReadDeployment(s *sys.System, root string) (*Deployment, error) {
+	path := filepath.Join(root, DeploymentFile)
+	data, err := s.FS().ReadFile(path)
+	if err != nil {
+		s.Logger().Error("failed to read deployment file '%s'", path)
+		return nil, err
+	}
+	d := &Deployment{}
+	err = yaml.Unmarshal(data, d)
+	if err != nil {
+		s.Logger().Error("failed to unmarshal deployment file: %w", err.Error())
+		return nil, err
+	}
+	return d, nil
 }
 
 // DefaultDeployment returns the simplest deployment setup in a single
@@ -375,7 +418,7 @@ func checkAllAvailableSize(_ *sys.System, d *Deployment) error {
 	for _, disk := range d.Disks {
 		pNum := len(disk.Partitions)
 		for i, part := range disk.Partitions {
-			if i < pNum-1 && part.Size < 0 {
+			if i < pNum-1 && part.Size == 0 {
 				return fmt.Errorf("only last partition can be defined to be as big as available size in disk")
 			}
 		}
