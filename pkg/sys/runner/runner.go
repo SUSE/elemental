@@ -72,7 +72,7 @@ func (r run) RunContext(ctx context.Context, command string, args ...string) ([]
 	return out, err
 }
 
-func (r run) RunContextParseOutput(ctx context.Context, stdoutH, stderrH func(string), command string, args ...string) (retErr error) {
+func (r run) RunContextParseOutput(ctx context.Context, stdoutH, stderrH func(string), command string, args ...string) error {
 	var err error
 	var stdoutP, stderrP io.ReadCloser
 	var wg sync.WaitGroup
@@ -87,13 +87,6 @@ func (r run) RunContextParseOutput(ctx context.Context, stdoutH, stderrH func(st
 		}
 		return err
 	}
-	deferClose := func() {
-		err := closePipes()
-		if retErr == nil && err != nil {
-			retErr = err
-		}
-	}
-	defer deferClose()
 
 	r.debug("Running cmd: '%s %s'", command, strings.Join(args, " "))
 	cmd := exec.CommandContext(ctx, command, args...)
@@ -108,12 +101,14 @@ func (r run) RunContextParseOutput(ctx context.Context, stdoutH, stderrH func(st
 		stderrP, err = cmd.StderrPipe()
 		if err != nil {
 			r.debug("cound not pipe stderr for command '%s': %s", command, err.Error())
+			_ = closePipes()
 			return err
 		}
 	}
 	err = cmd.Start()
 	if err != nil {
 		r.debug("'%s' command reported an error: %s", command, err.Error())
+		_ = closePipes()
 		return err
 	}
 
@@ -127,16 +122,14 @@ func (r run) RunContextParseOutput(ctx context.Context, stdoutH, stderrH func(st
 		go parseReader(&wg, stderrP, stderrH)
 	}
 
+	wg.Wait()
 	err = cmd.Wait()
 	if err != nil {
 		r.debug("'%s' command exited with error: %s", command, err.Error())
 		return err
 	}
 
-	err = closePipes()
-
-	wg.Wait()
-	return err
+	return nil
 }
 
 func (r run) debug(msg string, args ...any) {
