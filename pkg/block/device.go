@@ -86,7 +86,7 @@ func (pl PartitionList) GetByUUID(uuid string) *Partition {
 
 	for _, p := range pl {
 		if p.UUID == uuid {
-			return part
+			return p
 		}
 	}
 	return part
