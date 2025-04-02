@@ -19,11 +19,9 @@ package diskrepart
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 
-	"github.com/google/uuid"
-
+	"github.com/suse/elemental/v3/pkg/deployment"
 	"github.com/suse/elemental/v3/pkg/log"
 	"github.com/suse/elemental/v3/pkg/sys"
 )
@@ -48,24 +46,21 @@ func NewMkfsCall(s *sys.System, dev, fileSystem, label, uuid string, customOpts 
 func (mkfs MkfsCall) buildOptions() ([]string, error) {
 	opts := []string{}
 
-	linuxFS, _ := regexp.MatchString("ext[2-4]|xfs|btrfs", mkfs.fileSystem)
-	fatFS, _ := regexp.MatchString("fat|vfat", mkfs.fileSystem)
-
+	f, _ := deployment.ParseFileSystem(mkfs.fileSystem)
 	if mkfs.uuid != "" {
-		_, err := uuid.Parse(mkfs.uuid)
-		if err != nil {
-			return []string{}, fmt.Errorf("provided UUID ('%s') is not valid: %w", mkfs.uuid, err)
+		if !checkUUID(mkfs.uuid, f) {
+			return nil, fmt.Errorf("invalid uuid %s", mkfs.uuid)
 		}
 	}
 
-	switch {
-	case linuxFS:
+	switch f {
+	case deployment.Btrfs, deployment.Ext2, deployment.Ext4, deployment.XFS:
 		if mkfs.label != "" {
 			opts = append(opts, "-L")
 			opts = append(opts, mkfs.label)
 		}
 		if mkfs.uuid != "" {
-			if mkfs.fileSystem == "xfs" {
+			if f == deployment.XFS {
 				opts = append(opts, "-m")
 				opts = append(opts, fmt.Sprintf("uuid=%s", mkfs.uuid))
 			} else {
@@ -80,7 +75,7 @@ func (mkfs MkfsCall) buildOptions() ([]string, error) {
 			opts = append(opts, "-f")
 		}
 		opts = append(opts, mkfs.dev)
-	case fatFS:
+	case deployment.VFat:
 		if mkfs.label != "" {
 			opts = append(opts, "-n")
 			opts = append(opts, mkfs.label)
@@ -94,7 +89,7 @@ func (mkfs MkfsCall) buildOptions() ([]string, error) {
 		}
 		opts = append(opts, mkfs.dev)
 	default:
-		return []string{}, fmt.Errorf("unsupported filesystem: %s", mkfs.fileSystem)
+		return nil, fmt.Errorf("unsupported filesystem: %s", mkfs.fileSystem)
 	}
 	return opts, nil
 }

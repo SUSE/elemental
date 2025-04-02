@@ -19,6 +19,7 @@ package diskrepart_test
 
 import (
 	"fmt"
+	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -54,7 +55,7 @@ var _ = Describe("Parted", Label("parted"), func() {
 		Expect(runner.CmdsMatch(cmds)).To(BeNil())
 	})
 	It("Successfully formats a partition with vfat", func() {
-		mkfs := diskrepart.NewMkfsCall(s, "/dev/device", "vfat", "EFI", validUUID)
+		mkfs := diskrepart.NewMkfsCall(s, "/dev/device", "vfat", "EFI", strings.Split(validUUID, "-")[0])
 		Expect(mkfs.Apply()).To(Succeed())
 		cmds := [][]string{{"mkfs.vfat", "-n", "EFI", "-i", vfatUUID, "/dev/device"}}
 		Expect(runner.CmdsMatch(cmds)).To(BeNil())
