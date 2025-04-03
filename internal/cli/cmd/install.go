@@ -53,7 +53,6 @@ func NewInstallCommand(action func(*cli.Context) error) *cli.Command {
 				Aliases:     []string{"t"},
 				Usage:       "Target device for the installation process",
 				Destination: &InstallArgs.Target,
-				Required:    true,
 			},
 		},
 	}
