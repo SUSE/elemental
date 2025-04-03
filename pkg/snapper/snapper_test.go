@@ -19,8 +19,10 @@ package snapper_test
 
 import (
 	"fmt"
+	"path/filepath"
 	"testing"
 
+	"github.com/joho/godotenv"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/suse/elemental/v3/pkg/log"
@@ -267,5 +269,25 @@ var _ = Describe("DiskRepart", Label("diskrepart"), func() {
 			})).To(Succeed())
 		})
 	})
-
+	Describe("ConfigureRoot", func() {
+		It("creates a root configuration", func() {
+			rootDir := "/some/root"
+			sysconfig := filepath.Join(rootDir, "/etc/sysconfig/snapper")
+			template := filepath.Join(rootDir, "/usr/share/snapper/config-templates/default")
+			configs := filepath.Join(rootDir, "/etc/snapper/configs")
+			config := filepath.Join(rootDir, "/etc/snapper/configs/root")
+			Expect(vfs.MkdirAll(fs, configs, vfs.DirPerm)).To(Succeed())
+			Expect(vfs.MkdirAll(fs, filepath.Dir(sysconfig), vfs.DirPerm)).To(Succeed())
+			Expect(fs.WriteFile(sysconfig, []byte{}, vfs.FilePerm)).To(Succeed())
+			Expect(vfs.MkdirAll(fs, filepath.Dir(template), vfs.DirPerm)).To(Succeed())
+			Expect(fs.WriteFile(template, []byte{}, vfs.FilePerm)).To(Succeed())
+			Expect(snap.ConfigureRoot(rootDir, 4)).To(Succeed())
+			f, err := fs.Open(config)
+			Expect(err).NotTo(HaveOccurred())
+			envMap, err := godotenv.Parse(f)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(envMap["TIMELINE_CREATE"]).To(Equal("no"))
+			Expect(envMap["NUMBER_LIMIT"]).To(Equal("1-4"))
+		})
+	})
 })
