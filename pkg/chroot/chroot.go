@@ -201,7 +201,7 @@ func (c *Chroot) RunCallback(callback func() error) (err error) {
 	// Store current path
 	currentPath, err = os.Getwd()
 	if err != nil {
-		c.logger.Error("Failed to get current path")
+		c.logger.Error("failed to get current path")
 		return err
 	}
 	defer func() {
@@ -221,7 +221,7 @@ func (c *Chroot) RunCallback(callback func() error) (err error) {
 	// Store current root
 	oldRootF, err = c.fs.OpenFile("/", os.O_RDONLY, vfs.DirPerm)
 	if err != nil {
-		c.logger.Error("Can't open current root")
+		c.logger.Error("can't open current root")
 		return err
 	}
 	defer oldRootF.Close()
@@ -229,7 +229,7 @@ func (c *Chroot) RunCallback(callback func() error) (err error) {
 	if len(c.activeMounts) == 0 {
 		err = c.Prepare()
 		if err != nil {
-			c.logger.Error("Can't mount default mounts")
+			c.logger.Error("can't mount default mounts")
 			return err
 		}
 		defer func() {
@@ -242,13 +242,13 @@ func (c *Chroot) RunCallback(callback func() error) (err error) {
 	// Change to new dir before running chroot!
 	err = c.syscall.Chdir(c.path)
 	if err != nil {
-		c.logger.Error("Can't chdir %s: %s", c.path, err)
+		c.logger.Error("can't chdir %s: %s", c.path, err)
 		return err
 	}
 
 	err = c.syscall.Chroot(c.path)
 	if err != nil {
-		c.logger.Error("Can't chroot %s: %s", c.path, err)
+		c.logger.Error("can't chroot %s: %s", c.path, err)
 		return err
 	}
 
@@ -256,14 +256,14 @@ func (c *Chroot) RunCallback(callback func() error) (err error) {
 	defer func() {
 		tmpErr := oldRootF.Chdir()
 		if tmpErr != nil {
-			c.logger.Error("Can't change to old root dir")
+			c.logger.Error("can't change to old root dir")
 			if err == nil {
 				err = tmpErr
 			}
 		} else {
 			tmpErr = c.syscall.Chroot(".")
 			if tmpErr != nil {
-				c.logger.Error("Can't chroot back to old root")
+				c.logger.Error("can't chroot back to old root")
 				if err == nil {
 					err = tmpErr
 				}
@@ -282,7 +282,7 @@ func (c *Chroot) Run(command string, args ...string) (out []byte, err error) {
 	}
 	err = c.RunCallback(callback)
 	if err != nil {
-		c.logger.Error("Can't run command %s with args %v on chroot: %s", command, args, err)
+		c.logger.Error("can't run command %s with args %v on chroot: %s", command, args, err)
 		c.logger.Debug("Output from command: %s", out)
 	}
 	return out, err
