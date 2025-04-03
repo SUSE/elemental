@@ -211,7 +211,7 @@ func (dev *Disk) GetFreeSpace() (uint, error) {
 	if dev.sectorS == 0 {
 		err := dev.Reload()
 		if err != nil {
-			dev.sys.Logger().Error("Failed analyzing disk: %v\n", err)
+			dev.sys.Logger().Error("failed analyzing disk: %v", err)
 			return 0, err
 		}
 	}
@@ -254,14 +254,13 @@ func (dev *Disk) NewPartitionTable(label string) (string, error) {
 	}
 	err = dev.Reload()
 	if err != nil {
-		dev.sys.Logger().Error("Failed analyzing disk: %v\n", err)
+		dev.sys.Logger().Error("failed analyzing disk: %v", err)
 		return "", err
 	}
 	return out, nil
 }
 
 // AddPartition adds a partition. Size is expressed in MiB here
-// Size is expressed in MiB here
 func (dev *Disk) AddPartition(size uint, fileSystem string, pLabel string, flags ...string) (int, error) {
 	pc, err := dev.newPartitioner(dev.String())
 	if err != nil {
@@ -272,7 +271,7 @@ func (dev *Disk) AddPartition(size uint, fileSystem string, pLabel string, flags
 	if dev.sectorS == 0 {
 		err = dev.Reload()
 		if err != nil {
-			dev.sys.Logger().Error("Failed analyzing disk: %v\n", err)
+			dev.sys.Logger().Error("failed analyzing disk: %v", err)
 			return 0, err
 		}
 	}
@@ -316,14 +315,14 @@ func (dev *Disk) AddPartition(size uint, fileSystem string, pLabel string, flags
 	out, err := pc.WriteChanges()
 	dev.sys.Logger().Debug("partitioner output: %s", out)
 	if err != nil {
-		dev.sys.Logger().Error("Failed creating partition: %v", err)
+		dev.sys.Logger().Error("failed creating partition: %v", err)
 		return 0, err
 	}
 
 	// Reload new partition in dev
 	err = dev.Reload()
 	if err != nil {
-		dev.sys.Logger().Error("Failed analyzing disk: %v\n", err)
+		dev.sys.Logger().Error("failed analyzing disk: %v", err)
 		return 0, err
 	}
 	return partNum, nil
@@ -379,7 +378,7 @@ func (dev *Disk) ExpandLastPartition(size uint) error {
 	if dev.sectorS == 0 {
 		err = dev.Reload()
 		if err != nil {
-			dev.sys.Logger().Error("Failed analyzing disk: %v\n", err)
+			dev.sys.Logger().Error("failed analyzing disk: %v", err)
 			return err
 		}
 	}
