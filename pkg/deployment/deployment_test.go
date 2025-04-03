@@ -152,6 +152,15 @@ var _ = Describe("Deployment", Label("deployment"), func() {
 		Expect(len(rD.Disks[0].Partitions)).To(Equal(2))
 		Expect(rD.Sanitize(s)).To(Succeed())
 	})
+	It("overwrites any pre-existing deployment file", func() {
+		d := deployment.DefaultDeployment()
+		Expect(d.WriteDeploymentFile(s, "/some/dir")).To(Succeed())
+		d.Disks[0].Device = "/dev/newdevice"
+		Expect(d.WriteDeploymentFile(s, "/some/dir")).To(Succeed())
+		rD, err := deployment.ReadDeployment(s, "/some/dir")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(rD.Disks[0].Device).To(Equal("/dev/newdevice"))
+	})
 	It("fails to read a non existing deployment", func() {
 		_, err := deployment.ReadDeployment(s, "/some/dir")
 		Expect(err).To(HaveOccurred())

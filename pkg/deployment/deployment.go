@@ -246,19 +246,31 @@ func (d *Deployment) Sanitize(s *sys.System) error {
 }
 
 func (d *Deployment) WriteDeploymentFile(s *sys.System, root string) error {
+	path := filepath.Join(root, DeploymentFile)
+	if ok, _ := vfs.Exists(s.FS(), path); !ok {
+		err := vfs.MkdirAll(s.FS(), filepath.Dir(path), vfs.DirPerm)
+		if err != nil {
+			s.Logger().Error("failed creating elemental directory")
+			return err
+		}
+	} else {
+		err := vfs.RemoveAll(s.FS(), path)
+		if err != nil {
+			s.Logger().Error("removing previous deployment file")
+			return err
+		}
+	}
+
 	data, err := yaml.Marshal(d)
 	if err != nil {
 		s.Logger().Error("failed marshalling deployment info")
 		return err
 	}
 
-	path := filepath.Join(root, DeploymentFile)
-	err = vfs.MkdirAll(s.FS(), filepath.Dir(path), vfs.DirPerm)
-	if err != nil {
-		s.Logger().Error("failed creating elemental directory")
-	}
+	dataStr := string(data)
+	dataStr = "# self-generated content, do not edit\n\n" + dataStr
 
-	err = s.FS().WriteFile(path, data, vfs.FilePerm)
+	err = s.FS().WriteFile(path, []byte(dataStr), 0444)
 	if err != nil {
 		s.Logger().Error("failed writing deployment file: %s", path)
 		return err
