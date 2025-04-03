@@ -19,12 +19,15 @@ package action
 
 import (
 	"fmt"
+	"os/signal"
+	"syscall"
 
 	"github.com/urfave/cli/v2"
 	"sigs.k8s.io/yaml"
 
 	"github.com/suse/elemental/v3/internal/cli/cmd"
 	"github.com/suse/elemental/v3/pkg/deployment"
+	"github.com/suse/elemental/v3/pkg/install"
 	"github.com/suse/elemental/v3/pkg/sys"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
@@ -39,14 +42,29 @@ func Install(ctx *cli.Context) error {
 
 	s.Logger().Info("Starting install action with args: %+v", args)
 
-	_, err := digestInstallSetup(s, args)
+	d, err := digestInstallSetup(s, args)
 	if err != nil {
 		return err
 	}
 
 	s.Logger().Info("Checked configuration, running installation process")
 
-	// Branch to business logic
+	ctxCancel, stop := signal.NotifyContext(ctx.Context, syscall.SIGTERM, syscall.SIGINT)
+	defer stop()
+
+	go func() {
+		<-ctx.Done()
+		stop()
+	}()
+
+	installer := install.New(ctxCancel, s)
+	err = installer.Install(d)
+	if err != nil {
+		s.Logger().Error("installation failed: %v", err)
+		return err
+	}
+
+	s.Logger().Info("Installation complete")
 
 	return nil
 }
@@ -54,8 +72,8 @@ func Install(ctx *cli.Context) error {
 func digestInstallSetup(s *sys.System, flags *cmd.InstallFlags) (*deployment.Deployment, error) {
 	d := deployment.DefaultDeployment()
 	if flags.ConfigFile != "" {
-		if ok, err := vfs.Exists(s.FS(), flags.ConfigFile); !ok {
-			return nil, fmt.Errorf("config file '%s' not found: %w", flags.ConfigFile, err)
+		if ok, _ := vfs.Exists(s.FS(), flags.ConfigFile); !ok {
+			return nil, fmt.Errorf("config file '%s' not found", flags.ConfigFile)
 		}
 		data, err := s.FS().ReadFile(flags.ConfigFile)
 		if err != nil {
@@ -69,12 +87,16 @@ func digestInstallSetup(s *sys.System, flags *cmd.InstallFlags) (*deployment.Dep
 	if flags.Target != "" && len(d.Disks) > 0 {
 		d.Disks[0].Device = flags.Target
 	}
-	srcOS, err := deployment.NewSrcFromURI(flags.OperatingSystemImage)
-	if err != nil {
-		return nil, fmt.Errorf("failed parsing OS source URI ('%s'): %w", flags.OperatingSystemImage, err)
+
+	if flags.OperatingSystemImage != "" {
+		srcOS, err := deployment.NewSrcFromURI(flags.OperatingSystemImage)
+		if err != nil {
+			return nil, fmt.Errorf("failed parsing OS source URI ('%s'): %w", flags.OperatingSystemImage, err)
+		}
+		d.SourceOS = srcOS
 	}
-	d.SourceOS = srcOS
-	err = d.Sanitize(s)
+
+	err := d.Sanitize(s)
 	if err != nil {
 		return nil, fmt.Errorf("inconsistent deployment setup found: %w", err)
 	}
