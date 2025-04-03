@@ -455,7 +455,7 @@ func (dev Disk) expandFilesystem(device string) (err error) {
 		if err != nil {
 			return err
 		}
-		err = dev.sys.Mounter().Mount(device, tmpDir, "auto", []string{})
+		err = dev.sys.Mounter().Mount(device, tmpDir, "", []string{})
 		if err != nil {
 			return err
 		}
