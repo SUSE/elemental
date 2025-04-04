@@ -45,8 +45,10 @@ type Chroot struct {
 	syscall       sys.Syscall
 }
 
-func NewChroot(s *sys.System, path string) *Chroot {
-	return &Chroot{
+type Opts func(c *Chroot)
+
+func NewChroot(s *sys.System, path string, opts ...Opts) *Chroot {
+	c := &Chroot{
 		path:          path,
 		defaultMounts: []string{"/dev", "/dev/pts", "/proc", "/sys"},
 		extraMounts:   map[string]string{},
@@ -58,11 +60,23 @@ func NewChroot(s *sys.System, path string) *Chroot {
 		fs:            s.FS(),
 		syscall:       s.Syscall(),
 	}
+
+	for _, o := range opts {
+		o(c)
+	}
+
+	return c
+}
+
+func WithoutDefaultBinds() Opts {
+	return func(c *Chroot) {
+		c.defaultMounts = []string{}
+	}
 }
 
 // ChrootedCallback runs the given callback in a chroot environment
-func ChrootedCallback(s *sys.System, path string, bindMounts map[string]string, callback func() error) error {
-	chroot := NewChroot(s, path)
+func ChrootedCallback(s *sys.System, path string, bindMounts map[string]string, callback func() error, opts ...Opts) error {
+	chroot := NewChroot(s, path, opts...)
 	if bindMounts == nil {
 		bindMounts = map[string]string{}
 	}

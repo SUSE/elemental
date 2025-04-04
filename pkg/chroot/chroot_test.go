@@ -80,12 +80,26 @@ var _ = Describe("Chroot", Label("chroot"), func() {
 		})
 	})
 	Describe("on success", func() {
-		It("command should be called in the chroot", func() {
+		It("calls a command in a chroot", func() {
 			_, err := chr.Run("chroot-command")
 			Expect(err).To(BeNil())
 			Expect(syscall.WasChrootCalledWith("/whatever")).To(BeTrue())
 		})
-		It("commands should be called with a customized chroot", func() {
+		It("prepares chroot with and without default binds", func() {
+			Expect(chr.Prepare()).To(Succeed())
+			lst, err := mounter.List()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(len(lst)).To(Equal(4))
+			Expect(chr.Close()).To(Succeed())
+
+			chr = chroot.NewChroot(s, "/whatever", chroot.WithoutDefaultBinds())
+			Expect(chr.Prepare()).To(Succeed())
+			lst, err = mounter.List()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(len(lst)).To(Equal(0))
+			Expect(chr.Close()).To(Succeed())
+		})
+		It("calls a command in a chroot with a customized binds", func() {
 			binds := map[string]string{
 				"/host/dir":  "/in/chroot/path",
 				"/host/file": "/in/chroot/file",
