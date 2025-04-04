@@ -32,6 +32,7 @@ func main() {
 	app.Commands = []*cli.Command{
 		cmd.NewBuildCommand(action.Build),
 		cmd.NewInstallCommand(action.Install),
+		cmd.NewUnpackImageCommand(action.Unpack),
 		cmd.NewVersionCommand(),
 	}
 

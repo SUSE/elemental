@@ -3,6 +3,7 @@ GINKGO?="github.com/onsi/ginkgo/v2/ginkgo"
 PKG?=./pkg/... ./internal/...
 
 GO_MODULE ?= $(shell go list -m)
+GO_FILES  = $(shell find ./ -name '*.go' -not -name '*_test.go')
 
 GIT_COMMIT?=$(shell git rev-parse HEAD)
 GIT_COMMIT_SHORT?=$(shell git rev-parse --short HEAD)
@@ -12,7 +13,7 @@ LDFLAGS:=-w -s
 LDFLAGS+=-X "$(GO_MODULE)/internal/cli/cmd.version=$(GIT_TAG)"
 LDFLAGS+=-X "$(GO_MODULE)/internal/cli/cmd.gitCommit=$(GIT_COMMIT)"
 
-elemental:
+elemental: $(GO_FILES)
 	go build -ldflags '$(LDFLAGS)' -o $@ ./cmd/...
 
 .PHONY: unit-tests
