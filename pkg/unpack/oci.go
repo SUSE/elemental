@@ -15,11 +15,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package unpacker
+package unpack
 
 import (
 	"context"
 	"net/http"
+	"path/filepath"
 	"time"
 
 	"github.com/suse/elemental/v3/pkg/sys"
@@ -35,11 +36,14 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 )
 
+const workDirSuffix = ".workdir"
+
 type OCI struct {
-	fs          vfs.FS
+	s           *sys.System
 	platformRef string
 	local       bool
 	verify      bool
+	imageRef    string
 }
 
 type OCIOpt func(*OCI)
@@ -62,11 +66,12 @@ func WithPlatformRef(platform string) OCIOpt {
 	}
 }
 
-func NewOCIUnpacker(s *sys.System, opts ...OCIOpt) *OCI {
+func NewOCIUnpacker(s *sys.System, imageRef string, opts ...OCIOpt) *OCI {
 	unpacker := &OCI{
-		fs:          s.FS(),
+		s:           s,
 		verify:      true,
 		platformRef: s.Platform().String(),
+		imageRef:    imageRef,
 	}
 	for _, o := range opts {
 		o(unpacker)
@@ -74,7 +79,29 @@ func NewOCIUnpacker(s *sys.System, opts ...OCIOpt) *OCI {
 	return unpacker
 }
 
-func (o OCI) Unpack(ctx context.Context, imageRef, destination string) (string, error) {
+// SynchedUnpack for OCI images will extract OCI contents to a destination sibling directory first and
+// after that it will sync it to the destination directory. Ideally the destination path should
+// not be mountpoint to a different filesystem of the sibling directories in order to benefit of
+// copy on write features of the underlaying filesystem.
+func (o OCI) SynchedUnpack(ctx context.Context, destination string, excludes ...string) (string, error) {
+	tempDir := filepath.Clean(destination) + workDirSuffix
+	err := vfs.MkdirAll(o.s.FS(), tempDir, vfs.DirPerm)
+	if err != nil {
+		return "", err
+	}
+	digest, err := o.Unpack(ctx, tempDir)
+	if err != nil {
+		return "", err
+	}
+	unpackD := NewDirectoryUnpacker(o.s, tempDir)
+	_, err = unpackD.SynchedUnpack(ctx, destination, excludes...)
+	if err != nil {
+		return "", err
+	}
+	return digest, nil
+}
+
+func (o OCI) Unpack(ctx context.Context, destination string) (string, error) {
 	platform, err := containerregistry.ParsePlatform(o.platformRef)
 	if err != nil {
 		return "", err
@@ -85,7 +112,7 @@ func (o OCI) Unpack(ctx context.Context, imageRef, destination string) (string, 
 		opts = append(opts, name.Insecure)
 	}
 
-	ref, err := name.ParseReference(imageRef, opts...)
+	ref, err := name.ParseReference(o.imageRef, opts...)
 	if err != nil {
 		return "", err
 	}
@@ -108,7 +135,7 @@ func (o OCI) Unpack(ctx context.Context, imageRef, destination string) (string, 
 	reader := mutate.Extract(img)
 	defer reader.Close()
 
-	destination, err = o.fs.RawPath(destination)
+	destination, err = o.s.FS().RawPath(destination)
 	if err != nil {
 		return "", err
 	}
