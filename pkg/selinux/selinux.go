@@ -31,6 +31,7 @@ const (
 	SelinuxTargetedContextFile = selinuxTargetedPath + "/contexts/files/file_contexts"
 
 	selinuxTargetedPath = "/etc/selinux/targeted"
+	debugLines          = 10
 )
 
 // Relabel will relabel the system if it finds the context
@@ -43,8 +44,8 @@ func Relabel(ctx context.Context, s *sys.System, rootDir string, extraPaths ...s
 		args := []string{"-i", "-F"}
 
 		// We only keep last 10 lines of the stdout and stderr for debugging purposes
-		stdOut := ring.New(10)
-		stdErr := ring.New(10)
+		stdOut := ring.New(debugLines)
+		stdErr := ring.New(debugLines)
 
 		if rootDir == "/" || rootDir == "" {
 			args = append(args, contextFile, "/")
@@ -80,8 +81,8 @@ func ChrootedRelabel(ctx context.Context, s *sys.System, rootDir string, bind ma
 	existsCon, _ := vfs.Exists(s.FS(), contextsFile)
 
 	if existsCon && len(extraPaths) > 0 {
-		stdOut := ring.New(10)
-		stdErr := ring.New(10)
+		stdOut := ring.New(debugLines)
+		stdErr := ring.New(debugLines)
 
 		args := []string{"-i", "-F", "-r", rootDir, contextsFile}
 		for _, path := range extraPaths {
