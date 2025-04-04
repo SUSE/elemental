@@ -96,7 +96,7 @@ func AddAndFormatPartition(s *sys.System, disk *Disk, part *deployment.Partition
 	s.Logger().Debug("Formatting partition with uuid %s", fuuid)
 	err = FormatDevice(s, partDev, part.FileSystem.String(), part.Label, fuuid)
 	if err != nil {
-		s.Logger().Error("Failed formatting partition %s", part.Label)
+		s.Logger().Error("failed formatting partition %s", part.Label)
 		return err
 	}
 	part.UUID = vfatUUIDSanitize(fuuid, part.FileSystem)
