@@ -162,36 +162,36 @@ var _ = Describe("DiskRepart", Label("diskrepart"), func() {
 		Expect(err).To(HaveOccurred())
 	})
 	It("sets default snapshot", func() {
-		Expect(snap.SetDefault("/some/root", 3, false, map[string]string{"key": "value"})).To(Succeed())
+		Expect(snap.SetDefault("/some/root", 3, map[string]string{"key": "value"})).To(Succeed())
 		Expect(runner.CmdsMatch([][]string{{
 			"env", "LC_ALL=C", "snapper", "--no-dbus", "--root", "/some/root", "modify",
-			"--default", "--read-only", "--userdata", "key=value", "3",
+			"--default", "--userdata", "key=value", "3",
 		}})).To(Succeed())
 
-		Expect(snap.SetDefault("/some/root", 3, true, nil)).To(Succeed())
+		Expect(snap.SetDefault("/some/root", 3, nil)).To(Succeed())
 		Expect(runner.IncludesCmds([][]string{{
 			"env", "LC_ALL=C", "snapper", "--no-dbus", "--root", "/some/root", "modify",
-			"--default", "--read-write", "3",
+			"--default", "3",
 		}})).To(Succeed())
 
 		runner.ReturnError = fmt.Errorf("snapper modify failed")
-		Expect(snap.SetDefault("/some/root", 3, true, nil)).NotTo(Succeed())
+		Expect(snap.SetDefault("/some/root", 3, nil)).NotTo(Succeed())
 	})
-	It("cleans up old snapshots", func() {
-		Expect(snap.SetDefault("/some/root", 3, false, map[string]string{"key": "value"})).To(Succeed())
+	It("sets snapshot permissions", func() {
+		Expect(snap.SetPermissions("/some/root", 3, true)).To(Succeed())
 		Expect(runner.CmdsMatch([][]string{{
 			"env", "LC_ALL=C", "snapper", "--no-dbus", "--root", "/some/root", "modify",
-			"--default", "--read-only", "--userdata", "key=value", "3",
+			"--read-write", "3",
 		}})).To(Succeed())
 
-		Expect(snap.SetDefault("/some/root", 3, true, nil)).To(Succeed())
+		Expect(snap.SetPermissions("/some/root", 3, false)).To(Succeed())
 		Expect(runner.IncludesCmds([][]string{{
 			"env", "LC_ALL=C", "snapper", "--no-dbus", "--root", "/some/root", "modify",
-			"--default", "--read-write", "3",
+			"--read-only", "3",
 		}})).To(Succeed())
 
 		runner.ReturnError = fmt.Errorf("snapper modify failed")
-		Expect(snap.SetDefault("/some/root", 3, true, nil)).NotTo(Succeed())
+		Expect(snap.SetDefault("/some/root", 3, nil)).NotTo(Succeed())
 	})
 	Describe("ListSnapshots", func() {
 		It("gets the list of snapshots", func() {

@@ -24,6 +24,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/suse/elemental/v3/pkg/btrfs"
 	"github.com/suse/elemental/v3/pkg/sys"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 
@@ -168,6 +169,7 @@ func (sn Snapper) CreateConfig(root, volumePath string) error {
 	return nil
 }
 
+// CreateSnapshot creates a new snapper snapshot by calling "snapper create"
 func (sn Snapper) CreateSnapshot(root string, config string, base int, rw bool, description string, metadata Metadata) (int, error) {
 	var newSnap int
 	args := []string{"LC_ALL=C", "snapper", "--no-dbus"}
@@ -207,18 +209,35 @@ func (sn Snapper) CreateSnapshot(root string, config string, base int, rw bool, 
 	return newSnap, nil
 }
 
-func (sn Snapper) SetDefault(root string, id int, rw bool, metadata Metadata) error {
+func (sn Snapper) SetPermissions(root string, id int, rw bool) error {
+	args := []string{"LC_ALL=C", "snapper", "--no-dbus"}
+
+	if root != "" && root != "/" {
+		args = append(args, "--root", root)
+	}
+	args = append(args, "modify")
+	if rw {
+		args = append(args, "--read-write")
+	} else {
+		args = append(args, "--read-only")
+	}
+	args = append(args, strconv.Itoa(id))
+	sn.s.Logger().Info("Setting permissions to snapshot")
+	_, err := sn.s.Runner().Run("env", args...)
+	if err != nil {
+		sn.s.Logger().Error("snapper failed set snapshot permissions: %v", err)
+		return err
+	}
+	return nil
+}
+
+func (sn Snapper) SetDefault(root string, id int, metadata Metadata) error {
 	args := []string{"LC_ALL=C", "snapper", "--no-dbus"}
 
 	if root != "" && root != "/" {
 		args = append(args, "--root", root)
 	}
 	args = append(args, "modify", "--default")
-	if rw {
-		args = append(args, "--read-write")
-	} else {
-		args = append(args, "--read-only")
-	}
 	if len(metadata) > 0 {
 		args = append(args, "--userdata", metadata.String())
 	}
@@ -261,12 +280,7 @@ func (sn Snapper) Cleanup(root string, maxSnaps int) error {
 func (sn Snapper) DeleteByPath(path string) error {
 	// TODO instead of relaying on btrfs manual calls we could provide a snapper pluging
 	// to handle deletion and cleanup
-	_, err := sn.s.Runner().Run("btrfs", "property", "set", "rw", "true", path)
-	if err != nil {
-		sn.s.Logger().Error("failed setting rw to snapshot '%s' before deletion", path)
-		return err
-	}
-	_, err = sn.s.Runner().Run("btrfs", "subvolume", "delete", "-c", "-R", path)
+	err := btrfs.DeleteSubvolume(sn.s, path)
 	if err != nil {
 		sn.s.Logger().Error("failed deleting snapshot '%s'", path)
 		return err
