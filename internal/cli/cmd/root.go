@@ -21,9 +21,10 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/urfave/cli/v2"
+
 	"github.com/suse/elemental/v3/pkg/log"
 	"github.com/suse/elemental/v3/pkg/sys"
-	"github.com/urfave/cli/v2"
 )
 
 type GlobalFlags struct {
