@@ -135,7 +135,7 @@ var _ = Describe("DiskRepart", Label("diskrepart"), func() {
 	})
 	It("creates a new snapshot", func() {
 		snapperCmd := [][]string{{
-			"snapper", "--no-dbus", "--root", "/some/root", "-c", "root",
+			"env", "LC_ALL=C", "snapper", "--no-dbus", "--root", "/some/root", "-c", "root",
 			"create", "--print-number", "-c", "number", "--userdata", "key=value",
 			"--description", "description", "--read-write", "--from", "3",
 		}}
@@ -164,13 +164,13 @@ var _ = Describe("DiskRepart", Label("diskrepart"), func() {
 	It("sets default snapshot", func() {
 		Expect(snap.SetDefault("/some/root", 3, false, map[string]string{"key": "value"})).To(Succeed())
 		Expect(runner.CmdsMatch([][]string{{
-			"snapper", "--no-dbus", "--root", "/some/root", "modify",
+			"env", "LC_ALL=C", "snapper", "--no-dbus", "--root", "/some/root", "modify",
 			"--default", "--read-only", "--userdata", "key=value", "3",
 		}})).To(Succeed())
 
 		Expect(snap.SetDefault("/some/root", 3, true, nil)).To(Succeed())
 		Expect(runner.IncludesCmds([][]string{{
-			"snapper", "--no-dbus", "--root", "/some/root", "modify",
+			"env", "LC_ALL=C", "snapper", "--no-dbus", "--root", "/some/root", "modify",
 			"--default", "--read-write", "3",
 		}})).To(Succeed())
 
@@ -180,13 +180,13 @@ var _ = Describe("DiskRepart", Label("diskrepart"), func() {
 	It("cleans up old snapshots", func() {
 		Expect(snap.SetDefault("/some/root", 3, false, map[string]string{"key": "value"})).To(Succeed())
 		Expect(runner.CmdsMatch([][]string{{
-			"snapper", "--no-dbus", "--root", "/some/root", "modify",
+			"env", "LC_ALL=C", "snapper", "--no-dbus", "--root", "/some/root", "modify",
 			"--default", "--read-only", "--userdata", "key=value", "3",
 		}})).To(Succeed())
 
 		Expect(snap.SetDefault("/some/root", 3, true, nil)).To(Succeed())
 		Expect(runner.IncludesCmds([][]string{{
-			"snapper", "--no-dbus", "--root", "/some/root", "modify",
+			"env", "LC_ALL=C", "snapper", "--no-dbus", "--root", "/some/root", "modify",
 			"--default", "--read-write", "3",
 		}})).To(Succeed())
 

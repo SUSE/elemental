@@ -170,7 +170,7 @@ func (sn Snapper) CreateConfig(root, volumePath string) error {
 
 func (sn Snapper) CreateSnapshot(root string, config string, base int, rw bool, description string, metadata Metadata) (int, error) {
 	var newSnap int
-	args := []string{"--no-dbus"}
+	args := []string{"LC_ALL=C", "snapper", "--no-dbus"}
 
 	if root != "" && root != "/" {
 		args = append(args, "--root", root)
@@ -193,7 +193,7 @@ func (sn Snapper) CreateSnapshot(root string, config string, base int, rw bool, 
 	}
 
 	sn.s.Logger().Info("Creating a new snapshot")
-	cmdOut, err := sn.s.Runner().Run("snapper", args...)
+	cmdOut, err := sn.s.Runner().Run("env", args...)
 	if err != nil {
 		sn.s.Logger().Error("snapper failed to create a new snapshot: %w", err)
 		return 0, err
@@ -208,7 +208,7 @@ func (sn Snapper) CreateSnapshot(root string, config string, base int, rw bool, 
 }
 
 func (sn Snapper) SetDefault(root string, id int, rw bool, metadata Metadata) error {
-	args := []string{"--no-dbus"}
+	args := []string{"LC_ALL=C", "snapper", "--no-dbus"}
 
 	if root != "" && root != "/" {
 		args = append(args, "--root", root)
@@ -224,9 +224,9 @@ func (sn Snapper) SetDefault(root string, id int, rw bool, metadata Metadata) er
 	}
 	args = append(args, strconv.Itoa(id))
 	sn.s.Logger().Info("Setting default snapshot")
-	_, err := sn.s.Runner().Run("snapper", args...)
+	_, err := sn.s.Runner().Run("env", args...)
 	if err != nil {
-		sn.s.Logger().Error("snapper failed to deault snapshot: %v", err)
+		sn.s.Logger().Error("snapper failed to set default snapshot: %v", err)
 		return err
 	}
 	return nil
