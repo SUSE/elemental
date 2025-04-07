@@ -33,7 +33,7 @@ type Interface interface {
 	// destination are perfectly synched, that is any preexisting content in destination which
 	// is not part of the original image source will be deleted. In addition, it allows to exclude
 	// paths from the synchronization.
-	SynchedUnpack(ctx context.Context, destination string, excludes ...string) (string, error)
+	SynchedUnpack(ctx context.Context, destination string, excludes []string, deleteExcludes []string) (string, error)
 }
 
 func NewUnpacker(s *sys.System, src *deployment.ImageSource) (Interface, error) {

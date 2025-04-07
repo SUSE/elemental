@@ -54,7 +54,7 @@ func (r Raw) Unpack(ctx context.Context, destination string) (digest string, err
 	return unpackD.Unpack(ctx, destination)
 }
 
-func (r Raw) SynchedUnpack(ctx context.Context, destination string, excludes ...string) (digest string, err error) {
+func (r Raw) SynchedUnpack(ctx context.Context, destination string, excludes []string, deleteExcludes []string) (digest string, err error) {
 	var umount umountFunc
 	var mountpoint string
 
@@ -70,7 +70,7 @@ func (r Raw) SynchedUnpack(ctx context.Context, destination string, excludes ...
 	}()
 
 	unpackD := NewDirectoryUnpacker(r.s, mountpoint)
-	return unpackD.SynchedUnpack(ctx, destination, excludes...)
+	return unpackD.SynchedUnpack(ctx, destination, excludes, deleteExcludes)
 }
 
 func (r Raw) mountImage() (string, umountFunc, error) {

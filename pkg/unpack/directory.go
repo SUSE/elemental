@@ -40,10 +40,10 @@ func (d Directory) Unpack(ctx context.Context, destination string) (string, erro
 	return digest, sync.SyncData(d.path, destination)
 }
 
-func (d Directory) SynchedUnpack(ctx context.Context, destination string, excludes ...string) (string, error) {
+func (d Directory) SynchedUnpack(ctx context.Context, destination string, excludes []string, deleteExcludes []string) (string, error) {
 	sync := rsync.NewRsync(d.s, rsync.WithContext(ctx))
 	digest := findDeploymentDigest(d.s, d.path)
-	return digest, sync.MirrorData(d.path, destination, excludes...)
+	return digest, sync.MirrorData(d.path, destination, excludes, deleteExcludes)
 }
 
 // findDeploymentDigest attemps to read a deployment file from the source directory tree

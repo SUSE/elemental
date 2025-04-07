@@ -23,6 +23,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"github.com/suse/elemental/v3/pkg/log"
 	"github.com/suse/elemental/v3/pkg/sys"
 	sysmock "github.com/suse/elemental/v3/pkg/sys/mock"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
@@ -40,7 +41,10 @@ var _ = Describe("DirectoryUnpacker", Label("raw"), func() {
 		mount = sysmock.NewMounter()
 		tfs, cleanup, err = sysmock.TestFS(nil)
 		Expect(err).NotTo(HaveOccurred())
-		s, err = sys.NewSystem(sys.WithFS(tfs), sys.WithMounter(mount))
+		s, err = sys.NewSystem(
+			sys.WithFS(tfs), sys.WithLogger(log.New(log.WithDiscardAll())),
+			sys.WithMounter(mount),
+		)
 		Expect(err).NotTo(HaveOccurred())
 		unpacker = unpack.NewRawUnpacker(s, "/some/image.raw")
 		Expect(vfs.MkdirAll(tfs, "/tmp/elemental_unpack", vfs.DirPerm)).To(Succeed())
@@ -60,7 +64,7 @@ var _ = Describe("DirectoryUnpacker", Label("raw"), func() {
 	It("mirrors data to target directory", func() {
 		Expect(tfs.WriteFile("/target/dir/pre-existing-file", []byte("data"), vfs.FilePerm)).To(Succeed())
 
-		digest, err := unpacker.SynchedUnpack(context.Background(), "/target/dir")
+		digest, err := unpacker.SynchedUnpack(context.Background(), "/target/dir", nil, nil)
 
 		Expect(err).NotTo(HaveOccurred())
 		Expect(digest).To(Equal(""))
@@ -74,7 +78,7 @@ var _ = Describe("DirectoryUnpacker", Label("raw"), func() {
 		_, err := unpacker.Unpack(context.Background(), "/target/dir")
 		Expect(err).To(HaveOccurred())
 
-		_, err = unpacker.SynchedUnpack(context.Background(), "/target/dir")
+		_, err = unpacker.SynchedUnpack(context.Background(), "/target/dir", nil, nil)
 		Expect(err).To(HaveOccurred())
 	})
 	It("fails on umount error", func() {
@@ -82,7 +86,7 @@ var _ = Describe("DirectoryUnpacker", Label("raw"), func() {
 		_, err := unpacker.Unpack(context.Background(), "/target/dir")
 		Expect(err).To(HaveOccurred())
 
-		_, err = unpacker.SynchedUnpack(context.Background(), "/target/dir")
+		_, err = unpacker.SynchedUnpack(context.Background(), "/target/dir", nil, nil)
 		Expect(err).To(HaveOccurred())
 	})
 })

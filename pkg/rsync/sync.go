@@ -74,13 +74,16 @@ func (r Rsync) SyncData(source string, target string, excludes ...string) error 
 
 // MirrorData rsync's source folder contents to a target folder content, in contrast, to SyncData this
 // method adds the --delete flag which forces the deletion of files in target that are missing in source.
-func (r Rsync) MirrorData(source string, target string, excludes ...string) error {
+func (r Rsync) MirrorData(source string, target string, excludes []string, deleteExcludes []string) error {
 	flags := r.flags
 	if !slices.Contains(flags, "--delete") {
 		flags = append(flags, "--delete")
 	}
 	for _, e := range excludes {
 		flags = append(flags, fmt.Sprintf("--exclude=%s", e))
+	}
+	for _, e := range deleteExcludes {
+		flags = append(flags, fmt.Sprintf("--filter=protect %s", e))
 	}
 
 	return r.rsyncWrapper(source, target, flags)

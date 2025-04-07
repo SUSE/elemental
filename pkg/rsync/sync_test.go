@@ -175,14 +175,14 @@ var _ = Describe("Sync tests", Label("rsync"), func() {
 		Expect(vfs.Exists(tfs, filepath.Join(destDir, "run", "testfile"))).To(BeFalse())
 	})
 
-	It("Mirrors all files from source to destination deleting pre-existing files in destination if needed", func() {
+	It("mirrors all files from source to destination deleting pre-existing files in destination if needed", func() {
 		vfs.MkdirAll(tfs, filepath.Join(sourceDir, "run"), vfs.DirPerm)
 		vfs.MkdirAll(tfs, filepath.Join(sourceDir, "var", "run"), vfs.DirPerm)
 		Expect(tfs.WriteFile(filepath.Join(sourceDir, "run", "testfile"), []byte{}, vfs.DirPerm)).To(Succeed())
 		Expect(tfs.WriteFile(filepath.Join(destDir, "testfile"), []byte{}, vfs.DirPerm)).To(Succeed())
 
 		r := rsync.NewRsync(s)
-		Expect(r.MirrorData(sourceDir, destDir)).To(BeNil())
+		Expect(r.MirrorData(sourceDir, destDir, nil, nil)).To(BeNil())
 
 		filesDest, err := tfs.ReadDir(destDir)
 		Expect(err).To(BeNil())
@@ -197,6 +197,30 @@ var _ = Describe("Sync tests", Label("rsync"), func() {
 
 		// pre-exising file in destination deleted if this is not part of source
 		Expect(vfs.Exists(tfs, filepath.Join(destDir, "testfile"))).To(BeFalse())
+	})
+
+	It("mirrors all files from source to destination deleting pre-existing files and keeping protected ones", func() {
+		Expect(vfs.MkdirAll(tfs, filepath.Join(sourceDir, "data"), vfs.DirPerm)).To(Succeed())
+		Expect(vfs.MkdirAll(tfs, filepath.Join(sourceDir, "run"), vfs.DirPerm)).To(Succeed())
+		Expect(vfs.MkdirAll(tfs, filepath.Join(sourceDir, "var", "run"), vfs.DirPerm)).To(Succeed())
+		Expect(vfs.MkdirAll(tfs, filepath.Join(destDir, "mountpoint"), vfs.DirPerm)).To(Succeed())
+		Expect(vfs.MkdirAll(tfs, filepath.Join(destDir, "data"), vfs.DirPerm)).To(Succeed())
+
+		Expect(tfs.WriteFile(filepath.Join(sourceDir, "data", "testfile"), []byte{}, vfs.DirPerm)).To(Succeed())
+		Expect(tfs.WriteFile(filepath.Join(sourceDir, "run", "testfile"), []byte{}, vfs.DirPerm)).To(Succeed())
+		Expect(tfs.WriteFile(filepath.Join(destDir, "testfile"), []byte{}, vfs.DirPerm)).To(Succeed())
+
+		r := rsync.NewRsync(s)
+		Expect(r.MirrorData(sourceDir, destDir, []string{"/data"}, []string{"/data", "/mountpoint"})).To(BeNil())
+
+		// pre-exising file in destination deleted if this is not part of source
+		Expect(vfs.Exists(tfs, filepath.Join(destDir, "testfile"))).To(BeFalse())
+		// protected and excluded path not deleted in destination
+		Expect(vfs.Exists(tfs, filepath.Join(destDir, "data"))).To(BeTrue())
+		// protected path not deleted in destination
+		Expect(vfs.Exists(tfs, filepath.Join(destDir, "mountpoint"))).To(BeTrue())
+		// excluded content not synched
+		Expect(vfs.Exists(tfs, filepath.Join(destDir, "data", "testfile"))).To(BeFalse())
 	})
 
 	It("should not fail if dirs are empty", func() {

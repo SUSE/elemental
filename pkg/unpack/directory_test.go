@@ -59,7 +59,7 @@ var _ = Describe("DirectoryUnpacker", Label("directory"), func() {
 	It("mirrors data to target directory", func() {
 		Expect(tfs.WriteFile("/target/dir/pre-existing-file", []byte("data"), vfs.FilePerm)).To(Succeed())
 
-		digest, err := unpacker.SynchedUnpack(context.Background(), "/target/dir")
+		digest, err := unpacker.SynchedUnpack(context.Background(), "/target/dir", nil, nil)
 
 		Expect(err).NotTo(HaveOccurred())
 		Expect(digest).To(Equal(""))
