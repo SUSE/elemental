@@ -54,27 +54,36 @@ func (mkfs MkfsCall) buildOptions() ([]string, error) {
 	}
 
 	switch f {
-	case deployment.Btrfs, deployment.Ext2, deployment.Ext4, deployment.XFS:
+	case deployment.XFS:
 		if mkfs.label != "" {
 			opts = append(opts, "-L")
 			opts = append(opts, mkfs.label)
 		}
 		if mkfs.uuid != "" {
-			if f == deployment.XFS {
-				opts = append(opts, "-m")
-				opts = append(opts, fmt.Sprintf("uuid=%s", mkfs.uuid))
-			} else {
-				opts = append(opts, "-U")
-				opts = append(opts, mkfs.uuid)
-			}
+			opts = append(opts, "-m")
+			opts = append(opts, fmt.Sprintf("uuid=%s", mkfs.uuid))
 		}
-		if len(mkfs.customOpts) > 0 {
-			opts = append(opts, mkfs.customOpts...)
+		opts = append(opts, "-f")
+	case deployment.Btrfs:
+		if mkfs.label != "" {
+			opts = append(opts, "-L")
+			opts = append(opts, mkfs.label)
 		}
-		if mkfs.fileSystem == "btrfs" {
-			opts = append(opts, "-f")
+		if mkfs.uuid != "" {
+			opts = append(opts, "-U")
+			opts = append(opts, mkfs.uuid)
 		}
-		opts = append(opts, mkfs.dev)
+		opts = append(opts, "-f")
+	case deployment.Ext2, deployment.Ext4:
+		if mkfs.label != "" {
+			opts = append(opts, "-L")
+			opts = append(opts, mkfs.label)
+		}
+		if mkfs.uuid != "" {
+			opts = append(opts, "-U")
+			opts = append(opts, mkfs.uuid)
+		}
+		opts = append(opts, "-F")
 	case deployment.VFat:
 		if mkfs.label != "" {
 			opts = append(opts, "-n")
@@ -84,13 +93,15 @@ func (mkfs MkfsCall) buildOptions() ([]string, error) {
 			opts = append(opts, "-i")
 			opts = append(opts, strings.Split(mkfs.uuid, "-")[0])
 		}
-		if len(mkfs.customOpts) > 0 {
-			opts = append(opts, mkfs.customOpts...)
-		}
-		opts = append(opts, mkfs.dev)
 	default:
 		return nil, fmt.Errorf("unsupported filesystem: %s", mkfs.fileSystem)
 	}
+
+	if len(mkfs.customOpts) > 0 {
+		opts = append(opts, mkfs.customOpts...)
+	}
+	opts = append(opts, mkfs.dev)
+
 	return opts, nil
 }
 

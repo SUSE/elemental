@@ -24,6 +24,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/suse/elemental/v3/pkg/diskrepart"
+	"github.com/suse/elemental/v3/pkg/log"
 	"github.com/suse/elemental/v3/pkg/sys"
 	sysmock "github.com/suse/elemental/v3/pkg/sys/mock"
 )
@@ -39,19 +40,19 @@ var _ = Describe("Parted", Label("parted"), func() {
 		var err error
 		runner = sysmock.NewRunner()
 		Expect(err).ToNot(HaveOccurred())
-		s, err = sys.NewSystem(sys.WithRunner(runner))
+		s, err = sys.NewSystem(sys.WithRunner(runner), sys.WithLogger(log.New(log.WithDiscardAll())))
 		Expect(err).ToNot(HaveOccurred())
 	})
 	It("Successfully formats a partition with xfs", func() {
 		mkfs := diskrepart.NewMkfsCall(s, "/dev/device", "xfs", "OEM", validUUID)
 		Expect(mkfs.Apply()).To(Succeed())
-		cmds := [][]string{{"mkfs.xfs", "-L", "OEM", "-m", fmt.Sprintf("uuid=%s", validUUID), "/dev/device"}}
+		cmds := [][]string{{"mkfs.xfs", "-L", "OEM", "-m", fmt.Sprintf("uuid=%s", validUUID), "-f", "/dev/device"}}
 		Expect(runner.CmdsMatch(cmds)).To(BeNil())
 	})
 	It("Successfully formats a partition with btrfs", func() {
 		mkfs := diskrepart.NewMkfsCall(s, "/dev/device", "btrfs", "", validUUID, "--customopt")
 		Expect(mkfs.Apply()).To(Succeed())
-		cmds := [][]string{{"mkfs.btrfs", "-U", validUUID, "--customopt", "-f", "/dev/device"}}
+		cmds := [][]string{{"mkfs.btrfs", "-U", validUUID, "-f", "--customopt", "/dev/device"}}
 		Expect(runner.CmdsMatch(cmds)).To(BeNil())
 	})
 	It("Successfully formats a partition with vfat", func() {
