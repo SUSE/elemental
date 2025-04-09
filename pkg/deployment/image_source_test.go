@@ -18,8 +18,6 @@ limitations under the License.
 package deployment_test
 
 import (
-	"fmt"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"sigs.k8s.io/yaml"
@@ -36,7 +34,6 @@ var _ = Describe("Image Source", Label("imagesource"), func() {
 	It("initiates an OCI image source from URI", func() {
 		imgsrc, err := deployment.NewSrcFromURI("registry.org/my/image")
 		Expect(err).NotTo(HaveOccurred())
-		fmt.Printf("imgsrc '%+v'\n", imgsrc)
 		Expect(imgsrc.String()).To(Equal("oci://registry.org/my/image:latest"))
 		Expect(imgsrc.IsOCI()).To(BeTrue())
 		Expect(imgsrc.URI()).To(Equal("registry.org/my/image:latest"))
@@ -45,7 +42,6 @@ var _ = Describe("Image Source", Label("imagesource"), func() {
 	It("initiates a Raw image source from URI", func() {
 		imgsrc, err := deployment.NewSrcFromURI("raw:///some/path/to/image")
 		Expect(err).NotTo(HaveOccurred())
-		fmt.Printf("imgsrc '%+v'\n", imgsrc)
 		Expect(imgsrc.String()).To(Equal("raw:///some/path/to/image"))
 		Expect(imgsrc.IsOCI()).To(BeFalse())
 		Expect(imgsrc.IsRaw()).To(BeTrue())
@@ -54,7 +50,6 @@ var _ = Describe("Image Source", Label("imagesource"), func() {
 	It("initiates a Dir image source from URI", func() {
 		imgsrc, err := deployment.NewSrcFromURI("dir://some/path/to/directory")
 		Expect(err).NotTo(HaveOccurred())
-		fmt.Printf("imgsrc '%+v'\n", imgsrc)
 		Expect(imgsrc.String()).To(Equal("dir://some/path/to/directory"))
 		Expect(imgsrc.IsDir()).To(BeTrue())
 		Expect(imgsrc.IsRaw()).To(BeFalse())
