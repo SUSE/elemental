@@ -117,7 +117,7 @@ func (f *FileSystem) UnmarshalJSON(data []byte) (err error) {
 	return err
 }
 
-func ParseFunction(function string) (PartRole, error) {
+func ParseRole(function string) (PartRole, error) {
 	switch function {
 	case "efi":
 		return EFI, nil
@@ -152,12 +152,12 @@ func (p PartRole) MarshalJSON() ([]byte, error) {
 }
 
 func (p *PartRole) UnmarshalJSON(data []byte) (err error) {
-	var function string
-	if err = json.Unmarshal(data, &function); err != nil {
+	var role string
+	if err = json.Unmarshal(data, &role); err != nil {
 		return err
 	}
 
-	*p, err = ParseFunction(function)
+	*p, err = ParseRole(role)
 	return err
 }
 
@@ -174,7 +174,7 @@ type Partition struct {
 	Label       string     `json:"label,omitempty"`
 	FileSystem  FileSystem `json:"fileSystem,omitempty"`
 	Size        MiB        `json:"size,omitempty"`
-	Role        PartRole   `json:"function"`
+	Role        PartRole   `json:"role"`
 	StartSector uint       `json:"startSector,omitempty"`
 	MountPoint  string     `json:"mountPoint,omitempty"`
 	MountOpts   []string   `json:"mountOpts,omitempty"`
@@ -182,10 +182,12 @@ type Partition struct {
 	UUID        string     `json:"uuid,omitempty"`
 }
 
+type Partitions []*Partition
+
 type Disk struct {
-	Device     string       `json:"device,omitempty"`
-	Partitions []*Partition `json:"partitions"`
-	SectorSize uint         `json:"sectorSize,omitempty"`
+	Device     string     `json:"device,omitempty"`
+	Partitions Partitions `json:"partitions"`
+	SectorSize uint       `json:"sectorSize,omitempty"`
 }
 
 type Deployment struct {
@@ -200,13 +202,26 @@ type Deployment struct {
 	// Also bootloader details could be added here
 }
 
+// GetSnaphsottedVolumes returns a list of snapshotted rw volumes defined in the
+// given partitions list.
+func (p Partitions) GetSnaphsottedVolumes() RWVolumes {
+	var volumes RWVolumes
+	for _, part := range p {
+		for _, rwVol := range part.RWVolumes {
+			if rwVol.Snapshotted {
+				volumes = append(volumes, rwVol)
+			}
+		}
+	}
+	return volumes
+}
+
 type SanitizeDeployment func(*sys.System, *Deployment) error
 
 var sanitizers = []SanitizeDeployment{
 	checkSystemPart, checkEFIPart, checkRecoveryPart,
 	checkAllAvailableSize, checkDiskDeviceExists,
-	checkPartitionsFS, checkSnapshottedVolumes,
-	checkRWVolumes,
+	checkPartitionsFS, checkRWVolumes,
 }
 
 // GetSystemPartition gets the data of the system partition.
@@ -280,6 +295,10 @@ func (d *Deployment) WriteDeploymentFile(s *sys.System, root string) error {
 
 func ReadDeployment(s *sys.System, root string) (*Deployment, error) {
 	path := filepath.Join(root, DeploymentFile)
+	if ok, err := vfs.Exists(s.FS(), path); !ok {
+		s.Logger().Warn("deployment file not found '%s'", path)
+		return nil, err
+	}
 	data, err := s.FS().ReadFile(path)
 	if err != nil {
 		s.Logger().Error("failed to read deployment file '%s'", path)
@@ -461,21 +480,6 @@ func checkPartitionsFS(_ *sys.System, d *Deployment) error {
 		for _, part := range disk.Partitions {
 			if part.FileSystem.String() == Unknown {
 				part.FileSystem = Btrfs
-			}
-		}
-	}
-	return nil
-}
-
-// checkSnapshottedVolumes ensures all snapshotted rw volumes are defined in
-// system partition
-func checkSnapshottedVolumes(_ *sys.System, d *Deployment) error {
-	for _, disk := range d.Disks {
-		for _, part := range disk.Partitions {
-			for _, rwVol := range part.RWVolumes {
-				if rwVol.Snapshotted && part.Role != System {
-					return fmt.Errorf("snapshotted rw volumes are only supported in system partition")
-				}
 			}
 		}
 	}

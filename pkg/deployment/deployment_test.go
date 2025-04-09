@@ -161,8 +161,9 @@ var _ = Describe("Deployment", Label("deployment"), func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(rD.Disks[0].Device).To(Equal("/dev/newdevice"))
 	})
-	It("fails to read a non existing deployment", func() {
+	It("throws a warning tyring to read a non existing deployment", func() {
 		_, err := deployment.ReadDeployment(s, "/some/dir")
-		Expect(err).To(HaveOccurred())
+		Expect(err).NotTo(HaveOccurred())
+		Expect(buffer.String()).To(ContainSubstring("deployment file not found"))
 	})
 })
