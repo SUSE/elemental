@@ -104,12 +104,6 @@ func NewDisk(s *sys.System, device string, opts ...DiskOptions) *Disk {
 	return dev
 }
 
-// FormatDevice formats a block device with the given parameters
-func FormatDevice(s *sys.System, device string, fileSystem string, label string, uuid string, opts ...string) error {
-	mkfs := NewMkfsCall(s, device, fileSystem, label, uuid, opts...)
-	return mkfs.Apply()
-}
-
 func (dev Disk) String() string {
 	return dev.device
 }
@@ -312,8 +306,7 @@ func (dev *Disk) AddPartition(size uint, fileSystem string, pLabel string, flags
 		pc.SetPartitionFlag(partNum, flag, true)
 	}
 
-	out, err := pc.WriteChanges()
-	dev.sys.Logger().Debug("partitioner output: %s", out)
+	_, err = pc.WriteChanges()
 	if err != nil {
 		dev.sys.Logger().Error("failed creating partition: %v", err)
 		return 0, err
@@ -336,11 +329,6 @@ func (dev Disk) FormatPartition(partNum int, fileSystem string, label string, uu
 
 	mkfs := NewMkfsCall(dev.sys, pDev, fileSystem, label, uuid)
 	return mkfs.Apply()
-}
-
-func (dev Disk) WipeFsOnPartition(device string) error {
-	_, err := dev.sys.Runner().Run("wipefs", "--all", device)
-	return err
 }
 
 func (dev Disk) FindPartitionDevice(partNum int) (string, error) {

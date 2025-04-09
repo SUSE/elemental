@@ -18,15 +18,14 @@ limitations under the License.
 package diskrepart_test
 
 import (
-	"errors"
 	"fmt"
-	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/suse/elemental/v3/pkg/block"
 	blockmock "github.com/suse/elemental/v3/pkg/block/mock"
 	"github.com/suse/elemental/v3/pkg/diskrepart"
+	"github.com/suse/elemental/v3/pkg/log"
 	"github.com/suse/elemental/v3/pkg/sys"
 	sysmock "github.com/suse/elemental/v3/pkg/sys/mock"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
@@ -54,11 +53,6 @@ const partedPrint = `BYT;
 3:29394944s:45019135s:15624192s:ext4::type=83;
 4:45019136s:50331647s:5312512s:ext4::type=83;`
 
-func TestDiskRepartSuite(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "DiskRepart test suite")
-}
-
 var _ = Describe("DiskRepart", Label("diskrepart"), func() {
 	var runner *sysmock.Runner
 	var mounter *sysmock.Mounter
@@ -75,7 +69,10 @@ var _ = Describe("DiskRepart", Label("diskrepart"), func() {
 		mounter = sysmock.NewMounter()
 		fs, cleanup, err = sysmock.TestFS(nil)
 		Expect(err).ToNot(HaveOccurred())
-		s, err = sys.NewSystem(sys.WithMounter(mounter), sys.WithRunner(runner), sys.WithFS(fs))
+		s, err = sys.NewSystem(
+			sys.WithMounter(mounter), sys.WithRunner(runner), sys.WithFS(fs),
+			sys.WithLogger(log.New(log.WithDiscardAll())),
+		)
 		Expect(err).ToNot(HaveOccurred())
 		err = vfs.MkdirAll(fs, "/dev", vfs.DirPerm)
 		Expect(err).To(BeNil())
@@ -150,7 +147,7 @@ var _ = Describe("DiskRepart", Label("diskrepart"), func() {
 		It("Format an already existing partition", func() {
 			Expect(diskrepart.FormatDevice(s, "/dev/device1", "ext4", "MY_LABEL", uuid)).To(Succeed())
 			Expect(runner.CmdsMatch([][]string{
-				{"mkfs.ext4", "-L", "MY_LABEL", "-U", uuid, "/dev/device1"},
+				{"mkfs.ext4", "-L", "MY_LABEL", "-U", uuid, "-F", "/dev/device1"},
 			})).To(BeNil())
 		})
 		It("Fails to create an unsupported partition table label", func() {
@@ -208,21 +205,10 @@ var _ = Describe("DiskRepart", Label("diskrepart"), func() {
 			Expect(err).To(BeNil())
 			cmds = [][]string{
 				{"udevadm", "settle"},
-				{"mkfs.xfs", "-L", "OEM", "-m", fmt.Sprintf("uuid=%s", uuid), "/dev/device4"},
+				{"mkfs.xfs", "-L", "OEM", "-m", fmt.Sprintf("uuid=%s", uuid), "-f", "/dev/device4"},
 			}
 			Expect(dev.FormatPartition(4, "xfs", "OEM", uuid)).To(Succeed())
 			Expect(runner.CmdsMatch(cmds)).To(BeNil())
-		})
-		It("Clears filesystem header from a partition", func() {
-			cmds = [][]string{
-				{"wipefs", "--all", "/dev/device1"},
-			}
-			Expect(dev.WipeFsOnPartition("/dev/device1")).To(BeNil())
-			Expect(runner.CmdsMatch(cmds)).To(BeNil())
-		})
-		It("Fails while removing file system header", func() {
-			runner.ReturnError = errors.New("some error")
-			Expect(dev.WipeFsOnPartition("/dev/device1")).NotTo(BeNil())
 		})
 		Describe("Expanding partitions", func() {
 			BeforeEach(func() {

@@ -36,6 +36,18 @@ const (
 	esp = "esp"
 )
 
+// WipeFSOnPartition removes any pre-existing filesystem on the given partition
+func WipeFSOnPartition(s *sys.System, device string) error {
+	_, err := s.Runner().Run("wipefs", "--all", device)
+	return err
+}
+
+// FormatDevice formats a block device with the given parameters
+func FormatDevice(s *sys.System, device string, fileSystem string, label string, uuid string, opts ...string) error {
+	mkfs := NewMkfsCall(s, device, fileSystem, label, uuid, opts...)
+	return mkfs.Apply()
+}
+
 // PartitionAndFormatDevice creates a new empty partition table on target disk
 // and applies the configured disk layout by creating and formatting all
 // required partitions
