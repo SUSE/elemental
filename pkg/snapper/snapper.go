@@ -209,24 +209,41 @@ func (sn Snapper) CreateSnapshot(root string, config string, base int, rw bool, 
 	return newSnap, nil
 }
 
-func (sn Snapper) SetDefault(root string, id int, rw bool, metadata Metadata) error {
-	args := []string{"LC_ALL=C", "snapper", "--no-dbus"}
+func (sn Snapper) SetPermissions(root string, id int, rw bool) error {
+	args := []string{"--no-dbus"}
 
 	if root != "" && root != "/" {
 		args = append(args, "--root", root)
 	}
-	args = append(args, "modify", "--default")
+	args = append(args, "modify")
 	if rw {
 		args = append(args, "--read-write")
 	} else {
 		args = append(args, "--read-only")
 	}
+	args = append(args, strconv.Itoa(id))
+	sn.s.Logger().Info("Setting permissions to snapshot")
+	_, err := sn.s.Runner().Run("snapper", args...)
+	if err != nil {
+		sn.s.Logger().Error("snapper failed set snapshot permissions: %v", err)
+		return err
+	}
+	return nil
+}
+
+func (sn Snapper) SetDefault(root string, id int, metadata Metadata) error {
+	args := []string{"--no-dbus"}
+
+	if root != "" && root != "/" {
+		args = append(args, "--root", root)
+	}
+	args = append(args, "modify", "--default")
 	if len(metadata) > 0 {
 		args = append(args, "--userdata", metadata.String())
 	}
 	args = append(args, strconv.Itoa(id))
 	sn.s.Logger().Info("Setting default snapshot")
-	_, err := sn.s.Runner().Run("env", args...)
+	_, err := sn.s.Runner().Run("snapper", args...)
 	if err != nil {
 		sn.s.Logger().Error("snapper failed to set default snapshot: %v", err)
 		return err
