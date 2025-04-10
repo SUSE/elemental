@@ -78,7 +78,7 @@ const snapperList = `{
   ]
 }`
 
-var _ = Describe("DiskRepart", Label("diskrepart"), func() {
+var _ = Describe("Snapper", Label("snapper"), func() {
 	var runner *sysmock.Runner
 	var mounter *sysmock.Mounter
 	var fs vfs.FS
