@@ -48,33 +48,27 @@ type OCI struct {
 
 type OCIOpt func(*OCI)
 
-func WithLocal() OCIOpt {
-	return func(o *OCI) {
-		o.local = true
-	}
+func (o *OCI) WithLocal(local bool) *OCI {
+	o.local = local
+	return o
 }
 
-func WithNoVerify() OCIOpt {
-	return func(o *OCI) {
-		o.verify = false
-	}
+func (o *OCI) WithVerify(verify bool) *OCI {
+	o.verify = verify
+	return o
 }
 
-func WithPlatformRef(platform string) OCIOpt {
-	return func(o *OCI) {
-		o.platformRef = platform
-	}
+func (o *OCI) WithPlatformRef(platform string) *OCI {
+	o.platformRef = platform
+	return o
 }
 
-func NewOCIUnpacker(s *sys.System, imageRef string, opts ...OCIOpt) *OCI {
+func NewOCIUnpacker(s *sys.System, imageRef string) *OCI {
 	unpacker := &OCI{
 		s:           s,
 		verify:      true,
 		platformRef: s.Platform().String(),
 		imageRef:    imageRef,
-	}
-	for _, o := range opts {
-		o(unpacker)
 	}
 	return unpacker
 }
