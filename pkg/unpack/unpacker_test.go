@@ -22,6 +22,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/suse/elemental/v3/pkg/deployment"
+	"github.com/suse/elemental/v3/pkg/log"
 	"github.com/suse/elemental/v3/pkg/sys"
 	sysmock "github.com/suse/elemental/v3/pkg/sys/mock"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
@@ -37,7 +38,7 @@ var _ = Describe("DirectoryUnpacker", Label("directory"), func() {
 	BeforeEach(func() {
 		tfs, cleanup, err = sysmock.TestFS(nil)
 		Expect(err).NotTo(HaveOccurred())
-		s, err = sys.NewSystem(sys.WithFS(tfs))
+		s, err = sys.NewSystem(sys.WithFS(tfs), sys.WithLogger(log.New(log.WithDiscardAll())))
 		Expect(err).NotTo(HaveOccurred())
 		unpacker = unpack.NewDirectoryUnpacker(s, "/some/root")
 		Expect(vfs.MkdirAll(tfs, "/some/root", vfs.DirPerm)).To(Succeed())
