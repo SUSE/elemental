@@ -210,7 +210,7 @@ func (sn Snapper) CreateSnapshot(root string, config string, base int, rw bool, 
 }
 
 func (sn Snapper) SetPermissions(root string, id int, rw bool) error {
-	args := []string{"LC_ALL=C", "snapper", "--no-dbus"}
+	args := []string{"--no-dbus"}
 
 	if root != "" && root != "/" {
 		args = append(args, "--root", root)
@@ -223,7 +223,7 @@ func (sn Snapper) SetPermissions(root string, id int, rw bool) error {
 	}
 	args = append(args, strconv.Itoa(id))
 	sn.s.Logger().Info("Setting permissions to snapshot")
-	_, err := sn.s.Runner().Run("env", args...)
+	_, err := sn.s.Runner().Run("snapper", args...)
 	if err != nil {
 		sn.s.Logger().Error("snapper failed set snapshot permissions: %v", err)
 		return err
@@ -232,7 +232,7 @@ func (sn Snapper) SetPermissions(root string, id int, rw bool) error {
 }
 
 func (sn Snapper) SetDefault(root string, id int, metadata Metadata) error {
-	args := []string{"LC_ALL=C", "snapper", "--no-dbus"}
+	args := []string{"--no-dbus"}
 
 	if root != "" && root != "/" {
 		args = append(args, "--root", root)
@@ -243,7 +243,7 @@ func (sn Snapper) SetDefault(root string, id int, metadata Metadata) error {
 	}
 	args = append(args, strconv.Itoa(id))
 	sn.s.Logger().Info("Setting default snapshot")
-	_, err := sn.s.Runner().Run("env", args...)
+	_, err := sn.s.Runner().Run("snapper", args...)
 	if err != nil {
 		sn.s.Logger().Error("snapper failed to set default snapshot: %v", err)
 		return err

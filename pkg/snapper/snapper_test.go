@@ -164,13 +164,13 @@ var _ = Describe("DiskRepart", Label("diskrepart"), func() {
 	It("sets default snapshot", func() {
 		Expect(snap.SetDefault("/some/root", 3, map[string]string{"key": "value"})).To(Succeed())
 		Expect(runner.CmdsMatch([][]string{{
-			"env", "LC_ALL=C", "snapper", "--no-dbus", "--root", "/some/root", "modify",
+			"snapper", "--no-dbus", "--root", "/some/root", "modify",
 			"--default", "--userdata", "key=value", "3",
 		}})).To(Succeed())
 
 		Expect(snap.SetDefault("/some/root", 3, nil)).To(Succeed())
 		Expect(runner.IncludesCmds([][]string{{
-			"env", "LC_ALL=C", "snapper", "--no-dbus", "--root", "/some/root", "modify",
+			"snapper", "--no-dbus", "--root", "/some/root", "modify",
 			"--default", "3",
 		}})).To(Succeed())
 
@@ -180,13 +180,13 @@ var _ = Describe("DiskRepart", Label("diskrepart"), func() {
 	It("sets snapshot permissions", func() {
 		Expect(snap.SetPermissions("/some/root", 3, true)).To(Succeed())
 		Expect(runner.CmdsMatch([][]string{{
-			"env", "LC_ALL=C", "snapper", "--no-dbus", "--root", "/some/root", "modify",
+			"snapper", "--no-dbus", "--root", "/some/root", "modify",
 			"--read-write", "3",
 		}})).To(Succeed())
 
 		Expect(snap.SetPermissions("/some/root", 3, false)).To(Succeed())
 		Expect(runner.IncludesCmds([][]string{{
-			"env", "LC_ALL=C", "snapper", "--no-dbus", "--root", "/some/root", "modify",
+			"snapper", "--no-dbus", "--root", "/some/root", "modify",
 			"--read-only", "3",
 		}})).To(Succeed())
 
