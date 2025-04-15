@@ -91,29 +91,29 @@ func (w *logrusWrapper) SetLevel(level uint32) {
 }
 
 func (w *logrusWrapper) Debug(msg string, args ...any) {
-	w.Logger.Debugf(msg, args...)
+	w.Debugf(msg, args...)
 }
 
 func (w *logrusWrapper) Info(msg string, args ...any) {
-	w.Logger.Infof(msg, args...)
+	w.Infof(msg, args...)
 }
 
 func (w *logrusWrapper) Warn(msg string, args ...any) {
-	w.Logger.Warnf(msg, args...)
+	w.Warnf(msg, args...)
 }
 
 func (w *logrusWrapper) Error(msg string, args ...any) {
-	w.Logger.Errorf(msg, args...)
+	w.Errorf(msg, args...)
 }
 
 func (w *logrusWrapper) Fatal(msg string, args ...any) {
-	w.Logger.Fatalf(msg, args...)
+	w.Fatalf(msg, args...)
 }
 
 func (w *logrusWrapper) Panic(msg string, args ...any) {
-	w.Logger.Panicf(msg, args...)
+	w.Panicf(msg, args...)
 }
 
 func (w *logrusWrapper) Trace(msg string, args ...any) {
-	w.Logger.Tracef(msg, args...)
+	w.Tracef(msg, args...)
 }

@@ -91,7 +91,7 @@ func unmarshalLsblk(lsblkOut []byte) ([]*block.Partition, error) {
 	}
 
 	if _, ok := objmap["blockdevices"]; !ok {
-		return nil, errors.New("Invalid json object, no 'blockdevices' key found")
+		return nil, errors.New("invalid json object, no 'blockdevices' key found")
 	}
 
 	var parts jParts
