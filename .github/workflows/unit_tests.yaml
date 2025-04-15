@@ -31,7 +31,7 @@ jobs:
         run: |
           set -e
 
-          make unit-tests
+          make VERBOSE=true unit-tests
 
           # Remove mock files from coverage analysis
           sed -n -i '/\/mock\//!p' coverprofile.out
