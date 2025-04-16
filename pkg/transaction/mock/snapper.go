@@ -49,11 +49,11 @@ func (m Transactioner) Merge(_ *transaction.Transaction) error {
 	return m.MergeErr
 }
 
-func (m Transactioner) Close(_ *transaction.Transaction, _ transaction.Hook, _ transaction.HookBinds) error {
+func (m Transactioner) Commit(_ *transaction.Transaction, _ transaction.Hook, _ transaction.HookBinds) error {
 	return m.CloseErr
 }
 
-func (m *Transactioner) CloseOnError(_ *transaction.Transaction, err error) error {
+func (m *Transactioner) Rollback(_ *transaction.Transaction, err error) error {
 	m.closeOnErrorCalled = true
 	return err
 }

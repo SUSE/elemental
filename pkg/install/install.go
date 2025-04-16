@@ -93,7 +93,7 @@ func (i Installer) Install(d *deployment.Deployment) (err error) {
 		i.s.Logger().Error("installation failed, could not start snapper transaction")
 		return err
 	}
-	cleanup.PushErrorOnly(func() error { return i.t.CloseOnError(trans, err) })
+	cleanup.PushErrorOnly(func() error { return i.t.Rollback(trans, err) })
 
 	err = d.WriteDeploymentFile(i.s, trans.Path)
 	if err != nil {
@@ -106,7 +106,7 @@ func (i Installer) Install(d *deployment.Deployment) (err error) {
 		return err
 	}
 
-	err = i.t.Close(trans, hook, binds)
+	err = i.t.Commit(trans, hook, binds)
 	if err != nil {
 		i.s.Logger().Error("installation failed, could not close snapper transaction")
 		return err
