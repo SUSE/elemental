@@ -154,9 +154,9 @@ func (sn snapperT) Merge(trans *Transaction) (err error) {
 	return nil
 }
 
-// Close closes the current transaction (fstab update, SELinux relabel, hook execution, set new default...)
+// Commit closes the current transaction (fstab update, SELinux relabel, hook execution, set new default...)
 // The hook callback is executed in a chroot environment where the new snapshot is already set to RO mode.
-func (sn snapperT) Close(trans *Transaction, hook Hook, binds HookBinds) (err error) {
+func (sn snapperT) Commit(trans *Transaction, hook Hook, binds HookBinds) (err error) {
 	defer func() { err = sn.checkCancelled(err) }()
 
 	if !trans.inProgress {

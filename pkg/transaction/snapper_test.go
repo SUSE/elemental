@@ -322,7 +322,7 @@ var _ = Describe("SnapperTransaction", Label("transaction"), func() {
 					return runner.ReturnValue, runner.ReturnError
 				}
 				runner.ClearCmds()
-				Expect(sn.Close(trans, func() error {
+				Expect(sn.Commit(trans, func() error {
 					called = true
 					return nil
 				}, map[string]string{"/part/mount": "/data"})).To(Succeed())
@@ -348,7 +348,7 @@ var _ = Describe("SnapperTransaction", Label("transaction"), func() {
 				}
 				runner.ClearCmds()
 				cancel()
-				Expect(sn.Close(trans, func() error {
+				Expect(sn.Commit(trans, func() error {
 					called = true
 					return nil
 				}, map[string]string{"/part/mount": "/data"})).NotTo(Succeed())
@@ -518,7 +518,7 @@ var _ = Describe("SnapperTransaction", Label("transaction"), func() {
 					return runner.ReturnValue, runner.ReturnError
 				}
 				runner.ClearCmds()
-				Expect(sn.Close(trans, func() error {
+				Expect(sn.Commit(trans, func() error {
 					called = true
 					return nil
 				}, nil)).To(Succeed())
@@ -529,7 +529,7 @@ var _ = Describe("SnapperTransaction", Label("transaction"), func() {
 				Expect(buffer.String()).To(ContainSubstring("failed to clear old snapshots"))
 			})
 			It("fails to close a transaction if the given hook fails", func() {
-				err = sn.Close(trans, func() error { return fmt.Errorf("hook failed") }, nil)
+				err = sn.Commit(trans, func() error { return fmt.Errorf("hook failed") }, nil)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(ContainSubstring("hook failed"))
 			})
