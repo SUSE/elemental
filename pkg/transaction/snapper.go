@@ -94,7 +94,7 @@ func (sn snapperT) Start(imgSrc *deployment.ImageSource) (trans *Transaction, er
 	sn.s.Logger().Info("Starting a btrfs snapshotter transaction")
 
 	if len(sn.hwPartitions) == 0 {
-		sn.s.Logger().Error("snapshotter should have been initalized before starting a transaction")
+		sn.s.Logger().Error("snapshotter must be initalized before starting a transaction")
 		return nil, fmt.Errorf("uninitialized snapshotter")
 	}
 
@@ -138,7 +138,7 @@ func (sn snapperT) Merge(trans *Transaction) (err error) {
 		return fmt.Errorf("given transaction '%d' not in progress", trans.ID)
 	}
 
-	sn.s.Logger().Info("Startin 3 way merge of snapshotted rw volumes")
+	sn.s.Logger().Info("Starting 3 way merge of snapshotted rw volumes")
 	for _, rwVol := range sn.partitions.GetSnaphsottedVolumes() {
 		m := trans.Merges[rwVol.Path]
 		if m == nil {
@@ -232,7 +232,7 @@ func (sn snapperT) Commit(trans *Transaction, hook Hook, binds HookBinds) (err e
 	return nil
 }
 
-// Rollback closes the ginve in progress transaction by deleting the
+// Rollback closes the given in progress transaction by deleting the
 // associated resources. This is a cleanup method in case occurs during a transaction.
 func (sn snapperT) Rollback(trans *Transaction, e error) (err error) {
 	sn.s.Logger().Error("closing transaction due to a failure: %v", e)
