@@ -109,21 +109,21 @@ func (sn snapperT) Start(imgSrc *deployment.ImageSource) (trans *Transaction, er
 	err = sn.preparePartitions(sn.defaultID, trans)
 	if err != nil {
 		sn.s.Logger().Error("failed setting rw volumes")
-		return trans, sn.CloseOnError(trans, err)
+		return trans, sn.Rollback(trans, err)
 	}
 
 	sn.s.Logger().Info("Dump image source to new snapshot")
 	err = sn.syncImageContent(imgSrc, trans.Path)
 	if err != nil {
 		sn.s.Logger().Error("failed dumping source to snapshot")
-		return trans, sn.CloseOnError(trans, err)
+		return trans, sn.Rollback(trans, err)
 	}
 
 	sn.s.Logger().Info("Configure snapper")
 	err = sn.configureSnapper(trans)
 	if err != nil {
 		sn.s.Logger().Error("failed configuring snapper")
-		return trans, sn.CloseOnError(trans, err)
+		return trans, sn.Rollback(trans, err)
 	}
 
 	return trans, nil
@@ -232,9 +232,9 @@ func (sn snapperT) Commit(trans *Transaction, hook Hook, binds HookBinds) (err e
 	return nil
 }
 
-// CloseOnError closes the ginve in progress transaction by deleting the
+// Rollback closes the ginve in progress transaction by deleting the
 // associated resources. This is a cleanup method in case occurs during a transaction.
-func (sn snapperT) CloseOnError(trans *Transaction, e error) (err error) {
+func (sn snapperT) Rollback(trans *Transaction, e error) (err error) {
 	sn.s.Logger().Error("closing transaction due to a failure: %v", e)
 	err = sn.cleanStack.Cleanup(e)
 	err = errors.Join(err, sn.snap.DeleteByPath(trans.Path))

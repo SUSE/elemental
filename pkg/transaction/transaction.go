@@ -43,5 +43,5 @@ type Interface interface {
 	Start(*deployment.ImageSource) (*Transaction, error)
 	Merge(*Transaction) error
 	Commit(*Transaction, Hook, HookBinds) error
-	CloseOnError(*Transaction, error) error
+	Rollback(*Transaction, error) error
 }
