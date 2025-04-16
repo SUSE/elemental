@@ -63,6 +63,11 @@ func (o *OCI) WithPlatformRef(platform string) *OCI {
 	return o
 }
 
+func (o *OCI) WithImageRef(imageRef string) *OCI {
+	o.imageRef = imageRef
+	return o
+}
+
 func NewOCIUnpacker(s *sys.System, imageRef string) *OCI {
 	unpacker := &OCI{
 		s:           s,
