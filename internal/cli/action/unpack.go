@@ -18,8 +18,9 @@ limitations under the License.
 package action
 
 import (
-	"context"
 	"fmt"
+	"os/signal"
+	"syscall"
 
 	"github.com/urfave/cli/v2"
 
@@ -43,12 +44,21 @@ func Unpack(ctx *cli.Context) error {
 		WithPlatformRef(args.Platform).
 		WithVerify(args.Verify)
 
-	_, err := unpacker.Unpack(context.Background(), args.TargetDir)
+	ctxSignal, stop := signal.NotifyContext(ctx.Context, syscall.SIGTERM, syscall.SIGINT)
+	defer stop()
+
+	go func() {
+		<-ctx.Done()
+		stop()
+	}()
+
+	_, err := unpacker.Unpack(ctxSignal, args.TargetDir)
 	if err != nil {
 		s.Logger().Error("Failed to unpack image %s: %s", args.Image, err.Error())
+		return err
 	}
 
 	s.Logger().Info("Image %s unpacked", args.Image)
 
-	return err
+	return nil
 }
