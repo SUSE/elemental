@@ -145,21 +145,23 @@ var _ = Describe("Deployment", Label("deployment"), func() {
 	})
 	It("writes and reads deployment files", func() {
 		d := deployment.DefaultDeployment()
+		d.Disks[0].Device = "/dev/device"
 		Expect(d.WriteDeploymentFile(s, "/some/dir")).To(Succeed())
 		rD, err := deployment.ReadDeployment(s, "/some/dir")
 		Expect(err).NotTo(HaveOccurred())
 		Expect(len(rD.Disks)).To(Equal(1))
+		Expect(rD.Disks[0].Device).To(BeEmpty())
 		Expect(len(rD.Disks[0].Partitions)).To(Equal(2))
 		Expect(rD.Sanitize(s)).To(Succeed())
 	})
 	It("overwrites any pre-existing deployment file", func() {
 		d := deployment.DefaultDeployment()
 		Expect(d.WriteDeploymentFile(s, "/some/dir")).To(Succeed())
-		d.Disks[0].Device = "/dev/newdevice"
+		d.Disks[0].Partitions[0].Label = "NEWEFI"
 		Expect(d.WriteDeploymentFile(s, "/some/dir")).To(Succeed())
 		rD, err := deployment.ReadDeployment(s, "/some/dir")
 		Expect(err).NotTo(HaveOccurred())
-		Expect(rD.Disks[0].Device).To(Equal("/dev/newdevice"))
+		Expect(rD.Disks[0].Partitions[0].Label).To(Equal("NEWEFI"))
 	})
 	It("throws a warning trying to read a non existing deployment", func() {
 		_, err := deployment.ReadDeployment(s, "/some/dir")

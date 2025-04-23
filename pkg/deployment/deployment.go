@@ -190,6 +190,15 @@ type Disk struct {
 	SectorSize uint       `json:"sectorSize,omitempty"`
 }
 
+// MarshalJson on disks omits the device name as this is a runtime information
+// which might not be consistent across reboots, there is no need to store it.
+func (d Disk) MarshalJSON() ([]byte, error) {
+	type diskAlias Disk
+	disk := diskAlias(d)
+	disk.Device = ""
+	return json.Marshal(disk)
+}
+
 type Deployment struct {
 	SourceOS *ImageSource `json:"sourceOS"`
 	Disks    []*Disk      `json:"disks"`
@@ -260,7 +269,7 @@ func (d *Deployment) Sanitize(s *sys.System) error {
 	return nil
 }
 
-func (d *Deployment) WriteDeploymentFile(s *sys.System, root string) error {
+func (d Deployment) WriteDeploymentFile(s *sys.System, root string) error {
 	path := filepath.Join(root, DeploymentFile)
 	if ok, _ := vfs.Exists(s.FS(), path); !ok {
 		err := vfs.MkdirAll(s.FS(), filepath.Dir(path), vfs.DirPerm)
