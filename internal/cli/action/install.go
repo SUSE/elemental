@@ -32,7 +32,7 @@ import (
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
 
-func Install(ctx *cli.Context) error {
+func Install(ctx *cli.Context) error { //nolint:dupl
 	var s *sys.System
 	args := &cmd.InstallArgs
 	if ctx.App.Metadata == nil || ctx.App.Metadata["system"] == nil {

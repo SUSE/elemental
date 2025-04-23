@@ -15,29 +15,33 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package cmd
 
 import (
-	"log"
-	"os"
+	"fmt"
 
 	"github.com/urfave/cli/v2"
-
-	"github.com/suse/elemental/v3/internal/cli/action"
-	"github.com/suse/elemental/v3/internal/cli/cmd"
 )
 
-func main() {
-	app := cmd.NewApp()
-	app.Commands = []*cli.Command{
-		cmd.NewBuildCommand(action.Build),
-		cmd.NewInstallCommand(action.Install),
-		cmd.NewUpgradeCommand(action.Upgrade),
-		cmd.NewUnpackImageCommand(action.Unpack),
-		cmd.NewVersionCommand(),
-	}
+type UpgradeFlags struct {
+	OperatingSystemImage string
+}
 
-	if err := app.Run(os.Args); err != nil {
-		log.Fatal(err)
+var UpgradeArgs UpgradeFlags
+
+func NewUpgradeCommand(action func(*cli.Context) error) *cli.Command {
+	return &cli.Command{
+		Name:      "upgrade",
+		Usage:     "Upgrade system from an OS image",
+		UsageText: fmt.Sprintf("%s upgrade [OPTIONS]", appName()),
+		Action:    action,
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:        "os-image",
+				Usage:       "image containing the operating system",
+				Destination: &UpgradeArgs.OperatingSystemImage,
+				Required:    true,
+			},
+		},
 	}
 }
