@@ -97,7 +97,7 @@ func (i Installer) Install(d *deployment.Deployment) (err error) {
 
 	err = d.WriteDeploymentFile(i.s, trans.Path)
 	if err != nil {
-		i.s.Logger().Error("installation failed, could write deployment file")
+		i.s.Logger().Error("installation failed, could not write deployment file")
 		return err
 	}
 

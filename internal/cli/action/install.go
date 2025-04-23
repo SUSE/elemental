@@ -44,6 +44,7 @@ func Install(ctx *cli.Context) error {
 
 	d, err := digestInstallSetup(s, args)
 	if err != nil {
+		s.Logger().Error("failed to collect installation setup: %v", err)
 		return err
 	}
 
