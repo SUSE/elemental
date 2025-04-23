@@ -219,7 +219,7 @@ func (sn snapperT) Commit(trans *Transaction, hook Hook, binds HookBinds) (err e
 
 	// We are ignoring these errors as the default snapshot is already changed
 	// so rebooting is expected to succeed to the new system already
-	iErr := sn.snap.Cleanup(trans.Path, sn.maxSnapshots)
+	iErr := sn.snap.Cleanup(sn.rootDir, sn.maxSnapshots)
 	if iErr != nil {
 		sn.s.Logger().Warn("failed to clear old snapshots")
 	}
@@ -278,7 +278,7 @@ func (sn *snapperT) probe(d deployment.Deployment) (err error) {
 	if len(mnts) == 0 {
 		return fmt.Errorf("no mountpoints found for device '%s'", part.Path)
 	}
-	r := regexp.MustCompile(fmt.Sprintf(`%s/.snapshots/\d+/snapshot`, btrfs.TopSubVol))
+	r := regexp.MustCompile(fmt.Sprintf(`%s/.snapshots/\d+/snapshot$`, btrfs.TopSubVol))
 	for _, mnt := range mnts {
 		for _, opt := range mnt.Opts {
 			if r.Match([]byte(opt)) {
@@ -471,7 +471,7 @@ func (sn snapperT) createSnapshottedVolWithMerge(root string, target string, rwV
 		return nil, err
 	}
 	oldStockPath := filepath.Join(root, rwVol.Path, fmt.Sprintf(snapshotPathTmpl, stock[0]))
-	err = btrfs.CreateSnapshot(sn.s, oldStockPath, target, !rwVol.NoCopyOnWrite)
+	err = btrfs.CreateSnapshot(sn.s, target, oldStockPath, !rwVol.NoCopyOnWrite)
 	if err != nil {
 		sn.s.Logger().Error("failed creating the snapshotted volume '%s'", rwVol.Path)
 		return nil, err
@@ -492,8 +492,7 @@ func (sn snapperT) createSnapshottedVol(baseID int, rwVol deployment.RWVolume, p
 		return nil, err
 	}
 	if baseID > 0 {
-		root := filepath.Join(basePath, rwVol.Path)
-		merge, err := sn.createSnapshottedVolWithMerge(root, fullVolPath, rwVol)
+		merge, err := sn.createSnapshottedVolWithMerge(basePath, fullVolPath, rwVol)
 		if err != nil {
 			sn.s.Logger().Error("failed to create snapshotted volume '%s'", fullVolPath)
 			return nil, err
@@ -593,7 +592,7 @@ func (sn snapperT) createNewSnapshot(baseID int) (*Transaction, error) {
 		}
 		path = filepath.Join(sn.rootDir, fmt.Sprintf(snapshotPathTmpl, newID))
 	} else {
-		desc := fmt.Sprintf("creating snapsot from former %d snapshot", baseID)
+		desc := fmt.Sprintf("snapshot created from parent snapshot %d", baseID)
 		newID, err = sn.snap.CreateSnapshot(sn.rootDir, "", baseID, true, desc, map[string]string{updateProgress: "yes"})
 		if err != nil {
 			return nil, err
@@ -617,7 +616,7 @@ func (sn snapperT) configureRWVolumes(trans *Transaction) error {
 			if err != nil {
 				return err
 			}
-			newID, err := sn.snap.CreateSnapshot(
+			_, err = sn.snap.CreateSnapshot(
 				"/", snapper.ConfigName(rwVol.Path), 0, false,
 				fmt.Sprintf("stock %s contents", rwVol.Path),
 				map[string]string{"stock": "true"},
@@ -627,7 +626,7 @@ func (sn snapperT) configureRWVolumes(trans *Transaction) error {
 			}
 			if _, ok := trans.Merges[rwVol.Path]; ok {
 				trans.Merges[rwVol.Path].New = filepath.Join(
-					trans.Path, rwVol.Path, fmt.Sprintf(snapshotPathTmpl, newID),
+					trans.Path, rwVol.Path,
 				)
 			}
 		}

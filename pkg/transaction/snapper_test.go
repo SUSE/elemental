@@ -473,9 +473,9 @@ var _ = Describe("SnapperTransaction", Label("transaction"), func() {
 				Expect(trans.ID).To(Equal(5))
 				Expect(len(trans.Merges)).To(Equal(2))
 				Expect(runner.MatchMilestones([][]string{
-					{"snapper", "--no-dbus", "--root", "/.snapshots/4/snapshot/etc", "-c", "etc", "--jsonout", "list"},
+					{"snapper", "--no-dbus", "--root", "/.snapshots/4/snapshot", "-c", "etc", "--jsonout", "list"},
 					{"btrfs", "subvolume", "snapshot"},
-					{"snapper", "--no-dbus", "--root", "/tmp/elemental_data/.snapshots/4/snapshot/home", "-c", "home", "--jsonout", "list"},
+					{"snapper", "--no-dbus", "--root", "/tmp/elemental_data/.snapshots/4/snapshot", "-c", "home", "--jsonout", "list"},
 					{"btrfs", "subvolume", "snapshot"},
 					{"rsync", "--info=progress2", "--human-readable"},
 					{"snapper", "--no-dbus", "-c", "etc", "create-config", "--fstype", "btrfs", "/etc"},
@@ -544,7 +544,7 @@ var _ = Describe("SnapperTransaction", Label("transaction"), func() {
 			trans, err = sn.Start(imgsrc)
 			Expect(err).To(HaveOccurred())
 			Expect(runner.MatchMilestones([][]string{
-				{"snapper", "--no-dbus", "--root", "/.snapshots/4/snapshot/etc", "-c", "etc", "--jsonout", "list"},
+				{"snapper", "--no-dbus", "--root", "/.snapshots/4/snapshot", "-c", "etc", "--jsonout", "list"},
 			})).To(Succeed())
 		})
 	})
