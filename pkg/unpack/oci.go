@@ -82,13 +82,19 @@ func NewOCIUnpacker(s *sys.System, imageRef string) *OCI {
 // after that it will sync it to the destination directory. Ideally the destination path should
 // not be mountpoint to a different filesystem of the sibling directories in order to benefit of
 // copy on write features of the underlaying filesystem.
-func (o OCI) SynchedUnpack(ctx context.Context, destination string, excludes []string, deleteExcludes []string) (string, error) {
+func (o OCI) SynchedUnpack(ctx context.Context, destination string, excludes []string, deleteExcludes []string) (digest string, err error) {
 	tempDir := filepath.Clean(destination) + workDirSuffix
-	err := vfs.MkdirAll(o.s.FS(), tempDir, vfs.DirPerm)
+	err = vfs.MkdirAll(o.s.FS(), tempDir, vfs.DirPerm)
 	if err != nil {
 		return "", err
 	}
-	digest, err := o.Unpack(ctx, tempDir)
+	defer func() {
+		e := vfs.RemoveAll(o.s.FS(), tempDir)
+		if err == nil && e != nil {
+			err = e
+		}
+	}()
+	digest, err = o.Unpack(ctx, tempDir)
 	if err != nil {
 		return "", err
 	}
