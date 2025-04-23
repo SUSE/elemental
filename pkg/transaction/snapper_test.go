@@ -404,7 +404,7 @@ var _ = Describe("SnapperTransaction", Label("transaction"), func() {
 			Expect(runner.MatchMilestones([][]string{
 				{"btrfs", "subvolume", "create"},
 				{"rsync", "--info=progress2", "--human-readable"},
-				{"btrfs", "property", "set", "rw", "true"},
+				{"btrfs", "property", "set", "-ts", "/some/root/@/.snapshots/1/snapshot", "ro", "false"},
 				{"btrfs", "subvolume", "delete", "-c", "-R"},
 			})).To(Succeed())
 		})

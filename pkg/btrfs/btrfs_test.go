@@ -90,7 +90,7 @@ var _ = Describe("DirectoryUnpacker", Label("directory"), func() {
 	It("deletes subvolume", func() {
 		Expect(btrfs.DeleteSubvolume(s, "/path/to/subvolume")).To(Succeed())
 		Expect(runner.IncludesCmds([][]string{
-			{"btrfs", "property", "set", "rw", "true", "/path/to/subvolume"},
+			{"btrfs", "property", "set", "-ts", "/path/to/subvolume", "ro", "false"},
 			{"btrfs", "subvolume", "delete", "-c", "-R", "/path/to/subvolume"},
 		})).To(Succeed())
 	})

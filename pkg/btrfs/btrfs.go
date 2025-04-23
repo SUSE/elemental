@@ -123,7 +123,7 @@ func SetBtrfsPartition(s *sys.System, path string) error {
 // the property change remains applied.
 func DeleteSubvolume(s *sys.System, path string) error {
 	s.Logger().Debug("Setting rw property to subvolume: %s", path)
-	_, err := s.Runner().Run("btrfs", "property", "set", "rw", "true", path)
+	_, err := s.Runner().Run("btrfs", "property", "set", "-ts", path, "ro", "false")
 	if err != nil {
 		s.Logger().Error("failed setting rw to snapshot '%s' before deletion", path)
 		return err
