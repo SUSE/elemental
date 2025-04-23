@@ -23,13 +23,13 @@ import (
 )
 
 type Transactioner struct {
-	InitErr            error
-	StartErr           error
-	MergeErr           error
-	CloseErr           error
-	Trans              *transaction.Transaction
-	SrcDigest          string
-	closeOnErrorCalled bool
+	InitErr        error
+	StartErr       error
+	MergeErr       error
+	CommitErr      error
+	Trans          *transaction.Transaction
+	SrcDigest      string
+	rollbackCalled bool
 }
 
 func NewTransaction() transaction.Interface {
@@ -50,14 +50,14 @@ func (m Transactioner) Merge(_ *transaction.Transaction) error {
 }
 
 func (m Transactioner) Commit(_ *transaction.Transaction, _ transaction.Hook, _ transaction.HookBinds) error {
-	return m.CloseErr
+	return m.CommitErr
 }
 
 func (m *Transactioner) Rollback(_ *transaction.Transaction, err error) error {
-	m.closeOnErrorCalled = true
+	m.rollbackCalled = true
 	return err
 }
 
-func (m Transactioner) CloseOnErrorCalled() bool {
-	return m.closeOnErrorCalled
+func (m Transactioner) RollbackCalled() bool {
+	return m.rollbackCalled
 }
