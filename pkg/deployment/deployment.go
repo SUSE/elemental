@@ -187,7 +187,6 @@ type Partitions []*Partition
 type Disk struct {
 	Device     string     `json:"device,omitempty"`
 	Partitions Partitions `json:"partitions"`
-	SectorSize uint       `json:"sectorSize,omitempty"`
 }
 
 type Deployment struct {
