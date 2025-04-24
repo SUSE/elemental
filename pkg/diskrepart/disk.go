@@ -56,6 +56,7 @@ type Disk struct {
 	sys         *sys.System
 	partBackend string
 	blockDevice block.Device
+	startSector uint
 }
 
 type DiskOptions func(d *Disk) error
@@ -77,6 +78,13 @@ func WithParted() func(d *Disk) error {
 func WithBlockDevice(bd block.Device) func(d *Disk) error {
 	return func(d *Disk) error {
 		d.blockDevice = bd
+		return nil
+	}
+}
+
+func WithStartSector(startSector uint) func(d *Disk) error {
+	return func(d *Disk) error {
+		d.startSector = startSector
 		return nil
 	}
 }
@@ -185,6 +193,12 @@ func (dev *Disk) Reload() error {
 	dev.lastS = lastS
 	dev.parts = partitions
 	dev.label = label
+
+	// Set start sector aligned to 1MiB if not explicitly configured
+	if dev.startSector == 0 {
+		dev.startSector = 1024 * 1024 / sectorS
+	}
+
 	return nil
 }
 
@@ -218,8 +232,8 @@ func (dev Disk) computeFreeSpace() uint {
 		lastPart := dev.parts[len(dev.parts)-1]
 		return dev.lastS - (lastPart.StartS + lastPart.SizeS - 1)
 	}
-	// First partition starts at a 1MiB offset
-	return dev.lastS - (1*1024*1024/dev.sectorS - 1)
+
+	return dev.lastS - (dev.startSector - 1)
 }
 
 func (dev Disk) computeFreeSpaceWithoutLast() uint {
@@ -227,8 +241,8 @@ func (dev Disk) computeFreeSpaceWithoutLast() uint {
 		part := dev.parts[len(dev.parts)-2]
 		return dev.lastS - (part.StartS + part.SizeS - 1)
 	}
-	// Assume first partitions is alined to 1MiB
-	return dev.lastS - (1024*1024/dev.sectorS - 1)
+
+	return dev.lastS - (dev.startSector - 1)
 }
 
 func (dev *Disk) NewPartitionTable(label string) (string, error) {
@@ -282,8 +296,7 @@ func (dev *Disk) AddPartition(size uint, fileSystem string, pLabel string, flags
 		partNum = dev.parts[lastP].Number
 		startS = dev.parts[lastP].StartS + dev.parts[lastP].SizeS
 	} else {
-		// First partition is aligned at 1MiB
-		startS = 1024 * 1024 / dev.sectorS
+		startS = dev.startSector
 	}
 
 	size = MiBToSectors(size, dev.sectorS)

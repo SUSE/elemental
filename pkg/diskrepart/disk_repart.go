@@ -52,7 +52,7 @@ func FormatDevice(s *sys.System, device string, fileSystem string, label string,
 // and applies the configured disk layout by creating and formatting all
 // required partitions
 func PartitionAndFormatDevice(s *sys.System, d *deployment.Disk) error {
-	disk := NewDisk(s, d.Device)
+	disk := NewDisk(s, d.Device, WithStartSector(d.StartSector))
 
 	if !disk.Exists() {
 		return fmt.Errorf("disk %s does not exist", d.Device)
