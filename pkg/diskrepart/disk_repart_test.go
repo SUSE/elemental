@@ -89,10 +89,10 @@ var _ = Describe("DiskRepart", Label("diskrepart"), func() {
 				if args[0] == "-p" {
 					return []byte(table), nil
 				}
-				if strings.HasPrefix(args[0], "-n=1") {
+				if strings.HasPrefix(strings.Join(args, " "), "--align-end -n=1") {
 					table += firstPart
 				}
-				if strings.HasPrefix(args[0], "-n=2") {
+				if strings.HasPrefix(strings.Join(args, " "), "--align-end -n=2") {
 					table += secondPart
 				}
 				return runner.ReturnValue, runner.ReturnError
@@ -108,9 +108,9 @@ var _ = Describe("DiskRepart", Label("diskrepart"), func() {
 			{"sgdisk", "--zap-all", "/dev/device"},
 			{"partx", "-u", "/dev/device"},
 			{"sgdisk", "-p", "-v", "/dev/device"},
-			{"sgdisk", "-n=1:2048:+2097152", "-c=1:efi", "-t=1:EF00", "/dev/device"},
+			{"sgdisk", "--align-end", "-n=1:2048:+2097152", "-c=1:efi", "-t=1:EF00", "/dev/device"},
 			{"mkfs.vfat", "-n", "EFI", "-i"},
-			{"sgdisk", "-n=2:2099200:+0", "-c=2:system", "-t=2:8300", "/dev/device"},
+			{"sgdisk", "--align-end", "-n=2:2099200:+0", "-c=2:system", "-t=2:8300", "/dev/device"},
 			{"mkfs.btrfs", "-L", "SYSTEM", "-U"},
 		})).To(Succeed())
 	})

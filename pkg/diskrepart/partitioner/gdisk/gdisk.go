@@ -77,6 +77,10 @@ func (gd gdiskCall) buildOptions() []string {
 		opts = append(opts, fmt.Sprintf("-d=%d", partnum))
 	}
 
+	if len(gd.parts) > 0 {
+		opts = append(opts, "--align-end")
+	}
+
 	for _, part := range gd.parts {
 		opts = append(opts, fmt.Sprintf("-n=%d:%d:+%d", part.Number, part.StartS, part.SizeS))
 

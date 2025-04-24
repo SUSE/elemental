@@ -65,9 +65,9 @@ var _ = Describe("Parted", Label("parted"), func() {
 	})
 	It("Runs complex command", func() {
 		cmds := [][]string{
-			{"sgdisk", "-P", "--zap-all", "-n=0:2048:+204800", "-c=0:p.efi", "-t=0:EF00",
+			{"sgdisk", "-P", "--zap-all", "--align-end", "-n=0:2048:+204800", "-c=0:p.efi", "-t=0:EF00",
 				"-n=1:206848:+0", "-c=1:p.root", "-t=1:8300", "/dev/device"},
-			{"sgdisk", "--zap-all", "-n=0:2048:+204800", "-c=0:p.efi", "-t=0:EF00",
+			{"sgdisk", "--zap-all", "--align-end", "-n=0:2048:+204800", "-c=0:p.efi", "-t=0:EF00",
 				"-n=1:206848:+0", "-c=1:p.root", "-t=1:8300", "/dev/device"},
 			{"partx", "-u", "/dev/device"},
 		}
@@ -103,9 +103,9 @@ var _ = Describe("Parted", Label("parted"), func() {
 	})
 	It("Creates a new partition", func() {
 		cmds := [][]string{
-			{"sgdisk", "-n=0:2048:+204800", "-c=0:p.root", "-t=0:8300", "/dev/device"},
+			{"sgdisk", "--align-end", "-n=0:2048:+204800", "-c=0:p.root", "-t=0:8300", "/dev/device"},
 			{"partx", "-u", "/dev/device"},
-			{"sgdisk", "-n=0:2048:+0", "-c=0:p.root", "-t=0:8300", "/dev/device"},
+			{"sgdisk", "--align-end", "-n=0:2048:+0", "-c=0:p.root", "-t=0:8300", "/dev/device"},
 			{"partx", "-u", "/dev/device"},
 		}
 		partition := partitioner.Partition{
