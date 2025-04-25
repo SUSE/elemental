@@ -61,28 +61,28 @@ type Disk struct {
 
 type DiskOptions func(d *Disk) error
 
-func WithGdisk() func(d *Disk) error {
+func WithGdisk() DiskOptions {
 	return func(d *Disk) error {
 		d.partBackend = gdiskBack
 		return nil
 	}
 }
 
-func WithParted() func(d *Disk) error {
+func WithParted() DiskOptions {
 	return func(d *Disk) error {
 		d.partBackend = partedBack
 		return nil
 	}
 }
 
-func WithBlockDevice(bd block.Device) func(d *Disk) error {
+func WithBlockDevice(bd block.Device) DiskOptions {
 	return func(d *Disk) error {
 		d.blockDevice = bd
 		return nil
 	}
 }
 
-func WithStartSector(startSector uint) func(d *Disk) error {
+func WithStartSector(startSector uint) DiskOptions {
 	return func(d *Disk) error {
 		d.startSector = startSector
 		return nil
