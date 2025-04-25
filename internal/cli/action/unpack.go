@@ -39,10 +39,10 @@ func Unpack(ctx *cli.Context) error {
 
 	s.Logger().Info("Starting unpack action with args: %+v", args)
 
-	unpacker := unpack.NewOCIUnpacker(s, args.Image).
-		WithLocal(args.Local).
-		WithPlatformRef(args.Platform).
-		WithVerify(args.Verify)
+	unpacker := unpack.NewOCIUnpacker(s, args.Image,
+		unpack.WithLocal(args.Local),
+		unpack.WithPlatformRef(args.Platform),
+		unpack.WithVerify(args.Verify))
 
 	ctxSignal, stop := signal.NotifyContext(ctx.Context, syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
