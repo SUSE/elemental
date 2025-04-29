@@ -27,6 +27,7 @@ type BuildFlags struct {
 	ImageType    string
 	Architecture string
 	ConfigDir    string
+	OutputPath   string
 }
 
 var BuildArgs BuildFlags
@@ -55,6 +56,13 @@ func NewBuildCommand(appName string, action func(*cli.Context) error) *cli.Comma
 				Usage:       "Full path to the image configuration directory",
 				Destination: &BuildArgs.ConfigDir,
 				Required:    true,
+			},
+			&cli.StringFlag{
+				Name:        "output",
+				Aliases:     []string{"o"},
+				Usage:       "Filepath for the output image",
+				Destination: &BuildArgs.OutputPath,
+				DefaultText: "image-<timestamp>.<image-type>",
 			},
 		},
 	}
