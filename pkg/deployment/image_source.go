@@ -32,6 +32,7 @@ const (
 	Dir ImageSrcType = iota + 1
 	OCI
 	Raw
+	Tar
 )
 
 func ParseSrcImageType(i string) (ImageSrcType, error) {
@@ -42,6 +43,8 @@ func ParseSrcImageType(i string) (ImageSrcType, error) {
 		return Dir, nil
 	case "raw":
 		return Raw, nil
+	case "tar":
+		return Tar, nil
 	default:
 		return ImageSrcType(0), fmt.Errorf("image source type not supported: %s", i)
 	}
@@ -55,6 +58,8 @@ func (i ImageSrcType) String() string {
 		return "dir"
 	case Raw:
 		return "raw"
+	case Tar:
+		return "tar"
 	default:
 		return Unknown
 	}
@@ -88,6 +93,10 @@ func (i ImageSource) IsDir() bool {
 
 func (i ImageSource) IsRaw() bool {
 	return i.srcType == Raw
+}
+
+func (i ImageSource) IsTar() bool {
+	return i.srcType == Tar
 }
 
 func (i ImageSource) IsEmpty() bool {
@@ -127,6 +136,10 @@ func NewRawSrc(src string) *ImageSource {
 
 func NewDirSrc(src string) *ImageSource {
 	return &ImageSource{uri: src, srcType: Dir}
+}
+
+func NewTarSrc(src string) *ImageSource {
+	return &ImageSource{uri: src, srcType: Tar}
 }
 
 func (i ImageSource) MarshalJSON() ([]byte, error) {

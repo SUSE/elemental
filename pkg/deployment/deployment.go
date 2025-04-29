@@ -278,7 +278,7 @@ func (d Deployment) WriteDeploymentFile(s *sys.System, root string) error {
 			return err
 		}
 	} else {
-		err := vfs.RemoveAll(s.FS(), path)
+		err := s.FS().Remove(path)
 		if err != nil {
 			s.Logger().Error("removing previous deployment file")
 			return err

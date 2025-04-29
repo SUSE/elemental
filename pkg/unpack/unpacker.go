@@ -46,6 +46,8 @@ func NewUnpacker(s *sys.System, src *deployment.ImageSource) (Interface, error) 
 		return NewOCIUnpacker(s, src.URI()), nil
 	case src.IsRaw():
 		return NewRawUnpacker(s, src.URI()), nil
+	case src.IsTar():
+		return NewTarUnpacker(s, src.URI()), nil
 	default:
 		return nil, fmt.Errorf("unsupported type of image source")
 	}
