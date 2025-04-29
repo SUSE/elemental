@@ -15,7 +15,7 @@ require (
 	github.com/sirupsen/logrus v1.9.3
 	github.com/twpayne/go-vfs/v4 v4.3.0
 	github.com/urfave/cli/v2 v2.27.6
-	k8s.io/mount-utils v0.32.3
+	k8s.io/mount-utils v0.33.0
 	sigs.k8s.io/yaml v1.4.0
 )
 
