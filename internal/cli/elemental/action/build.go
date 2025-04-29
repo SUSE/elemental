@@ -18,19 +18,54 @@ limitations under the License.
 package action
 
 import (
-	"log"
-
-	"github.com/urfave/cli/v2"
+	"fmt"
+	"os"
+	"slices"
 
 	"github.com/suse/elemental/v3/internal/cli/elemental/cmd"
+	"github.com/suse/elemental/v3/internal/image"
+	"github.com/suse/elemental/v3/pkg/log"
+	"github.com/urfave/cli/v2"
 )
 
-func Build(*cli.Context) error {
+func Build(ctx *cli.Context) error {
 	args := &cmd.BuildArgs
 
-	log.Printf("args: %+v", args)
+	if ctx.App.Metadata == nil || ctx.App.Metadata["logger"] == nil {
+		return fmt.Errorf("error setting up initial configuration")
+	}
+	logger := ctx.App.Metadata["logger"].(log.Logger)
 
-	// Perform args & input validation, initial setup and branch off to the actual business logic
+	logger.Info("Validating input args")
+
+	if err := validateArgs(args); err != nil {
+		logger.Error("Input args are invalid")
+		return err
+	}
+
+	logger.Info("Reading image configuration")
+
+	// Perform initial setup and branch off to the actual business logic
+
+	return nil
+}
+
+func validateArgs(args *cmd.BuildFlags) error {
+	_, err := os.Stat(args.ConfigDir)
+	if err != nil {
+		return fmt.Errorf("reading config directory: %w", err)
+	}
+
+	validImageTypes := []string{image.TypeRAW}
+	validImageArchs := []image.Arch{image.ArchTypeARM, image.ArchTypeX86}
+
+	if !slices.Contains(validImageTypes, args.ImageType) {
+		return fmt.Errorf("image type %q not supported", args.ImageType)
+	}
+
+	if !slices.Contains(validImageArchs, image.Arch(args.Architecture)) {
+		return fmt.Errorf("image arch %q not supported", args.Architecture)
+	}
 
 	return nil
 }
