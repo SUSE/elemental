@@ -2,7 +2,7 @@
 *.out
 
 # build and vscode are not needed
-build/
+/build/
 .vscode/
 
 # Go workspace file
