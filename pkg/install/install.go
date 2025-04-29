@@ -124,7 +124,7 @@ func createPartitionVolumes(s *sys.System, cleanStack *cleanstack.CleanStack, pa
 			s.Logger().Error("failed creating temporary directory to mount system partition")
 			return err
 		}
-		cleanStack.PushSuccessOnly(func() error { return vfs.RemoveAll(s.FS(), mountPoint) })
+		cleanStack.PushSuccessOnly(func() error { return s.FS().RemoveAll(mountPoint) })
 
 		bDev := lsblk.NewLsDevice(s)
 		bPart, err := block.GetPartitionByUUID(s, bDev, part.UUID, 4)

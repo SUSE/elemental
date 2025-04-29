@@ -151,7 +151,7 @@ func (sn Snapper) FirstRootSnapshot(root string, metadata Metadata) (int, error)
 }
 
 func (sn Snapper) CreateConfig(root, volumePath string) error {
-	err := vfs.RemoveAll(sn.s.FS(), filepath.Join(volumePath, SnapshotsPath))
+	err := sn.s.FS().RemoveAll(filepath.Join(volumePath, SnapshotsPath))
 	if err != nil {
 		return err
 	}
@@ -285,7 +285,7 @@ func (sn Snapper) DeleteByPath(path string) error {
 		sn.s.Logger().Error("failed deleting snapshot '%s'", path)
 		return err
 	}
-	err = vfs.RemoveAll(sn.s.FS(), filepath.Dir(path))
+	err = sn.s.FS().RemoveAll(filepath.Dir(path))
 	if err != nil {
 		sn.s.Logger().Error("failed deleting snapshot '%s' parent directory", path)
 		return err

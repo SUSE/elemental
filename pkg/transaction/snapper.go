@@ -414,7 +414,7 @@ func (sn snapperT) mountPartitionToTempDir(part *deployment.Partition) (string, 
 		sn.s.Logger().Error("failed creating a temporary directory to mount partition %s", part.UUID)
 		return "", err
 	}
-	sn.cleanStack.PushSuccessOnly(func() error { return vfs.RemoveAll(sn.s.FS(), mountPoint) })
+	sn.cleanStack.PushSuccessOnly(func() error { return sn.s.FS().RemoveAll(mountPoint) })
 
 	err = sn.mountPartition(part, mountPoint)
 	if err != nil {
@@ -486,7 +486,7 @@ func (sn snapperT) createSnapshottedVolWithMerge(root string, target string, rwV
 // a mergeable volume and if no base snapshot is defined (e.g. install time) it just creates a new volume.
 func (sn snapperT) createSnapshottedVol(baseID int, rwVol deployment.RWVolume, path string, basePath string) (*Merge, error) {
 	fullVolPath := filepath.Join(path, rwVol.Path)
-	err := vfs.RemoveAll(sn.s.FS(), fullVolPath)
+	err := sn.s.FS().RemoveAll(fullVolPath)
 	if err != nil {
 		sn.s.Logger().Error("failed to clear the new subvolume path '%s'", fullVolPath)
 		return nil, err

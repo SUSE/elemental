@@ -50,10 +50,12 @@ var _ = Describe("FS", Label("fs"), func() {
 		f, err := tfs.Create("/folder/file")
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(f.Truncate(1024)).To(Succeed())
+		Expect(f.Close()).To(Succeed())
 
 		f, err = tfs.Create("/folder/subfolder/file1")
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(f.Truncate(2048)).To(Succeed())
+		Expect(f.Close()).To(Succeed())
 	})
 
 	AfterEach(func() {
@@ -118,14 +120,39 @@ var _ = Describe("FS", Label("fs"), func() {
 		})
 	})
 	Describe("RemoveAll", func() {
+		It("Does not fail for nonexisting paths", func() {
+			Expect(vfs.Exists(tfs, "/non-existing")).To(BeFalse())
+			Expect(tfs.RemoveAll("/non-existing")).To(Succeed())
+		})
 		It("Removes nested files and folders", func() {
-			Expect(vfs.RemoveAll(tfs, "/folder")).To(Succeed())
+			Expect(tfs.RemoveAll("/folder")).To(Succeed())
+			Expect(vfs.Exists(tfs, "/folder/subfolder")).To(BeFalse())
+			Expect(vfs.Exists(tfs, "/folder")).To(BeFalse())
+		})
+		It("Fails to remove files without write permission", func() {
+			Expect(tfs.Chmod("/folder/subfolder", 0500)).To(Succeed())
+			Expect(tfs.RemoveAll("/folder")).NotTo(Succeed())
+			Expect(vfs.Exists(tfs, "/folder")).To(BeTrue())
+			Expect(tfs.Chmod("/folder/subfolder", 0700)).To(Succeed())
+			Expect(tfs.RemoveAll("/folder")).To(Succeed())
+			Expect(vfs.Exists(tfs, "/folder")).To(BeFalse())
+		})
+	})
+	Describe("ForceRemoveAll", func() {
+		It("Removes nested files and folders", func() {
+			Expect(vfs.ForceRemoveAll(tfs, "/folder")).To(Succeed())
 			Expect(vfs.Exists(tfs, "/folder/subfolder")).To(BeFalse())
 			Expect(vfs.Exists(tfs, "/folder")).To(BeFalse())
 		})
 		It("Does not fail for nonexisting paths", func() {
 			Expect(vfs.Exists(tfs, "/non-existing")).To(BeFalse())
-			Expect(vfs.RemoveAll(tfs, "/non-existing")).To(Succeed())
+			Expect(vfs.ForceRemoveAll(tfs, "/non-existing")).To(Succeed())
+			Expect(tfs.RemoveAll("/non-existing")).To(Succeed())
+		})
+		It("Removes files without write permission", func() {
+			Expect(tfs.Chmod("/folder/subfolder/file1", 0400)).To(Succeed())
+			Expect(tfs.RemoveAll("/folder")).To(Succeed())
+			Expect(vfs.Exists(tfs, "/folder")).To(BeFalse())
 		})
 	})
 	Describe("Exists", func() {
@@ -164,7 +191,7 @@ var _ = Describe("FS", Label("fs"), func() {
 			osFS = vfs.New()
 			tempDir, err := vfs.TempDir(osFS, "", "testing")
 			Expect(err).NotTo(HaveOccurred())
-			defer vfs.RemoveAll(osFS, tempDir)
+			defer osFS.RemoveAll(tempDir)
 
 			Expect(vfs.MkdirAll(tfs, filepath.Join(tempDir, "subfolder"), vfs.DirPerm)).To(Succeed())
 			Expect(tfs.Symlink("subfolder", filepath.Join(tempDir, "linkToSubfolder"))).To(Succeed())
@@ -193,7 +220,7 @@ var _ = Describe("FS", Label("fs"), func() {
 			osFS = vfs.New()
 			tempDir, err := vfs.TempDir(osFS, "", "testing")
 			Expect(err).NotTo(HaveOccurred())
-			defer vfs.RemoveAll(osFS, tempDir)
+			defer osFS.RemoveAll(tempDir)
 
 			Expect(tempDir).NotTo(Equal(filepath.Join(os.TempDir(), "testing")))
 			Expect(strings.HasPrefix(tempDir, filepath.Join(os.TempDir(), "testing"))).To(BeTrue())
@@ -205,7 +232,7 @@ var _ = Describe("FS", Label("fs"), func() {
 			osFS = vfs.New()
 			tempFile, err := vfs.TempFile(osFS, "", "testing")
 			Expect(err).ToNot(HaveOccurred())
-			defer vfs.RemoveAll(osFS, tempFile.Name())
+			defer osFS.RemoveAll(tempFile.Name())
 			Expect(tempFile.Name()).NotTo(Equal(filepath.Join(os.TempDir(), "testing")))
 			Expect(strings.HasPrefix(tempFile.Name(), filepath.Join(os.TempDir(), "testing"))).To(BeTrue())
 		})

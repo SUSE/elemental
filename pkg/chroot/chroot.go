@@ -191,7 +191,7 @@ func (c *Chroot) Close() (err error) {
 			continue
 		}
 		if i := slices.Index(c.touchedFiles, mnt); i >= 0 {
-			e = vfs.RemoveAll(c.fs, mnt)
+			e = c.fs.Remove(mnt)
 			if e != nil {
 				c.logger.Error("error removing %s", mnt)
 				err = errors.Join(err, e)

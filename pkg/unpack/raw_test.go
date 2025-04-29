@@ -30,7 +30,7 @@ import (
 	"github.com/suse/elemental/v3/pkg/unpack"
 )
 
-var _ = Describe("DirectoryUnpacker", Label("raw"), func() {
+var _ = Describe("RawUnpacker", Label("raw"), func() {
 	var tfs vfs.FS
 	var unpacker *unpack.Raw
 	var s *sys.System

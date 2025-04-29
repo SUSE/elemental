@@ -98,7 +98,7 @@ func (o OCI) SynchedUnpack(ctx context.Context, destination string, excludes []s
 		return "", err
 	}
 	defer func() {
-		e := vfs.RemoveAll(o.s.FS(), tempDir)
+		e := vfs.ForceRemoveAll(o.s.FS(), tempDir)
 		if err == nil && e != nil {
 			err = e
 		}

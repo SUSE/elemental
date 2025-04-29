@@ -89,7 +89,7 @@ func (r Raw) mountImage() (string, umountFunc, error) {
 		if err != nil {
 			return err
 		}
-		return vfs.RemoveAll(r.s.FS(), dir)
+		return r.s.FS().RemoveAll(dir)
 	}
 
 	return dir, umount, nil

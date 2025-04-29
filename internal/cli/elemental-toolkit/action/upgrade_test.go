@@ -68,7 +68,7 @@ var _ = Describe("Upgrade action", Label("upgrade"), func() {
 		Expect(action.Upgrade(ctx)).NotTo(Succeed())
 	})
 	It("fails to start the upgrade if the deployment file does not exist", func() {
-		Expect(vfs.RemoveAll(tfs, "/etc/elemental")).To(Succeed())
+		Expect(tfs.RemoveAll("/etc/elemental")).To(Succeed())
 		cmd.UpgradeArgs.OperatingSystemImage = "my.registry.org/my/image:test"
 		err = action.Upgrade(ctx)
 		Expect(err).To(HaveOccurred())

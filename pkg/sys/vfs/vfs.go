@@ -126,15 +126,30 @@ func Exists(fs FS, path string, follow ...bool) (bool, error) {
 	return false, err
 }
 
-// RemoveAll removes the specified path.
-// It silently drop NotExists errors.
-func RemoveAll(fs FS, path string) error {
-	err := fs.RemoveAll(path)
-	if !os.IsNotExist(err) {
-		return err
+// ForceRemoveAll removes the specified path.
+// If it fails to remove somepaths it tries set the write permission
+// to every file or directory and run a removal again
+func ForceRemoveAll(vfs FS, path string) error {
+	err := vfs.RemoveAll(path)
+	if err == nil {
+		return nil
 	}
 
-	return nil
+	var errs error
+	_ = WalkDirFs(vfs, path, func(path string, d fs.DirEntry, err error) error {
+		errs = errors.Join(errs, err)
+
+		info, err := d.Info()
+		if err != nil {
+			return err
+		}
+		err = vfs.Chmod(path, info.Mode()|0200)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+	return errors.Join(errs, vfs.RemoveAll(path))
 }
 
 // IsDir check if the path is a dir. follow flag determines to
