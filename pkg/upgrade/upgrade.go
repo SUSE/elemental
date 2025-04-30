@@ -83,9 +83,15 @@ func (u Upgrader) Upgrade(d *deployment.Deployment) (err error) {
 		return err
 	}
 
-	err = u.t.Commit(trans, nil, nil)
+	err = u.t.Commit(trans)
 	if err != nil {
 		u.s.Logger().Error("upgrade failed, could not close snapper transaction")
+		return err
+	}
+
+	err = u.t.Close(trans)
+	if err != nil {
+		u.s.Logger().Error("upgrade failed, could not set default snapper snapshot")
 		return err
 	}
 

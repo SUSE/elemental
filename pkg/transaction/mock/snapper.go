@@ -27,6 +27,7 @@ type Transactioner struct {
 	StartErr       error
 	MergeErr       error
 	CommitErr      error
+	SetDefaultErr  error
 	Trans          *transaction.Transaction
 	SrcDigest      string
 	rollbackCalled bool
@@ -49,8 +50,12 @@ func (m Transactioner) Merge(_ *transaction.Transaction) error {
 	return m.MergeErr
 }
 
-func (m Transactioner) Commit(_ *transaction.Transaction, _ transaction.Hook, _ transaction.HookBinds) error {
+func (m Transactioner) Commit(_ *transaction.Transaction) error {
 	return m.CommitErr
+}
+
+func (m Transactioner) Close(_ *transaction.Transaction) error {
+	return m.SetDefaultErr
 }
 
 func (m *Transactioner) Rollback(_ *transaction.Transaction, err error) error {

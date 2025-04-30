@@ -25,6 +25,7 @@ import (
 	"github.com/suse/elemental/v3/pkg/block"
 	"github.com/suse/elemental/v3/pkg/block/lsblk"
 	"github.com/suse/elemental/v3/pkg/btrfs"
+	"github.com/suse/elemental/v3/pkg/chroot"
 	"github.com/suse/elemental/v3/pkg/cleanstack"
 	"github.com/suse/elemental/v3/pkg/deployment"
 	"github.com/suse/elemental/v3/pkg/diskrepart"
@@ -101,14 +102,28 @@ func (i Installer) Install(d *deployment.Deployment) (err error) {
 		return err
 	}
 
+	err = i.t.Commit(trans)
+	if err != nil {
+		i.s.Logger().Error("installation failed, could not close snapper transaction")
+		return err
+	}
+
 	hook, binds, err := configHook(i.ctx, i.s)
 	if err != nil {
 		return err
 	}
+	if hook != nil {
+		i.s.Logger().Info("Running transaction hook")
+		err = chroot.ChrootedCallback(i.s, trans.Path, binds, hook)
+		if err != nil {
+			i.s.Logger().Error("failed to run transaction hook")
+			return err
+		}
+	}
 
-	err = i.t.Commit(trans, hook, binds)
+	err = i.t.Close(trans)
 	if err != nil {
-		i.s.Logger().Error("installation failed, could not close snapper transaction")
+		i.s.Logger().Error("installation failed, could set default snapper snapshot")
 		return err
 	}
 

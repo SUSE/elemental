@@ -21,6 +21,15 @@ import "github.com/suse/elemental/v3/pkg/deployment"
 
 const FstabFile = "/etc/fstab"
 
+type transactionState int
+
+const (
+	started transactionState = iota + 1
+	committed
+	closed
+	failed
+)
+
 type Hook func() error
 
 type HookBinds map[string]string
@@ -32,16 +41,17 @@ type Merge struct {
 }
 
 type Transaction struct {
-	ID         int
-	Path       string
-	Merges     map[string]*Merge
-	inProgress bool
+	ID     int
+	Path   string
+	Merges map[string]*Merge
+	status transactionState
 }
 
 type Interface interface {
 	Init(deployment.Deployment) error
 	Start(*deployment.ImageSource) (*Transaction, error)
 	Merge(*Transaction) error
-	Commit(*Transaction, Hook, HookBinds) error
+	Commit(*Transaction) error
+	Close(*Transaction) error
 	Rollback(*Transaction, error) error
 }

@@ -90,6 +90,7 @@ const lsblkJson = `{
 var _ = Describe("Install", Label("install"), func() {
 	var runner *sysmock.Runner
 	var mounter *sysmock.Mounter
+	var syscall *sysmock.Syscall
 	var fs vfs.FS
 	var cleanup func()
 	var s *sys.System
@@ -103,18 +104,23 @@ var _ = Describe("Install", Label("install"), func() {
 		t = &transmock.Transactioner{}
 		runner = sysmock.NewRunner()
 		mounter = sysmock.NewMounter()
-		fs, cleanup, err = sysmock.TestFS(nil)
+		syscall = &sysmock.Syscall{}
+		fs, cleanup, err = sysmock.TestFS(map[string]any{
+			"/etc/config.sh": []byte{},
+			"/dev/device":    []byte{},
+			"/dev/device1":   []byte{},
+			"/dev/device2":   []byte{},
+			"/dev/pts/empty": []byte{},
+			"/proc/empty":    []byte{},
+			"/sys/empty":     []byte{},
+		})
 		Expect(err).ToNot(HaveOccurred())
 		s, err = sys.NewSystem(
 			sys.WithMounter(mounter), sys.WithRunner(runner),
 			sys.WithFS(fs), sys.WithLogger(log.New(log.WithDiscardAll())),
+			sys.WithSyscall(syscall),
 		)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(vfs.MkdirAll(fs, "/dev", vfs.DirPerm)).To(Succeed())
-		Expect(vfs.MkdirAll(fs, "/etc", vfs.DirPerm)).To(Succeed())
-		Expect(fs.WriteFile("/dev/device", []byte{}, vfs.DirPerm)).To(Succeed())
-		Expect(fs.WriteFile("/dev/device1", []byte{}, vfs.DirPerm)).To(Succeed())
-		Expect(fs.WriteFile("/dev/device2", []byte{}, vfs.DirPerm)).To(Succeed())
 		d = deployment.DefaultDeployment()
 		d.Disks[0].Device = "/dev/device"
 		d.Disks[0].Partitions[0].UUID = "34A8-ABB8"
@@ -153,7 +159,6 @@ var _ = Describe("Install", Label("install"), func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(vfs.MkdirAll(fs, dir, vfs.DirPerm)).To(Succeed())
 		Expect(fs.WriteFile(filepath.Join(dir, "config.sh"), []byte{}, vfs.FilePerm)).To(Succeed())
-		Expect(fs.WriteFile("/etc/config.sh", []byte{}, vfs.FilePerm)).To(Succeed())
 	})
 	AfterEach(func() {
 		cleanup()
@@ -179,11 +184,30 @@ var _ = Describe("Install", Label("install"), func() {
 		Expect(err.Error()).To(ContainSubstring("start failed"))
 		Expect(t.RollbackCalled()).To(BeFalse())
 	})
+	It("fails on config hook execution", func() {
+		syscall.ErrorOnChroot = true
+		err := i.Install(d)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("chroot error"))
+	})
 	It("fails on transaction commit", func() {
 		t.CommitErr = fmt.Errorf("commit failed")
 		err := i.Install(d)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("commit failed"))
+		Expect(t.RollbackCalled()).To(BeTrue())
+	})
+	It("fails on config hook execution", func() {
+		syscall.ErrorOnChroot = true
+		err := i.Install(d)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("chroot error"))
+	})
+	It("fails on transaction setdefault", func() {
+		t.SetDefaultErr = fmt.Errorf("setdefault failed")
+		err := i.Install(d)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("setdefault failed"))
 		Expect(t.RollbackCalled()).To(BeTrue())
 	})
 })

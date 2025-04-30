@@ -134,7 +134,7 @@ func (sn snapperT) Start(imgSrc *deployment.ImageSource) (trans *Transaction, er
 func (sn snapperT) Merge(trans *Transaction) (err error) {
 	defer func() { err = sn.checkCancelled(err) }()
 
-	if !trans.inProgress {
+	if trans.status != started {
 		return fmt.Errorf("given transaction '%d' not in progress", trans.ID)
 	}
 
@@ -154,12 +154,11 @@ func (sn snapperT) Merge(trans *Transaction) (err error) {
 	return nil
 }
 
-// Commit closes the current transaction (fstab update, SELinux relabel, hook execution, set new default...)
-// The hook callback is executed in a chroot environment where the new snapshot is already set to RO mode.
-func (sn snapperT) Commit(trans *Transaction, hook Hook, binds HookBinds) (err error) {
+// Commit closes the current transaction (fstab update, SELinux relabel, set snapshot as RO, ...)
+func (sn snapperT) Commit(trans *Transaction) (err error) {
 	defer func() { err = sn.checkCancelled(err) }()
 
-	if !trans.inProgress {
+	if trans.status != started {
 		return fmt.Errorf("given transaction '%d' not in progress", trans.ID)
 	}
 
@@ -199,17 +198,17 @@ func (sn snapperT) Commit(trans *Transaction, hook Hook, binds HookBinds) (err e
 		return err
 	}
 
-	if hook != nil {
-		sn.s.Logger().Info("Running transaction hook")
-		err = chroot.ChrootedCallback(sn.s, trans.Path, binds, hook)
-		if err != nil {
-			sn.s.Logger().Error("failed to run transaction hook")
-			return err
-		}
+	trans.status = committed
+	return nil
+}
+
+func (sn snapperT) Close(trans *Transaction) error {
+	if trans.status != committed {
+		return fmt.Errorf("given transaction '%d' is not committed", trans.ID)
 	}
 
 	sn.s.Logger().Info("Setting new default snapshot")
-	err = sn.snap.SetDefault(trans.Path, trans.ID, map[string]string{updateProgress: ""})
+	err := sn.snap.SetDefault(trans.Path, trans.ID, map[string]string{updateProgress: ""})
 	if err != nil {
 		sn.s.Logger().Error("failed setting new default snapshot")
 		return err
@@ -228,6 +227,7 @@ func (sn snapperT) Commit(trans *Transaction, hook Hook, binds HookBinds) (err e
 		sn.s.Logger().Warn("failed to cleanup transaction resources")
 	}
 	sn.s.Logger().Info("Transaction closed")
+	trans.status = closed
 
 	return nil
 }
@@ -235,10 +235,14 @@ func (sn snapperT) Commit(trans *Transaction, hook Hook, binds HookBinds) (err e
 // Rollback closes the given in progress transaction by deleting the
 // associated resources. This is a cleanup method in case occurs during a transaction.
 func (sn snapperT) Rollback(trans *Transaction, e error) (err error) {
+	if trans.status == closed {
+		sn.s.Logger().Warn("cannot rollback a closed transaction")
+		return e
+	}
 	sn.s.Logger().Error("closing transaction due to a failure: %v", e)
 	err = sn.cleanStack.Cleanup(e)
 	err = errors.Join(err, sn.snap.DeleteByPath(trans.Path))
-	trans.inProgress = false
+	trans.status = failed
 	return err
 }
 
@@ -601,10 +605,10 @@ func (sn snapperT) createNewSnapshot(baseID int) (*Transaction, error) {
 	}
 
 	return &Transaction{
-		ID:         newID,
-		Path:       path,
-		Merges:     map[string]*Merge{},
-		inProgress: true,
+		ID:     newID,
+		Path:   path,
+		Merges: map[string]*Merge{},
+		status: started,
 	}, nil
 }
 

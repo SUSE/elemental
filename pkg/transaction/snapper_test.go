@@ -306,34 +306,49 @@ var _ = Describe("SnapperTransaction", Label("transaction"), func() {
 				cancel()
 				Expect(sn.Merge(trans)).NotTo(Succeed())
 			})
-			It("closes transaction", func() {
-				Expect(vfs.MkdirAll(tfs, "/part/mount", vfs.DirPerm)).To(Succeed())
-				called := false
-				sideEffects["env"] = func(args ...string) ([]byte, error) {
-					if slices.Contains(args, "snapper") {
-						return []byte("2\n"), nil
+			Describe("transaction committed", func() {
+				BeforeEach(func() {
+					By("committing a transaction")
+					sideEffects["env"] = func(args ...string) ([]byte, error) {
+						if slices.Contains(args, "snapper") {
+							return []byte("2\n"), nil
+						}
+						return runner.ReturnValue, runner.ReturnError
 					}
-					return runner.ReturnValue, runner.ReturnError
-				}
-				sideEffects["snapper"] = func(args ...string) ([]byte, error) {
-					if slices.Contains(args, "list") {
-						return []byte(installSnapList), nil
+					sideEffects["snapper"] = func(args ...string) ([]byte, error) {
+						if slices.Contains(args, "list") {
+							return []byte(installSnapList), nil
+						}
+						return runner.ReturnValue, runner.ReturnError
 					}
-					return runner.ReturnValue, runner.ReturnError
-				}
-				runner.ClearCmds()
-				Expect(sn.Commit(trans, func() error {
-					called = true
-					return nil
-				}, map[string]string{"/part/mount": "/data"})).To(Succeed())
-				Expect(called).To(BeTrue())
-				Expect(runner.MatchMilestones([][]string{
-					{"setfiles", "-i", "-F", selinux.SelinuxTargetedContextFile, "/"},
-				}))
+					Expect(sn.Commit(trans)).To(Succeed())
+					Expect(runner.MatchMilestones([][]string{
+						{"setfiles", "-i", "-F", selinux.SelinuxTargetedContextFile, "/"},
+					}))
+					runner.ClearCmds()
+				})
+				It("closes setting the default snapshot", func() {
+					Expect(sn.Close(trans)).To(Succeed())
+					Expect(runner.MatchMilestones([][]string{
+						{
+							"snapper", "--no-dbus", "--root",
+							"/some/root/@/.snapshots/1/snapshot", "modify", "--default",
+						},
+					}))
+				})
+				It("fails to set default snapshot", func() {
+					sideEffects["snapper"] = func(args ...string) ([]byte, error) {
+						if slices.Contains(args, "--default") {
+							return []byte("error setting default\n"), fmt.Errorf("failed setting default")
+						}
+						return runner.ReturnValue, runner.ReturnError
+					}
+					err = sn.Close(trans)
+					Expect(err).To(HaveOccurred())
+					Expect(err.Error()).To(ContainSubstring("failed setting default"))
+				})
 			})
-			It("closes a transaction with error if context is cancelled", func() {
-				Expect(vfs.MkdirAll(tfs, "/part/mount", vfs.DirPerm)).To(Succeed())
-				called := false
+			It("commits a transaction with error if context is cancelled", func() {
 				sideEffects["env"] = func(args ...string) ([]byte, error) {
 					if slices.Contains(args, "snapper") {
 						return []byte("2\n"), nil
@@ -348,11 +363,7 @@ var _ = Describe("SnapperTransaction", Label("transaction"), func() {
 				}
 				runner.ClearCmds()
 				cancel()
-				Expect(sn.Commit(trans, func() error {
-					called = true
-					return nil
-				}, map[string]string{"/part/mount": "/data"})).NotTo(Succeed())
-				Expect(called).To(BeTrue())
+				Expect(sn.Commit(trans)).NotTo(Succeed())
 				Expect(runner.MatchMilestones([][]string{
 					{"setfiles", "-i", "-F", selinux.SelinuxTargetedContextFile, "/"},
 				}))
@@ -507,31 +518,32 @@ var _ = Describe("SnapperTransaction", Label("transaction"), func() {
 				}
 				Expect(sn.Merge(trans).Error()).To(ContainSubstring("rsync failed"))
 			})
-			It("closes upgrade transaction and ignores cleanup errors", func() {
-				called := false
-				sideEffects["env"] = func(args ...string) ([]byte, error) {
-					if slices.Contains(args, "snapper") {
-						if slices.Contains(args, "etc") || slices.Contains(args, "home") {
-							return []byte("2\n"), nil
+			Describe("upgrade transaction committed", func() {
+				BeforeEach(func() {
+					By("committing an upgrade transaction")
+					sideEffects["env"] = func(args ...string) ([]byte, error) {
+						if slices.Contains(args, "snapper") {
+							if slices.Contains(args, "etc") || slices.Contains(args, "home") {
+								return []byte("2\n"), nil
+							}
 						}
+						return runner.ReturnValue, runner.ReturnError
 					}
-					return runner.ReturnValue, runner.ReturnError
-				}
-				runner.ClearCmds()
-				Expect(sn.Commit(trans, func() error {
-					called = true
-					return nil
-				}, nil)).To(Succeed())
-				Expect(called).To(BeTrue())
-				Expect(runner.MatchMilestones([][]string{
-					{"setfiles", "-i", "-F", selinux.SelinuxTargetedContextFile, "/"},
-				}))
-				Expect(buffer.String()).To(ContainSubstring("failed to clear old snapshots"))
-			})
-			It("fails to close a transaction if the given hook fails", func() {
-				err = sn.Commit(trans, func() error { return fmt.Errorf("hook failed") }, nil)
-				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(ContainSubstring("hook failed"))
+					Expect(sn.Commit(trans)).To(Succeed())
+					Expect(runner.MatchMilestones([][]string{
+						{"setfiles", "-i", "-F", selinux.SelinuxTargetedContextFile, "/"},
+					}))
+					runner.ClearCmds()
+				})
+				It("closes a transaction", func() {
+					Expect(sn.Close(trans)).To(Succeed())
+					Expect(runner.MatchMilestones([][]string{
+						{
+							"snapper", "--no-dbus", "--root",
+							"/some/root/@/.snapshots/5/snapshot", "modify", "--default",
+						},
+					}))
+				})
 			})
 		})
 		It("it fails to start a transaction if it does not find previous snapshotted volumes", func() {
