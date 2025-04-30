@@ -13,13 +13,24 @@ LDFLAGS:=-w -s
 LDFLAGS+=-X "$(GO_MODULE)/internal/cli/version.version=$(GIT_TAG)"
 LDFLAGS+=-X "$(GO_MODULE)/internal/cli/version.gitCommit=$(GIT_COMMIT)"
 
+GO_BUILD_ARGS ?=-ldflags '$(LDFLAGS)'
+
+# Use vendor directory if it exists
+ifneq (,$(wildcard ./vendor))
+	GO_BUILD_ARGS+=-mod=vendor
+endif
+
+ifneq (,$(GO_EXTRA_ARGS))
+	GO_BUILD_ARGS+=$(GO_EXTRA_ARGS)
+endif
+
 # No verbose unit tests by default
 ifeq ($(VERBOSE),true)
 	VERBOSE_TEST?=-v
 endif
 
 elemental-toolkit: $(GO_FILES)
-	go build -ldflags '$(LDFLAGS)' -o $@ ./cmd/elemental-toolkit
+	go build $(GO_BUILD_ARGS) -o $@ ./cmd/elemental-toolkit
 
 .PHONY: unit-tests
 unit-tests:
