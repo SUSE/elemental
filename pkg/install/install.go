@@ -19,7 +19,6 @@ package install
 
 import (
 	"context"
-	"os"
 	"path/filepath"
 
 	"github.com/suse/elemental/v3/pkg/block"
@@ -32,6 +31,7 @@ import (
 	"github.com/suse/elemental/v3/pkg/sys"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 	"github.com/suse/elemental/v3/pkg/transaction"
+	"github.com/suse/elemental/v3/pkg/unpack"
 )
 
 const configFile = "config.sh"
@@ -108,22 +108,30 @@ func (i Installer) Install(d *deployment.Deployment) (err error) {
 		return err
 	}
 
-	hook, binds, err := configHook(i.ctx, i.s)
-	if err != nil {
-		return err
-	}
-	if hook != nil {
-		i.s.Logger().Info("Running transaction hook")
-		err = chroot.ChrootedCallback(i.s, trans.Path, binds, hook)
+	if d.OverlayTree != nil && !d.OverlayTree.IsEmpty() {
+		unpacker, err := unpack.NewUnpacker(i.s, d.OverlayTree)
 		if err != nil {
-			i.s.Logger().Error("failed to run transaction hook")
+			i.s.Logger().Error("installation failed, could not initialize unpacker")
+			return err
+		}
+		_, err = unpacker.Unpack(i.ctx, trans.Path)
+		if err != nil {
+			i.s.Logger().Error("installation failed, could not unpack overlay tree")
+			return err
+		}
+	}
+
+	if d.CfgScript != "" {
+		err = i.configHook(d.CfgScript, trans)
+		if err != nil {
+			i.s.Logger().Error("installation failed, configuration hook error")
 			return err
 		}
 	}
 
 	err = i.t.Close(trans)
 	if err != nil {
-		i.s.Logger().Error("installation failed, could set default snapper snapshot")
+		i.s.Logger().Error("installation failed, could not set default snapper snapshot")
 		return err
 	}
 
@@ -175,26 +183,20 @@ func createPartitionVolumes(s *sys.System, cleanStack *cleanstack.CleanStack, pa
 	return nil
 }
 
-func configHook(ctx context.Context, s *sys.System) (transaction.Hook, transaction.HookBinds, error) {
-	dir, err := os.Getwd()
-	if err != nil {
-		s.Logger().Error("failed to find out current directory")
-		return nil, nil, err
+func (i Installer) configHook(config string, trans *transaction.Transaction) error {
+	i.s.Logger().Info("Running transaction hook")
+	rootedConfig := filepath.Join("/etc/elemental", configFile)
+	callback := func() error {
+		var stdOut, stdErr *string
+		stdOut = new(string)
+		stdErr = new(string)
+		defer func() {
+			logOutput(i.s, *stdOut, *stdErr)
+		}()
+		return i.s.Runner().RunContextParseOutput(i.ctx, stdHander(stdOut), stdHander(stdErr), rootedConfig)
 	}
-	config := filepath.Join(dir, configFile)
-	if ok, _ := vfs.Exists(s.FS(), config); ok {
-		rootedConfig := filepath.Join("/etc", configFile)
-		return func() error {
-			var stdOut, stdErr *string
-			stdOut = new(string)
-			stdErr = new(string)
-			defer func() {
-				logOutput(s, *stdOut, *stdErr)
-			}()
-			return s.Runner().RunContextParseOutput(ctx, stdHander(stdOut), stdHander(stdErr), rootedConfig)
-		}, map[string]string{config: rootedConfig}, nil
-	}
-	return nil, nil, nil
+	binds := map[string]string{config: rootedConfig}
+	return chroot.ChrootedCallback(i.s, trans.Path, binds, callback)
 }
 
 func stdHander(out *string) func(string) {

@@ -30,10 +30,6 @@ const (
 	failed
 )
 
-type Hook func() error
-
-type HookBinds map[string]string
-
 type Merge struct {
 	Old      string // old unmodified tree
 	New      string // new base tree where modifications should be applied

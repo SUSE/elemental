@@ -20,8 +20,6 @@ package install_test
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -105,14 +103,17 @@ var _ = Describe("Install", Label("install"), func() {
 		runner = sysmock.NewRunner()
 		mounter = sysmock.NewMounter()
 		syscall = &sysmock.Syscall{}
+
 		fs, cleanup, err = sysmock.TestFS(map[string]any{
-			"/etc/config.sh": []byte{},
-			"/dev/device":    []byte{},
-			"/dev/device1":   []byte{},
-			"/dev/device2":   []byte{},
-			"/dev/pts/empty": []byte{},
-			"/proc/empty":    []byte{},
-			"/sys/empty":     []byte{},
+			"/etc/config.sh":  []byte{},
+			"/dev/device":     []byte{},
+			"/dev/device1":    []byte{},
+			"/dev/device2":    []byte{},
+			"/dev/pts/empty":  []byte{},
+			"/proc/empty":     []byte{},
+			"/sys/empty":      []byte{},
+			"/opt/config.sh":  []byte{},
+			"/opt/tree/empty": []byte{},
 		})
 		Expect(err).ToNot(HaveOccurred())
 		s, err = sys.NewSystem(
@@ -126,6 +127,8 @@ var _ = Describe("Install", Label("install"), func() {
 		d.Disks[0].Partitions[0].UUID = "34A8-ABB8"
 		d.Disks[0].Partitions[1].UUID = "34a8abb8-ddb3-48a2-8ecc-2443e92c7510"
 		d.SourceOS = deployment.NewDirSrc("/some/dir")
+		d.CfgScript = "/opt/tree"
+		d.OverlayTree = deployment.NewDirSrc("/opt/tree")
 		Expect(d.Sanitize(s)).To(Succeed())
 		i = install.New(context.Background(), s, install.WithTransaction(t))
 		table = sgdiskEmpty
@@ -155,10 +158,6 @@ var _ = Describe("Install", Label("install"), func() {
 		}
 		t.Trans = trans
 		t.SrcDigest = "imagedigest"
-		dir, err := os.Getwd()
-		Expect(err).ToNot(HaveOccurred())
-		Expect(vfs.MkdirAll(fs, dir, vfs.DirPerm)).To(Succeed())
-		Expect(fs.WriteFile(filepath.Join(dir, "config.sh"), []byte{}, vfs.FilePerm)).To(Succeed())
 	})
 	AfterEach(func() {
 		cleanup()
@@ -203,11 +202,11 @@ var _ = Describe("Install", Label("install"), func() {
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("chroot error"))
 	})
-	It("fails on transaction setdefault", func() {
-		t.SetDefaultErr = fmt.Errorf("setdefault failed")
+	It("fails on transaction close", func() {
+		t.CloseErr = fmt.Errorf("close failed")
 		err := i.Install(d)
 		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("setdefault failed"))
+		Expect(err.Error()).To(ContainSubstring("close failed"))
 		Expect(t.RollbackCalled()).To(BeTrue())
 	})
 })

@@ -190,7 +190,7 @@ type Disk struct {
 	StartSector uint       `json:"startSector,omitempty"`
 }
 
-// MarshalJson on disks omits the device name as this is a runtime information
+// MarshalJSON on disks omits the device name as this is a runtime information
 // which might not be consistent across reboots, there is no need to store it.
 func (d Disk) MarshalJSON() ([]byte, error) {
 	type diskAlias Disk
@@ -202,11 +202,11 @@ func (d Disk) MarshalJSON() ([]byte, error) {
 type Deployment struct {
 	SourceOS *ImageSource `json:"sourceOS"`
 	Disks    []*Disk      `json:"disks"`
-	// Consider adding a systemd-sysext list here and
-	// some other well known set of structers such as charts.
-	// Also abitrary data would be intersting (e.g. tarballs).
+	// Consider adding a systemd-sysext list here
 	// All of them would extracted in the RO context, so only
 	// additions to the RWVolumes would succeed.
+	OverlayTree *ImageSource `json:"overlayTree"`
+	CfgScript   string       `json:"configScript"`
 
 	// Also bootloader details could be added here
 }
