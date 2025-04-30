@@ -72,13 +72,13 @@ func Install(ctx *cli.Context) error { //nolint:dupl
 
 func digestInstallSetup(s *sys.System, flags *cmd.InstallFlags) (*deployment.Deployment, error) {
 	d := deployment.DefaultDeployment()
-	if flags.ConfigFile != "" {
-		if ok, _ := vfs.Exists(s.FS(), flags.ConfigFile); !ok {
-			return nil, fmt.Errorf("config file '%s' not found", flags.ConfigFile)
+	if flags.Description != "" {
+		if ok, _ := vfs.Exists(s.FS(), flags.Description); !ok {
+			return nil, fmt.Errorf("config file '%s' not found", flags.Description)
 		}
-		data, err := s.FS().ReadFile(flags.ConfigFile)
+		data, err := s.FS().ReadFile(flags.Description)
 		if err != nil {
-			return nil, fmt.Errorf("could not read config file '%s': %w", flags.ConfigFile, err)
+			return nil, fmt.Errorf("could not read config file '%s': %w", flags.Description, err)
 		}
 		err = yaml.Unmarshal(data, d)
 		if err != nil {
@@ -95,6 +95,18 @@ func digestInstallSetup(s *sys.System, flags *cmd.InstallFlags) (*deployment.Dep
 			return nil, fmt.Errorf("failed parsing OS source URI ('%s'): %w", flags.OperatingSystemImage, err)
 		}
 		d.SourceOS = srcOS
+	}
+
+	if flags.Overlay != "" {
+		overlay, err := deployment.NewSrcFromURI(flags.Overlay)
+		if err != nil {
+			return nil, fmt.Errorf("failed parsing overlay source URI ('%s'): %w", flags.Overlay, err)
+		}
+		d.OverlayTree = overlay
+	}
+
+	if flags.ConfigScript != "" {
+		d.CfgScript = flags.ConfigScript
 	}
 
 	err := d.Sanitize(s)

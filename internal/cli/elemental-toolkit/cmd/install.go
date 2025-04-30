@@ -26,7 +26,9 @@ import (
 type InstallFlags struct {
 	OperatingSystemImage string
 	Target               string
-	ConfigFile           string
+	Description          string
+	ConfigScript         string
+	Overlay              string
 }
 
 var InstallArgs InstallFlags
@@ -40,13 +42,24 @@ func NewInstallCommand(appName string, action func(*cli.Context) error) *cli.Com
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:        "config",
-				Usage:       "Config file to read installation details",
-				Destination: &InstallArgs.ConfigFile,
+				Usage:       "Configuration script path to execute after committing os-image",
+				Destination: &InstallArgs.ConfigScript,
+			},
+			&cli.StringFlag{
+				Name:        "description",
+				Aliases:     []string{"d"},
+				Usage:       "Description file to read installation details",
+				Destination: &InstallArgs.Description,
 			},
 			&cli.StringFlag{
 				Name:        "os-image",
-				Usage:       "OCI image containing the operating system",
+				Usage:       "URI to the image containing the operating system",
 				Destination: &InstallArgs.OperatingSystemImage,
+			},
+			&cli.StringFlag{
+				Name:        "overlay",
+				Usage:       "URI to the content overlaid over the OS image",
+				Destination: &InstallArgs.Overlay,
 			},
 			&cli.StringFlag{
 				Name:        "target",

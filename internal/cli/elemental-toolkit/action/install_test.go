@@ -88,7 +88,7 @@ var _ = Describe("Install action", Label("install"), func() {
 	It("fails to start installing if the configuration file can't be read", func() {
 		cmd.InstallArgs.Target = "/dev/device"
 		cmd.InstallArgs.OperatingSystemImage = "my.registry.org/my/image:test"
-		cmd.InstallArgs.ConfigFile = "doesntexist"
+		cmd.InstallArgs.Description = "doesntexist"
 		err = action.Install(ctx)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("config file 'doesntexist' not found"))
@@ -103,7 +103,7 @@ var _ = Describe("Install action", Label("install"), func() {
 	It("fails if the setup is inconsistent", func() {
 		cmd.InstallArgs.Target = "/dev/device"
 		cmd.InstallArgs.OperatingSystemImage = "my.registry.org/my/image:test"
-		cmd.InstallArgs.ConfigFile = "/configDir/bad_config.yaml"
+		cmd.InstallArgs.Description = "/configDir/bad_config.yaml"
 		err = action.Install(ctx)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("inconsistent deployment"))
