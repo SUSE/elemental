@@ -23,6 +23,6 @@ jobs:
           cache-dependency-path: go.sum
           go-version-file: go.mod
       - name: Analysis
-        uses: golangci/golangci-lint-action@v7
+        uses: golangci/golangci-lint-action@v8
         with:
           args: -v
