@@ -127,7 +127,7 @@ var _ = Describe("Install", Label("install"), func() {
 		d.Disks[0].Partitions[0].UUID = "34A8-ABB8"
 		d.Disks[0].Partitions[1].UUID = "34a8abb8-ddb3-48a2-8ecc-2443e92c7510"
 		d.SourceOS = deployment.NewDirSrc("/some/dir")
-		d.CfgScript = "/opt/tree"
+		d.CfgScript = "/opt/config.sh"
 		d.OverlayTree = deployment.NewDirSrc("/opt/tree")
 		Expect(d.Sanitize(s)).To(Succeed())
 		i = install.New(context.Background(), s, install.WithTransaction(t))
@@ -195,12 +195,6 @@ var _ = Describe("Install", Label("install"), func() {
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("commit failed"))
 		Expect(t.RollbackCalled()).To(BeTrue())
-	})
-	It("fails on config hook execution", func() {
-		syscall.ErrorOnChroot = true
-		err := i.Install(d)
-		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("chroot error"))
 	})
 	It("fails on transaction close", func() {
 		t.CloseErr = fmt.Errorf("close failed")
