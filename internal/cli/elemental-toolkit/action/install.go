@@ -27,6 +27,7 @@ import (
 
 	"github.com/suse/elemental/v3/internal/cli/elemental-toolkit/cmd"
 	"github.com/suse/elemental/v3/pkg/deployment"
+	"github.com/suse/elemental/v3/pkg/firmware"
 	"github.com/suse/elemental/v3/pkg/install"
 	"github.com/suse/elemental/v3/pkg/sys"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
@@ -58,7 +59,9 @@ func Install(ctx *cli.Context) error { //nolint:dupl
 		stop()
 	}()
 
-	installer := install.New(ctxCancel, s)
+	manager := firmware.NewEfiBootManager(s)
+
+	installer := install.New(ctxCancel, s, install.WithBootManager(manager))
 	err = installer.Install(d)
 	if err != nil {
 		s.Logger().Error("installation failed: %v", err)
@@ -107,6 +110,12 @@ func digestInstallSetup(s *sys.System, flags *cmd.InstallFlags) (*deployment.Dep
 
 	if flags.ConfigScript != "" {
 		d.CfgScript = flags.ConfigScript
+	}
+
+	if flags.CreateBootEntry {
+		d.Firmware.BootEntries = []*firmware.EfiBootEntry{
+			firmware.DefaultBootEntry(s.Platform(), d.Disks[0].Device),
+		}
 	}
 
 	err := d.Sanitize(s)

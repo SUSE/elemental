@@ -28,6 +28,7 @@ import (
 	"github.com/suse/elemental/v3/pkg/cleanstack"
 	"github.com/suse/elemental/v3/pkg/deployment"
 	"github.com/suse/elemental/v3/pkg/diskrepart"
+	"github.com/suse/elemental/v3/pkg/firmware"
 	"github.com/suse/elemental/v3/pkg/selinux"
 	"github.com/suse/elemental/v3/pkg/sys"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
@@ -43,11 +44,18 @@ type Installer struct {
 	ctx context.Context
 	s   *sys.System
 	t   transaction.Interface
+	bm  *firmware.EfiBootManager
 }
 
 func WithTransaction(t transaction.Interface) Option {
 	return func(i *Installer) {
 		i.t = t
+	}
+}
+
+func WithBootManager(bm *firmware.EfiBootManager) Option {
+	return func(i *Installer) {
+		i.bm = bm
 	}
 }
 

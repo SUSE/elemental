@@ -29,6 +29,7 @@ const (
 	Archx86     = "x86_64"
 	ArchArm64   = "arm64"
 	ArchAarch64 = "aarch64"
+	ArchRiscv64 = "riscv64"
 )
 
 type Platform struct {
