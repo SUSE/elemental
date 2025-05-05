@@ -27,6 +27,7 @@ type InstallFlags struct {
 	OperatingSystemImage string
 	Target               string
 	ConfigFile           string
+	CreateBootEntry      bool
 }
 
 var InstallArgs InstallFlags
@@ -53,6 +54,11 @@ func NewInstallCommand(appName string, action func(*cli.Context) error) *cli.Com
 				Aliases:     []string{"t"},
 				Usage:       "Target device for the installation process",
 				Destination: &InstallArgs.Target,
+			},
+			&cli.BoolFlag{
+				Name:        "create-boot-entry",
+				Usage:       "Create EFI boot entry",
+				Destination: &InstallArgs.CreateBootEntry,
 			},
 		},
 	}
