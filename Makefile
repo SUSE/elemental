@@ -29,6 +29,9 @@ ifeq ($(VERBOSE),true)
 	VERBOSE_TEST?=-v
 endif
 
+.PHONY: all
+all: elemental elemental-toolkit
+
 elemental: $(GO_FILES)
 	go build -ldflags '$(LDFLAGS)' -o $@ ./cmd/elemental
 
