@@ -1,0 +1,90 @@
+##########################################################
+#                        WARNING                         #
+#                                                        #
+#              This file is managed in GIT!              #
+# Any changes via the openQA WebUI could be overwritten! #
+#                                                        #
+# Job Group: Containers / Unified Core                   #
+#                                                        #
+# https://github.com/suse/elemental                      #
+# Maintainers: Unified Core team <unified-core@suse.com> #
+##########################################################
+
+---
+
+.default_products: &default_products
+  distri: sle-micro
+
+.test_settings: &test_settings
+  HDDSIZEGB: '20'
+  QEMURAM: '2048'
+  PASSWORD: ros
+  TEST_PASSWORD: Elemental@R00t
+  YAML_SCHEDULE: schedule/elemental/elemental3_test_image.yaml
+
+.generate_settings: &generate_settings
+  BOOT_HDD_IMAGE: "1"
+  CONTAINER_RUNTIMES: "podman"
+  DESKTOP: "textmode"
+  EXCLUDE_MODULES: "suseconnect_scc"
+  HDD_1: "openSUSE-MicroOS.%ARCH%-Updated.qcow2"
+  KEEP_GRUB_TIMEOUT: "0"
+  TEST_PASSWORD: Elemental@R00t
+  VIDEOMODE: "text"
+  YAML_SCHEDULE: schedule/elemental/elemental3_generate_image.yaml
+
+.image_test_settings: &image_test_settings
+  HDD_1: 'elemental-%BUILD%-%ARCH%.qcow2'
+  IMAGE_TYPE: disk
+  START_AFTER_TEST: generate_image
+
+.iso_test_settings: &iso_test_settings
+  IMAGE_TYPE: iso
+  ISO: 'elemental-%BUILD%-%ARCH%.iso'
+  START_AFTER_TEST: generate_iso
+
+defaults:
+  aarch64:
+    machine: aarch64-virtio
+    priority: 50
+  x86_64:
+    machine: uefi-virtio-vga
+    priority: 50
+    settings:
+      QEMUCPU: host
+
+products:
+  sl-micro-elemental-image-6.2-aarch64:
+    <<: *default_products
+    flavor: Elemental-Image
+    version : '6.2' 
+  sl-micro-elemental-image-6.2-x86_64:
+    <<: *default_products
+    flavor: Elemental-Image
+    version : '6.2'
+
+scenarios:
+  aarch64:
+    sl-micro-elemental-image-6.2-aarch64:
+      - generate_image:
+          testsuite: null
+          settings:
+            <<: *generate_settings
+      - test_image:
+          testsuite: null
+          settings:
+            <<: *test_settings
+            <<: *image_test_settings
+  x86_64:
+    sl-micro-elemental-image-6.2-x86_64:
+      - generate_image:
+          machine: 64bit
+          testsuite: null
+          settings:
+            <<: *generate_settings
+      - test_image:
+          testsuite: null
+          settings:
+            <<: *test_settings
+            <<: *image_test_settings
+            START_AFTER_TEST: generate_image@64bit
