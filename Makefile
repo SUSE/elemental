@@ -3,11 +3,12 @@ GINKGO?="github.com/onsi/ginkgo/v2/ginkgo"
 BUILD_DIR?=./build
 
 PKG?=./pkg/... ./internal/...
+COVER_PKG?=github.com/suse/elemental/...
 
-GO_MODULE ?= $(shell go list -m)
-GO_FILES  = $(shell find ./ -name '*.go' -not -name '*_test.go')
-GO_FILES  += ./go.mod
-GO_FILES  += ./go.sum
+GO_MODULE?=$(shell go list -m)
+GO_FILES=$(shell find ./ -name '*.go' -not -name '*_test.go')
+GO_FILES+=./go.mod
+GO_FILES+=./go.sum
 
 GIT_COMMIT?=$(shell git rev-parse HEAD)
 GIT_COMMIT_SHORT?=$(shell git rev-parse --short HEAD)
@@ -17,7 +18,7 @@ LDFLAGS:=-w -s
 LDFLAGS+=-X "$(GO_MODULE)/internal/cli/version.version=$(GIT_TAG)"
 LDFLAGS+=-X "$(GO_MODULE)/internal/cli/version.gitCommit=$(GIT_COMMIT)"
 
-GO_BUILD_ARGS ?=-ldflags '$(LDFLAGS)'
+GO_BUILD_ARGS?=-ldflags '$(LDFLAGS)'
 
 # Use vendor directory if it exists
 ifneq (,$(wildcard ./vendor))
@@ -29,8 +30,8 @@ ifneq (,$(GO_EXTRA_ARGS))
 endif
 
 # No verbose unit tests by default
-ifeq ($(VERBOSE),true)
-	VERBOSE_TEST?=-v
+ifneq (,$(VERBOSE))
+	GO_RUN_ARGS+=-v
 endif
 
 .PHONY: all
@@ -47,12 +48,12 @@ $(BUILD_DIR)/elemental-toolkit: $(GO_FILES)
 
 .PHONY: unit-tests
 unit-tests:
-	go run $(GINKGO) --label-filter '!rootlesskit' --race --cover --coverpkg=github.com/suse/elemental/... --github-output -p -r $(VERBOSE_TEST) ${PKG}
+	go run $(GINKGO) --label-filter '!rootlesskit' --race --cover --coverpkg=$(COVER_PKG) --github-output -p -r $(GO_RUN_ARGS) ${PKG}
 ifeq (, $(shell which rootlesskit 2>/dev/null))
 	@echo "No rootlesskit utility found, not executing tests requiring it"
 else
 	@mv coverprofile.out coverprofile.out.bk
-	rootlesskit go run $(GINKGO) --label-filter 'rootlesskit' --race --cover --coverpkg=github.com/suse/elemental/... --github-output -p -r $(VERBOSE_TEST) ${PKG}
+	rootlesskit go run $(GINKGO) --label-filter 'rootlesskit' --race --cover --coverpkg=$(COVER_PKG) --github-output -p -r $(GO_RUN_ARGS) ${PKG}
 	@grep -v "mode: atomic" coverprofile.out >> coverprofile.out.bk
 	@mv coverprofile.out.bk coverprofile.out
 endif
