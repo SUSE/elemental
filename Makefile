@@ -33,7 +33,7 @@ endif
 all: elemental elemental-toolkit
 
 elemental: $(GO_FILES)
-	go build -ldflags '$(LDFLAGS)' -o $@ ./cmd/elemental
+	go build $(GO_BUILD_ARGS) -o $@ ./cmd/elemental
 
 elemental-toolkit: $(GO_FILES)
 	go build $(GO_BUILD_ARGS) -o $@ ./cmd/elemental-toolkit
