@@ -32,7 +32,6 @@ import (
 	"github.com/suse/elemental/v3/pkg/deployment"
 	"github.com/suse/elemental/v3/pkg/fstab"
 	"github.com/suse/elemental/v3/pkg/rsync"
-	"github.com/suse/elemental/v3/pkg/selinux"
 	"github.com/suse/elemental/v3/pkg/snapper"
 	"github.com/suse/elemental/v3/pkg/sys"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
@@ -86,9 +85,8 @@ func (sn *snapperT) Init(d deployment.Deployment) (err error) {
 	return sn.snap.InitSnapperRootVolumes(sn.rootDir)
 }
 
-// Start starts a transaction for this snapper instance and returns the work in progress snapshot object.
-// This method already syncs the given image source to the just started transaction.
-func (sn snapperT) Start(imgSrc *deployment.ImageSource) (trans *Transaction, err error) {
+// Start starts a transaction for this snapper instance and returns the work in progress transaction object.
+func (sn snapperT) Start() (trans *Transaction, err error) {
 	defer func() { err = sn.checkCancelled(err) }()
 
 	sn.s.Logger().Info("Starting a btrfs snapshotter transaction")
@@ -112,57 +110,40 @@ func (sn snapperT) Start(imgSrc *deployment.ImageSource) (trans *Transaction, er
 		return trans, sn.Rollback(trans, err)
 	}
 
+	return trans, nil
+}
+
+// Update modifies the current snapshot with the contents of the given image source. This method
+// configures snapper, runs the 3 way merge logic, updates fstab and sets the snapshot as read-only.
+// The given hook is executed before setting the snapshot as read-only, hence this is the only
+// chance to apply changes to the snapshot which are not included as part of the image.
+func (sn snapperT) Update(trans *Transaction, imgSrc *deployment.ImageSource, hook UpdateHook) (err error) {
+	defer func() { err = sn.checkCancelled(err) }()
+
+	if trans.status != started {
+		return fmt.Errorf("given transaction '%d' not in progress", trans.ID)
+	}
+
 	sn.s.Logger().Info("Dump image source to new snapshot")
 	err = sn.syncImageContent(imgSrc, trans.Path)
 	if err != nil {
 		sn.s.Logger().Error("failed dumping source to snapshot")
-		return trans, sn.Rollback(trans, err)
+		return sn.Rollback(trans, err)
 	}
 
 	sn.s.Logger().Info("Configure snapper")
 	err = sn.configureSnapper(trans)
 	if err != nil {
 		sn.s.Logger().Error("failed configuring snapper")
-		return trans, sn.Rollback(trans, err)
-	}
-
-	return trans, nil
-}
-
-// Merge runs a 3 way merge for snapshotted RW volumes
-// Current implemementation is dumb, there is no check on potential conflicts
-func (sn snapperT) Merge(trans *Transaction) (err error) {
-	defer func() { err = sn.checkCancelled(err) }()
-
-	if trans.status != started {
-		return fmt.Errorf("given transaction '%d' not in progress", trans.ID)
+		return sn.Rollback(trans, err)
 	}
 
 	sn.s.Logger().Info("Starting 3 way merge of snapshotted rw volumes")
-	for _, rwVol := range sn.partitions.GetSnaphsottedVolumes() {
-		m := trans.Merges[rwVol.Path]
-		if m == nil {
-			continue
-		}
-		r := rsync.NewRsync(sn.s, rsync.WithContext(sn.ctx))
-		err = r.SyncData(m.Modified, m.New, snapper.SnapshotsPath)
-		if err != nil {
-			sn.s.Logger().Error("failed merging content for volume '%s'", rwVol.Path)
-			return err
-		}
+	err = sn.merge(trans)
+	if err != nil {
+		sn.s.Logger().Error("failed merging content of snapshotted rw volumes")
+		return err
 	}
-	return nil
-}
-
-// Commit closes the current transaction (fstab update, SELinux relabel, set snapshot as RO, ...)
-func (sn snapperT) Commit(trans *Transaction) (err error) {
-	defer func() { err = sn.checkCancelled(err) }()
-
-	if trans.status != started {
-		return fmt.Errorf("given transaction '%d' not in progress", trans.ID)
-	}
-
-	sn.s.Logger().Info("Closing transaction")
 
 	sn.s.Logger().Info("Update fstab")
 	if ok, _ := vfs.Exists(sn.s.FS(), filepath.Join(trans.Path, fstab.File)); ok {
@@ -179,16 +160,13 @@ func (sn snapperT) Commit(trans *Transaction) (err error) {
 		}
 	}
 
-	err = selinux.ChrootedRelabel(sn.ctx, sn.s, trans.Path, nil)
-	if err != nil {
-		sn.s.Logger().Error("failed relabelling snapshot path: %s", trans.Path)
-		return err
-	}
-
-	err = sn.createPostSnapshots(trans.Path)
-	if err != nil {
-		sn.s.Logger().Error("failed creating post transaction snapshots")
-		return err
+	if hook != nil {
+		sn.s.Logger().Info("Running transaction update hook")
+		err = hook()
+		if err != nil {
+			sn.s.Logger().Error("failed running transaction hook")
+			return err
+		}
 	}
 
 	sn.s.Logger().Info("Setting new snapshot as read-only")
@@ -197,18 +175,46 @@ func (sn snapperT) Commit(trans *Transaction) (err error) {
 		sn.s.Logger().Error("failed setting new snapshot as RO")
 		return err
 	}
+	trans.status = updated
 
-	trans.status = committed
 	return nil
 }
 
-func (sn snapperT) Close(trans *Transaction) error {
-	if trans.status != committed {
-		return fmt.Errorf("given transaction '%d' is not committed", trans.ID)
+// merge runs a 3 way merge for snapshotted RW volumes
+// Current implemementation is dumb, there is no check on potential conflicts
+func (sn snapperT) merge(trans *Transaction) (err error) {
+	for _, rwVol := range sn.partitions.GetSnaphsottedVolumes() {
+		m := trans.Merges[rwVol.Path]
+		if m == nil {
+			continue
+		}
+		r := rsync.NewRsync(sn.s, rsync.WithContext(sn.ctx))
+		err = r.SyncData(m.Modified, m.New, snapper.SnapshotsPath)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Commit closes the current transaction (fstab update, SELinux relabel, set snapshot as RO, ...)
+func (sn snapperT) Commit(trans *Transaction) (err error) {
+	defer func() { err = sn.checkCancelled(err) }()
+
+	if trans.status != updated {
+		return fmt.Errorf("given transaction '%d' is not updated", trans.ID)
+	}
+	sn.s.Logger().Info("Committing transaction")
+
+	sn.s.Logger().Info("Creating post-transaction snapshots")
+	err = sn.createPostSnapshots(trans.Path)
+	if err != nil {
+		sn.s.Logger().Error("failed creating post transaction snapshots")
+		return err
 	}
 
 	sn.s.Logger().Info("Setting new default snapshot")
-	err := sn.snap.SetDefault(trans.Path, trans.ID, map[string]string{updateProgress: ""})
+	err = sn.snap.SetDefault(trans.Path, trans.ID, map[string]string{updateProgress: ""})
 	if err != nil {
 		sn.s.Logger().Error("failed setting new default snapshot")
 		return err
@@ -227,16 +233,15 @@ func (sn snapperT) Close(trans *Transaction) error {
 		sn.s.Logger().Warn("failed to cleanup transaction resources")
 	}
 	sn.s.Logger().Info("Transaction closed")
-	trans.status = closed
-
+	trans.status = committed
 	return nil
 }
 
 // Rollback closes the given in progress transaction by deleting the
 // associated resources. This is a cleanup method in case occurs during a transaction.
 func (sn snapperT) Rollback(trans *Transaction, e error) (err error) {
-	if trans.status == closed {
-		sn.s.Logger().Warn("cannot rollback a closed transaction")
+	if trans.status == committed {
+		sn.s.Logger().Warn("cannot rollback a committed transaction")
 		return e
 	}
 	sn.s.Logger().Error("closing transaction due to a failure: %v", e)

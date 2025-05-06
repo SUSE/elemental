@@ -25,10 +25,12 @@ type transactionState int
 
 const (
 	started transactionState = iota + 1
+	updated
 	committed
-	closed
 	failed
 )
+
+type UpdateHook func() error
 
 type Merge struct {
 	Old      string // old unmodified tree
@@ -45,9 +47,8 @@ type Transaction struct {
 
 type Interface interface {
 	Init(deployment.Deployment) error
-	Start(*deployment.ImageSource) (*Transaction, error)
-	Merge(*Transaction) error
+	Start() (*Transaction, error)
+	Update(*Transaction, *deployment.ImageSource, UpdateHook) error
 	Commit(*Transaction) error
-	Close(*Transaction) error
 	Rollback(*Transaction, error) error
 }

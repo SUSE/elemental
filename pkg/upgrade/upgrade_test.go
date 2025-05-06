@@ -43,6 +43,7 @@ func TestUpgradeSuite(t *testing.T) {
 var _ = Describe("Upgrade", Label("upgrade"), func() {
 	var runner *sysmock.Runner
 	var mounter *sysmock.Mounter
+	var syscall *sysmock.Syscall
 	var fs vfs.FS
 	var cleanup func()
 	var s *sys.System
@@ -53,14 +54,21 @@ var _ = Describe("Upgrade", Label("upgrade"), func() {
 
 	BeforeEach(func() {
 		var err error
+		syscall = &sysmock.Syscall{}
 		t = &transmock.Transactioner{}
 		runner = sysmock.NewRunner()
 		mounter = sysmock.NewMounter()
-		fs, cleanup, err = sysmock.TestFS(nil)
+		fs, cleanup, err = sysmock.TestFS(map[string]any{
+			"/dev/pts/empty":       []byte{},
+			"/proc/empty":          []byte{},
+			"/sys/empty":           []byte{},
+			"/snapshot/path/empty": []byte{},
+		})
 		Expect(err).ToNot(HaveOccurred())
 		s, err = sys.NewSystem(
 			sys.WithMounter(mounter), sys.WithRunner(runner),
 			sys.WithFS(fs), sys.WithLogger(log.New(log.WithDiscardAll())),
+			sys.WithSyscall(syscall),
 		)
 		Expect(err).NotTo(HaveOccurred())
 
@@ -97,11 +105,18 @@ var _ = Describe("Upgrade", Label("upgrade"), func() {
 		Expect(err.Error()).To(ContainSubstring("start failed"))
 		Expect(t.RollbackCalled()).To(BeFalse())
 	})
-	It("fails on transaction merge", func() {
-		t.MergeErr = fmt.Errorf("merge failed")
+	It("fails on transaction update", func() {
+		t.UpdateErr = fmt.Errorf("update failed")
 		err := u.Upgrade(d)
 		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("merge failed"))
+		Expect(err.Error()).To(ContainSubstring("update failed"))
+		Expect(t.RollbackCalled()).To(BeTrue())
+	})
+	It("fails on transaction hook", func() {
+		syscall.ErrorOnChroot = true
+		err := u.Upgrade(d)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("chroot error"))
 		Expect(t.RollbackCalled()).To(BeTrue())
 	})
 	It("fails on transaction commit", func() {

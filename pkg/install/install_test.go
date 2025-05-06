@@ -97,15 +97,16 @@ var _ = Describe("Install", Label("install"), func() {
 	var t *transmock.Transactioner
 	var trans *transaction.Transaction
 	var table string
+	var sideEffects map[string]func(...string) ([]byte, error)
 	BeforeEach(func() {
 		var err error
 		t = &transmock.Transactioner{}
 		runner = sysmock.NewRunner()
 		mounter = sysmock.NewMounter()
 		syscall = &sysmock.Syscall{}
+		sideEffects = map[string]func(...string) ([]byte, error){}
 
 		fs, cleanup, err = sysmock.TestFS(map[string]any{
-			"/etc/config.sh":  []byte{},
 			"/dev/device":     []byte{},
 			"/dev/device1":    []byte{},
 			"/dev/device2":    []byte{},
@@ -134,23 +135,25 @@ var _ = Describe("Install", Label("install"), func() {
 		table = sgdiskEmpty
 
 		runner.SideEffect = func(cmd string, args ...string) ([]byte, error) {
-			switch cmd {
-			case "sgdisk":
-				if args[0] == "-p" {
-					return []byte(table), nil
-				}
-				if strings.HasPrefix(args[0], "-n=1") {
-					table += firstPart
-				}
-				if strings.HasPrefix(args[0], "-n=2") {
-					table += secondPart
-				}
-				return runner.ReturnValue, runner.ReturnError
-			case "lsblk":
-				return []byte(lsblkJson), runner.ReturnError
-			default:
-				return runner.ReturnValue, runner.ReturnError
+			if f := sideEffects[cmd]; f != nil {
+				return f(args...)
 			}
+			return runner.ReturnValue, runner.ReturnError
+		}
+		sideEffects["sgdisk"] = func(args ...string) ([]byte, error) {
+			if args[0] == "-p" {
+				return []byte(table), nil
+			}
+			if strings.HasPrefix(args[0], "-n=1") {
+				table += firstPart
+			}
+			if strings.HasPrefix(args[0], "-n=2") {
+				table += secondPart
+			}
+			return runner.ReturnValue, runner.ReturnError
+		}
+		sideEffects["lsblk"] = func(args ...string) ([]byte, error) {
+			return []byte(lsblkJson), runner.ReturnError
 		}
 		trans = &transaction.Transaction{
 			ID:   1,
@@ -183,24 +186,32 @@ var _ = Describe("Install", Label("install"), func() {
 		Expect(err.Error()).To(ContainSubstring("start failed"))
 		Expect(t.RollbackCalled()).To(BeFalse())
 	})
-	It("fails on config hook execution", func() {
+	It("fails on transaction update", func() {
+		t.UpdateErr = fmt.Errorf("update failed")
+		err := i.Install(d)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("update failed"))
+		Expect(t.RollbackCalled()).To(BeTrue())
+	})
+	It("fails on transaction hook", func() {
 		syscall.ErrorOnChroot = true
 		err := i.Install(d)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("chroot error"))
+	})
+	It("fails on config hook", func() {
+		sideEffects["/etc/elemental/config.sh"] = func(_ ...string) ([]byte, error) {
+			return []byte{}, fmt.Errorf("failed config")
+		}
+		err := i.Install(d)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("failed config"))
 	})
 	It("fails on transaction commit", func() {
 		t.CommitErr = fmt.Errorf("commit failed")
 		err := i.Install(d)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("commit failed"))
-		Expect(t.RollbackCalled()).To(BeTrue())
-	})
-	It("fails on transaction close", func() {
-		t.CloseErr = fmt.Errorf("close failed")
-		err := i.Install(d)
-		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("close failed"))
 		Expect(t.RollbackCalled()).To(BeTrue())
 	})
 })

@@ -30,7 +30,6 @@ import (
 	"github.com/suse/elemental/v3/pkg/btrfs"
 	"github.com/suse/elemental/v3/pkg/deployment"
 	"github.com/suse/elemental/v3/pkg/log"
-	"github.com/suse/elemental/v3/pkg/selinux"
 	"github.com/suse/elemental/v3/pkg/sys"
 	sysmock "github.com/suse/elemental/v3/pkg/sys/mock"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
@@ -244,26 +243,10 @@ var _ = Describe("SnapperTransaction", Label("transaction"), func() {
 			})).To(Succeed())
 		})
 		Describe("transaction started", func() {
+			var rsyncSideEffect func(args ...string) ([]byte, error)
 			BeforeEach(func() {
 				By("starting a transaction")
-				sideEffects["btrfs"] = func(args ...string) ([]byte, error) {
-					if args[0] == "subvolume" && args[1] == "create" {
-						// create expected files in subvolume
-						snapshotP = ".snapshots/1/snapshot"
-						snTemplate = "/usr/share/snapper/config-templates/default"
-						snSysConf := filepath.Join(root, btrfs.TopSubVol, snapshotP, "/etc/sysconfig/snapper")
-						template := filepath.Join(root, btrfs.TopSubVol, snapshotP, snTemplate)
-						configsDir := filepath.Join(root, btrfs.TopSubVol, snapshotP, "/etc/snapper/configs")
 
-						Expect(vfs.MkdirAll(tfs, configsDir, vfs.DirPerm)).To(Succeed())
-						Expect(vfs.MkdirAll(tfs, filepath.Dir(template), vfs.DirPerm)).To(Succeed())
-						Expect(vfs.MkdirAll(tfs, filepath.Dir(template), vfs.DirPerm)).To(Succeed())
-						Expect(tfs.WriteFile(template, []byte{}, vfs.FilePerm)).To(Succeed())
-						Expect(vfs.MkdirAll(tfs, filepath.Dir(snSysConf), vfs.DirPerm)).To(Succeed())
-						Expect(tfs.WriteFile(snSysConf, []byte{}, vfs.FilePerm)).To(Succeed())
-					}
-					return runner.ReturnValue, runner.ReturnError
-				}
 				sideEffects["env"] = func(args ...string) ([]byte, error) {
 					if slices.Contains(args, "snapper") {
 						if slices.Contains(args, "--print-number") {
@@ -273,7 +256,7 @@ var _ = Describe("SnapperTransaction", Label("transaction"), func() {
 					return runner.ReturnValue, runner.ReturnError
 				}
 
-				trans, err = sn.Start(imgsrc)
+				trans, err = sn.Start()
 
 				Expect(err).NotTo(HaveOccurred())
 				Expect(trans.ID).To(Equal(1))
@@ -281,34 +264,47 @@ var _ = Describe("SnapperTransaction", Label("transaction"), func() {
 				Expect(runner.MatchMilestones([][]string{
 					{"btrfs", "subvolume", "create"},
 					{"btrfs", "subvolume", "create"},
-					{"rsync", "--info=progress2", "--human-readable"},
-					{"snapper", "--no-dbus", "-c", "etc", "create-config", "--fstype", "btrfs", "/etc"},
-					{"env", "LC_ALL=C", "snapper", "--no-dbus", "-c", "etc", "create", "--print-number"},
-					{"snapper", "--no-dbus", "-c", "home", "create-config", "--fstype", "btrfs", "/home"},
-					{"env", "LC_ALL=C", "snapper", "--no-dbus", "-c", "home", "create", "--print-number"},
 				})).To(Succeed())
 
-				// Default mounts to chroot
-				Expect(vfs.MkdirAll(tfs, "/dev", vfs.DirPerm)).To(Succeed())
-				Expect(vfs.MkdirAll(tfs, "/dev/pts", vfs.DirPerm)).To(Succeed())
-				Expect(vfs.MkdirAll(tfs, "/proc", vfs.DirPerm)).To(Succeed())
-				Expect(vfs.MkdirAll(tfs, "/sys", vfs.DirPerm)).To(Succeed())
+				rsyncSideEffect = func(args ...string) ([]byte, error) {
+					// create expected files in subvolume
+					snapshotP = ".snapshots/1/snapshot"
+					snTemplate = "/usr/share/snapper/config-templates/default"
+					snSysConf := filepath.Join(root, btrfs.TopSubVol, snapshotP, "/etc/sysconfig/snapper")
+					template := filepath.Join(root, btrfs.TopSubVol, snapshotP, snTemplate)
+					configsDir := filepath.Join(root, btrfs.TopSubVol, snapshotP, "/etc/snapper/configs")
 
-				Expect(vfs.MkdirAll(tfs, filepath.Dir(selinux.SelinuxTargetedContextFile), vfs.DirPerm)).To(Succeed())
-				Expect(tfs.WriteFile(selinux.SelinuxTargetedContextFile, []byte{}, vfs.FilePerm)).To(Succeed())
-			})
-			It("merging does nothing if the transaction does not include any merge", func() {
-				Expect(sn.Merge(trans)).To(Succeed())
+					Expect(vfs.MkdirAll(tfs, configsDir, vfs.DirPerm)).To(Succeed())
+					Expect(vfs.MkdirAll(tfs, filepath.Dir(template), vfs.DirPerm)).To(Succeed())
+					Expect(vfs.MkdirAll(tfs, filepath.Dir(template), vfs.DirPerm)).To(Succeed())
+					Expect(tfs.WriteFile(template, []byte{}, vfs.FilePerm)).To(Succeed())
+					Expect(vfs.MkdirAll(tfs, filepath.Dir(snSysConf), vfs.DirPerm)).To(Succeed())
+					Expect(tfs.WriteFile(snSysConf, []byte{}, vfs.FilePerm)).To(Succeed())
+					return runner.ReturnValue, runner.ReturnError
+				}
 				runner.ClearCmds()
-				Expect(runner.CmdsMatch([][]string{})).To(Succeed())
 			})
-			It("returns error if merging is cancelled", func() {
-				cancel()
-				Expect(sn.Merge(trans)).NotTo(Succeed())
-			})
-			Describe("transaction committed", func() {
+			Describe("transaction updated", func() {
 				BeforeEach(func() {
-					By("committing a transaction")
+					By("updating transaction with the image source")
+					sideEffects["rsync"] = rsyncSideEffect
+					hookCalled := false
+					Expect(sn.Update(trans, imgsrc, func() error {
+						hookCalled = true
+						return nil
+					})).To(Succeed())
+					Expect(hookCalled).To(BeTrue())
+					Expect(runner.MatchMilestones([][]string{
+						{"rsync", "--info=progress2", "--human-readable"},
+						{"snapper", "--no-dbus", "-c", "etc", "create-config", "--fstype", "btrfs", "/etc"},
+						{"env", "LC_ALL=C", "snapper", "--no-dbus", "-c", "etc", "create", "--print-number"},
+						{"snapper", "--no-dbus", "-c", "home", "create-config", "--fstype", "btrfs", "/home"},
+						{"env", "LC_ALL=C", "snapper", "--no-dbus", "-c", "home", "create", "--print-number"},
+						{"snapper", "--no-dbus", "--root", "/some/root/@/.snapshots/1/snapshot", "modify", "--read-only", "1"},
+					})).To(Succeed())
+					runner.ClearCmds()
+				})
+				It("commits the current transaction", func() {
 					sideEffects["env"] = func(args ...string) ([]byte, error) {
 						if slices.Contains(args, "snapper") {
 							return []byte("2\n"), nil
@@ -323,18 +319,29 @@ var _ = Describe("SnapperTransaction", Label("transaction"), func() {
 					}
 					Expect(sn.Commit(trans)).To(Succeed())
 					Expect(runner.MatchMilestones([][]string{
-						{"setfiles", "-i", "-F", selinux.SelinuxTargetedContextFile, "/"},
-					}))
-					runner.ClearCmds()
+						{"snapper", "--no-dbus", "--root", "/some/root/@/.snapshots/1/snapshot", "modify", "--default"},
+					})).To(Succeed())
 				})
-				It("closes setting the default snapshot", func() {
-					Expect(sn.Close(trans)).To(Succeed())
+				It("commits a transaction with error if context is cancelled", func() {
+					sideEffects["env"] = func(args ...string) ([]byte, error) {
+						if slices.Contains(args, "snapper") {
+							return []byte("2\n"), nil
+						}
+						return runner.ReturnValue, runner.ReturnError
+					}
+					sideEffects["snapper"] = func(args ...string) ([]byte, error) {
+						if slices.Contains(args, "list") {
+							return []byte(installSnapList), nil
+						}
+						return runner.ReturnValue, runner.ReturnError
+					}
+					cancel()
+					err := sn.Commit(trans)
+					Expect(err).To(HaveOccurred())
 					Expect(runner.MatchMilestones([][]string{
-						{
-							"snapper", "--no-dbus", "--root",
-							"/some/root/@/.snapshots/1/snapshot", "modify", "--default",
-						},
-					}))
+						{"snapper", "--no-dbus", "--root", "/some/root/@/.snapshots/1/snapshot", "modify", "--default"},
+					})).To(Succeed())
+					Expect(err.Error()).To(ContainSubstring("context canceled"))
 				})
 				It("fails to set default snapshot", func() {
 					sideEffects["snapper"] = func(args ...string) ([]byte, error) {
@@ -343,51 +350,52 @@ var _ = Describe("SnapperTransaction", Label("transaction"), func() {
 						}
 						return runner.ReturnValue, runner.ReturnError
 					}
-					err = sn.Close(trans)
+					err = sn.Commit(trans)
 					Expect(err).To(HaveOccurred())
 					Expect(err.Error()).To(ContainSubstring("failed setting default"))
 				})
 			})
-			It("commits a transaction with error if context is cancelled", func() {
-				sideEffects["env"] = func(args ...string) ([]byte, error) {
-					if slices.Contains(args, "snapper") {
-						return []byte("2\n"), nil
-					}
-					return runner.ReturnValue, runner.ReturnError
+			It("returns error if source sync fails", func() {
+				sideEffects["rsync"] = func(args ...string) ([]byte, error) {
+					return []byte{}, fmt.Errorf("failed to sync source")
 				}
-				sideEffects["snapper"] = func(args ...string) ([]byte, error) {
-					if slices.Contains(args, "list") {
-						return []byte(installSnapList), nil
-					}
-					return runner.ReturnValue, runner.ReturnError
-				}
-				runner.ClearCmds()
-				cancel()
-				Expect(sn.Commit(trans)).NotTo(Succeed())
+				err := sn.Update(trans, imgsrc, nil)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("failed to sync source"))
 				Expect(runner.MatchMilestones([][]string{
-					{"setfiles", "-i", "-F", selinux.SelinuxTargetedContextFile, "/"},
-				}))
+					{"rsync", "--info=progress2", "--human-readable"},
+				})).To(Succeed())
+
+			})
+			It("returns error if snapper configuration fails", func() {
+				err := sn.Update(trans, imgsrc, nil)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("failed to find file"))
+				Expect(runner.MatchMilestones([][]string{
+					{"rsync", "--info=progress2", "--human-readable"},
+				})).To(Succeed())
+
+			})
+			It("returns error if hook fails", func() {
+				sideEffects["rsync"] = rsyncSideEffect
+				err := sn.Update(trans, imgsrc, func() error { return fmt.Errorf("hook error") })
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("hook error"))
+			})
+			It("returns error if context is cancelled fails", func() {
+				sideEffects["rsync"] = rsyncSideEffect
+				cancel()
+				err := sn.Update(trans, imgsrc, nil)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring(""))
+			})
+			It("fails to commit a non updated transaction", func() {
+				err := sn.Commit(trans)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("not updated"))
 			})
 		})
 		It("returns error if context is cancelled", func() {
-			sideEffects["btrfs"] = func(args ...string) ([]byte, error) {
-				if args[0] == "subvolume" && args[1] == "create" {
-					// create expected files in subvolume
-					snapshotP = ".snapshots/1/snapshot"
-					snTemplate = "/usr/share/snapper/config-templates/default"
-					snSysConf := filepath.Join(root, btrfs.TopSubVol, snapshotP, "/etc/sysconfig/snapper")
-					template := filepath.Join(root, btrfs.TopSubVol, snapshotP, snTemplate)
-					configsDir := filepath.Join(root, btrfs.TopSubVol, snapshotP, "/etc/snapper/configs")
-
-					Expect(vfs.MkdirAll(tfs, configsDir, vfs.DirPerm)).To(Succeed())
-					Expect(vfs.MkdirAll(tfs, filepath.Dir(template), vfs.DirPerm)).To(Succeed())
-					Expect(vfs.MkdirAll(tfs, filepath.Dir(template), vfs.DirPerm)).To(Succeed())
-					Expect(tfs.WriteFile(template, []byte{}, vfs.FilePerm)).To(Succeed())
-					Expect(vfs.MkdirAll(tfs, filepath.Dir(snSysConf), vfs.DirPerm)).To(Succeed())
-					Expect(tfs.WriteFile(snSysConf, []byte("VAR=value"), vfs.FilePerm)).To(Succeed())
-				}
-				return runner.ReturnValue, runner.ReturnError
-			}
 			sideEffects["env"] = func(args ...string) ([]byte, error) {
 				if slices.Contains(args, "snapper") {
 					return []byte("1\n"), nil
@@ -395,26 +403,28 @@ var _ = Describe("SnapperTransaction", Label("transaction"), func() {
 				return runner.ReturnValue, runner.ReturnError
 			}
 			cancel()
-			_, err = sn.Start(imgsrc)
+			_, err = sn.Start()
 
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("context canceled"))
-
 			Expect(runner.MatchMilestones([][]string{
 				{"btrfs", "subvolume", "create"},
 			})).To(Succeed())
+			Expect(mount.IsMountPoint("/some/root/@/.snapshots/1/snapshot/var")).To(BeTrue())
 		})
-		It("fails to unpack image", func() {
-			sideEffects["rsync"] = func(args ...string) ([]byte, error) {
-				return []byte{}, fmt.Errorf("rsync failed")
+		It("fails to create etc subvolume", func() {
+			sideEffects["btrfs"] = func(args ...string) ([]byte, error) {
+				if slices.Contains(args, "/some/root/@/.snapshots/1/snapshot/etc") {
+					return []byte{}, fmt.Errorf("failed creating etc")
+				}
+				return runner.ReturnValue, runner.ReturnError
 			}
-			_, err = sn.Start(imgsrc)
+			_, err = sn.Start()
 
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("rsync failed"))
+			Expect(err.Error()).To(ContainSubstring("failed creating etc"))
 			Expect(runner.MatchMilestones([][]string{
 				{"btrfs", "subvolume", "create"},
-				{"rsync", "--info=progress2", "--human-readable"},
 				{"btrfs", "property", "set", "-ts", "/some/root/@/.snapshots/1/snapshot", "ro", "false"},
 				{"btrfs", "subvolume", "delete", "-c", "-R"},
 			})).To(Succeed())
@@ -445,24 +455,7 @@ var _ = Describe("SnapperTransaction", Label("transaction"), func() {
 		Describe("starts an upgrade transaction", func() {
 			BeforeEach(func() {
 				By("starting a transaction")
-				sideEffects["btrfs"] = func(args ...string) ([]byte, error) {
-					if args[0] == "subvolume" && args[1] == "snapshot" {
-						// create expected files in subvolume
-						snapshotP = ".snapshots/5/snapshot"
-						snTemplate = "/usr/share/snapper/config-templates/default"
-						snSysConf := filepath.Join(root, snapshotP, "/etc/sysconfig/snapper")
-						template := filepath.Join(root, snapshotP, snTemplate)
-						configsDir := filepath.Join(root, snapshotP, "/etc/snapper/configs")
 
-						Expect(vfs.MkdirAll(tfs, configsDir, vfs.DirPerm)).To(Succeed())
-						Expect(vfs.MkdirAll(tfs, filepath.Dir(template), vfs.DirPerm)).To(Succeed())
-						Expect(vfs.MkdirAll(tfs, filepath.Dir(template), vfs.DirPerm)).To(Succeed())
-						Expect(tfs.WriteFile(template, []byte{}, vfs.FilePerm)).To(Succeed())
-						Expect(vfs.MkdirAll(tfs, filepath.Dir(snSysConf), vfs.DirPerm)).To(Succeed())
-						Expect(tfs.WriteFile(snSysConf, []byte{}, vfs.FilePerm)).To(Succeed())
-					}
-					return runner.ReturnValue, runner.ReturnError
-				}
 				sideEffects["env"] = func(args ...string) ([]byte, error) {
 					if slices.Contains(args, "snapper") {
 						return []byte("5\n"), nil
@@ -479,7 +472,7 @@ var _ = Describe("SnapperTransaction", Label("transaction"), func() {
 					return runner.ReturnValue, runner.ReturnError
 				}
 
-				trans, err = sn.Start(imgsrc)
+				trans, err = sn.Start()
 				Expect(err).NotTo(HaveOccurred())
 				Expect(trans.ID).To(Equal(5))
 				Expect(len(trans.Merges)).To(Equal(2))
@@ -488,39 +481,46 @@ var _ = Describe("SnapperTransaction", Label("transaction"), func() {
 					{"btrfs", "subvolume", "snapshot"},
 					{"snapper", "--no-dbus", "--root", "/tmp/elemental_data/.snapshots/4/snapshot", "-c", "home", "--jsonout", "list"},
 					{"btrfs", "subvolume", "snapshot"},
-					{"rsync", "--info=progress2", "--human-readable"},
-					{"snapper", "--no-dbus", "-c", "etc", "create-config", "--fstype", "btrfs", "/etc"},
-					{"env", "LC_ALL=C", "snapper", "--no-dbus", "-c", "etc", "create", "--print-number"},
-					{"snapper", "--no-dbus", "-c", "home", "create-config", "--fstype", "btrfs", "/home"},
-					{"env", "LC_ALL=C", "snapper", "--no-dbus", "-c", "home", "create", "--print-number"},
 				})).To(Succeed())
-
-				// Default mounts to chroot
-				Expect(vfs.MkdirAll(tfs, "/dev", vfs.DirPerm)).To(Succeed())
-				Expect(vfs.MkdirAll(tfs, "/dev/pts", vfs.DirPerm)).To(Succeed())
-				Expect(vfs.MkdirAll(tfs, "/proc", vfs.DirPerm)).To(Succeed())
-				Expect(vfs.MkdirAll(tfs, "/sys", vfs.DirPerm)).To(Succeed())
-
-				Expect(vfs.MkdirAll(tfs, filepath.Dir(selinux.SelinuxTargetedContextFile), vfs.DirPerm)).To(Succeed())
-				Expect(tfs.WriteFile(selinux.SelinuxTargetedContextFile, []byte{}, vfs.FilePerm)).To(Succeed())
-			})
-			It("merges volumes from the current transaction", func() {
 				runner.ClearCmds()
-				Expect(sn.Merge(trans)).To(Succeed())
-				Expect(runner.CmdsMatch([][]string{
-					{"rsync", "--info=progress2", "--human-readable", "--partial", "--archive"},
-					{"rsync", "--info=progress2", "--human-readable", "--partial", "--archive"},
-				}))
 			})
-			It("fails to merge the current transaction", func() {
-				sideEffects["rsync"] = func(args ...string) ([]byte, error) {
-					return []byte{}, fmt.Errorf("rsync failed")
-				}
-				Expect(sn.Merge(trans).Error()).To(ContainSubstring("rsync failed"))
-			})
-			Describe("upgrade transaction committed", func() {
+			Describe("transaction updated", func() {
 				BeforeEach(func() {
-					By("committing an upgrade transaction")
+					By("updates a transaction with the image contents")
+					sideEffects["rsync"] = func(args ...string) ([]byte, error) {
+						// create expected files in subvolume
+						snapshotP = ".snapshots/5/snapshot"
+						snTemplate = "/usr/share/snapper/config-templates/default"
+						snSysConf := filepath.Join(root, snapshotP, "/etc/sysconfig/snapper")
+						template := filepath.Join(root, snapshotP, snTemplate)
+						configsDir := filepath.Join(root, snapshotP, "/etc/snapper/configs")
+
+						Expect(vfs.MkdirAll(tfs, configsDir, vfs.DirPerm)).To(Succeed())
+						Expect(vfs.MkdirAll(tfs, filepath.Dir(template), vfs.DirPerm)).To(Succeed())
+						Expect(vfs.MkdirAll(tfs, filepath.Dir(template), vfs.DirPerm)).To(Succeed())
+						Expect(tfs.WriteFile(template, []byte{}, vfs.FilePerm)).To(Succeed())
+						Expect(vfs.MkdirAll(tfs, filepath.Dir(snSysConf), vfs.DirPerm)).To(Succeed())
+						Expect(tfs.WriteFile(snSysConf, []byte{}, vfs.FilePerm)).To(Succeed())
+						Expect(tfs.WriteFile(filepath.Join(root, snapshotP, "/etc/fstab"), []byte{}, vfs.FilePerm)).To(Succeed())
+						return runner.ReturnValue, runner.ReturnError
+					}
+					hookCalled := false
+					Expect(sn.Update(trans, imgsrc, func() error {
+						hookCalled = true
+						return nil
+					})).To(Succeed())
+					Expect(hookCalled).To(BeTrue())
+					Expect(runner.MatchMilestones([][]string{
+						{"rsync", "--info=progress2", "--human-readable"},
+						{"snapper", "--no-dbus", "-c", "etc", "create-config", "--fstype", "btrfs", "/etc"},
+						{"env", "LC_ALL=C", "snapper", "--no-dbus", "-c", "etc", "create", "--print-number"},
+						{"snapper", "--no-dbus", "-c", "home", "create-config", "--fstype", "btrfs", "/home"},
+						{"env", "LC_ALL=C", "snapper", "--no-dbus", "-c", "home", "create", "--print-number"},
+						{"snapper", "--no-dbus", "--root", "/.snapshots/5/snapshot", "modify", "--read-only", "5"},
+					})).To(Succeed())
+					runner.ClearCmds()
+				})
+				It("commit a transaction", func() {
 					sideEffects["env"] = func(args ...string) ([]byte, error) {
 						if slices.Contains(args, "snapper") {
 							if slices.Contains(args, "etc") || slices.Contains(args, "home") {
@@ -531,18 +531,8 @@ var _ = Describe("SnapperTransaction", Label("transaction"), func() {
 					}
 					Expect(sn.Commit(trans)).To(Succeed())
 					Expect(runner.MatchMilestones([][]string{
-						{"setfiles", "-i", "-F", selinux.SelinuxTargetedContextFile, "/"},
-					}))
-					runner.ClearCmds()
-				})
-				It("closes a transaction", func() {
-					Expect(sn.Close(trans)).To(Succeed())
-					Expect(runner.MatchMilestones([][]string{
-						{
-							"snapper", "--no-dbus", "--root",
-							"/some/root/@/.snapshots/5/snapshot", "modify", "--default",
-						},
-					}))
+						{"snapper", "--no-dbus", "--root", "/.snapshots/5/snapshot", "modify", "--default"},
+					})).To(Succeed())
 				})
 			})
 		})
@@ -553,7 +543,7 @@ var _ = Describe("SnapperTransaction", Label("transaction"), func() {
 				}
 				return runner.ReturnValue, runner.ReturnError
 			}
-			trans, err = sn.Start(imgsrc)
+			trans, err = sn.Start()
 			Expect(err).To(HaveOccurred())
 			Expect(runner.MatchMilestones([][]string{
 				{"snapper", "--no-dbus", "--root", "/.snapshots/4/snapshot", "-c", "etc", "--jsonout", "list"},

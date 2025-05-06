@@ -28,6 +28,7 @@ import (
 	"github.com/suse/elemental/v3/pkg/cleanstack"
 	"github.com/suse/elemental/v3/pkg/deployment"
 	"github.com/suse/elemental/v3/pkg/diskrepart"
+	"github.com/suse/elemental/v3/pkg/selinux"
 	"github.com/suse/elemental/v3/pkg/sys"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 	"github.com/suse/elemental/v3/pkg/transaction"
@@ -89,22 +90,16 @@ func (i Installer) Install(d *deployment.Deployment) (err error) {
 		return err
 	}
 
-	trans, err := i.t.Start(d.SourceOS)
+	trans, err := i.t.Start()
 	if err != nil {
 		i.s.Logger().Error("installation failed, could not start snapper transaction")
 		return err
 	}
 	cleanup.PushErrorOnly(func() error { return i.t.Rollback(trans, err) })
 
-	err = d.WriteDeploymentFile(i.s, trans.Path)
+	err = i.t.Update(trans, d.SourceOS, i.transactionHook(d, trans.Path))
 	if err != nil {
-		i.s.Logger().Error("installation failed, could not write deployment file")
-		return err
-	}
-
-	err = i.t.Commit(trans)
-	if err != nil {
-		i.s.Logger().Error("installation failed, could not close snapper transaction")
+		i.s.Logger().Error("installation failed, could not update transaction")
 		return err
 	}
 
@@ -122,16 +117,16 @@ func (i Installer) Install(d *deployment.Deployment) (err error) {
 	}
 
 	if d.CfgScript != "" {
-		err = i.configHook(d.CfgScript, trans)
+		err = i.configHook(d.CfgScript, trans.Path)
 		if err != nil {
 			i.s.Logger().Error("installation failed, configuration hook error")
 			return err
 		}
 	}
 
-	err = i.t.Close(trans)
+	err = i.t.Commit(trans)
 	if err != nil {
-		i.s.Logger().Error("installation failed, could not set default snapper snapshot")
+		i.s.Logger().Error("installation failed, could not close transaction")
 		return err
 	}
 
@@ -183,7 +178,24 @@ func createPartitionVolumes(s *sys.System, cleanStack *cleanstack.CleanStack, pa
 	return nil
 }
 
-func (i Installer) configHook(config string, trans *transaction.Transaction) error {
+func (i Installer) transactionHook(d *deployment.Deployment, root string) transaction.UpdateHook {
+	return func() error {
+		err := selinux.ChrootedRelabel(i.ctx, i.s, root, nil)
+		if err != nil {
+			i.s.Logger().Error("failed relabelling snapshot path: %s", root)
+			return err
+		}
+
+		err = d.WriteDeploymentFile(i.s, root)
+		if err != nil {
+			i.s.Logger().Error("installation failed, could not write deployment file")
+			return err
+		}
+		return nil
+	}
+}
+
+func (i Installer) configHook(config string, root string) error {
 	i.s.Logger().Info("Running transaction hook")
 	rootedConfig := filepath.Join("/etc/elemental", configFile)
 	callback := func() error {
@@ -196,7 +208,7 @@ func (i Installer) configHook(config string, trans *transaction.Transaction) err
 		return i.s.Runner().RunContextParseOutput(i.ctx, stdHander(stdOut), stdHander(stdErr), rootedConfig)
 	}
 	binds := map[string]string{config: rootedConfig}
-	return chroot.ChrootedCallback(i.s, trans.Path, binds, callback)
+	return chroot.ChrootedCallback(i.s, root, binds, callback)
 }
 
 func stdHander(out *string) func(string) {

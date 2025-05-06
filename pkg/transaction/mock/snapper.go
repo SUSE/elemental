@@ -18,6 +18,8 @@ limitations under the License.
 package mock
 
 import (
+	"errors"
+
 	"github.com/suse/elemental/v3/pkg/deployment"
 	"github.com/suse/elemental/v3/pkg/transaction"
 )
@@ -25,9 +27,8 @@ import (
 type Transactioner struct {
 	InitErr        error
 	StartErr       error
-	MergeErr       error
+	UpdateErr      error
 	CommitErr      error
-	CloseErr       error
 	Trans          *transaction.Transaction
 	SrcDigest      string
 	rollbackCalled bool
@@ -41,21 +42,21 @@ func (m Transactioner) Init(_ deployment.Deployment) error {
 	return m.InitErr
 }
 
-func (m Transactioner) Start(imgsrc *deployment.ImageSource) (*transaction.Transaction, error) {
-	imgsrc.SetDigest(m.SrcDigest)
+func (m Transactioner) Start() (*transaction.Transaction, error) {
 	return m.Trans, m.StartErr
 }
 
-func (m Transactioner) Merge(_ *transaction.Transaction) error {
-	return m.MergeErr
+func (m Transactioner) Update(_ *transaction.Transaction, imgsrc *deployment.ImageSource, hook transaction.UpdateHook) error {
+	err := m.UpdateErr
+	imgsrc.SetDigest(m.SrcDigest)
+	if hook != nil {
+		err = errors.Join(err, hook())
+	}
+	return err
 }
 
 func (m Transactioner) Commit(_ *transaction.Transaction) error {
 	return m.CommitErr
-}
-
-func (m Transactioner) Close(_ *transaction.Transaction) error {
-	return m.CloseErr
 }
 
 func (m *Transactioner) Rollback(_ *transaction.Transaction, err error) error {

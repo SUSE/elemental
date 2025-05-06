@@ -22,6 +22,7 @@ import (
 
 	"github.com/suse/elemental/v3/pkg/cleanstack"
 	"github.com/suse/elemental/v3/pkg/deployment"
+	"github.com/suse/elemental/v3/pkg/selinux"
 	"github.com/suse/elemental/v3/pkg/sys"
 	"github.com/suse/elemental/v3/pkg/transaction"
 )
@@ -64,22 +65,16 @@ func (u Upgrader) Upgrade(d *deployment.Deployment) (err error) {
 		return err
 	}
 
-	trans, err := u.t.Start(d.SourceOS)
+	trans, err := u.t.Start()
 	if err != nil {
 		u.s.Logger().Error("upgrade failed, could not start snapper transaction")
 		return err
 	}
 	cleanup.PushErrorOnly(func() error { return u.t.Rollback(trans, err) })
 
-	err = u.t.Merge(trans)
+	err = u.t.Update(trans, d.SourceOS, u.transactionHook(d, trans.Path))
 	if err != nil {
 		u.s.Logger().Error("upgrade failed, could not merge snapshotted volumes")
-		return err
-	}
-
-	err = d.WriteDeploymentFile(u.s, trans.Path)
-	if err != nil {
-		u.s.Logger().Error("upgrade failed, could not write deployment file")
 		return err
 	}
 
@@ -89,11 +84,22 @@ func (u Upgrader) Upgrade(d *deployment.Deployment) (err error) {
 		return err
 	}
 
-	err = u.t.Close(trans)
-	if err != nil {
-		u.s.Logger().Error("upgrade failed, could not set default snapper snapshot")
-		return err
-	}
-
 	return nil
+}
+
+func (u Upgrader) transactionHook(d *deployment.Deployment, root string) transaction.UpdateHook {
+	return func() error {
+		err := selinux.ChrootedRelabel(u.ctx, u.s, root, nil)
+		if err != nil {
+			u.s.Logger().Error("failed relabelling snapshot path: %s", root)
+			return err
+		}
+
+		err = d.WriteDeploymentFile(u.s, root)
+		if err != nil {
+			u.s.Logger().Error("upgrade failed, could not write deployment file")
+			return err
+		}
+		return nil
+	}
 }
