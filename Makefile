@@ -1,5 +1,7 @@
 GINKGO?="github.com/onsi/ginkgo/v2/ginkgo"
 
+BUILD_DIR?=./build
+
 PKG?=./pkg/... ./internal/...
 
 GO_MODULE ?= $(shell go list -m)
@@ -32,12 +34,15 @@ ifeq ($(VERBOSE),true)
 endif
 
 .PHONY: all
-all: elemental elemental-toolkit
+all: $(BUILD_DIR)/elemental $(BUILD_DIR)/elemental-toolkit
 
-elemental: $(GO_FILES)
+$(BUILD_DIR):
+	mkdir -p $(BUILD_DIR)
+
+$(BUILD_DIR)/elemental: $(GO_FILES)
 	go build $(GO_BUILD_ARGS) -o $@ ./cmd/elemental
 
-elemental-toolkit: $(GO_FILES)
+$(BUILD_DIR)/elemental-toolkit: $(GO_FILES)
 	go build $(GO_BUILD_ARGS) -o $@ ./cmd/elemental-toolkit
 
 .PHONY: unit-tests
@@ -51,3 +56,7 @@ else
 	@grep -v "mode: atomic" coverprofile.out >> coverprofile.out.bk
 	@mv coverprofile.out.bk coverprofile.out
 endif
+
+.PHONY: clean
+clean:
+	rm -rfv $(BUILD_DIR)
