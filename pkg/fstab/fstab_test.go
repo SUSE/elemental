@@ -46,7 +46,7 @@ UUID=uuid   /data btrfs defaults,subvol=/@/new/data     0 0
 UUID=afadf  /etc  btrfs defaults,subvol=/@/new/path/etc 0 0
 `
 
-var _ = Describe("DirectoryUnpacker", Label("directory"), func() {
+var _ = Describe("Fstab", Label("fstab"), func() {
 	var tfs vfs.FS
 	var s *sys.System
 	var cleanup func()
