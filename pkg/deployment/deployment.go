@@ -26,6 +26,7 @@ import (
 
 	"sigs.k8s.io/yaml"
 
+	"github.com/suse/elemental/v3/pkg/firmware"
 	"github.com/suse/elemental/v3/pkg/sys"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
@@ -199,9 +200,14 @@ func (d Disk) MarshalJSON() ([]byte, error) {
 	return json.Marshal(disk)
 }
 
+type FirmwareConfig struct {
+	BootEntries []*firmware.EfiBootEntry `json:"entries"`
+}
+
 type Deployment struct {
-	SourceOS *ImageSource `json:"sourceOS"`
-	Disks    []*Disk      `json:"disks"`
+	SourceOS *ImageSource    `json:"sourceOS"`
+	Disks    []*Disk         `json:"disks"`
+	Firmware *FirmwareConfig `json:"firmware"`
 	// Consider adding a systemd-sysext list here and
 	// some other well known set of structers such as charts.
 	// Also abitrary data would be intersting (e.g. tarballs).
@@ -349,6 +355,7 @@ func DefaultDeployment() *Deployment {
 				},
 			},
 		}},
+		Firmware: &FirmwareConfig{},
 	}
 }
 
