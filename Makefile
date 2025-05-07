@@ -4,6 +4,8 @@ PKG?=./pkg/... ./internal/...
 
 GO_MODULE ?= $(shell go list -m)
 GO_FILES  = $(shell find ./ -name '*.go' -not -name '*_test.go')
+GO_FILES  += ./go.mod
+GO_FILES  += ./go.sum
 
 GIT_COMMIT?=$(shell git rev-parse HEAD)
 GIT_COMMIT_SHORT?=$(shell git rev-parse --short HEAD)
