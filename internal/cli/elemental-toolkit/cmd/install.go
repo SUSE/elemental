@@ -27,6 +27,7 @@ type InstallFlags struct {
 	OperatingSystemImage string
 	Target               string
 	ConfigFile           string
+	Bootloader           string
 }
 
 var InstallArgs InstallFlags
@@ -53,6 +54,13 @@ func NewInstallCommand(appName string, action func(*cli.Context) error) *cli.Com
 				Aliases:     []string{"t"},
 				Usage:       "Target device for the installation process",
 				Destination: &InstallArgs.Target,
+			},
+			&cli.StringFlag{
+				Name:        "bootloader",
+				Aliases:     []string{"b"},
+				Value:       "none",
+				Usage:       "Bundled bootloader to install to ESP",
+				Destination: &InstallArgs.Bootloader,
 			},
 		},
 	}
