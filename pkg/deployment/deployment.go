@@ -190,6 +190,10 @@ type Disk struct {
 	StartSector uint       `json:"startSector,omitempty"`
 }
 
+type BootConfig struct {
+	Bootloader string `json:"name"`
+}
+
 // MarshalJSON on disks omits the device name as this is a runtime information
 // which might not be consistent across reboots, there is no need to store it.
 func (d Disk) MarshalJSON() ([]byte, error) {
@@ -200,15 +204,14 @@ func (d Disk) MarshalJSON() ([]byte, error) {
 }
 
 type Deployment struct {
-	SourceOS *ImageSource `json:"sourceOS"`
-	Disks    []*Disk      `json:"disks"`
+	SourceOS   *ImageSource `json:"sourceOS"`
+	Disks      []*Disk      `json:"disks"`
+	BootConfig *BootConfig  `json:"bootloader"`
 	// Consider adding a systemd-sysext list here
 	// All of them would extracted in the RO context, so only
 	// additions to the RWVolumes would succeed.
 	OverlayTree *ImageSource `json:"overlayTree"`
 	CfgScript   string       `json:"configScript"`
-
-	// Also bootloader details could be added here
 }
 
 // GetSnaphsottedVolumes returns a list of snapshotted rw volumes defined in the
@@ -253,6 +256,19 @@ func (d Deployment) GetSystemDisk() *Disk {
 		for _, part := range disk.Partitions {
 			if part.Role == System {
 				return disk
+			}
+		}
+	}
+	return nil
+}
+
+// GetEfiSystemPartition gets the data of the system partition.
+// returns nil if not found
+func (d Deployment) GetEfiSystemPartition() *Partition {
+	for _, disk := range d.Disks {
+		for _, part := range disk.Partitions {
+			if part.Role == EFI {
+				return part
 			}
 		}
 	}
@@ -349,6 +365,9 @@ func DefaultDeployment() *Deployment {
 				},
 			},
 		}},
+		BootConfig: &BootConfig{
+			Bootloader: "none",
+		},
 	}
 }
 

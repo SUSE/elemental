@@ -23,6 +23,7 @@ import (
 
 	"github.com/suse/elemental/v3/pkg/block"
 	"github.com/suse/elemental/v3/pkg/block/lsblk"
+	"github.com/suse/elemental/v3/pkg/bootloader"
 	"github.com/suse/elemental/v3/pkg/btrfs"
 	"github.com/suse/elemental/v3/pkg/chroot"
 	"github.com/suse/elemental/v3/pkg/cleanstack"
@@ -43,11 +44,18 @@ type Installer struct {
 	ctx context.Context
 	s   *sys.System
 	t   transaction.Interface
+	b   bootloader.Bootloader
 }
 
 func WithTransaction(t transaction.Interface) Option {
 	return func(i *Installer) {
 		i.t = t
+	}
+}
+
+func WithBootloader(b bootloader.Bootloader) Option {
+	return func(i *Installer) {
+		i.b = b
 	}
 }
 
@@ -61,6 +69,9 @@ func New(ctx context.Context, s *sys.System, opts ...Option) *Installer {
 	}
 	if installer.t == nil {
 		installer.t = transaction.NewSnapperTransaction(ctx, s)
+	}
+	if installer.b == nil {
+		installer.b = bootloader.NewNone(s)
 	}
 	return installer
 }
@@ -102,6 +113,14 @@ func (i Installer) Install(d *deployment.Deployment) (err error) {
 		i.s.Logger().Error("installation failed, could not update transaction")
 		return err
 	}
+
+	err = i.b.Install(trans.Path, d.GetEfiSystemPartition())
+	if err != nil {
+		i.s.Logger().Error("installation failed, could not install bootloader: %s", err.Error())
+		return err
+	}
+
+	err = d.WriteDeploymentFile(i.s, trans.Path)
 
 	if d.OverlayTree != nil && !d.OverlayTree.IsEmpty() {
 		unpacker, err := unpack.NewUnpacker(i.s, d.OverlayTree)

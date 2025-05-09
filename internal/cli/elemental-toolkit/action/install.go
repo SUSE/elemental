@@ -26,6 +26,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/suse/elemental/v3/internal/cli/elemental-toolkit/cmd"
+	"github.com/suse/elemental/v3/pkg/bootloader"
 	"github.com/suse/elemental/v3/pkg/deployment"
 	"github.com/suse/elemental/v3/pkg/install"
 	"github.com/suse/elemental/v3/pkg/sys"
@@ -58,7 +59,13 @@ func Install(ctx *cli.Context) error { //nolint:dupl
 		stop()
 	}()
 
-	installer := install.New(ctxCancel, s)
+	boot, err := bootloader.New(d.BootConfig.Bootloader, s)
+	if err != nil {
+		s.Logger().Error("Failed to parse boot config: %s", err.Error())
+		return err
+	}
+
+	installer := install.New(ctxCancel, s, install.WithBootloader(boot))
 	err = installer.Install(d)
 	if err != nil {
 		s.Logger().Error("installation failed: %v", err)
@@ -95,6 +102,10 @@ func digestInstallSetup(s *sys.System, flags *cmd.InstallFlags) (*deployment.Dep
 			return nil, fmt.Errorf("failed parsing OS source URI ('%s'): %w", flags.OperatingSystemImage, err)
 		}
 		d.SourceOS = srcOS
+	}
+
+	if flags.Bootloader != "none" {
+		d.BootConfig.Bootloader = flags.Bootloader
 	}
 
 	err := d.Sanitize(s)
