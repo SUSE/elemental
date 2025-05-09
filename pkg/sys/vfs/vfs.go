@@ -30,6 +30,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/joho/godotenv"
 	gvfs "github.com/twpayne/go-vfs/v4"
 )
 
@@ -563,4 +564,54 @@ func ConcatFiles(fs FS, sources []string, target string) (err error) {
 	}
 
 	return fs.Chmod(target, fInf.Mode())
+}
+
+// LoadEnvFile will try to parse the file given and return a map with the key/values
+func LoadEnvFile(fs FS, file string) (map[string]string, error) {
+	var envMap map[string]string
+	var err error
+
+	f, err := fs.Open(file)
+	if err != nil {
+		return envMap, err
+	}
+	defer f.Close()
+
+	envMap, err = godotenv.Parse(f)
+	if err != nil {
+		return envMap, err
+	}
+
+	return envMap, err
+}
+
+// WriteEnvFile will write the given environment file with the given key/values
+func WriteEnvFile(fs FS, envs map[string]string, filename string) error {
+	var bkFile string
+
+	rawPath, err := fs.RawPath(filename)
+	if err != nil {
+		return err
+	}
+
+	if ok, _ := Exists(fs, filename, true); ok {
+		bkFile = filename + ".bk"
+		err = fs.Rename(filename, bkFile)
+		if err != nil {
+			return err
+		}
+	}
+
+	err = godotenv.Write(envs, rawPath)
+	if err != nil {
+		if bkFile != "" {
+			// try to restore renamed file
+			_ = fs.Rename(bkFile, filename)
+		}
+		return err
+	}
+	if bkFile != "" {
+		_ = fs.Remove(bkFile)
+	}
+	return nil
 }
