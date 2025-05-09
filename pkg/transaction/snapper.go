@@ -183,7 +183,7 @@ func (sn snapperT) Update(trans *Transaction, imgSrc *deployment.ImageSource, ho
 // merge runs a 3 way merge for snapshotted RW volumes
 // Current implemementation is dumb, there is no check on potential conflicts
 func (sn snapperT) merge(trans *Transaction) (err error) {
-	for _, rwVol := range sn.partitions.GetSnaphsottedVolumes() {
+	for _, rwVol := range sn.partitions.GetSnapshottedVolumes() {
 		m := trans.Merges[rwVol.Path]
 		if m == nil {
 			continue
@@ -519,7 +519,7 @@ func (sn snapperT) createSnapshottedVol(baseID int, rwVol deployment.RWVolume, p
 // createPostSnapshots creates post transaction snapshots of RW volumes. These are the snapshots which include
 // the changes applied by the transaction close hook callback.
 func (sn snapperT) createPostSnapshots(root string) (err error) {
-	for _, rwVol := range sn.partitions.GetSnaphsottedVolumes() {
+	for _, rwVol := range sn.partitions.GetSnapshottedVolumes() {
 		_, err = sn.snap.CreateSnapshot(
 			root, snapper.ConfigName(rwVol.Path), 0, false,
 			fmt.Sprintf("post-transaction %s snapshot", rwVol.Path),
@@ -620,7 +620,7 @@ func (sn snapperT) createNewSnapshot(baseID int) (*Transaction, error) {
 // configureRWVolumes sets the configuration for the nested snapshotted paths
 func (sn snapperT) configureRWVolumes(trans *Transaction) error {
 	callback := func() error {
-		for _, rwVol := range sn.partitions.GetSnaphsottedVolumes() {
+		for _, rwVol := range sn.partitions.GetSnapshottedVolumes() {
 			err := sn.snap.CreateConfig("/", rwVol.Path)
 			if err != nil {
 				return err
