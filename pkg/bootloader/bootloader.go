@@ -21,11 +21,12 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/suse/elemental/v3/pkg/deployment"
 	"github.com/suse/elemental/v3/pkg/sys"
 )
 
 type Bootloader interface {
-	Install(rootPath string) error
+	Install(rootPath string, esp *deployment.Partition) error
 }
 
 const (
@@ -41,7 +42,7 @@ func NewNone(s *sys.System) *None {
 	return &None{s}
 }
 
-func (n *None) Install(rootPath string) error {
+func (n *None) Install(_ string, _ *deployment.Partition) error {
 	n.s.Logger().Info("Skipping bootloader installation")
 	return nil
 }

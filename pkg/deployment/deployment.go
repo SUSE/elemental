@@ -262,6 +262,19 @@ func (d Deployment) GetSystemDisk() *Disk {
 	return nil
 }
 
+// GetEfiSystemPartition gets the data of the system partition.
+// returns nil if not found
+func (d Deployment) GetEfiSystemPartition() *Partition {
+	for _, disk := range d.Disks {
+		for _, part := range disk.Partitions {
+			if part.Role == EFI {
+				return part
+			}
+		}
+	}
+	return nil
+}
+
 // Sanitize checks the consistency of the current Disk structure
 func (d *Deployment) Sanitize(s *sys.System) error {
 	for _, sanitize := range sanitizers {

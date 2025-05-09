@@ -27,8 +27,6 @@ import (
 	"github.com/suse/elemental/v3/pkg/bootloader"
 	"github.com/suse/elemental/v3/pkg/log"
 	"github.com/suse/elemental/v3/pkg/sys"
-	sysmock "github.com/suse/elemental/v3/pkg/sys/mock"
-	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
 
 func TestBootloaderSuite(t *testing.T) {
@@ -37,23 +35,14 @@ func TestBootloaderSuite(t *testing.T) {
 }
 
 var _ = Describe("Bootloader tests", Label("bootloader", "grub", "none"), func() {
-	var tfs vfs.FS
 	var s *sys.System
-	var cleanup func()
 	BeforeEach(func() {
 		var err error
-		tfs, cleanup, err = sysmock.TestFS(nil)
 		Expect(err).NotTo(HaveOccurred())
 		s, err = sys.NewSystem(
-			sys.WithFS(tfs), sys.WithLogger(log.New(log.WithDiscardAll())),
+			sys.WithLogger(log.New(log.WithDiscardAll())),
 		)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(vfs.MkdirAll(tfs, "/tmp/elemental_unpack", vfs.DirPerm)).To(Succeed())
-		Expect(tfs.WriteFile("/tmp/elemental_unpack/datafile", []byte("data"), vfs.FilePerm)).To(Succeed())
-		Expect(vfs.MkdirAll(tfs, "/target/dir", vfs.DirPerm)).To(Succeed())
-	})
-	AfterEach(func() {
-		cleanup()
 	})
 	It("Successsfully creates a new bootloader", func() {
 		for _, name := range []string{"none", "grub"} {
