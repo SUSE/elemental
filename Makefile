@@ -38,7 +38,7 @@ endif
 all: $(BUILD_DIR)/elemental3 $(BUILD_DIR)/elemental3-toolkit
 
 $(BUILD_DIR):
-	mkdir -p $(BUILD_DIR)
+	@mkdir -p $(BUILD_DIR)
 
 $(BUILD_DIR)/elemental3: $(GO_FILES)
 	go build $(GO_BUILD_ARGS) -o $@ ./cmd/elemental
@@ -60,4 +60,5 @@ endif
 
 .PHONY: clean
 clean:
-	rm -rfv $(BUILD_DIR)
+	@rm -rfv $(BUILD_DIR)
+	@find . -name '*.test' -exec rm -f {} \+

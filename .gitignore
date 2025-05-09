@@ -13,3 +13,6 @@ go.work*
 
 # coverage report
 coverprofile.out
+
+# Go test files
+*.test
