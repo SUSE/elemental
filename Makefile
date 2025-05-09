@@ -35,15 +35,15 @@ ifneq (,$(VERBOSE))
 endif
 
 .PHONY: all
-all: $(BUILD_DIR)/elemental $(BUILD_DIR)/elemental-toolkit
+all: $(BUILD_DIR)/elemental3 $(BUILD_DIR)/elemental3-toolkit
 
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
 
-$(BUILD_DIR)/elemental: $(GO_FILES)
+$(BUILD_DIR)/elemental3: $(GO_FILES)
 	go build $(GO_BUILD_ARGS) -o $@ ./cmd/elemental
 
-$(BUILD_DIR)/elemental-toolkit: $(GO_FILES)
+$(BUILD_DIR)/elemental3-toolkit: $(GO_FILES)
 	go build $(GO_BUILD_ARGS) -o $@ ./cmd/elemental-toolkit
 
 .PHONY: unit-tests
