@@ -211,9 +211,9 @@ type Deployment struct {
 	// Also bootloader details could be added here
 }
 
-// GetSnaphsottedVolumes returns a list of snapshotted rw volumes defined in the
+// GetSnapshottedVolumes returns a list of snapshotted rw volumes defined in the
 // given partitions list.
-func (p Partitions) GetSnaphsottedVolumes() RWVolumes {
+func (p Partitions) GetSnapshottedVolumes() RWVolumes {
 	var volumes RWVolumes
 	for _, part := range p {
 		for _, rwVol := range part.RWVolumes {
