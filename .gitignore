@@ -6,8 +6,7 @@
 .vscode/
 
 # Go workspace file
-go.work
-go.work.sum
+go.work*
 
 # env file
 .env
