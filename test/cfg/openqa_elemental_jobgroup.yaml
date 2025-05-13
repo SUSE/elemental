@@ -20,7 +20,7 @@
   QEMURAM: '2048'
   PASSWORD: ros
   TEST_PASSWORD: Elemental@R00t
-  YAML_SCHEDULE: schedule/elemental/elemental3_test_image.yaml
+  YAML_SCHEDULE: schedule/elemental3/test_image.yaml
 
 .generate_settings: &generate_settings
   BOOT_HDD_IMAGE: "1"
@@ -31,7 +31,7 @@
   KEEP_GRUB_TIMEOUT: "0"
   TEST_PASSWORD: Elemental@R00t
   VIDEOMODE: "text"
-  YAML_SCHEDULE: schedule/elemental/elemental3_generate_image.yaml
+  YAML_SCHEDULE: schedule/elemental3/generate_image.yaml
 
 .image_test_settings: &image_test_settings
   HDD_1: 'elemental-%BUILD%-%ARCH%.qcow2'
