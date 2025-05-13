@@ -78,7 +78,7 @@ func digestInstallSetup(s *sys.System, flags *cmd.InstallFlags) (*deployment.Dep
 		}
 		data, err := s.FS().ReadFile(flags.Description)
 		if err != nil {
-			return nil, fmt.Errorf("could not read config file '%s': %w", flags.Description, err)
+			return nil, fmt.Errorf("could not read description file '%s': %w", flags.Description, err)
 		}
 		err = yaml.Unmarshal(data, d)
 		if err != nil {
