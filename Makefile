@@ -61,4 +61,4 @@ endif
 .PHONY: clean
 clean:
 	@rm -rfv $(BUILD_DIR)
-	@find . -name '*.test' -exec rm -f {} \+
+	@find . -type f -executable -name '*.test' -exec rm -f {} \+
