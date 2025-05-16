@@ -18,6 +18,9 @@ limitations under the License.
 package unpack_test
 
 import (
+	"context"
+	"slices"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -35,12 +38,16 @@ var _ = Describe("DirectoryUnpacker", Label("directory"), func() {
 	var s *sys.System
 	var cleanup func()
 	var err error
+	var runner *sysmock.Runner
 	BeforeEach(func() {
 		tfs, cleanup, err = sysmock.TestFS(nil)
 		Expect(err).NotTo(HaveOccurred())
-		s, err = sys.NewSystem(sys.WithFS(tfs), sys.WithLogger(log.New(log.WithDiscardAll())))
+		runner = sysmock.NewRunner()
+		s, err = sys.NewSystem(
+			sys.WithFS(tfs), sys.WithLogger(log.New(log.WithDiscardAll())),
+			sys.WithRunner(runner),
+		)
 		Expect(err).NotTo(HaveOccurred())
-		unpacker = unpack.NewDirectoryUnpacker(s, "/some/root")
 		Expect(vfs.MkdirAll(tfs, "/some/root", vfs.DirPerm)).To(Succeed())
 		Expect(tfs.WriteFile("/some/root/datafile", []byte("data"), vfs.FilePerm)).To(Succeed())
 		Expect(vfs.MkdirAll(tfs, "/target/dir", vfs.DirPerm)).To(Succeed())
@@ -48,11 +55,21 @@ var _ = Describe("DirectoryUnpacker", Label("directory"), func() {
 	AfterEach(func() {
 		cleanup()
 	})
-	It("creates a directory unpacker", func() {
-		unpacker, err = unpack.NewUnpacker(s, deployment.NewDirSrc("/some/dir"))
+	It("creates a directory unpacker with default rsync flags", func() {
+		unpacker, err = unpack.NewUnpacker(s, deployment.NewDirSrc("/some/root"), unpack.WithRsyncFlags())
 		Expect(err).NotTo(HaveOccurred())
 		_, ok := unpacker.(*unpack.Directory)
 		Expect(ok).To(BeTrue())
+		_, err = unpacker.Unpack(context.Background(), "/target/dir")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(slices.Contains(runner.GetCmds()[0], "--human-readable")).To(BeTrue())
+	})
+	It("creates a directory unpacker with custom rsync flags", func() {
+		unpacker, err = unpack.NewUnpacker(s, deployment.NewDirSrc("/some/root"), unpack.WithRsyncFlags("--custom"))
+		Expect(err).NotTo(HaveOccurred())
+		_, err = unpacker.Unpack(context.Background(), "/target/dir")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(slices.Contains(runner.GetCmds()[0], "--custom")).To(BeTrue())
 	})
 	It("creates a raw unpacker", func() {
 		unpacker, err = unpack.NewUnpacker(s, deployment.NewRawSrc("/some/image.raw"))
@@ -64,6 +81,12 @@ var _ = Describe("DirectoryUnpacker", Label("directory"), func() {
 		unpacker, err = unpack.NewUnpacker(s, deployment.NewOCISrc("domain.org/some/image:tag"))
 		Expect(err).NotTo(HaveOccurred())
 		_, ok := unpacker.(*unpack.OCI)
+		Expect(ok).To(BeTrue())
+	})
+	It("creates a tar unpacker", func() {
+		unpacker, err = unpack.NewUnpacker(s, deployment.NewTarSrc("/some/tarball.tar.gz"))
+		Expect(err).NotTo(HaveOccurred())
+		_, ok := unpacker.(*unpack.Tar)
 		Expect(ok).To(BeTrue())
 	})
 	It("fails with an empty source", func() {

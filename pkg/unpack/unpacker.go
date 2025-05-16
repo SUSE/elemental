@@ -36,18 +36,86 @@ type Interface interface {
 	SynchedUnpack(ctx context.Context, destination string, excludes []string, deleteExcludes []string) (string, error)
 }
 
-func NewUnpacker(s *sys.System, src *deployment.ImageSource) (Interface, error) {
+type options struct {
+	ociOpts []OCIOpt
+	dirOpts []DirectoryOpt
+	tarOpts []TarOpt
+	rawOpts []RawOpt
+}
+
+type Opt func(deployment.ImageSrcType, *options)
+
+func WithLocal(local bool) Opt {
+	return func(srcType deployment.ImageSrcType, o *options) {
+		switch srcType {
+		case deployment.OCI:
+			o.ociOpts = append(o.ociOpts, WithLocalOCI(local))
+		default:
+		}
+	}
+}
+
+func WithVerify(verify bool) Opt {
+	return func(srcType deployment.ImageSrcType, o *options) {
+		switch srcType {
+		case deployment.OCI:
+			o.ociOpts = append(o.ociOpts, WithVerifyOCI(verify))
+		default:
+		}
+	}
+}
+
+func WithPlatformRef(platform string) Opt {
+	return func(srcType deployment.ImageSrcType, o *options) {
+		switch srcType {
+		case deployment.OCI:
+			o.ociOpts = append(o.ociOpts, WithPlatformRefOCI(platform))
+		default:
+		}
+	}
+}
+
+func WithRsyncFlags(flags ...string) Opt {
+	return func(srcType deployment.ImageSrcType, o *options) {
+		switch srcType {
+		case deployment.Dir:
+			o.dirOpts = append(o.dirOpts, WithRsyncFlagsDir(flags...))
+		case deployment.OCI:
+			o.ociOpts = append(o.ociOpts, WithRsyncFlagsOCI(flags...))
+		case deployment.Raw:
+			o.rawOpts = append(o.rawOpts, WithRsyncFlagsRaw(flags...))
+		case deployment.Tar:
+			o.tarOpts = append(o.tarOpts, WithRsyncFlagsTar(flags...))
+		default:
+		}
+	}
+}
+
+func NewUnpacker(s *sys.System, src *deployment.ImageSource, opts ...Opt) (Interface, error) {
+	o := &options{}
 	switch {
 	case src.IsEmpty():
 		return nil, fmt.Errorf("can't create an unpacker for an empty source")
 	case src.IsDir():
-		return NewDirectoryUnpacker(s, src.URI()), nil
+		for _, opt := range opts {
+			opt(deployment.Dir, o)
+		}
+		return NewDirectoryUnpacker(s, src.URI(), o.dirOpts...), nil
 	case src.IsOCI():
-		return NewOCIUnpacker(s, src.URI()), nil
+		for _, opt := range opts {
+			opt(deployment.OCI, o)
+		}
+		return NewOCIUnpacker(s, src.URI(), o.ociOpts...), nil
 	case src.IsRaw():
-		return NewRawUnpacker(s, src.URI()), nil
+		for _, opt := range opts {
+			opt(deployment.Raw, o)
+		}
+		return NewRawUnpacker(s, src.URI(), o.rawOpts...), nil
 	case src.IsTar():
-		return NewTarUnpacker(s, src.URI()), nil
+		for _, opt := range opts {
+			opt(deployment.Tar, o)
+		}
+		return NewTarUnpacker(s, src.URI(), o.tarOpts...), nil
 	default:
 		return nil, fmt.Errorf("unsupported type of image source")
 	}

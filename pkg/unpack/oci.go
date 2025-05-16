@@ -44,31 +44,32 @@ type OCI struct {
 	local       bool
 	verify      bool
 	imageRef    string
+	rsyncFlags  []string
 }
 
 type OCIOpt func(*OCI)
 
-func WithLocal(local bool) OCIOpt {
+func WithLocalOCI(local bool) OCIOpt {
 	return func(o *OCI) {
 		o.local = local
 	}
 }
 
-func WithVerify(verify bool) OCIOpt {
+func WithVerifyOCI(verify bool) OCIOpt {
 	return func(o *OCI) {
 		o.verify = verify
 	}
 }
 
-func WithPlatformRef(platform string) OCIOpt {
+func WithPlatformRefOCI(platform string) OCIOpt {
 	return func(o *OCI) {
 		o.platformRef = platform
 	}
 }
 
-func WithImageRef(imageRef string) OCIOpt {
+func WithRsyncFlagsOCI(flags ...string) OCIOpt {
 	return func(o *OCI) {
-		o.imageRef = imageRef
+		o.rsyncFlags = flags
 	}
 }
 
@@ -107,7 +108,7 @@ func (o OCI) SynchedUnpack(ctx context.Context, destination string, excludes []s
 	if err != nil {
 		return "", err
 	}
-	unpackD := NewDirectoryUnpacker(o.s, tempDir)
+	unpackD := NewDirectoryUnpacker(o.s, tempDir, WithRsyncFlagsDir(o.rsyncFlags...))
 	_, err = unpackD.SynchedUnpack(ctx, destination, excludes, deleteExcludes)
 	if err != nil {
 		return "", err

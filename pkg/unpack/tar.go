@@ -27,12 +27,25 @@ import (
 )
 
 type Tar struct {
-	s       *sys.System
-	tarball string
+	s          *sys.System
+	tarball    string
+	rsyncFlags []string
 }
 
-func NewTarUnpacker(s *sys.System, tarball string) *Tar {
-	return &Tar{s: s, tarball: tarball}
+type TarOpt func(*Tar)
+
+func WithRsyncFlagsTar(flags ...string) TarOpt {
+	return func(t *Tar) {
+		t.rsyncFlags = flags
+	}
+}
+
+func NewTarUnpacker(s *sys.System, tarball string, opts ...TarOpt) *Tar {
+	t := &Tar{s: s, tarball: tarball}
+	for _, o := range opts {
+		o(t)
+	}
+	return t
 }
 
 func (t Tar) Unpack(ctx context.Context, destination string) (string, error) {
@@ -60,7 +73,7 @@ func (t Tar) SynchedUnpack(ctx context.Context, destination string, excludes []s
 	if err != nil {
 		return "", err
 	}
-	unpackD := NewDirectoryUnpacker(t.s, tempDir)
+	unpackD := NewDirectoryUnpacker(t.s, tempDir, WithRsyncFlagsDir(t.rsyncFlags...))
 	digest, err = unpackD.SynchedUnpack(ctx, destination, excludes, deleteExcludes)
 	if err != nil {
 		return "", err

@@ -26,22 +26,35 @@ import (
 )
 
 type Directory struct {
-	s    *sys.System
-	path string
+	s          *sys.System
+	path       string
+	rsyncFlags []string
 }
 
-func NewDirectoryUnpacker(s *sys.System, path string) *Directory {
-	return &Directory{s: s, path: path}
+type DirectoryOpt func(*Directory)
+
+func WithRsyncFlagsDir(flags ...string) DirectoryOpt {
+	return func(d *Directory) {
+		d.rsyncFlags = flags
+	}
+}
+
+func NewDirectoryUnpacker(s *sys.System, path string, opts ...DirectoryOpt) *Directory {
+	dir := &Directory{s: s, path: path}
+	for _, o := range opts {
+		o(dir)
+	}
+	return dir
 }
 
 func (d Directory) Unpack(ctx context.Context, destination string) (string, error) {
-	sync := rsync.NewRsync(d.s, rsync.WithContext(ctx))
+	sync := rsync.NewRsync(d.s, rsync.WithContext(ctx), rsync.WithFlags(d.rsyncFlags...))
 	digest := findDeploymentDigest(d.s, d.path)
 	return digest, sync.SyncData(d.path, destination)
 }
 
 func (d Directory) SynchedUnpack(ctx context.Context, destination string, excludes []string, deleteExcludes []string) (string, error) {
-	sync := rsync.NewRsync(d.s, rsync.WithContext(ctx))
+	sync := rsync.NewRsync(d.s, rsync.WithContext(ctx), rsync.WithFlags(d.rsyncFlags...))
 	digest := findDeploymentDigest(d.s, d.path)
 	return digest, sync.MirrorData(d.path, destination, excludes, deleteExcludes)
 }

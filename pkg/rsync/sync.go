@@ -39,7 +39,9 @@ type Opts func(r *Rsync)
 
 func WithFlags(flags ...string) Opts {
 	return func(r *Rsync) {
-		r.flags = flags
+		if len(flags) != 0 {
+			r.flags = flags
+		}
 	}
 }
 

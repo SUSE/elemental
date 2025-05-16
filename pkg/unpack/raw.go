@@ -27,12 +27,25 @@ import (
 type umountFunc func() error
 
 type Raw struct {
-	s    *sys.System
-	path string
+	s          *sys.System
+	path       string
+	rsyncFlags []string
 }
 
-func NewRawUnpacker(s *sys.System, path string) *Raw {
-	return &Raw{s: s, path: path}
+type RawOpt func(*Raw)
+
+func WithRsyncFlagsRaw(flags ...string) RawOpt {
+	return func(r *Raw) {
+		r.rsyncFlags = flags
+	}
+}
+
+func NewRawUnpacker(s *sys.System, path string, opts ...RawOpt) *Raw {
+	r := &Raw{s: s, path: path}
+	for _, o := range opts {
+		o(r)
+	}
+	return r
 }
 
 func (r Raw) Unpack(ctx context.Context, destination string) (digest string, err error) {
@@ -50,7 +63,7 @@ func (r Raw) Unpack(ctx context.Context, destination string) (digest string, err
 		}
 	}()
 
-	unpackD := NewDirectoryUnpacker(r.s, mountpoint)
+	unpackD := NewDirectoryUnpacker(r.s, mountpoint, WithRsyncFlagsDir(r.rsyncFlags...))
 	return unpackD.Unpack(ctx, destination)
 }
 
@@ -69,7 +82,7 @@ func (r Raw) SynchedUnpack(ctx context.Context, destination string, excludes []s
 		}
 	}()
 
-	unpackD := NewDirectoryUnpacker(r.s, mountpoint)
+	unpackD := NewDirectoryUnpacker(r.s, mountpoint, WithRsyncFlagsDir(r.rsyncFlags...))
 	return unpackD.SynchedUnpack(ctx, destination, excludes, deleteExcludes)
 }
 

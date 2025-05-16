@@ -51,7 +51,7 @@ var _ = Describe("OCIUnpacker", Label("oci", "rootlesskit"), func() {
 		cleanup()
 	})
 	It("Unpacks a remote alpine image", func() {
-		unpacker := unpack.NewOCIUnpacker(s, alpineImageRef, unpack.WithPlatformRef("linux/amd64"), unpack.WithLocal(false))
+		unpacker := unpack.NewOCIUnpacker(s, alpineImageRef, unpack.WithPlatformRefOCI("linux/amd64"), unpack.WithLocalOCI(false))
 		Expect(vfs.MkdirAll(tfs, "/target/root", vfs.DirPerm)).To(Succeed())
 		digest, err := unpacker.Unpack(context.Background(), "/target/root")
 		Expect(err).NotTo(HaveOccurred())
@@ -63,7 +63,7 @@ var _ = Describe("OCIUnpacker", Label("oci", "rootlesskit"), func() {
 		Expect(digest).To(Equal("sha256:1c4eef651f65e2f7daee7ee785882ac164b02b78fb74503052a26dc061c90474"))
 	})
 	It("Fails to unpacks a remote bogus image", func() {
-		unpacker := unpack.NewOCIUnpacker(s, bogusImageRef, unpack.WithPlatformRef("linux/amd64"), unpack.WithLocal(false))
+		unpacker := unpack.NewOCIUnpacker(s, bogusImageRef, unpack.WithPlatformRefOCI("linux/amd64"), unpack.WithLocalOCI(false))
 		Expect(vfs.MkdirAll(tfs, "/target/root", vfs.DirPerm)).To(Succeed())
 		digest, err := unpacker.Unpack(context.Background(), "/target/root")
 		Expect(err).To(HaveOccurred())
@@ -72,7 +72,7 @@ var _ = Describe("OCIUnpacker", Label("oci", "rootlesskit"), func() {
 		Expect(digest).To(BeEmpty())
 	})
 	It("Unpacks a local alpine image", func() {
-		unpacker := unpack.NewOCIUnpacker(s, alpineImageRef, unpack.WithPlatformRef("linux/amd64"), unpack.WithLocal(true))
+		unpacker := unpack.NewOCIUnpacker(s, alpineImageRef, unpack.WithPlatformRefOCI("linux/amd64"), unpack.WithLocalOCI(true))
 		_, err := s.Runner().Run("docker", "pull", alpineImageRef)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(vfs.MkdirAll(tfs, "/target/root", vfs.DirPerm)).To(Succeed())
@@ -86,7 +86,7 @@ var _ = Describe("OCIUnpacker", Label("oci", "rootlesskit"), func() {
 		Expect(digest).To(Equal("sha256:16849e7bf3d46ea5065178bfd35d4ce828d184392212d2690733206eacf20d0d"))
 	})
 	It("Fails to unpacks a local bogus image", func() {
-		unpacker := unpack.NewOCIUnpacker(s, bogusImageRef, unpack.WithPlatformRef("linux/amd64"), unpack.WithLocal(true))
+		unpacker := unpack.NewOCIUnpacker(s, bogusImageRef, unpack.WithPlatformRefOCI("linux/amd64"), unpack.WithLocalOCI(true))
 		Expect(vfs.MkdirAll(tfs, "/target/root", vfs.DirPerm)).To(Succeed())
 		digest, err := unpacker.Unpack(context.Background(), "/target/root")
 		Expect(err).To(HaveOccurred())
@@ -95,7 +95,7 @@ var _ = Describe("OCIUnpacker", Label("oci", "rootlesskit"), func() {
 		Expect(digest).To(BeEmpty())
 	})
 	It("Syncs a remote alpine image to destination, excludes paths and keeps protected ones", func() {
-		unpacker := unpack.NewOCIUnpacker(s, alpineImageRef, unpack.WithPlatformRef("linux/amd64"), unpack.WithLocal(false))
+		unpacker := unpack.NewOCIUnpacker(s, alpineImageRef, unpack.WithPlatformRefOCI("linux/amd64"), unpack.WithLocalOCI(false))
 		Expect(vfs.MkdirAll(tfs, "/target/root/protected", vfs.DirPerm)).To(Succeed())
 		digest, err := unpacker.SynchedUnpack(context.Background(), "/target/root", []string{"/etc/os-release"}, []string{"/protected"})
 		Expect(err).NotTo(HaveOccurred())
