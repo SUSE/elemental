@@ -26,6 +26,7 @@ import (
 	"github.com/suse/elemental/v3/pkg/deployment"
 	"github.com/suse/elemental/v3/pkg/rsync"
 	"github.com/suse/elemental/v3/pkg/sys"
+	"github.com/suse/elemental/v3/pkg/sys/platform"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
 
@@ -103,7 +104,7 @@ func (g *Grub) installElementalEFI(rootPath string, esp *deployment.Partition) e
 		}
 
 		srcDir := filepath.Join(rootPath, "usr", "share", "efi", g.s.Platform().Arch)
-		for _, name := range []string{"shim.efi", "grub.efi", "MokManager.efi"} {
+		for _, name := range []string{"grub.efi", "MokManager.efi"} {
 			src := filepath.Join(srcDir, name)
 			target := filepath.Join(targetDir, name)
 			err = vfs.CopyFile(g.s.FS(), src, target)
@@ -111,6 +112,14 @@ func (g *Grub) installElementalEFI(rootPath string, esp *deployment.Partition) e
 				g.s.Logger().Error("Error copying EFI app '%s': %s", src, err.Error())
 				return err
 			}
+		}
+
+		src := filepath.Join(srcDir, "shim.efi")
+		target := filepath.Join(targetDir, defaultEfiBootFileName(g.s.Platform()))
+		err = vfs.CopyFile(g.s.FS(), src, target)
+		if err != nil {
+			g.s.Logger().Error("Failed copying shim.efi: %s, skipping", err.Error())
+			return err
 		}
 
 		// Copy grub config if it exists.
@@ -122,6 +131,22 @@ func (g *Grub) installElementalEFI(rootPath string, esp *deployment.Partition) e
 	}
 
 	return nil
+}
+
+// defaultEfiBootFileName returns the default efi application name for the provided platform:
+// * x86_64: bootx64.efi
+// * aarch64: bootaa64.efi
+// * riscv64: bootriscv64.efi
+// defaults to x86_64.
+func defaultEfiBootFileName(p *platform.Platform) string {
+	switch p.Arch {
+	case platform.ArchAarch64:
+		return "bootaa64.efi"
+	case platform.ArchRiscv64:
+		return "bootriscv64.efi"
+	default:
+		return "bootx64.efi"
+	}
 }
 
 // installGrub installs grub themes and configs to $ESP/grub2

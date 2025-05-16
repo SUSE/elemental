@@ -20,7 +20,6 @@ package bootloader_test
 import (
 	"errors"
 	"fmt"
-	"io/fs"
 	"path/filepath"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -139,13 +138,8 @@ var _ = Describe("Grub tests", Label("bootloader", "grub"), func() {
 		err := grub.Install("/target/dir", d)
 		Expect(err).ToNot(HaveOccurred())
 
-		// shim must not be a symlink
-		file, err := tfs.Lstat("/target/dir/boot/efi/EFI/ELEMENTAL/shim.efi")
-		Expect(err).ToNot(HaveOccurred())
-		Expect(file.Mode() & fs.ModeSymlink).To(Equal(fs.FileMode(0)))
-
 		// Shim, MokManager and grub.efi should exist.
-		Expect(vfs.Exists(tfs, "/target/dir/boot/efi/EFI/ELEMENTAL/shim.efi")).To(BeTrue())
+		Expect(vfs.Exists(tfs, "/target/dir/boot/efi/EFI/ELEMENTAL/bootx64.efi")).To(BeTrue())
 		Expect(vfs.Exists(tfs, "/target/dir/boot/efi/EFI/ELEMENTAL/MokManager.efi")).To(BeTrue())
 		Expect(vfs.Exists(tfs, "/target/dir/boot/efi/EFI/ELEMENTAL/grub.efi")).To(BeTrue())
 
