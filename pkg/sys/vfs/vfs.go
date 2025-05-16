@@ -24,12 +24,14 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/joho/godotenv"
 	gvfs "github.com/twpayne/go-vfs/v4"
 )
 
@@ -308,7 +310,7 @@ func findFile(vfs FS, rootDir, pattern string) (string, error) {
 	return "", nil
 }
 
-func findFiles(vfs FS, rootDir, pattern string, fristMatchReturn bool) ([]string, error) {
+func findFiles(vfs FS, rootDir, pattern string, firstMatchReturn bool) ([]string, error) {
 	foundFiles := []string{}
 
 	base := filepath.Join(rootDir, getBaseDir(pattern))
@@ -327,7 +329,7 @@ func findFiles(vfs FS, rootDir, pattern string, fristMatchReturn bool) ([]string
 					return err
 				}
 				foundFiles = append(foundFiles, foundFile)
-				if fristMatchReturn {
+				if firstMatchReturn {
 					return io.EOF
 				}
 				return nil
@@ -563,4 +565,96 @@ func ConcatFiles(fs FS, sources []string, target string) (err error) {
 	}
 
 	return fs.Chmod(target, fInf.Mode())
+}
+
+// LoadEnvFile will try to parse the file given and return a map with the key/values
+func LoadEnvFile(fs FS, file string) (map[string]string, error) {
+	var envMap map[string]string
+	var err error
+
+	f, err := fs.Open(file)
+	if err != nil {
+		return envMap, err
+	}
+	defer f.Close()
+
+	envMap, err = godotenv.Parse(f)
+	if err != nil {
+		return envMap, err
+	}
+
+	return envMap, err
+}
+
+// WriteEnvFile will write the given environment file with the given key/values
+func WriteEnvFile(fs FS, envs map[string]string, filename string) error {
+	var bkFile string
+
+	rawPath, err := fs.RawPath(filename)
+	if err != nil {
+		return err
+	}
+
+	if ok, _ := Exists(fs, filename, true); ok {
+		bkFile = filename + ".bk"
+		err = fs.Rename(filename, bkFile)
+		if err != nil {
+			return err
+		}
+	}
+
+	err = godotenv.Write(envs, rawPath)
+	if err != nil {
+		if bkFile != "" {
+			// try to restore renamed file
+			_ = fs.Rename(bkFile, filename)
+		}
+		return err
+	}
+	if bkFile != "" {
+		_ = fs.Remove(bkFile)
+	}
+	return nil
+}
+
+// FindKernel finds for kernel files inside a given root tree path.
+// Returns kernel file and version. It assumes kernel files match certain patterns
+func FindKernel(fs FS, rootDir string) (string, string, error) {
+	var kernel, version string
+
+	kernelPatterns := []string{
+		"/usr/lib/modules/*/uImage*",
+		"/usr/lib/modules/*/Image*",
+		"/usr/lib/modules/*/zImage*",
+		"/usr/lib/modules/*/vmlinuz*",
+		"/usr/lib/modules/*/image*",
+	}
+
+	kernels := []string{}
+
+	for _, pattern := range kernelPatterns {
+		files, err := findFiles(fs, rootDir, pattern, false)
+		if err != nil {
+			return kernel, version, err
+		}
+
+		kernels = slices.Concat(kernels, files)
+	}
+
+	if len(kernels) == 0 {
+		return kernel, version, fmt.Errorf("no kernels found")
+	}
+
+	// Sort descending
+	sort.Slice(kernels, func(i, j int) bool {
+		return kernels[i] > kernels[j]
+	})
+
+	kernel = kernels[0]
+	version = filepath.Base(filepath.Dir(kernel))
+
+	if version == "" {
+		return "", "", fmt.Errorf("could not determine the version of kernel %s", kernel)
+	}
+	return kernel, version, nil
 }

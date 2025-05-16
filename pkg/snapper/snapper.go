@@ -27,8 +27,6 @@ import (
 	"github.com/suse/elemental/v3/pkg/btrfs"
 	"github.com/suse/elemental/v3/pkg/sys"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
-
-	"github.com/joho/godotenv"
 )
 
 const (
@@ -308,7 +306,7 @@ func (sn Snapper) ConfigureRoot(snapshotPath string, maxSnapshots int) error {
 	}
 
 	if ok, _ := vfs.Exists(sn.s.FS(), sysconfig); ok {
-		sysconfigData, err = loadEnvFile(sn.s.FS(), sysconfig)
+		sysconfigData, err = vfs.LoadEnvFile(sn.s.FS(), sysconfig)
 		if err != nil {
 			sn.s.Logger().Error("failed to load global snapper sysconfig")
 			return err
@@ -317,13 +315,13 @@ func (sn Snapper) ConfigureRoot(snapshotPath string, maxSnapshots int) error {
 	sysconfigData["SNAPPER_CONFIGS"] = rootConfig
 
 	sn.s.Logger().Debug("Creating sysconfig snapper configuration at '%s'", sysconfig)
-	err = writeEnvFile(sn.s.FS(), sysconfigData, sysconfig)
+	err = vfs.WriteEnvFile(sn.s.FS(), sysconfigData, sysconfig)
 	if err != nil {
 		sn.s.Logger().Error("failed writing snapper global configuration file: %v", err)
 		return err
 	}
 
-	snapCfg, err := loadEnvFile(sn.s.FS(), defaultTmpl)
+	snapCfg, err := vfs.LoadEnvFile(sn.s.FS(), defaultTmpl)
 	if err != nil {
 		sn.s.Logger().Error("failed to load default snapper templage configuration")
 		return err
@@ -336,7 +334,7 @@ func (sn Snapper) ConfigureRoot(snapshotPath string, maxSnapshots int) error {
 
 	rootCfg := filepath.Join(snapshotPath, snapperRootConfig)
 	sn.s.Logger().Debug("Creating 'root' snapper configuration at '%s'", rootCfg)
-	err = writeEnvFile(sn.s.FS(), snapCfg, rootCfg)
+	err = vfs.WriteEnvFile(sn.s.FS(), snapCfg, rootCfg)
 	if err != nil {
 		sn.s.Logger().Error("failed writing snapper root configuration file: %v", err)
 		return err
@@ -371,54 +369,4 @@ func unmarshalSnapperList(snapperOut []byte, config string) (Snapshots, error) {
 	}
 
 	return snapshots, nil
-}
-
-// loadEnvFile will try to parse the file given and return a map with the key/values
-func loadEnvFile(fs vfs.FS, file string) (map[string]string, error) {
-	var envMap map[string]string
-	var err error
-
-	f, err := fs.Open(file)
-	if err != nil {
-		return envMap, err
-	}
-	defer f.Close()
-
-	envMap, err = godotenv.Parse(f)
-	if err != nil {
-		return envMap, err
-	}
-
-	return envMap, err
-}
-
-// writeEnvFile will write the given environment file with the given key/values
-func writeEnvFile(fs vfs.FS, envs map[string]string, filename string) error {
-	var bkFile string
-
-	rawPath, err := fs.RawPath(filename)
-	if err != nil {
-		return err
-	}
-
-	if ok, _ := vfs.Exists(fs, filename, true); ok {
-		bkFile = filename + ".bk"
-		err = fs.Rename(filename, bkFile)
-		if err != nil {
-			return err
-		}
-	}
-
-	err = godotenv.Write(envs, rawPath)
-	if err != nil {
-		if bkFile != "" {
-			// try to restore renamed file
-			_ = fs.Rename(bkFile, filename)
-		}
-		return err
-	}
-	if bkFile != "" {
-		_ = fs.Remove(bkFile)
-	}
-	return nil
 }

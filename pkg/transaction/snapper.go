@@ -220,8 +220,6 @@ func (sn snapperT) Commit(trans *Transaction) (err error) {
 		return err
 	}
 
-	// TODO bootloader installation/upgrade could be handled here: efivars, shim image install, esp partition sync
-
 	// We are ignoring these errors as the default snapshot is already changed
 	// so rebooting is expected to succeed to the new system already
 	iErr := sn.snap.Cleanup(sn.rootDir, sn.maxSnapshots)

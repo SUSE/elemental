@@ -30,6 +30,8 @@ type InstallFlags struct {
 	ConfigScript         string
 	Overlay              string
 	CreateBootEntry      bool
+	Bootloader           string
+	KernelCmdline        string
 }
 
 var InstallArgs InstallFlags
@@ -72,6 +74,19 @@ func NewInstallCommand(appName string, action func(*cli.Context) error) *cli.Com
 				Name:        "create-boot-entry",
 				Usage:       "Create EFI boot entry",
 				Destination: &InstallArgs.CreateBootEntry,
+			},
+			&cli.StringFlag{
+				Name:        "bootloader",
+				Aliases:     []string{"b"},
+				Value:       "grub",
+				Usage:       "Bundled bootloader to install to ESP",
+				Destination: &InstallArgs.Bootloader,
+			},
+			&cli.StringFlag{
+				Name:        "cmdline",
+				Value:       "",
+				Usage:       "Kernel cmdline for installed system",
+				Destination: &InstallArgs.KernelCmdline,
 			},
 		},
 	}

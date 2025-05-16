@@ -465,4 +465,76 @@ var _ = Describe("FS", Label("fs"), func() {
 			Expect(len(f)).Should(Equal(0))
 		})
 	})
+	Describe("FindKernel", func() {
+		var rootDir, kernel, oldKernel string
+		BeforeEach(func() {
+			rootDir = "/test"
+			Expect(vfs.MkdirAll(tfs, rootDir, vfs.DirPerm)).To(Succeed())
+
+			// Files to find
+			kernel = "/usr/lib/modules/6.14.4-1-default/vmlinuz"
+			oldKernel = "/usr/lib/modules/5.18.4-1-default/vmlinuz"
+
+			Expect(vfs.MkdirAll(tfs, filepath.Join(rootDir, filepath.Dir(kernel)), vfs.DirPerm)).To(Succeed())
+			Expect(tfs.WriteFile(filepath.Join(rootDir, kernel), []byte("vmlinuz-6.14.4-1-default"), vfs.FilePerm)).To(Succeed())
+
+			Expect(vfs.MkdirAll(tfs, filepath.Join(rootDir, filepath.Dir(oldKernel)), vfs.DirPerm)).To(Succeed())
+			Expect(tfs.WriteFile(filepath.Join(rootDir, oldKernel), []byte("vmlinuz-5.18.4-1-default"), vfs.FilePerm)).To(Succeed())
+		})
+		It("finds newest matching kernel", func() {
+			k, kver, err := vfs.FindKernel(tfs, rootDir)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(k).To(Equal(filepath.Join(rootDir, kernel)))
+			Expect(kver).To(Equal("6.14.4-1-default"))
+		})
+		It("Returns error if there is no match", func() {
+			_, _, err := vfs.FindKernel(tfs, "/no-kernel-here")
+			Expect(err).To(HaveOccurred())
+		})
+	})
+	Describe("WriteEnvFile", func() {
+		BeforeEach(func() {
+			Expect(vfs.MkdirAll(tfs, "/test", vfs.DirPerm)).To(Succeed())
+		})
+		It("writes a new file with the specified vars", func() {
+			vars := map[string]string{
+				"FOO": "BAR",
+				"BAZ": "123",
+			}
+			err := vfs.WriteEnvFile(tfs, vars, "/test/vars.env")
+			Expect(err).ToNot(HaveOccurred())
+
+			bytes, err := tfs.ReadFile("/test/vars.env")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(string(bytes)).To(Equal("BAZ=123\nFOO=\"BAR\"\n"))
+		})
+		It("returns error writing to dir that does not exist", func() {
+			vars := map[string]string{
+				"FOO": "BAR",
+				"BAZ": "123",
+			}
+			err := vfs.WriteEnvFile(tfs, vars, "/test/some/dir/vars.env")
+			Expect(err).To(HaveOccurred())
+		})
+	})
+	Describe("LoadEnvFile", func() {
+		BeforeEach(func() {
+			Expect(vfs.MkdirAll(tfs, "/test", vfs.DirPerm)).To(Succeed())
+		})
+		It("loads env vars from a file", func() {
+			data := "FOO=\"BAR\"\nBAZ=\"123\""
+			err := tfs.WriteFile("/test/load_vars.env", []byte(data), vfs.FilePerm)
+			Expect(err).ToNot(HaveOccurred())
+
+			vars, err := vfs.LoadEnvFile(tfs, "/test/load_vars.env")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(len(vars)).To(Equal(2))
+			Expect(vars["FOO"]).To(Equal("BAR"))
+			Expect(vars["BAZ"]).To(Equal("123"))
+		})
+		It("returns error for non-existent file", func() {
+			_, err := vfs.LoadEnvFile(tfs, "/test/not-here.404")
+			Expect(err).To(HaveOccurred())
+		})
+	})
 })

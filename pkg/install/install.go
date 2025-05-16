@@ -23,6 +23,7 @@ import (
 
 	"github.com/suse/elemental/v3/pkg/block"
 	"github.com/suse/elemental/v3/pkg/block/lsblk"
+	"github.com/suse/elemental/v3/pkg/bootloader"
 	"github.com/suse/elemental/v3/pkg/btrfs"
 	"github.com/suse/elemental/v3/pkg/chroot"
 	"github.com/suse/elemental/v3/pkg/cleanstack"
@@ -45,6 +46,7 @@ type Installer struct {
 	s   *sys.System
 	t   transaction.Interface
 	bm  *firmware.EfiBootManager
+	b   bootloader.Bootloader
 }
 
 func WithTransaction(t transaction.Interface) Option {
@@ -59,6 +61,12 @@ func WithBootManager(bm *firmware.EfiBootManager) Option {
 	}
 }
 
+func WithBootloader(b bootloader.Bootloader) Option {
+	return func(i *Installer) {
+		i.b = b
+	}
+}
+
 func New(ctx context.Context, s *sys.System, opts ...Option) *Installer {
 	installer := &Installer{
 		s:   s,
@@ -69,6 +77,9 @@ func New(ctx context.Context, s *sys.System, opts ...Option) *Installer {
 	}
 	if installer.t == nil {
 		installer.t = transaction.NewSnapperTransaction(ctx, s)
+	}
+	if installer.b == nil {
+		installer.b = bootloader.NewNone(s)
 	}
 	return installer
 }
@@ -130,6 +141,12 @@ func (i Installer) Install(d *deployment.Deployment) (err error) {
 			i.s.Logger().Error("installation failed, configuration hook error")
 			return err
 		}
+	}
+
+	err = i.b.Install(trans.Path, d)
+	if err != nil {
+		i.s.Logger().Error("installation failed, could not install bootloader: %s", err.Error())
+		return err
 	}
 
 	err = i.t.Commit(trans)
