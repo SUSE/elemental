@@ -1,11 +1,9 @@
 ARG GO_VERSION=1.24
 
-FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine AS builder
+FROM --platform=$BUILDPLATFORM registry.opensuse.org/opensuse/bci/golang:${GO_VERSION} AS builder
 
 ARG TARGETOS 
 ARG TARGETARCH
-
-RUN apk add --no-cache make git
 
 WORKDIR /work
 
