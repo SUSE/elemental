@@ -17,20 +17,19 @@ limitations under the License.
 
 package transaction
 
-import "github.com/suse/elemental/v3/pkg/deployment"
-
-const FstabFile = "/etc/fstab"
+import (
+	"github.com/suse/elemental/v3/pkg/deployment"
+)
 
 type transactionState int
 
+const FstabFile = "/etc/fstab"
+
 const (
 	started transactionState = iota + 1
-	updated
 	committed
 	failed
 )
-
-type UpdateHook func() error
 
 type Merge struct {
 	Old      string // old unmodified tree
@@ -42,13 +41,20 @@ type Transaction struct {
 	ID     int
 	Path   string
 	Merges map[string]*Merge
+
 	status transactionState
 }
 
 type Interface interface {
-	Init(deployment.Deployment) error
+	Init(deployment.Deployment) (UpgradeHelper, error)
 	Start() (*Transaction, error)
-	Update(*Transaction, *deployment.ImageSource, UpdateHook) error
 	Commit(*Transaction) error
 	Rollback(*Transaction, error) error
+}
+
+type UpgradeHelper interface {
+	SyncImageContent(*deployment.ImageSource, *Transaction, bool) error
+	Merge(*Transaction) error
+	UpdateFstab(*Transaction) error
+	Lock(*Transaction) error
 }

@@ -20,6 +20,7 @@ package upgrade_test
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -59,10 +60,12 @@ var _ = Describe("Upgrade", Label("upgrade"), func() {
 		runner = sysmock.NewRunner()
 		mounter = sysmock.NewMounter()
 		fs, cleanup, err = sysmock.TestFS(map[string]any{
-			"/dev/pts/empty":       []byte{},
-			"/proc/empty":          []byte{},
-			"/sys/empty":           []byte{},
-			"/snapshot/path/empty": []byte{},
+			"/dev/pts/empty":         []byte{},
+			"/proc/empty":            []byte{},
+			"/sys/empty":             []byte{},
+			"/snapshot/path/empty":   []byte{},
+			"/opt/overlaytree/empty": []byte{},
+			"/opt/config.sh":         []byte{},
 		})
 		Expect(err).ToNot(HaveOccurred())
 		s, err = sys.NewSystem(
@@ -74,6 +77,8 @@ var _ = Describe("Upgrade", Label("upgrade"), func() {
 
 		d = deployment.DefaultDeployment()
 		d.SourceOS = deployment.NewDirSrc("/some/dir")
+		d.OverlayTree = deployment.NewDirSrc("/opt/overlaytree")
+		d.CfgScript = "/opt/config.sh"
 		Expect(d.Sanitize(s)).To(Succeed())
 		u = upgrade.New(context.Background(), s, upgrade.WithTransaction(t))
 
@@ -87,9 +92,13 @@ var _ = Describe("Upgrade", Label("upgrade"), func() {
 	AfterEach(func() {
 		cleanup()
 	})
-	It("upgrades the given deployment", func() {
+	It("upgrades to the given deployment", func() {
 		Expect(u.Upgrade(d)).To(Succeed())
 		Expect(d.SourceOS.GetDigest()).To(Equal("imagedigest"))
+		Expect(runner.MatchMilestones([][]string{
+			{"rsync"},
+			{"/etc/elemental/config.sh"},
+		}))
 	})
 	It("fails on transaction initalization", func() {
 		t.InitErr = fmt.Errorf("init failed")
@@ -105,19 +114,55 @@ var _ = Describe("Upgrade", Label("upgrade"), func() {
 		Expect(err.Error()).To(ContainSubstring("start failed"))
 		Expect(t.RollbackCalled()).To(BeFalse())
 	})
-	It("fails on transaction update", func() {
-		t.UpdateErr = fmt.Errorf("update failed")
+	It("fails on image sync", func() {
+		t.UpgradeHelper.SyncError = fmt.Errorf("failed sync")
 		err := u.Upgrade(d)
 		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("update failed"))
-		Expect(t.RollbackCalled()).To(BeTrue())
+		Expect(err.Error()).To(ContainSubstring("failed sync"))
 	})
-	It("fails on transaction hook", func() {
-		syscall.ErrorOnChroot = true
+	It("fails on image merge", func() {
+		t.UpgradeHelper.MergeError = fmt.Errorf("failed merge")
 		err := u.Upgrade(d)
 		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("chroot error"))
-		Expect(t.RollbackCalled()).To(BeTrue())
+		Expect(err.Error()).To(ContainSubstring("failed merge"))
+	})
+	It("fails on fstab update", func() {
+		t.UpgradeHelper.FstabError = fmt.Errorf("failed fstab update")
+		err := u.Upgrade(d)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("failed fstab update"))
+	})
+	It("fails on locking snapshot", func() {
+		t.UpgradeHelper.LockError = fmt.Errorf("failed lock")
+		err := u.Upgrade(d)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("failed lock"))
+	})
+	It("fails on unpacking overlay", func() {
+		runner.SideEffect = func(cmd string, args ...string) ([]byte, error) {
+			if cmd == "rsync" {
+				for _, arg := range args {
+					if strings.Contains(arg, "/opt/overlaytree/") {
+						return []byte{}, fmt.Errorf("failed to sync overlaytree")
+					}
+				}
+			}
+			return []byte{}, nil
+		}
+		err := u.Upgrade(d)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("failed to sync overlaytree"))
+	})
+	It("fails on config script execution", func() {
+		runner.SideEffect = func(cmd string, args ...string) ([]byte, error) {
+			if cmd == "/etc/elemental/config.sh" {
+				return []byte{}, fmt.Errorf("failed to running config script")
+			}
+			return []byte{}, nil
+		}
+		err := u.Upgrade(d)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("failed to running config script"))
 	})
 	It("fails on transaction commit", func() {
 		t.CommitErr = fmt.Errorf("commit failed")

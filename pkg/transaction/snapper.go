@@ -27,15 +27,11 @@ import (
 	"github.com/suse/elemental/v3/pkg/block"
 	"github.com/suse/elemental/v3/pkg/block/lsblk"
 	"github.com/suse/elemental/v3/pkg/btrfs"
-	"github.com/suse/elemental/v3/pkg/chroot"
 	"github.com/suse/elemental/v3/pkg/cleanstack"
 	"github.com/suse/elemental/v3/pkg/deployment"
-	"github.com/suse/elemental/v3/pkg/fstab"
-	"github.com/suse/elemental/v3/pkg/rsync"
 	"github.com/suse/elemental/v3/pkg/snapper"
 	"github.com/suse/elemental/v3/pkg/sys"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
-	"github.com/suse/elemental/v3/pkg/unpack"
 )
 
 const (
@@ -44,32 +40,51 @@ const (
 	maxSnapshots     = 8
 )
 
-type snapperT struct {
+type snapperContext struct {
 	ctx          context.Context
 	s            *sys.System
+	partitions   deployment.Partitions
+	cleanStack   *cleanstack.CleanStack
 	snap         *snapper.Snapper
+	maxSnapshots int
+}
+
+// checkCancelled just checks if the current context is cancelled or not. Returns the context error if cancelled.
+func (sc snapperContext) checkCancelled(err error) error {
+	if err != nil {
+		return err
+	}
+	select {
+	case <-sc.ctx.Done():
+		return sc.ctx.Err()
+	default:
+		return nil
+	}
+}
+
+type snapperT struct {
+	snapperContext
 	defaultID    int
 	activeID     int
 	rootDir      string
-	partitions   deployment.Partitions
-	fullSync     bool
-	cleanStack   *cleanstack.CleanStack
-	maxSnapshots int
 	hwPartitions block.PartitionList
 }
 
 func NewSnapperTransaction(ctx context.Context, s *sys.System) Interface {
-	return &snapperT{
+	sc := snapperContext{
 		ctx:          ctx,
 		s:            s,
 		cleanStack:   cleanstack.NewCleanStack(),
 		snap:         snapper.New(s),
 		maxSnapshots: maxSnapshots,
 	}
+	return &snapperT{
+		snapperContext: sc,
+	}
 }
 
 // Init checks initial snapshotter configuration and sets it if needed
-func (sn *snapperT) Init(d deployment.Deployment) (err error) {
+func (sn *snapperT) Init(d deployment.Deployment) (uh UpgradeHelper, err error) {
 	defer func() { err = sn.checkCancelled(err) }()
 
 	for _, disk := range d.Disks {
@@ -77,12 +92,15 @@ func (sn *snapperT) Init(d deployment.Deployment) (err error) {
 	}
 
 	if ok, err := sn.isInitiated(d); ok {
-		return nil
+		return sn.snapperContext, nil
 	} else if err != nil {
-		return fmt.Errorf("failed to determine snapshots state: %w", err)
+		return nil, fmt.Errorf("failed to determine snapshots state: %w", err)
 	}
-	sn.fullSync = true
-	return sn.snap.InitSnapperRootVolumes(sn.rootDir)
+	err = sn.snap.InitSnapperRootVolumes(sn.rootDir)
+	if err != nil {
+		return nil, err
+	}
+	return sn.snapperContext, nil
 }
 
 // Start starts a transaction for this snapper instance and returns the work in progress transaction object.
@@ -113,96 +131,12 @@ func (sn snapperT) Start() (trans *Transaction, err error) {
 	return trans, nil
 }
 
-// Update modifies the current snapshot with the contents of the given image source. This method
-// configures snapper, runs the 3 way merge logic, updates fstab and sets the snapshot as read-only.
-// The given hook is executed before setting the snapshot as read-only, hence this is the only
-// chance to apply changes to the snapshot which are not included as part of the image.
-func (sn snapperT) Update(trans *Transaction, imgSrc *deployment.ImageSource, hook UpdateHook) (err error) {
-	defer func() { err = sn.checkCancelled(err) }()
-
-	if trans.status != started {
-		return fmt.Errorf("given transaction '%d' not in progress", trans.ID)
-	}
-
-	sn.s.Logger().Info("Dump image source to new snapshot")
-	err = sn.syncImageContent(imgSrc, trans.Path)
-	if err != nil {
-		sn.s.Logger().Error("failed dumping source to snapshot")
-		return sn.Rollback(trans, err)
-	}
-
-	sn.s.Logger().Info("Configure snapper")
-	err = sn.configureSnapper(trans)
-	if err != nil {
-		sn.s.Logger().Error("failed configuring snapper")
-		return sn.Rollback(trans, err)
-	}
-
-	sn.s.Logger().Info("Starting 3 way merge of snapshotted rw volumes")
-	err = sn.merge(trans)
-	if err != nil {
-		sn.s.Logger().Error("failed merging content of snapshotted rw volumes")
-		return err
-	}
-
-	sn.s.Logger().Info("Update fstab")
-	if ok, _ := vfs.Exists(sn.s.FS(), filepath.Join(trans.Path, fstab.File)); ok {
-		err = sn.updateFstab(trans)
-		if err != nil {
-			sn.s.Logger().Error("failed updating fstab file")
-			return err
-		}
-	} else {
-		err = sn.createFstab(trans)
-		if err != nil {
-			sn.s.Logger().Error("failed creatingpdating fstab file")
-			return err
-		}
-	}
-
-	if hook != nil {
-		sn.s.Logger().Info("Running transaction update hook")
-		err = hook()
-		if err != nil {
-			sn.s.Logger().Error("failed running transaction hook")
-			return err
-		}
-	}
-
-	sn.s.Logger().Info("Setting new snapshot as read-only")
-	err = sn.snap.SetPermissions(trans.Path, trans.ID, false)
-	if err != nil {
-		sn.s.Logger().Error("failed setting new snapshot as RO")
-		return err
-	}
-	trans.status = updated
-
-	return nil
-}
-
-// merge runs a 3 way merge for snapshotted RW volumes
-// Current implemementation is dumb, there is no check on potential conflicts
-func (sn snapperT) merge(trans *Transaction) (err error) {
-	for _, rwVol := range sn.partitions.GetSnapshottedVolumes() {
-		m := trans.Merges[rwVol.Path]
-		if m == nil {
-			continue
-		}
-		r := rsync.NewRsync(sn.s, rsync.WithContext(sn.ctx))
-		err = r.SyncData(m.Modified, m.New, snapper.SnapshotsPath)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 // Commit closes the current transaction (fstab update, SELinux relabel, set snapshot as RO, ...)
 func (sn snapperT) Commit(trans *Transaction) (err error) {
 	defer func() { err = sn.checkCancelled(err) }()
 
-	if trans.status != updated {
-		return fmt.Errorf("given transaction '%d' is not updated", trans.ID)
+	if trans.status != started {
+		return fmt.Errorf("given transaction '%d' is not started", trans.ID)
 	}
 	sn.s.Logger().Info("Committing transaction")
 
@@ -307,88 +241,6 @@ func (sn *snapperT) probe(d deployment.Deployment) (err error) {
 	}
 
 	return nil
-}
-
-// configureSnapper sets the snapper configuration for root and any snapshotted
-// volume.
-func (sn snapperT) configureSnapper(trans *Transaction) error {
-	err := sn.snap.ConfigureRoot(trans.Path, sn.maxSnapshots)
-	if err != nil {
-		sn.s.Logger().Error("failed setting root configuration for snapper")
-		return err
-	}
-	src := filepath.Join(sn.rootDir, snapper.SnapshotsPath)
-	target := filepath.Join(trans.Path, snapper.SnapshotsPath)
-	err = vfs.MkdirAll(sn.s.FS(), target, vfs.DirPerm)
-	if err != nil {
-		sn.s.Logger().Error("failed creating snapshots folder into the new root")
-		return err
-	}
-	err = sn.s.Mounter().Mount(src, target, "", []string{"bind"})
-	if err != nil {
-		sn.s.Logger().Error("failed bind mounting snapshots volume to the new root")
-		return err
-	}
-	sn.cleanStack.Push(func() error { return sn.s.Mounter().Unmount(target) })
-	err = sn.configureRWVolumes(trans)
-	if err != nil {
-		sn.s.Logger().Error("failed setting snapshotted subvolumes for snapper")
-		return err
-	}
-	return nil
-}
-
-// syncImageContent unpacks the given image source to the given destination
-func (sn snapperT) syncImageContent(imgSrc *deployment.ImageSource, destPath string) error {
-	sn.s.Logger().Info("Unpacking image source: %s", imgSrc.String())
-	unpacker, err := unpack.NewUnpacker(sn.s, imgSrc)
-	if err != nil {
-		sn.s.Logger().Error("failed initatin image unpacker")
-		return err
-	}
-	digest, err := unpacker.SynchedUnpack(sn.ctx, destPath, sn.syncSnapshotExcludes(), sn.syncSnapshotDeleteExcludes())
-	if err != nil {
-		sn.s.Logger().Error("failed unpacking image to '%s'", destPath)
-		return err
-	}
-	imgSrc.SetDigest(digest)
-
-	return nil
-}
-
-// syncSnapshotExcludes sets the excluded directories for the image source sync.
-// non snapshotted rw volumes are excluded on upgrades, but included for the very first
-// snapshots at installation time.
-func (sn snapperT) syncSnapshotExcludes() []string {
-	excludes := []string{filepath.Join("/", snapper.SnapshotsPath)}
-	for _, part := range sn.partitions {
-		if !sn.fullSync && part.Role != deployment.System && part.MountPoint != "" {
-			excludes = append(excludes, part.MountPoint)
-		}
-		for _, rwVol := range part.RWVolumes {
-			if rwVol.Snapshotted {
-				excludes = append(excludes, filepath.Join(rwVol.Path, snapper.SnapshotsPath))
-			} else if !sn.fullSync {
-				excludes = append(excludes, rwVol.Path)
-			}
-		}
-	}
-	return excludes
-}
-
-// syncSnapshotDeleteExcludes sets the protected paths at sync destination. RW volume
-// paths can't be deleted as part of sync, as they are likely to be mountpoints.
-func (sn snapperT) syncSnapshotDeleteExcludes() []string {
-	excludes := []string{filepath.Join("/", snapper.SnapshotsPath)}
-	for _, part := range sn.partitions {
-		if part.Role != deployment.System && part.MountPoint != "" {
-			excludes = append(excludes, part.MountPoint)
-		}
-		for _, rwVol := range part.RWVolumes {
-			excludes = append(excludes, rwVol.Path)
-		}
-	}
-	return excludes
 }
 
 // mountPartition mounts the given partition to the given mount point. In addition it also
@@ -613,125 +465,4 @@ func (sn snapperT) createNewSnapshot(baseID int) (*Transaction, error) {
 		Merges: map[string]*Merge{},
 		status: started,
 	}, nil
-}
-
-// configureRWVolumes sets the configuration for the nested snapshotted paths
-func (sn snapperT) configureRWVolumes(trans *Transaction) error {
-	callback := func() error {
-		for _, rwVol := range sn.partitions.GetSnapshottedVolumes() {
-			err := sn.snap.CreateConfig("/", rwVol.Path)
-			if err != nil {
-				return err
-			}
-			_, err = sn.snap.CreateSnapshot(
-				"/", snapper.ConfigName(rwVol.Path), 0, false,
-				fmt.Sprintf("stock %s contents", rwVol.Path),
-				map[string]string{"stock": "true"},
-			)
-			if err != nil {
-				return err
-			}
-			if _, ok := trans.Merges[rwVol.Path]; ok {
-				trans.Merges[rwVol.Path].New = filepath.Join(
-					trans.Path, rwVol.Path,
-				)
-			}
-		}
-		return nil
-	}
-	return chroot.ChrootedCallback(sn.s, trans.Path, nil, callback, chroot.WithoutDefaultBinds())
-}
-
-// checkCancelled just checks if the current context is cancelled or not. Returns the context error if cancelled.
-func (sn snapperT) checkCancelled(err error) error {
-	if err != nil {
-		return err
-	}
-	select {
-	case <-sn.ctx.Done():
-		return sn.ctx.Err()
-	default:
-		return nil
-	}
-}
-
-// updateFstab updates the fstab file with the given transaction data
-func (sn snapperT) updateFstab(trans *Transaction) error {
-	var oldLines, newLines []fstab.Line
-	for _, part := range sn.partitions {
-		for _, rwVol := range part.RWVolumes {
-			if !rwVol.Snapshotted {
-				continue
-			}
-			subVol := filepath.Join(btrfs.TopSubVol, fmt.Sprintf(snapshotPathTmpl, trans.ID), rwVol.Path)
-			opts := rwVol.MountOpts
-			oldLines = append(oldLines, fstab.Line{MountPoint: rwVol.Path})
-			newLines = append(newLines, fstab.Line{
-				Device:     fmt.Sprintf("UUID=%s", part.UUID),
-				MountPoint: rwVol.Path,
-				Options:    append(opts, fmt.Sprintf("subvol=%s", subVol)),
-				FileSystem: part.FileSystem.String(),
-			})
-		}
-	}
-	fstabFile := filepath.Join(trans.Path, fstab.File)
-	return fstab.UpdateFstab(sn.s, fstabFile, oldLines, newLines)
-}
-
-// createFstab creates the fstab file with the given transaction data
-func (sn snapperT) createFstab(trans *Transaction) (err error) {
-	var fstabLines []fstab.Line
-	for _, part := range sn.partitions {
-		if part.MountPoint != "" {
-			var line fstab.Line
-
-			opts := part.MountOpts
-			if part.Role == deployment.System {
-				opts = append([]string{"ro"}, opts...)
-				line.FsckOrder = 1
-			} else {
-				line.FsckOrder = 2
-			}
-			if len(opts) == 0 {
-				opts = []string{"defaults"}
-			}
-			line.Device = fmt.Sprintf("UUID=%s", part.UUID)
-			line.MountPoint = part.MountPoint
-			line.Options = opts
-			line.FileSystem = part.FileSystem.String()
-			fstabLines = append(fstabLines, line)
-		}
-		for _, rwVol := range part.RWVolumes {
-			var subVol string
-			var line fstab.Line
-
-			if rwVol.Snapshotted {
-				subVol = filepath.Join(btrfs.TopSubVol, fmt.Sprintf(snapshotPathTmpl, trans.ID), rwVol.Path)
-			} else {
-				subVol = filepath.Join(btrfs.TopSubVol, rwVol.Path)
-			}
-			opts := rwVol.MountOpts
-			opts = append(opts, fmt.Sprintf("subvol=%s", subVol))
-			line.Device = fmt.Sprintf("UUID=%s", part.UUID)
-			line.MountPoint = rwVol.Path
-			line.Options = opts
-			line.FileSystem = part.FileSystem.String()
-			fstabLines = append(fstabLines, line)
-		}
-		if part.Role == deployment.System {
-			var line fstab.Line
-			subVol := filepath.Join(btrfs.TopSubVol, snapper.SnapshotsPath)
-			line.Device = fmt.Sprintf("UUID=%s", part.UUID)
-			line.MountPoint = filepath.Join("/", snapper.SnapshotsPath)
-			line.Options = []string{fmt.Sprintf("subvol=%s", subVol)}
-			line.FileSystem = part.FileSystem.String()
-			fstabLines = append(fstabLines, line)
-		}
-	}
-	err = fstab.WriteFstab(sn.s, filepath.Join(trans.Path, fstab.File), fstabLines)
-	if err != nil {
-		sn.s.Logger().Error("failed writing fstab file")
-		return err
-	}
-	return nil
 }

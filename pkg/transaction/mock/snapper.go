@@ -18,8 +18,6 @@ limitations under the License.
 package mock
 
 import (
-	"errors"
-
 	"github.com/suse/elemental/v3/pkg/deployment"
 	"github.com/suse/elemental/v3/pkg/transaction"
 )
@@ -27,43 +25,60 @@ import (
 type Transactioner struct {
 	InitErr        error
 	StartErr       error
-	UpdateErr      error
 	CommitErr      error
 	Trans          *transaction.Transaction
+	UpgradeHelper  UpgradeHelper
 	SrcDigest      string
 	rollbackCalled bool
+}
+
+type UpgradeHelper struct {
+	SyncError  error
+	MergeError error
+	FstabError error
+	LockError  error
+	srcDigest  string
+}
+
+func (u UpgradeHelper) SyncImageContent(imgSrc *deployment.ImageSource, _ *transaction.Transaction, _ bool) error {
+	imgSrc.SetDigest(u.srcDigest)
+	return u.SyncError
+}
+
+func (u UpgradeHelper) Merge(_ *transaction.Transaction) error {
+	return u.MergeError
+}
+
+func (u UpgradeHelper) UpdateFstab(_ *transaction.Transaction) error {
+	return u.FstabError
+}
+
+func (u UpgradeHelper) Lock(_ *transaction.Transaction) error {
+	return u.LockError
 }
 
 func NewTransaction() transaction.Interface {
 	return &Transactioner{}
 }
 
-func (m Transactioner) Init(_ deployment.Deployment) error {
-	return m.InitErr
+func (t Transactioner) Init(_ deployment.Deployment) (transaction.UpgradeHelper, error) {
+	t.UpgradeHelper.srcDigest = t.SrcDigest
+	return t.UpgradeHelper, t.InitErr
 }
 
-func (m Transactioner) Start() (*transaction.Transaction, error) {
-	return m.Trans, m.StartErr
+func (t Transactioner) Start() (*transaction.Transaction, error) {
+	return t.Trans, t.StartErr
 }
 
-func (m Transactioner) Update(_ *transaction.Transaction, imgsrc *deployment.ImageSource, hook transaction.UpdateHook) error {
-	err := m.UpdateErr
-	imgsrc.SetDigest(m.SrcDigest)
-	if hook != nil {
-		err = errors.Join(err, hook())
-	}
+func (t Transactioner) Commit(_ *transaction.Transaction) error {
+	return t.CommitErr
+}
+
+func (t *Transactioner) Rollback(_ *transaction.Transaction, err error) error {
+	t.rollbackCalled = true
 	return err
 }
 
-func (m Transactioner) Commit(_ *transaction.Transaction) error {
-	return m.CommitErr
-}
-
-func (m *Transactioner) Rollback(_ *transaction.Transaction, err error) error {
-	m.rollbackCalled = true
-	return err
-}
-
-func (m Transactioner) RollbackCalled() bool {
-	return m.rollbackCalled
+func (t Transactioner) RollbackCalled() bool {
+	return t.rollbackCalled
 }

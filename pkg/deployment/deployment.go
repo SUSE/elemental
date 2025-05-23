@@ -217,8 +217,19 @@ type Deployment struct {
 	// Consider adding a systemd-sysext list here
 	// All of them would extracted in the RO context, so only
 	// additions to the RWVolumes would succeed.
-	OverlayTree *ImageSource `json:"overlayTree"`
-	CfgScript   string       `json:"configScript"`
+	OverlayTree *ImageSource `json:"overlayTree,omitempty"`
+	CfgScript   string       `json:"configScript,omitempty"`
+}
+
+// MarshalJSON on deploy omits the overlay tree and the configuration script
+// as these are install|ugrade time information which is no longer guaranteed
+// to be (re)aplicable on a deployed system as those are not kept aside.
+func (d Deployment) MarshalJSON() ([]byte, error) {
+	type deployAlias Deployment
+	deploy := deployAlias(d)
+	deploy.CfgScript = ""
+	deploy.OverlayTree = nil
+	return json.Marshal(deploy)
 }
 
 // GetSnapshottedVolumes returns a list of snapshotted rw volumes defined in the

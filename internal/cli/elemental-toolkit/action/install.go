@@ -32,6 +32,7 @@ import (
 	"github.com/suse/elemental/v3/pkg/install"
 	"github.com/suse/elemental/v3/pkg/sys"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
+	"github.com/suse/elemental/v3/pkg/upgrade"
 )
 
 func Install(ctx *cli.Context) error { //nolint:dupl
@@ -61,14 +62,9 @@ func Install(ctx *cli.Context) error { //nolint:dupl
 	}()
 
 	manager := firmware.NewEfiBootManager(s)
+	upgrader := upgrade.New(ctxCancel, s, upgrade.WithBootManager(manager))
+	installer := install.New(ctxCancel, s, install.WithUpgrader(upgrader))
 
-	boot, err := bootloader.New(d.BootConfig.Bootloader, s)
-	if err != nil {
-		s.Logger().Error("Failed to parse boot config: %s", err.Error())
-		return err
-	}
-
-	installer := install.New(ctxCancel, s, install.WithBootloader(boot), install.WithBootManager(manager))
 	err = installer.Install(d)
 	if err != nil {
 		s.Logger().Error("installation failed: %v", err)
