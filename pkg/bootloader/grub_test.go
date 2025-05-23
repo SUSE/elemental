@@ -79,7 +79,7 @@ var _ = Describe("Grub tests", Label("bootloader", "grub"), func() {
 
 		esp := &deployment.Partition{
 			Role:       deployment.EFI,
-			MountPoint: "/boot/efi",
+			MountPoint: "/boot",
 		}
 
 		sysPart := &deployment.Partition{
@@ -139,17 +139,17 @@ var _ = Describe("Grub tests", Label("bootloader", "grub"), func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		// Shim, MokManager and grub.efi should exist.
-		Expect(vfs.Exists(tfs, "/target/dir/boot/efi/EFI/ELEMENTAL/bootx64.efi")).To(BeTrue())
-		Expect(vfs.Exists(tfs, "/target/dir/boot/efi/EFI/ELEMENTAL/MokManager.efi")).To(BeTrue())
-		Expect(vfs.Exists(tfs, "/target/dir/boot/efi/EFI/ELEMENTAL/grub.efi")).To(BeTrue())
+		Expect(vfs.Exists(tfs, "/target/dir/boot/EFI/ELEMENTAL/bootx64.efi")).To(BeTrue())
+		Expect(vfs.Exists(tfs, "/target/dir/boot/EFI/ELEMENTAL/MokManager.efi")).To(BeTrue())
+		Expect(vfs.Exists(tfs, "/target/dir/boot/EFI/ELEMENTAL/grub.efi")).To(BeTrue())
 
 		// Kernel and initrd exist
-		Expect(vfs.Exists(tfs, "/target/dir/boot/efi/opensuse-tumbleweed/6.14.4-1-default/vmlinuz")).To(BeTrue())
-		Expect(vfs.Exists(tfs, "/target/dir/boot/efi/opensuse-tumbleweed/6.14.4-1-default/initrd")).To(BeTrue())
+		Expect(vfs.Exists(tfs, "/target/dir/boot/opensuse-tumbleweed/6.14.4-1-default/vmlinuz")).To(BeTrue())
+		Expect(vfs.Exists(tfs, "/target/dir/boot/opensuse-tumbleweed/6.14.4-1-default/initrd")).To(BeTrue())
 
 		// Grub env and loader entries files exist
-		Expect(vfs.Exists(tfs, "/target/dir/boot/efi/grubenv")).To(BeTrue())
-		Expect(vfs.Exists(tfs, "/target/dir/boot/efi/loader/entries/active")).To(BeTrue())
+		Expect(vfs.Exists(tfs, "/target/dir/boot/grubenv")).To(BeTrue())
+		Expect(vfs.Exists(tfs, "/target/dir/boot/loader/entries/active")).To(BeTrue())
 	})
 	It("Fails with an error if initrd is not found", func() {
 		// Remove initrd

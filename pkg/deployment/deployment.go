@@ -35,7 +35,7 @@ type MiB uint
 
 const (
 	EfiLabel     = "EFI"
-	EfiMnt       = "/boot/efi"
+	EfiMnt       = "/boot"
 	EfiSize  MiB = 1024
 
 	RecoveryLabel = "RECOVERY"

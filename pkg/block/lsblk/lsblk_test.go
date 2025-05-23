@@ -39,7 +39,7 @@ const fullLsblkTmpl = `{
          "size": 272629760,
          "fstype": "vfat",
          "mountpoints": [
-             "/boot/efi"
+             "/boot"
          ],
          "path": "/dev/sda1",
          "pkname": "/dev/sda",

@@ -25,6 +25,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
 	"github.com/suse/elemental/v3/pkg/deployment"
 	"github.com/suse/elemental/v3/pkg/install"
 	"github.com/suse/elemental/v3/pkg/log"
@@ -64,7 +65,7 @@ const lsblkJson = `{
 		  "size": 272629760,
 		  "fstype": "vfat",
 		  "mountpoints": [
-			  "/boot/efi"
+			  "/boot"
 		  ],
 		  "path": "/dev/device1",
 		  "pkname": "/dev/device",
