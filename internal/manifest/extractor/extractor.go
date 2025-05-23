@@ -20,12 +20,11 @@ package extractor
 import (
 	"context"
 	"fmt"
-	"io"
-	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/suse/elemental/v3/pkg/sys"
+	"github.com/suse/elemental/v3/pkg/sys/vfs"
 	"github.com/suse/elemental/v3/pkg/unpack"
 )
 
@@ -54,7 +53,7 @@ type OCIReleaseManifestExtractor struct {
 	// are supported.
 	//
 	// Defaults to '/release_manifest*.yaml' and '/etc/release-manifest/release_manifest*.yaml'.
-	searchPath []string
+	searchPaths []string
 	// Location where all extracted release manifests will be stored.
 	// Each manifest will be stored in a separate directory within
 	// this root store path.
@@ -62,6 +61,7 @@ type OCIReleaseManifestExtractor struct {
 	// Defaults to the OS temporary directory.
 	store    string
 	unpacker OCIUnpacker
+	fs       vfs.FS
 	ctx      context.Context
 }
 
@@ -81,7 +81,13 @@ func WithStore(store string) Opts {
 
 func WithSearchPaths(globs []string) Opts {
 	return func(r *OCIReleaseManifestExtractor) {
-		r.searchPath = globs
+		r.searchPaths = globs
+	}
+}
+
+func WithFS(fs vfs.FS) Opts {
+	return func(r *OCIReleaseManifestExtractor) {
+		r.fs = fs
 	}
 }
 
@@ -93,20 +99,33 @@ func WithContext(ctx context.Context) Opts {
 
 func New(opts ...Opts) (*OCIReleaseManifestExtractor, error) {
 	extr := &OCIReleaseManifestExtractor{
-		searchPath: []string{
+		searchPaths: []string{
 			globPattern,
 			filepath.Join("etc", "release-manifest", globPattern),
 		},
-		store: filepath.Join(os.TempDir(), "release-manifests"),
-		ctx:   context.Background(),
+		fs:  vfs.New(),
+		ctx: context.Background(),
 	}
 
 	for _, o := range opts {
 		o(extr)
 	}
 
+	if extr.store != "" {
+		if _, err := extr.fs.Stat(extr.store); err != nil {
+			return nil, fmt.Errorf("store path '%s' does not exist in provided filesystem: %w", extr.store, err)
+		}
+	} else {
+		store, err := vfs.TempDir(extr.fs, "", "release-manifests-")
+		if err != nil {
+			return nil, fmt.Errorf("setting up default store directory: %w", err)
+		}
+
+		extr.store = store
+	}
+
 	if extr.unpacker == nil {
-		s, err := sys.NewSystem()
+		s, err := sys.NewSystem(sys.WithFS(extr.fs))
 		if err != nil {
 			return nil, fmt.Errorf("setting up default system: %w", err)
 		}
@@ -124,12 +143,12 @@ func New(opts ...Opts) (*OCIReleaseManifestExtractor, error) {
 // and its path will be returned, or an error if the manifest was not found.
 // The underlying OCI image is not retained.
 func (o *OCIReleaseManifestExtractor) ExtractFrom(uri string) (path string, err error) {
-	unpackDir, err := os.MkdirTemp("", "release-manifest-unpack-")
+	unpackDir, err := vfs.TempDir(o.fs, "", "release-manifest-unpack-")
 	if err != nil {
 		return "", fmt.Errorf("creating oci image unpack directory: %w", err)
 	}
 	defer func() {
-		_ = os.RemoveAll(unpackDir)
+		_ = o.fs.RemoveAll(unpackDir)
 	}()
 
 	digest, err := o.unpacker.Unpack(o.ctx, uri, unpackDir)
@@ -137,7 +156,7 @@ func (o *OCIReleaseManifestExtractor) ExtractFrom(uri string) (path string, err 
 		return "", fmt.Errorf("unpacking oci image: %w", err)
 	}
 
-	manifestInOCI, err := o.locateManifest(unpackDir)
+	manifestInOCI, err := vfs.FindFile(o.fs, unpackDir, o.searchPaths...)
 	if err != nil {
 		return "", fmt.Errorf("locating release manifest at unpacked OCI filesystem: %w", err)
 	}
@@ -147,35 +166,16 @@ func (o *OCIReleaseManifestExtractor) ExtractFrom(uri string) (path string, err 
 		return "", fmt.Errorf("generating manifest store based on digest: %w", err)
 	}
 
-	if err := os.MkdirAll(manifestStorePath, 0700); err != nil {
+	if err := vfs.MkdirAll(o.fs, manifestStorePath, 0700); err != nil {
 		return "", fmt.Errorf("creating manifest store directory '%s': %w", manifestStorePath, err)
 	}
 
 	manifestInStore := filepath.Join(manifestStorePath, filepath.Base(manifestInOCI))
-	if err := copyFile(manifestInOCI, manifestInStore); err != nil {
+	if err := vfs.CopyFile(o.fs, manifestInOCI, manifestInStore); err != nil {
 		return "", fmt.Errorf("copying release manifest to store: %w", err)
 	}
 
 	return manifestInStore, nil
-}
-
-func (o *OCIReleaseManifestExtractor) locateManifest(dest string) (path string, err error) {
-	for _, globPath := range o.searchPath {
-		matches, globErr := filepath.Glob(filepath.Join(dest, globPath))
-		if globErr != nil {
-			return "", fmt.Errorf("matching files with pattern '%s': %w", globPath, err)
-		}
-
-		size := len(matches)
-		switch {
-		case size == 1:
-			return matches[0], nil
-		case size > 1:
-			return "", fmt.Errorf("expected a single release manifest at '%s', got '%v'", filepath.Dir(globPath), size)
-		}
-	}
-
-	return "", fmt.Errorf("release manifest not found at paths: %v", o.searchPath)
 }
 
 func (o *OCIReleaseManifestExtractor) generateManifestStorePath(digest string) (string, error) {
@@ -190,32 +190,4 @@ func (o *OCIReleaseManifestExtractor) generateManifestStorePath(digest string) (
 		hash = hash[:maxHashLen]
 	}
 	return filepath.Join(o.store, hash), nil
-}
-
-func copyFile(src, dest string) error {
-	in, err := os.Open(src)
-	if err != nil {
-		return fmt.Errorf("opening file at '%s': %w", src, err)
-	}
-	defer func() {
-		_ = in.Close()
-	}()
-
-	out, err := os.Create(dest)
-	if err != nil {
-		return fmt.Errorf("creating file at '%s': %w", dest, err)
-	}
-	defer func() {
-		_ = out.Close()
-	}()
-
-	if _, err := io.Copy(out, in); err != nil {
-		return fmt.Errorf("copying from '%s' to '%s': %w", src, dest, err)
-	}
-
-	info, err := os.Stat(src)
-	if err != nil {
-		return err
-	}
-	return os.Chmod(dest, info.Mode())
 }

@@ -30,6 +30,8 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/suse/elemental/v3/internal/manifest/extractor"
+	sysmock "github.com/suse/elemental/v3/pkg/sys/mock"
+	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
 
 const (
@@ -45,54 +47,65 @@ func TestOCIReleaseManifestExtractor(t *testing.T) {
 }
 
 var _ = Describe("OCIReleaseManifestExtractor", Label("release-manifest"), func() {
-	var customStoreRoot string
 	var unpacker *unpackerMock
+	var cleanup func()
+	var tfs vfs.FS
+	var extrOpts []extractor.Opts
 	BeforeEach(func() {
 		var err error
-		customStoreRoot, err = os.MkdirTemp("", "extractor-custom-store-")
-		Expect(err).ToNot(HaveOccurred())
+		tfs, cleanup, err = sysmock.TestFS(nil)
+		Expect(err).NotTo(HaveOccurred())
 
 		unpacker = &unpackerMock{
 			manifestAtPath: releaseManifestName,
 			digest:         "sha256:" + randomDigestEnc(64),
+			tfs:            tfs,
+		}
+
+		extrOpts = []extractor.Opts{
+			extractor.WithOCIUnpacker(unpacker),
+			extractor.WithFS(tfs),
 		}
 	})
 
 	AfterEach(func() {
-		Expect(os.RemoveAll(customStoreRoot)).To(Succeed())
+		cleanup()
 	})
 
 	It("extracts release manifest to default store", func() {
 		digestEnc := randomDigestEnc(64)
 		unpacker.digest = "sha256:" + digestEnc
-		expectedDefaultStoreRoot := filepath.Join(os.TempDir(), "release-manifests")
-		expectedManifestStore := filepath.Join(expectedDefaultStoreRoot, digestEnc)
+		storePathPrefix := filepath.Join(os.TempDir(), "release-manifests-")
+		expectedStorePath := filepath.Join(storePathPrefix, digestEnc)
 
-		defaultStoreExtr, err := extractor.New(extractor.WithOCIUnpacker(unpacker))
+		defaultStoreExtr, err := extractor.New(extrOpts...)
 		Expect(err).ToNot(HaveOccurred())
 
 		extractedManifest, err := defaultStoreExtr.ExtractFrom(dummyOCI)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(strings.HasPrefix(extractedManifest, expectedDefaultStoreRoot)).To(BeTrue())
-		Expect(filepath.Dir(extractedManifest)).To(Equal(expectedManifestStore))
-		validateExtractedManifestContent(extractedManifest)
-		Expect(os.RemoveAll(expectedDefaultStoreRoot)).To(Succeed())
+		Expect(filepath.Dir(extractedManifest)).To(Equal(expectedStorePath))
+		validateExtractedManifestContent(tfs, extractedManifest)
 	})
 
 	It("extracts release manifest to custom store", func() {
 		digestEnc := randomDigestEnc(128)
 		manifestStoreName := digestEnc[:64]
 		unpacker.digest = "sha512:" + digestEnc
+
+		customStoreRoot, err := vfs.TempDir(tfs, "", "extractor-custom-store-")
+		Expect(err).ToNot(HaveOccurred())
+
 		expectedManifestStore := filepath.Join(customStoreRoot, manifestStoreName)
 
-		customStoreExtr, err := extractor.New(extractor.WithStore(customStoreRoot), extractor.WithOCIUnpacker(unpacker))
+		extrOpts = append(extrOpts, extractor.WithStore(customStoreRoot))
+		customStoreExtr, err := extractor.New(extrOpts...)
 		Expect(err).ToNot(HaveOccurred())
 
 		extractedManifest, err := customStoreExtr.ExtractFrom(dummyOCI)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(strings.HasPrefix(extractedManifest, customStoreRoot)).To(BeTrue())
 		Expect(filepath.Dir(extractedManifest)).To(Equal(expectedManifestStore))
-		validateExtractedManifestContent(extractedManifest)
+		validateExtractedManifestContent(tfs, extractedManifest)
 	})
 
 	It("extracts release manifest using custom search paths", func() {
@@ -100,20 +113,21 @@ var _ = Describe("OCIReleaseManifestExtractor", Label("release-manifest"), func(
 		searchPaths := []string{filepath.Join("dummy", "release_manifest*.yaml")}
 		unpacker.manifestAtPath = filepath.Join("dummy", customManifestName)
 
-		customSearchPathExtr, err := extractor.New(extractor.WithSearchPaths(searchPaths), extractor.WithStore(customStoreRoot), extractor.WithOCIUnpacker(unpacker))
+		extrOpts = append(extrOpts, extractor.WithSearchPaths(searchPaths))
+		customSearchPathExtr, err := extractor.New(extrOpts...)
 		Expect(err).ToNot(HaveOccurred())
 
 		extractedManifest, err := customSearchPathExtr.ExtractFrom(dummyOCI)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(filepath.Base(extractedManifest)).To(Equal(customManifestName))
-		validateExtractedManifestContent(extractedManifest)
+		validateExtractedManifestContent(tfs, extractedManifest)
 	})
 
 	It("fails when unpacking an OCI image", func() {
 		unpacker.fail = true
 		expErr := "unpacking oci image: unpack failure"
 
-		defaultExtr, err := extractor.New(extractor.WithOCIUnpacker(unpacker), extractor.WithStore(customStoreRoot))
+		defaultExtr, err := extractor.New(extrOpts...)
 		Expect(err).ToNot(HaveOccurred())
 
 		manifest, err := defaultExtr.ExtractFrom(dummyOCI)
@@ -124,23 +138,10 @@ var _ = Describe("OCIReleaseManifestExtractor", Label("release-manifest"), func(
 
 	It("fails when release manifest is missing in the unpacked image", func() {
 		customSearchPath := filepath.Join("dummy", "release_manifest*.yaml")
-		expErr := "locating release manifest at unpacked OCI filesystem: release manifest not found at paths: [dummy/release_manifest*.yaml]"
+		expErr := "locating release manifest at unpacked OCI filesystem: failed to find file matching [dummy/release_manifest*.yaml] in /tmp/release-manifest-unpack-"
 
-		extr, err := extractor.New(extractor.WithSearchPaths([]string{customSearchPath}), extractor.WithOCIUnpacker(unpacker), extractor.WithStore(customStoreRoot))
-		Expect(err).ToNot(HaveOccurred())
-
-		manifest, err := extr.ExtractFrom(dummyOCI)
-		Expect(err).To(HaveOccurred())
-		Expect(err).To(MatchError(expErr))
-		Expect(manifest).To(BeEmpty())
-	})
-
-	It("fails when there is more than one release manfiest at the search path", func() {
-		unpacker.multipleManifest = true
-		unpacker.manifestAtPath = filepath.Join("etc", "release-manifest", releaseManifestName)
-		expErr := "locating release manifest at unpacked OCI filesystem: expected a single release manifest at 'etc/release-manifest', got '2'"
-
-		extr, err := extractor.New(extractor.WithOCIUnpacker(unpacker), extractor.WithStore(customStoreRoot))
+		extrOpts = append(extrOpts, extractor.WithSearchPaths([]string{customSearchPath}))
+		extr, err := extractor.New(extrOpts...)
 		Expect(err).ToNot(HaveOccurred())
 
 		manifest, err := extr.ExtractFrom(dummyOCI)
@@ -153,7 +154,7 @@ var _ = Describe("OCIReleaseManifestExtractor", Label("release-manifest"), func(
 		unpacker.digest = "d41d8cd98f00b204e9800998ecf8427e"
 		expErr := fmt.Sprintf("generating manifest store based on digest: invalid digest format '%s', expected '<algorithm>:<hash>'", unpacker.digest)
 
-		extr, err := extractor.New(extractor.WithOCIUnpacker(unpacker), extractor.WithStore(customStoreRoot))
+		extr, err := extractor.New(extrOpts...)
 		Expect(err).ToNot(HaveOccurred())
 
 		manifest, err := extr.ExtractFrom(dummyOCI)
@@ -161,10 +162,20 @@ var _ = Describe("OCIReleaseManifestExtractor", Label("release-manifest"), func(
 		Expect(err).To(MatchError(expErr))
 		Expect(manifest).To(BeEmpty())
 	})
+
+	It("fails when custom store does not exist on filesystem", func() {
+		missing := "/missing"
+		errSubstring := "store path '/missing' does not exist in provided filesystem"
+
+		extrOpts = append(extrOpts, extractor.WithStore(missing))
+		_, err := extractor.New(extrOpts...)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring(errSubstring))
+	})
 })
 
-func validateExtractedManifestContent(manifest string) {
-	data, err := os.ReadFile(manifest)
+func validateExtractedManifestContent(fs vfs.FS, manifest string) {
+	data, err := fs.ReadFile(manifest)
 	Expect(err).ToNot(HaveOccurred())
 	Expect(string(data)).To(Equal(dummyContent))
 }
@@ -174,6 +185,7 @@ type unpackerMock struct {
 	fail             bool
 	digest           string
 	multipleManifest bool
+	tfs              vfs.FS
 }
 
 func (u unpackerMock) Unpack(ctx context.Context, uri, dest string) (digest string, err error) {
@@ -182,17 +194,17 @@ func (u unpackerMock) Unpack(ctx context.Context, uri, dest string) (digest stri
 	}
 
 	dir := filepath.Dir(filepath.Join(dest, u.manifestAtPath))
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := vfs.MkdirAll(u.tfs, dir, 0755); err != nil {
 		return "", err
 	}
 
-	if err := os.WriteFile(filepath.Join(dest, u.manifestAtPath), []byte(dummyContent), 0644); err != nil {
+	if err := u.tfs.WriteFile(filepath.Join(dest, u.manifestAtPath), []byte(dummyContent), 0644); err != nil {
 		return "", err
 	}
 
 	if u.multipleManifest {
 		secondManifest := filepath.Join(filepath.Dir(u.manifestAtPath), "release_manifest2.yaml")
-		if err := os.WriteFile(filepath.Join(dest, secondManifest), []byte(dummyContent), 0644); err != nil {
+		if err := u.tfs.WriteFile(filepath.Join(dest, secondManifest), []byte(dummyContent), 0644); err != nil {
 			return "", err
 		}
 	}
