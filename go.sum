@@ -109,8 +109,8 @@ github.com/grpc-ecosystem/grpc-gateway/v2 v2.26.1 h1:e9Rjr40Z98/clHv5Yg79Is0Ntos
 github.com/grpc-ecosystem/grpc-gateway/v2 v2.26.1/go.mod h1:tIxuGz/9mpox++sgp9fJjHO0+q1X9/UOWd798aAm22M=
 github.com/hexops/gotextdiff v1.0.3 h1:gitA9+qJrrTCsiCl7+kh75nPqQt1cx4ZkudSTLoUqJM=
 github.com/hexops/gotextdiff v1.0.3/go.mod h1:pSWU5MAI3yDq+fZBTazCSJysOMbxWL1BSow5/V2vxeg=
-github.com/jaypipes/ghw v0.16.0 h1:3HurCTS38VNpeQLo5fIdZsySuo/qAfpPSJ5t05QBFPM=
-github.com/jaypipes/ghw v0.16.0/go.mod h1:In8SsaDqlb1oTyrbmTC14uy+fbBMvp+xdqX51MidlD8=
+github.com/jaypipes/ghw v0.17.0 h1:EVLJeNcy5z6GK/Lqby0EhBpynZo+ayl8iJWY0kbEUJA=
+github.com/jaypipes/ghw v0.17.0/go.mod h1:In8SsaDqlb1oTyrbmTC14uy+fbBMvp+xdqX51MidlD8=
 github.com/jaypipes/pcidb v1.0.1 h1:WB2zh27T3nwg8AE8ei81sNRb9yWBii3JGNJtT7K9Oic=
 github.com/jaypipes/pcidb v1.0.1/go.mod h1:6xYUz/yYEyOkIkUt2t2J2folIuZ4Yg6uByCGFXMCeE4=
 github.com/jessevdk/go-flags v1.4.0/go.mod h1:4FA24M0QyGHXBuZZK/XkWh8h0e1EYbRYJSGM75WSRxI=
