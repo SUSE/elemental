@@ -25,7 +25,9 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"github.com/suse/elemental/v3/internal/cli/elemental-toolkit/cmd"
+	"github.com/suse/elemental/v3/pkg/bootloader"
 	"github.com/suse/elemental/v3/pkg/deployment"
+	"github.com/suse/elemental/v3/pkg/firmware"
 	"github.com/suse/elemental/v3/pkg/sys"
 	"github.com/suse/elemental/v3/pkg/upgrade"
 )
@@ -56,7 +58,15 @@ func Upgrade(ctx *cli.Context) error { //nolint:dupl
 		stop()
 	}()
 
-	upgrader := upgrade.New(ctxCancel, s)
+	bootloader, err := bootloader.New(d.BootConfig.Bootloader, s)
+	if err != nil {
+		s.Logger().Error("installation failed: %v", err)
+		return err
+	}
+
+	manager := firmware.NewEfiBootManager(s)
+	upgrader := upgrade.New(ctxCancel, s, upgrade.WithBootManager(manager), upgrade.WithBootloader(bootloader))
+
 	err = upgrader.Upgrade(d)
 	if err != nil {
 		s.Logger().Error("upgrade failed: %v", err)

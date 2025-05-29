@@ -32,8 +32,6 @@ import (
 	"github.com/suse/elemental/v3/pkg/sys"
 	sysmock "github.com/suse/elemental/v3/pkg/sys/mock"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
-	"github.com/suse/elemental/v3/pkg/transaction"
-	transmock "github.com/suse/elemental/v3/pkg/transaction/mock"
 )
 
 func TestInstallSuite(t *testing.T) {
@@ -86,42 +84,41 @@ const lsblkJson = `{
 	]
  }`
 
+type upgraderMock struct {
+	Error error
+}
+
+func (u upgraderMock) Upgrade(_ *deployment.Deployment) error {
+	return u.Error
+}
+
 var _ = Describe("Install", Label("install"), func() {
 	var runner *sysmock.Runner
 	var mounter *sysmock.Mounter
-	var syscall *sysmock.Syscall
 	var fs vfs.FS
 	var cleanup func()
 	var s *sys.System
 	var d *deployment.Deployment
 	var i *install.Installer
-	var t *transmock.Transactioner
-	var trans *transaction.Transaction
+	var upgrader *upgraderMock
 	var table string
 	var sideEffects map[string]func(...string) ([]byte, error)
 	BeforeEach(func() {
 		var err error
-		t = &transmock.Transactioner{}
+		upgrader = &upgraderMock{}
 		runner = sysmock.NewRunner()
 		mounter = sysmock.NewMounter()
-		syscall = &sysmock.Syscall{}
 		sideEffects = map[string]func(...string) ([]byte, error){}
 
 		fs, cleanup, err = sysmock.TestFS(map[string]any{
-			"/dev/device":     []byte{},
-			"/dev/device1":    []byte{},
-			"/dev/device2":    []byte{},
-			"/dev/pts/empty":  []byte{},
-			"/proc/empty":     []byte{},
-			"/sys/empty":      []byte{},
-			"/opt/config.sh":  []byte{},
-			"/opt/tree/empty": []byte{},
+			"/dev/device":  []byte{},
+			"/dev/device1": []byte{},
+			"/dev/device2": []byte{},
 		})
 		Expect(err).ToNot(HaveOccurred())
 		s, err = sys.NewSystem(
 			sys.WithMounter(mounter), sys.WithRunner(runner),
 			sys.WithFS(fs), sys.WithLogger(log.New(log.WithDiscardAll())),
-			sys.WithSyscall(syscall),
 		)
 		Expect(err).NotTo(HaveOccurred())
 		d = deployment.DefaultDeployment()
@@ -129,10 +126,8 @@ var _ = Describe("Install", Label("install"), func() {
 		d.Disks[0].Partitions[0].UUID = "34A8-ABB8"
 		d.Disks[0].Partitions[1].UUID = "34a8abb8-ddb3-48a2-8ecc-2443e92c7510"
 		d.SourceOS = deployment.NewDirSrc("/some/dir")
-		d.CfgScript = "/opt/config.sh"
-		d.OverlayTree = deployment.NewDirSrc("/opt/tree")
 		Expect(d.Sanitize(s)).To(Succeed())
-		i = install.New(context.Background(), s, install.WithTransaction(t))
+		i = install.New(context.Background(), s, install.WithUpgrader(upgrader))
 		table = sgdiskEmpty
 
 		runner.SideEffect = func(cmd string, args ...string) ([]byte, error) {
@@ -156,63 +151,29 @@ var _ = Describe("Install", Label("install"), func() {
 		sideEffects["lsblk"] = func(args ...string) ([]byte, error) {
 			return []byte(lsblkJson), runner.ReturnError
 		}
-		trans = &transaction.Transaction{
-			ID:   1,
-			Path: "/snapshot/path",
-		}
-		t.Trans = trans
-		t.SrcDigest = "imagedigest"
 	})
 	AfterEach(func() {
 		cleanup()
 	})
 	It("installs the given deployment", func() {
 		Expect(i.Install(d)).To(Succeed())
-		Expect(d.SourceOS.GetDigest()).To(Equal("imagedigest"))
-		Expect(runner.MatchMilestones([][]string{{
-			"/etc/config.sh",
-		}}))
+		Expect(runner.MatchMilestones([][]string{
+			{"sgdisk", "--zap-all", "/dev/device"},
+			{"mkfs.vfat", "-n", "EFI"},
+			{"mkfs.btrfs", "-L", "SYSTEM"},
+			{"btrfs", "subvolume", "create"},
+		}))
 	})
-	It("fails on transaction initalization", func() {
-		t.InitErr = fmt.Errorf("init failed")
+	It("fails if upgrader errors out", func() {
+		upgrader.Error = fmt.Errorf("transaction failed")
 		err := i.Install(d)
 		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("init failed"))
-		Expect(t.RollbackCalled()).To(BeFalse())
-	})
-	It("fails on transaction start", func() {
-		t.StartErr = fmt.Errorf("start failed")
-		err := i.Install(d)
-		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("start failed"))
-		Expect(t.RollbackCalled()).To(BeFalse())
-	})
-	It("fails on transaction update", func() {
-		t.UpdateErr = fmt.Errorf("update failed")
-		err := i.Install(d)
-		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("update failed"))
-		Expect(t.RollbackCalled()).To(BeTrue())
-	})
-	It("fails on transaction hook", func() {
-		syscall.ErrorOnChroot = true
-		err := i.Install(d)
-		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("chroot error"))
-	})
-	It("fails on config hook", func() {
-		sideEffects["/etc/elemental/config.sh"] = func(_ ...string) ([]byte, error) {
-			return []byte{}, fmt.Errorf("failed config")
-		}
-		err := i.Install(d)
-		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("failed config"))
-	})
-	It("fails on transaction commit", func() {
-		t.CommitErr = fmt.Errorf("commit failed")
-		err := i.Install(d)
-		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("commit failed"))
-		Expect(t.RollbackCalled()).To(BeTrue())
+		Expect(err.Error()).To(ContainSubstring("transaction failed"))
+		Expect(runner.MatchMilestones([][]string{
+			{"sgdisk", "--zap-all", "/dev/device"},
+			{"mkfs.vfat", "-n", "EFI"},
+			{"mkfs.btrfs", "-L", "SYSTEM"},
+			{"btrfs", "subvolume", "create"},
+		}))
 	})
 })

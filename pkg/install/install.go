@@ -23,47 +23,26 @@ import (
 
 	"github.com/suse/elemental/v3/pkg/block"
 	"github.com/suse/elemental/v3/pkg/block/lsblk"
-	"github.com/suse/elemental/v3/pkg/bootloader"
 	"github.com/suse/elemental/v3/pkg/btrfs"
-	"github.com/suse/elemental/v3/pkg/chroot"
 	"github.com/suse/elemental/v3/pkg/cleanstack"
 	"github.com/suse/elemental/v3/pkg/deployment"
 	"github.com/suse/elemental/v3/pkg/diskrepart"
-	"github.com/suse/elemental/v3/pkg/firmware"
-	"github.com/suse/elemental/v3/pkg/selinux"
 	"github.com/suse/elemental/v3/pkg/sys"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
-	"github.com/suse/elemental/v3/pkg/transaction"
-	"github.com/suse/elemental/v3/pkg/unpack"
+	"github.com/suse/elemental/v3/pkg/upgrade"
 )
-
-const configFile = "config.sh"
 
 type Option func(*Installer)
 
 type Installer struct {
 	ctx context.Context
 	s   *sys.System
-	t   transaction.Interface
-	bm  *firmware.EfiBootManager
-	b   bootloader.Bootloader
+	u   upgrade.Interface
 }
 
-func WithTransaction(t transaction.Interface) Option {
+func WithUpgrader(u upgrade.Interface) Option {
 	return func(i *Installer) {
-		i.t = t
-	}
-}
-
-func WithBootManager(bm *firmware.EfiBootManager) Option {
-	return func(i *Installer) {
-		i.bm = bm
-	}
-}
-
-func WithBootloader(b bootloader.Bootloader) Option {
-	return func(i *Installer) {
-		i.b = b
+		i.u = u
 	}
 }
 
@@ -75,11 +54,8 @@ func New(ctx context.Context, s *sys.System, opts ...Option) *Installer {
 	for _, o := range opts {
 		o(installer)
 	}
-	if installer.t == nil {
-		installer.t = transaction.NewSnapperTransaction(ctx, s)
-	}
-	if installer.b == nil {
-		installer.b = bootloader.NewNone(s)
+	if installer.u == nil {
+		installer.u = upgrade.New(ctx, s)
 	}
 	return installer
 }
@@ -103,55 +79,9 @@ func (i Installer) Install(d *deployment.Deployment) (err error) {
 		}
 	}
 
-	err = i.t.Init(*d)
+	err = i.u.Upgrade(d)
 	if err != nil {
-		i.s.Logger().Error("installation failed, could not initialize snapper")
-		return err
-	}
-
-	trans, err := i.t.Start()
-	if err != nil {
-		i.s.Logger().Error("installation failed, could not start snapper transaction")
-		return err
-	}
-	cleanup.PushErrorOnly(func() error { return i.t.Rollback(trans, err) })
-
-	err = i.t.Update(trans, d.SourceOS, i.transactionHook(d, trans.Path))
-	if err != nil {
-		i.s.Logger().Error("installation failed, could not update transaction")
-		return err
-	}
-
-	if d.OverlayTree != nil && !d.OverlayTree.IsEmpty() {
-		unpacker, err := unpack.NewUnpacker(i.s, d.OverlayTree)
-		if err != nil {
-			i.s.Logger().Error("installation failed, could not initialize unpacker")
-			return err
-		}
-		_, err = unpacker.Unpack(i.ctx, trans.Path)
-		if err != nil {
-			i.s.Logger().Error("installation failed, could not unpack overlay tree")
-			return err
-		}
-	}
-
-	if d.CfgScript != "" {
-		err = i.configHook(d.CfgScript, trans.Path)
-		if err != nil {
-			i.s.Logger().Error("installation failed, configuration hook error")
-			return err
-		}
-	}
-
-	err = i.b.Install(trans.Path, d)
-	if err != nil {
-		i.s.Logger().Error("installation failed, could not install bootloader: %s", err.Error())
-		return err
-	}
-
-	err = i.t.Commit(trans)
-	if err != nil {
-		i.s.Logger().Error("installation failed, could not close transaction")
+		i.s.Logger().Error("installation failed, could not run transaction")
 		return err
 	}
 
@@ -201,52 +131,4 @@ func createPartitionVolumes(s *sys.System, cleanStack *cleanstack.CleanStack, pa
 	}
 
 	return nil
-}
-
-func (i Installer) transactionHook(d *deployment.Deployment, root string) transaction.UpdateHook {
-	return func() error {
-		err := selinux.ChrootedRelabel(i.ctx, i.s, root, nil)
-		if err != nil {
-			i.s.Logger().Error("failed relabelling snapshot path: %s", root)
-			return err
-		}
-
-		err = d.WriteDeploymentFile(i.s, root)
-		if err != nil {
-			i.s.Logger().Error("installation failed, could not write deployment file")
-			return err
-		}
-		return nil
-	}
-}
-
-func (i Installer) configHook(config string, root string) error {
-	i.s.Logger().Info("Running transaction hook")
-	rootedConfig := filepath.Join("/etc/elemental", configFile)
-	callback := func() error {
-		var stdOut, stdErr *string
-		stdOut = new(string)
-		stdErr = new(string)
-		defer func() {
-			logOutput(i.s, *stdOut, *stdErr)
-		}()
-		return i.s.Runner().RunContextParseOutput(i.ctx, stdHander(stdOut), stdHander(stdErr), rootedConfig)
-	}
-	binds := map[string]string{config: rootedConfig}
-	return chroot.ChrootedCallback(i.s, root, binds, callback)
-}
-
-func stdHander(out *string) func(string) {
-	return func(line string) {
-		*out += line + "\n"
-	}
-}
-
-func logOutput(s *sys.System, stdOut, stdErr string) {
-	output := "------- stdOut -------\n"
-	output += stdOut
-	output += "------- stdErr -------\n"
-	output += stdErr
-	output += "----------------------\n"
-	s.Logger().Debug("Install config hook output:\n%s", output)
 }
