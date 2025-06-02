@@ -368,6 +368,7 @@ func DefaultDeployment() *Deployment {
 					MountPoint: EfiMnt,
 					FileSystem: VFat,
 					Size:       EfiSize,
+					MountOpts:  []string{"defaults", "x-systemd.automount"},
 				}, {
 					Label:      SystemLabel,
 					Role:       System,
