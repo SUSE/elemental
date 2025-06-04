@@ -67,7 +67,8 @@ var _ = Describe("Grub tests", Label("bootloader", "grub"), func() {
 		runner.SideEffect = func(command string, args ...string) ([]byte, error) {
 			switch filepath.Base(command) {
 			case "grub2-editenv":
-				_, err := tfs.Create(args[0])
+				// Write last arg to the file (should be kernel cmdline)
+				err := tfs.WriteFile(args[0], []byte(args[len(args)-1]), vfs.FilePerm)
 				Expect(err).NotTo(HaveOccurred())
 				return nil, nil
 			case "rsync":
@@ -130,12 +131,12 @@ var _ = Describe("Grub tests", Label("bootloader", "grub"), func() {
 				Partitions: deployment.Partitions{sysPart},
 			}},
 		}
-		err := grub.Install("/target/dir", broken)
+		err := grub.Install("/target/dir", "", "", broken)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(Equal("ESP not found"))
 	})
 	It("Copies EFI applications to ESP", func() {
-		err := grub.Install("/target/dir", d)
+		err := grub.Install("/target/dir", "1", "kernel cmdline", d)
 		Expect(err).ToNot(HaveOccurred())
 
 		// Shim, MokManager and grub.efi should exist.
@@ -156,7 +157,35 @@ var _ = Describe("Grub tests", Label("bootloader", "grub"), func() {
 		err := tfs.Remove("/target/dir/usr/lib/modules/6.14.4-1-default/initrd")
 		Expect(err).ToNot(HaveOccurred())
 
-		err = grub.Install("/target/dir", d)
+		err = grub.Install("/target/dir", "1", "kernel cmdline", d)
 		Expect(err).To(HaveOccurred())
+	})
+	It("Leaves old snapshots and overwrites 'active' entry", func() {
+		err := grub.Install("/target/dir", "1", "snapshot1", d)
+		Expect(err).ToNot(HaveOccurred())
+
+		err = grub.Install("/target/dir", "2", "snapshot2", d)
+		Expect(err).ToNot(HaveOccurred())
+
+		// Entries 1, 2 and 'active' should exist
+		Expect(vfs.Exists(tfs, "/target/dir/boot/loader/entries/1")).To(BeTrue())
+		Expect(vfs.Exists(tfs, "/target/dir/boot/loader/entries/2")).To(BeTrue())
+		Expect(vfs.Exists(tfs, "/target/dir/boot/loader/entries/active")).To(BeTrue())
+
+		// 'active' entry should point to snapshot 2
+		activeEntry, err := tfs.ReadFile("/target/dir/boot/loader/entries/active")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(string(activeEntry)).To(Equal("cmdline=snapshot2"))
+
+		// entry 1 should point to snapshot 1
+		entry1, err := tfs.ReadFile("/target/dir/boot/loader/entries/1")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(string(entry1)).To(Equal("cmdline=snapshot1"))
+
+		// entry 2 should point to snapshot 1
+		entry2, err := tfs.ReadFile("/target/dir/boot/loader/entries/2")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(string(entry2)).To(Equal("cmdline=snapshot2"))
+
 	})
 })

@@ -387,7 +387,7 @@ func DefaultDeployment() *Deployment {
 		Firmware: &FirmwareConfig{},
 		BootConfig: &BootConfig{
 			Bootloader:    "none",
-			KernelCmdline: fmt.Sprintf("root=LABEL=%s rw", SystemLabel),
+			KernelCmdline: fmt.Sprintf("root=LABEL=%s", SystemLabel),
 		},
 	}
 }

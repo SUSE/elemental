@@ -33,11 +33,12 @@ type Transactioner struct {
 }
 
 type UpgradeHelper struct {
-	SyncError  error
-	MergeError error
-	FstabError error
-	LockError  error
-	srcDigest  string
+	SyncError     error
+	MergeError    error
+	FstabError    error
+	LockError     error
+	srcDigest     string
+	kernelCmdline string
 }
 
 func (u UpgradeHelper) SyncImageContent(imgSrc *deployment.ImageSource, _ *transaction.Transaction) error {
@@ -55,6 +56,10 @@ func (u UpgradeHelper) UpdateFstab(_ *transaction.Transaction) error {
 
 func (u UpgradeHelper) Lock(_ *transaction.Transaction) error {
 	return u.LockError
+}
+
+func (u UpgradeHelper) GenerateKernelCmdline(_ *transaction.Transaction) string {
+	return u.kernelCmdline
 }
 
 func NewTransaction() transaction.Interface {

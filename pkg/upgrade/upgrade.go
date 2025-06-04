@@ -19,6 +19,8 @@ package upgrade
 
 import (
 	"context"
+	"fmt"
+	"strconv"
 
 	"github.com/suse/elemental/v3/pkg/bootloader"
 	"github.com/suse/elemental/v3/pkg/chroot"
@@ -160,7 +162,14 @@ func (u Upgrader) Upgrade(d *deployment.Deployment) (err error) {
 		}
 	}
 
-	err = u.b.Install(trans.Path, d)
+	baseCmdline := ""
+	if d.BootConfig != nil {
+		baseCmdline = d.BootConfig.KernelCmdline
+	}
+
+	kernelCmdline := fmt.Sprintf("%s %s", baseCmdline, uh.GenerateKernelCmdline(trans))
+
+	err = u.b.Install(trans.Path, strconv.Itoa(trans.ID), kernelCmdline, d)
 	if err != nil {
 		u.s.Logger().Error("could not install bootloader: %s", err.Error())
 		return err

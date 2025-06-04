@@ -57,4 +57,5 @@ type UpgradeHelper interface {
 	Merge(*Transaction) error
 	UpdateFstab(*Transaction) error
 	Lock(*Transaction) error
+	GenerateKernelCmdline(*Transaction) string
 }

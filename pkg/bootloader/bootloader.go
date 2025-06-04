@@ -26,7 +26,7 @@ import (
 )
 
 type Bootloader interface {
-	Install(rootPath string, d *deployment.Deployment) error
+	Install(rootPath, snapshotID, kernelCmdline string, d *deployment.Deployment) error
 }
 
 const (
@@ -42,7 +42,7 @@ func NewNone(s *sys.System) *None {
 	return &None{s}
 }
 
-func (n *None) Install(_ string, _ *deployment.Deployment) error {
+func (n *None) Install(_, _, _ string, _ *deployment.Deployment) error {
 	n.s.Logger().Info("Skipping bootloader installation")
 	return nil
 }
