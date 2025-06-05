@@ -39,14 +39,12 @@ type SourceReader interface {
 }
 
 type Resolver struct {
-	sourceReader           SourceReader
-	coreReleaseManifestRef string
+	sourceReader SourceReader
 }
 
-func New(reader SourceReader, coreReleaseManifestRef string) *Resolver {
+func New(reader SourceReader) *Resolver {
 	return &Resolver{
-		sourceReader:           reader,
-		coreReleaseManifestRef: coreReleaseManifestRef,
+		sourceReader: reader,
 	}
 }
 
@@ -89,6 +87,6 @@ func (r *Resolver) resolveRecursive(uri string, rm *ResolvedManifest) error {
 	}
 	rm.ProductExtension = productManifest
 
-	coreReleseManifestOCI := fmt.Sprintf("%s://%s:%s", source.OCI, r.coreReleaseManifestRef, rm.ProductExtension.CorePlatform.Version)
-	return r.resolveRecursive(coreReleseManifestOCI, rm)
+	coreReleaseManifestOCI := fmt.Sprintf("%s://%s:%s", source.OCI, rm.ProductExtension.CorePlatform.Image, rm.ProductExtension.CorePlatform.Version)
+	return r.resolveRecursive(coreReleaseManifestOCI, rm)
 }

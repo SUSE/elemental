@@ -62,7 +62,7 @@ var _ = Describe("ReleaseManifest", Label("release-manifest"), func() {
 		Expect(rm.MetaData.CreationDate).To(Equal("2025-01-20"))
 
 		Expect(rm.CorePlatform).ToNot(BeNil())
-		Expect(rm.CorePlatform.Name).To(Equal("suse-core"))
+		Expect(rm.CorePlatform.Image).To(Equal("foo.example.com/bar/release-manifest"))
 		Expect(rm.CorePlatform.Version).To(Equal("1.0"))
 
 		Expect(rm.Components.Helm).ToNot(BeNil())

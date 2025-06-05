@@ -19,6 +19,7 @@ package image
 
 import (
 	"fmt"
+	"regexp"
 )
 
 const (
@@ -56,7 +57,8 @@ type Image struct {
 }
 
 type OperatingSystem struct {
-	Users []User `yaml:"users"`
+	DiskSize DiskSize `yaml:"diskSize"`
+	Users    []User   `yaml:"users"`
 }
 
 type User struct {
@@ -64,11 +66,18 @@ type User struct {
 	Password string `yaml:"password"`
 }
 
+type DiskSize string
+
+func (d DiskSize) IsValid() bool {
+	return regexp.MustCompile(`^[1-9]\d*[KMGT]$`).MatchString(string(d))
+}
+
 type Installation struct {
-	Target string `yaml:"target"`
+	Bootloader    string `yaml:"bootloader"`
+	KernelCmdLine string `yaml:"kernelCmdLine"`
 }
 
 type Release struct {
-	KubernetesImage      string `yaml:"kubernetesImage"`
-	OperatingSystemImage string `yaml:"osImage"`
+	Name        string `yaml:"name,omitempty"`
+	ManifestURI string `yaml:"manifestURI"`
 }

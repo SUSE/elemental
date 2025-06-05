@@ -20,7 +20,7 @@ metadata:
   - "3.1.2"
   creationDate: "2025-01-20"
 corePlatform:
-  name: "suse-core"
+  image: "foo.example.com/bar/release-manifest"
   version: "1.0"
 components:
   helm:

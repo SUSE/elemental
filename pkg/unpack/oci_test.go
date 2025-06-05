@@ -71,10 +71,16 @@ var _ = Describe("OCIUnpacker", Label("oci", "rootlesskit"), func() {
 		Expect(exists).To(BeFalse())
 		Expect(digest).To(BeEmpty())
 	})
-	It("Unpacks a local alpine image", func() {
-		unpacker := unpack.NewOCIUnpacker(s, alpineImageRef, unpack.WithPlatformRefOCI("linux/amd64"), unpack.WithLocalOCI(true))
+	It("Unpacks a local alpine image", Serial, func() {
 		_, err := s.Runner().Run("docker", "pull", alpineImageRef)
 		Expect(err).NotTo(HaveOccurred())
+
+		DeferCleanup(func() {
+			_, err := s.Runner().Run("docker", "image", "rm", alpineImageRef)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		unpacker := unpack.NewOCIUnpacker(s, alpineImageRef, unpack.WithPlatformRefOCI("linux/amd64"), unpack.WithLocalOCI(true))
 		Expect(vfs.MkdirAll(tfs, "/target/root", vfs.DirPerm)).To(Succeed())
 		digest, err := unpacker.Unpack(context.Background(), "/target/root")
 		Expect(err).NotTo(HaveOccurred())

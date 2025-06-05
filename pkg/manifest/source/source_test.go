@@ -59,7 +59,7 @@ var _ = Describe("ReleaseManifestSource", Label("release-manifest"), func() {
 	})
 
 	It("is initialised correctly from an 'oci' type source", func() {
-		src := "foo.registry.com/bar/release-manifest:0.0.1"
+		src := "foo.example.com/bar/release-manifest:0.0.1"
 		ociURI := fmt.Sprintf("%s://%s", source.OCI, src)
 
 		rmSource, err := source.ParseFromURI(ociURI)
@@ -87,8 +87,8 @@ var _ = Describe("ReleaseManifestSource", Label("release-manifest"), func() {
 		validateInitialisationErr(unknownSrc, expErr)
 
 		By("throwing an 'invalid OCI image' error")
-		invalidOCI := "oci://foo.registry.com/bar:00|11"
-		expErr = "invalid OCI image reference: could not parse reference: foo.registry.com/bar:00|11"
+		invalidOCI := "oci://foo.example.com/bar:00|11"
+		expErr = "invalid OCI image reference: could not parse reference: foo.example.com/bar:00|11"
 		validateInitialisationErr(invalidOCI, expErr)
 	})
 })

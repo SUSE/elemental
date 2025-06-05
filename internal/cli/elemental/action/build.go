@@ -20,33 +20,38 @@ package action
 import (
 	"fmt"
 	"os"
+	"os/signal"
+	"path/filepath"
 	"slices"
+	"syscall"
 	"time"
 
 	"github.com/suse/elemental/v3/internal/build"
 	"github.com/suse/elemental/v3/internal/cli/elemental/cmd"
 	"github.com/suse/elemental/v3/internal/image"
-	"github.com/suse/elemental/v3/pkg/log"
+	"github.com/suse/elemental/v3/pkg/sys"
 	"github.com/urfave/cli/v2"
 )
 
 func Build(ctx *cli.Context) error {
 	args := &cmd.BuildArgs
 
-	if ctx.App.Metadata == nil || ctx.App.Metadata["logger"] == nil {
+	if ctx.App.Metadata == nil || ctx.App.Metadata["system"] == nil {
 		return fmt.Errorf("error setting up initial configuration")
 	}
-	logger := ctx.App.Metadata["logger"].(log.Logger)
+	system := ctx.App.Metadata["system"].(*sys.System)
+	logger := system.Logger()
+
+	ctxCancel, cancelFunc := signal.NotifyContext(ctx.Context, syscall.SIGTERM, syscall.SIGINT)
+	defer cancelFunc()
 
 	logger.Info("Validating input args")
-
 	if err := validateArgs(args); err != nil {
 		logger.Error("Input args are invalid")
 		return err
 	}
 
 	logger.Info("Reading image configuration")
-
 	definition, err := parseImageDefinition(args)
 	if err != nil {
 		logger.Error("Parsing image configuration failed")
@@ -54,9 +59,15 @@ func Build(ctx *cli.Context) error {
 	}
 
 	logger.Info("Validated image configuration")
-	logger.Info("Starting build process for %s %s image", definition.Image.Arch, definition.Image.ImageType)
 
-	if err = build.Run(definition, logger); err != nil {
+	buildDir, err := createBuildDir(args.BuildDir)
+	if err != nil {
+		logger.Error("Creating build directory failed")
+		return err
+	}
+
+	logger.Info("Starting build process for %s %s image", definition.Image.Arch, definition.Image.ImageType)
+	if err = build.Run(ctxCancel, definition, buildDir, system); err != nil {
 		logger.Error("Build process failed")
 		return err
 	}
@@ -88,7 +99,8 @@ func validateArgs(args *cmd.BuildFlags) error {
 func parseImageDefinition(args *cmd.BuildFlags) (*image.Definition, error) {
 	outputPath := args.OutputPath
 	if outputPath == "" {
-		outputPath = fmt.Sprintf("image-%s.%s", time.Now().UTC().Format("2006-01-02T15-04-05"), args.ImageType)
+		imageName := fmt.Sprintf("image-%s.%s", time.Now().UTC().Format("2006-01-02T15-04-05"), args.ImageType)
+		outputPath = filepath.Join(args.BuildDir, imageName)
 	}
 
 	definition := &image.Definition{
@@ -129,4 +141,10 @@ func parseImageDefinition(args *cmd.BuildFlags) (*image.Definition, error) {
 	}
 
 	return definition, nil
+}
+
+func createBuildDir(rootBuildDir string) (string, error) {
+	buildDirName := fmt.Sprintf("build-%s", time.Now().UTC().Format("2006-01-02T15-04-05"))
+	buildDirPath := filepath.Join(rootBuildDir, buildDirName)
+	return buildDirPath, os.MkdirAll(buildDirPath, 0700)
 }

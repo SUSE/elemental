@@ -18,17 +18,253 @@ limitations under the License.
 package build
 
 import (
+	"context"
+	_ "embed"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+
 	"github.com/suse/elemental/v3/internal/image"
-	"github.com/suse/elemental/v3/pkg/log"
+	"github.com/suse/elemental/v3/internal/manifest/extractor"
+	"github.com/suse/elemental/v3/internal/template"
+	"github.com/suse/elemental/v3/pkg/bootloader"
+	"github.com/suse/elemental/v3/pkg/deployment"
+	"github.com/suse/elemental/v3/pkg/firmware"
+	"github.com/suse/elemental/v3/pkg/install"
+	"github.com/suse/elemental/v3/pkg/manifest/resolver"
+	"github.com/suse/elemental/v3/pkg/manifest/source"
+	"github.com/suse/elemental/v3/pkg/sys"
+	"github.com/suse/elemental/v3/pkg/upgrade"
 )
 
-func Run(_ *image.Definition, _ log.Logger) error {
-	/*
-	* Prepare configuration script using a template
-	* Create a RAW image (ISO support is pending)
-	* Attach the image to a loop device
-	* Install the OS
-	* Detach the device
-	 */
+//go:embed templates/config.sh.tpl
+var configScriptTpl string
+
+func Run(ctx context.Context, d *image.Definition, buildDir string, system *sys.System) error {
+	logger := system.Logger()
+	runner := system.Runner()
+
+	logger.Info("Resolving release manifest: %s", d.Release.ManifestURI)
+	m, err := resolveManifest(d.Release.ManifestURI, buildDir)
+	if err != nil {
+		logger.Error("Resolving release manifest failed")
+		return err
+	}
+
+	logger.Info("Downloading RKE2 extension")
+	overlaysPath := filepath.Join(buildDir, "overlays")
+	extensionsPath := filepath.Join(overlaysPath, "var", "lib", "extensions")
+	if err = downloadExtension(ctx, m.CorePlatform.Components.Kubernetes.RKE2.Image, extensionsPath); err != nil {
+		logger.Error("Downloading RKE2 extension failed")
+		return err
+	}
+
+	logger.Info("Preparing configuration script")
+	configScript, err := writeConfigScript(d, buildDir)
+	if err != nil {
+		logger.Error("Preparing configuration script failed")
+		return err
+	}
+
+	logger.Info("Creating RAW disk image")
+	if err = createDisk(runner, d.Image, d.OperatingSystem.DiskSize); err != nil {
+		logger.Error("Creating RAW disk image failed")
+		return err
+	}
+
+	logger.Info("Attaching loop device to RAW disk image")
+	device, err := attachDevice(runner, d.Image)
+	if err != nil {
+		logger.Error("Attaching loop device failed")
+		return err
+	}
+	defer func() {
+		if dErr := detachDevice(runner, device); dErr != nil {
+			logger.Error("Detaching loop device failed: %v", dErr)
+		}
+	}()
+
+	logger.Info("Preparing installation setup")
+	dep, err := newDeployment(
+		system,
+		device,
+		d.Installation.Bootloader,
+		d.Installation.KernelCmdLine,
+		m.CorePlatform.Components.OperatingSystem.Image,
+		configScript,
+		overlaysPath,
+	)
+	if err != nil {
+		logger.Error("Preparing installation setup failed")
+		return err
+	}
+
+	boot, err := bootloader.New(dep.BootConfig.Bootloader, system)
+	if err != nil {
+		logger.Error("Parsing boot config failed")
+		return err
+	}
+
+	manager := firmware.NewEfiBootManager(system)
+	upgrader := upgrade.New(ctx, system, upgrade.WithBootManager(manager), upgrade.WithBootloader(boot))
+	installer := install.New(ctx, system, install.WithUpgrader(upgrader))
+
+	logger.Info("Installing OS")
+	if err = installer.Install(dep); err != nil {
+		logger.Error("Installation failed")
+		return err
+	}
+
+	logger.Info("Installation complete")
+
+	return nil
+}
+
+func newDeployment(system *sys.System, installationDevice, bootloader, kernelCmdLine, osImage, configScript, overlaysPath string) (*deployment.Deployment, error) {
+	d := deployment.DefaultDeployment()
+	d.Disks[0].Device = installationDevice
+	d.BootConfig.Bootloader = bootloader
+	d.BootConfig.KernelCmdline = kernelCmdLine
+	d.CfgScript = configScript
+
+	osURI := fmt.Sprintf("%s://%s", deployment.OCI, osImage)
+	osSource, err := deployment.NewSrcFromURI(osURI)
+	if err != nil {
+		return nil, fmt.Errorf("parsing OS source URI %q: %w", osURI, err)
+	}
+	d.SourceOS = osSource
+
+	overlaysURI := fmt.Sprintf("%s://%s", deployment.Dir, overlaysPath)
+	overlaySource, err := deployment.NewSrcFromURI(overlaysURI)
+	if err != nil {
+		return nil, fmt.Errorf("parsing overlay source URI %q: %w", overlaysURI, err)
+	}
+	d.OverlayTree = overlaySource
+
+	if err = d.Sanitize(system); err != nil {
+		return nil, fmt.Errorf("sanitizing deployment: %w", err)
+	}
+
+	return d, nil
+}
+
+func resolveManifest(manifestURI, storeDir string) (*resolver.ResolvedManifest, error) {
+	manifestStore := filepath.Join(storeDir, "release-manifests")
+	if err := os.MkdirAll(manifestStore, 0700); err != nil {
+		return nil, fmt.Errorf("creating release manifest store '%s': %w", manifestStore, err)
+	}
+
+	extr, err := extractor.New(extractor.WithStore(manifestStore))
+	if err != nil {
+		return nil, fmt.Errorf("initialising OCI release manifest extractor: %w", err)
+	}
+
+	res := resolver.New(source.NewReader(extr))
+	m, err := res.Resolve(manifestURI)
+	if err != nil {
+		return nil, fmt.Errorf("resolving manifest at uri '%s': %w", manifestURI, err)
+	}
+
+	return m, nil
+}
+
+func writeConfigScript(d *image.Definition, dest string) (string, error) {
+	const configScriptName = "config.sh"
+
+	values := struct {
+		Users []image.User
+	}{
+		Users: d.OperatingSystem.Users,
+	}
+
+	data, err := template.Parse(configScriptName, configScriptTpl, &values)
+	if err != nil {
+		return "", fmt.Errorf("parsing config script template: %w", err)
+	}
+
+	filename := filepath.Join(dest, configScriptName)
+	if err = os.WriteFile(filename, []byte(data), os.FileMode(0o744)); err != nil {
+		return "", fmt.Errorf("writing config script: %w", err)
+	}
+	return filename, nil
+}
+
+func createDisk(runner sys.Runner, img image.Image, diskSize image.DiskSize) error {
+	const defaultSize = "10G"
+
+	if diskSize == "" {
+		diskSize = defaultSize
+	} else if !diskSize.IsValid() {
+		return fmt.Errorf("invalid disk size definition '%s'", diskSize)
+	}
+
+	_, err := runner.Run("qemu-img", "create", "-f", "raw", img.OutputImageName, string(diskSize))
+	return err
+}
+
+func attachDevice(runner sys.Runner, img image.Image) (string, error) {
+	out, err := runner.Run("losetup", "-f", "--show", img.OutputImageName)
+	if err != nil {
+		return "", err
+	}
+
+	device := strings.TrimSpace(string(out))
+	return device, nil
+}
+
+func detachDevice(runner sys.Runner, device string) error {
+	_, err := runner.Run("losetup", "-d", device)
+	return err
+}
+
+func downloadExtension(ctx context.Context, downloadURL, extensionsPath string) error {
+	if err := os.MkdirAll(extensionsPath, 0700); err != nil {
+		return fmt.Errorf("setting up extensions directory '%s': %w", extensionsPath, err)
+	}
+
+	parsedURL, err := url.Parse(downloadURL)
+	if err != nil {
+		return fmt.Errorf("invalid url '%s': %w", downloadURL, err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "GET", downloadURL, nil)
+	if err != nil {
+		return fmt.Errorf("creating HTTP request: %w", err)
+	}
+
+	httpClient := &http.Client{Timeout: 90 * time.Second}
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("downloading file: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("downloading file returned unexpected status code: %d", resp.StatusCode)
+	}
+
+	fileName := filepath.Base(parsedURL.Path)
+	output := filepath.Join(extensionsPath, fileName)
+
+	file, err := os.OpenFile(output, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		return fmt.Errorf("creating file %q: %w", output, err)
+	}
+
+	_, err = io.Copy(file, resp.Body)
+	if err != nil {
+		_ = file.Close()
+		return fmt.Errorf("copying file contents: %w", err)
+	}
+
+	if err = file.Close(); err != nil {
+		return fmt.Errorf("closing file: %w", err)
+	}
+
 	return nil
 }

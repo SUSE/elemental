@@ -31,7 +31,7 @@ type ReleaseManifest struct {
 }
 
 type CorePlatform struct {
-	Name    string `yaml:"name"`
+	Image   string `yaml:"image"`
 	Version string `yaml:"version"`
 }
 

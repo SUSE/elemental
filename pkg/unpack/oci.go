@@ -135,7 +135,7 @@ func (o OCI) Unpack(ctx context.Context, destination string) (string, error) {
 	var img containerregistry.Image
 
 	err = backoff.Retry(func() error {
-		img, err = image(ctx, ref, *platform, o.local)
+		img, err = fetchImage(ctx, ref, *platform, o.local)
 		return err
 	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(3*time.Second), 3))
 	if err != nil {
@@ -159,9 +159,11 @@ func (o OCI) Unpack(ctx context.Context, destination string) (string, error) {
 	return digest.String(), err
 }
 
-func image(ctx context.Context, ref name.Reference, platform containerregistry.Platform, local bool) (containerregistry.Image, error) {
-	if local {
-		return daemon.Image(ref, daemon.WithContext(ctx))
+func fetchImage(ctx context.Context, ref name.Reference, platform containerregistry.Platform, local bool) (containerregistry.Image, error) {
+	// Always attempt to fetch the image locally first.
+	image, err := daemon.Image(ref, daemon.WithContext(ctx))
+	if err == nil || local {
+		return image, err
 	}
 
 	return remote.Image(ref,

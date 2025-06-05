@@ -15,40 +15,31 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package cmd
+package template
 
 import (
-	"github.com/urfave/cli/v2"
-
-	"github.com/suse/elemental/v3/pkg/log"
-	"github.com/suse/elemental/v3/pkg/sys"
+	"bytes"
+	"fmt"
+	"strings"
+	"text/template"
 )
 
-const Usage = "Build ready-to-use infrastructure platforms"
-
-func GlobalFlags() []cli.Flag {
-	return []cli.Flag{
-		&cli.BoolFlag{
-			Name:  "debug",
-			Usage: "Set logging at debug level",
-		},
+func Parse(name string, contents string, templateData any) (string, error) {
+	if templateData == nil {
+		return "", fmt.Errorf("template data not provided")
 	}
-}
 
-func Setup(ctx *cli.Context) error {
-	s, err := sys.NewSystem()
+	funcs := template.FuncMap{"join": strings.Join}
+
+	tmpl, err := template.New(name).Funcs(funcs).Parse(contents)
 	if err != nil {
-		return err
+		return "", fmt.Errorf("parsing contents: %w", err)
 	}
 
-	if ctx.Bool("debug") {
-		s.Logger().SetLevel(log.DebugLevel())
+	var buff bytes.Buffer
+	if err = tmpl.Execute(&buff, templateData); err != nil {
+		return "", fmt.Errorf("applying template: %w", err)
 	}
 
-	if ctx.App.Metadata == nil {
-		ctx.App.Metadata = map[string]any{}
-	}
-	ctx.App.Metadata["system"] = s
-
-	return nil
+	return buff.String(), nil
 }

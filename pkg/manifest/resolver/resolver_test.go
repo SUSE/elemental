@@ -30,10 +30,10 @@ import (
 )
 
 const (
-	corePlatformRef              = "foo.registry.com/bar/release-manifest"
+	corePlatformRef              = "foo.example.com/bar/release-manifest"
 	corePlatformVersion          = "1.0"
 	expectedCorePlatformImage    = corePlatformRef + ":" + corePlatformVersion
-	expectedProductManifestImage = "prod.registry.com/bar/release-manifest:0.0.1"
+	expectedProductManifestImage = "prod.example.com/bar/release-manifest:0.0.1"
 )
 
 var coreManifestPath = filepath.Join("..", "testdata", "full_core_release_manifest.yaml")
@@ -49,7 +49,7 @@ var _ = Describe("Resolver", Label("release-manifest"), func() {
 	var res *resolver.Resolver
 	BeforeEach(func() {
 		reader = &SourceReaderMock{}
-		res = resolver.New(reader, corePlatformRef)
+		res = resolver.New(reader)
 	})
 
 	It("resolves a 'product' release manifest correctly", func() {
@@ -121,7 +121,7 @@ var _ = Describe("Resolver", Label("release-manifest"), func() {
 		Expect(r).To(BeNil())
 	})
 
-	It("fails when the content is not actually a release manfiest", func() {
+	It("fails when the content is not actually a release manifest", func() {
 		reader.returnNonReleaseManifest = true
 		wrongFileURI := fmt.Sprintf("%s://%s", source.File, "wrong.txt")
 		expErrSub := "unable to parse 'wrong.txt' as a valid release manifest"
@@ -189,7 +189,7 @@ func validateResolvedManifest(rm *resolver.ResolvedManifest, coreOnly bool) {
 		Expect(rm.ProductExtension.MetaData.CreationDate).To(Equal("2025-01-20"))
 
 		Expect(rm.ProductExtension.CorePlatform).ToNot(BeNil())
-		Expect(rm.ProductExtension.CorePlatform.Name).To(Equal("suse-core"))
+		Expect(rm.ProductExtension.CorePlatform.Image).To(Equal("foo.example.com/bar/release-manifest"))
 		Expect(rm.ProductExtension.CorePlatform.Version).To(Equal("1.0"))
 
 		Expect(rm.ProductExtension.Components.Helm).ToNot(BeNil())
