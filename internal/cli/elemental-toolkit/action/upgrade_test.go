@@ -86,4 +86,11 @@ var _ = Describe("Upgrade action", Label("upgrade"), func() {
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("image source type not supported"))
 	})
+	It("fails if the given overlay uri is not valid", func() {
+		cmd.UpgradeArgs.OperatingSystemImage = "my.registry.org/my/image:test"
+		cmd.UpgradeArgs.Overlay = "https://example.com/overlay-data"
+		err = action.Upgrade(ctx)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("image source type not supported"))
+	})
 })

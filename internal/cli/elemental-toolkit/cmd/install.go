@@ -45,7 +45,7 @@ func NewInstallCommand(appName string, action func(*cli.Context) error) *cli.Com
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:        "config",
-				Usage:       "Configuration script path to execute after committing os-image",
+				Usage:       "Path to OS image post-commit script",
 				Destination: &InstallArgs.ConfigScript,
 			},
 			&cli.StringFlag{
@@ -61,7 +61,7 @@ func NewInstallCommand(appName string, action func(*cli.Context) error) *cli.Com
 			},
 			&cli.StringFlag{
 				Name:        "overlay",
-				Usage:       "URI to the content overlaid over the OS image",
+				Usage:       "URI of the overlay content for the OS image",
 				Destination: &InstallArgs.Overlay,
 			},
 			&cli.StringFlag{

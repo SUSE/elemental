@@ -90,6 +90,18 @@ func digestUpgradeSetup(s *sys.System, flags *cmd.UpgradeFlags) (*deployment.Dep
 	}
 	d.SourceOS = srcOS
 
+	if flags.Overlay != "" {
+		overlay, err := deployment.NewSrcFromURI(flags.Overlay)
+		if err != nil {
+			return nil, fmt.Errorf("failed parsing overlay source URI ('%s'): %w", flags.Overlay, err)
+		}
+		d.OverlayTree = overlay
+	}
+
+	if flags.ConfigScript != "" {
+		d.CfgScript = flags.ConfigScript
+	}
+
 	err = d.Sanitize(s)
 	if err != nil {
 		return nil, fmt.Errorf("inconsistent deployment setup found: %w", err)
