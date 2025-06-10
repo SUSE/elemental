@@ -38,6 +38,18 @@ func (dir ConfigDir) ReleaseFilepath() string {
 	return filepath.Join(string(dir), "release.yaml")
 }
 
+func (dir ConfigDir) KubernetesFilepath() string {
+	return filepath.Join(string(dir), "kubernetes.yaml")
+}
+
+func (dir ConfigDir) KubernetesDir() string {
+	return filepath.Join(string(dir), "kubernetes")
+}
+
+func (dir ConfigDir) KubernetesManifestsDir() string {
+	return filepath.Join(dir.KubernetesDir(), "manifests")
+}
+
 func ParseConfig(data []byte, target any) error {
 	decoder := yaml.NewDecoder(bytes.NewReader(data))
 	decoder.KnownFields(true)

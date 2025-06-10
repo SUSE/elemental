@@ -18,7 +18,9 @@ limitations under the License.
 package action
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -140,6 +142,19 @@ func parseImageDefinition(args *cmd.BuildFlags) (*image.Definition, error) {
 		return nil, fmt.Errorf("parsing config file %q: %w", configDir.ReleaseFilepath(), err)
 	}
 
+	data, err = os.ReadFile(configDir.KubernetesFilepath())
+	if err == nil {
+		if err = image.ParseConfig(data, &definition.Kubernetes); err != nil {
+			return nil, fmt.Errorf("parsing config file %q: %w", configDir.KubernetesFilepath(), err)
+		}
+	} else if !errors.Is(err, fs.ErrNotExist) {
+		return nil, fmt.Errorf("reading config file: %w", err)
+	}
+
+	if err = parseKubernetesDir(configDir, &definition.Kubernetes); err != nil {
+		return nil, fmt.Errorf("parsing local kubernetes directory: %w", err)
+	}
+
 	return definition, nil
 }
 
@@ -147,4 +162,21 @@ func createBuildDir(rootBuildDir string) (string, error) {
 	buildDirName := fmt.Sprintf("build-%s", time.Now().UTC().Format("2006-01-02T15-04-05"))
 	buildDirPath := filepath.Join(rootBuildDir, buildDirName)
 	return buildDirPath, os.MkdirAll(buildDirPath, 0700)
+}
+
+func parseKubernetesDir(configDir image.ConfigDir, k *image.Kubernetes) error {
+	entries, err := os.ReadDir(configDir.KubernetesManifestsDir())
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil
+		}
+		return fmt.Errorf("reading %s: %w", configDir.KubernetesManifestsDir(), err)
+	}
+
+	for _, entry := range entries {
+		localManifestPath := filepath.Join(configDir.KubernetesManifestsDir(), entry.Name())
+		k.LocalManifest = append(k.LocalManifest, localManifestPath)
+	}
+
+	return nil
 }

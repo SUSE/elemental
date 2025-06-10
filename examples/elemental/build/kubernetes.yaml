@@ -1,0 +1,16 @@
+
+manifests:
+  - https://raw.githubusercontent.com/rancher/local-path-provisioner/v0.0.31/deploy/local-path-storage.yaml
+helm:
+  charts:
+    - name: cert-manager
+      chart: cert-manager
+      version: v1.17.2
+      namespace: cert-manager
+      repository: cert-manager-repo
+      values: |-
+        crds:
+          enabled: true
+  repositories:
+    - name: cert-manager-repo
+      url: https://charts.jetstack.io

@@ -20,6 +20,8 @@ package image
 import (
 	"fmt"
 	"regexp"
+
+	"github.com/suse/elemental/v3/pkg/manifest/api"
 )
 
 const (
@@ -48,6 +50,7 @@ type Definition struct {
 	Installation    Installation
 	OperatingSystem OperatingSystem
 	Release         Release
+	Kubernetes      Kubernetes
 }
 
 type Image struct {
@@ -80,4 +83,12 @@ type Installation struct {
 type Release struct {
 	Name        string `yaml:"name,omitempty"`
 	ManifestURI string `yaml:"manifestURI"`
+}
+
+type Kubernetes struct {
+	// RemoteManifests - manifest URLs specified under config/kubernetes.yaml
+	RemoteManifests []string  `yaml:"manifests,omitempty"`
+	Helm            *api.Helm `yaml:"helm,omitempty"`
+	// LocalManifests - local manifest files specified under config/kubernetes/manifests
+	LocalManifest []string
 }
