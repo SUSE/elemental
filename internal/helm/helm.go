@@ -1,0 +1,92 @@
+/*
+Copyright © 2025 SUSE LLC
+SPDX-License-Identifier: Apache-2.0
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package helm
+
+import (
+	"github.com/suse/elemental/v3/pkg/manifest/api"
+)
+
+const (
+	helmChartAPIVersion = "helm.cattle.io/v1"
+	helmChartKind       = "HelmChart"
+	helmBackoffLimit    = 20
+	kubeSystemNamespace = "kube-system"
+)
+
+type CRD struct {
+	APIVersion string `yaml:"apiVersion"`
+	Kind       string `yaml:"kind"`
+	Metadata   struct {
+		Name      string `yaml:"name"`
+		Namespace string `yaml:"namespace,omitempty"`
+	} `yaml:"metadata"`
+	Spec struct {
+		Chart           string `yaml:"chart"`
+		Version         string `yaml:"version"`
+		Repo            string `yaml:"repo,omitempty"`
+		ValuesContent   string `yaml:"valuesContent,omitempty"`
+		TargetNamespace string `yaml:"targetNamespace,omitempty"`
+		CreateNamespace bool   `yaml:"createNamespace,omitempty"`
+		BackOffLimit    int    `yaml:"backOffLimit"`
+	} `yaml:"spec"`
+}
+
+func NewHelmCRD(chart *api.HelmChart, repositoryURL string) *CRD {
+	return &CRD{
+		APIVersion: helmChartAPIVersion,
+		Kind:       helmChartKind,
+		Metadata: struct {
+			Name      string `yaml:"name"`
+			Namespace string `yaml:"namespace,omitempty"`
+		}{
+			Name:      chart.Chart,
+			Namespace: kubeSystemNamespace,
+		},
+		Spec: struct {
+			Chart           string `yaml:"chart"`
+			Version         string `yaml:"version"`
+			Repo            string `yaml:"repo,omitempty"`
+			ValuesContent   string `yaml:"valuesContent,omitempty"`
+			TargetNamespace string `yaml:"targetNamespace,omitempty"`
+			CreateNamespace bool   `yaml:"createNamespace,omitempty"`
+			BackOffLimit    int    `yaml:"backOffLimit"`
+		}{
+			Chart:           chart.Chart,
+			Version:         chart.Version,
+			Repo:            repositoryURL,
+			ValuesContent:   chart.Values,
+			TargetNamespace: chart.Namespace,
+			CreateNamespace: true,
+			BackOffLimit:    helmBackoffLimit,
+		},
+	}
+}
+
+func ProduceCRDs(helm *api.Helm) []*CRD {
+	repoMap := map[string]string{}
+	for _, repo := range helm.Repositories {
+		repoMap[repo.Name] = repo.URL
+	}
+
+	chartCRDs := []*CRD{}
+	for _, helmChart := range helm.Charts {
+		chartCRDs = append(chartCRDs, NewHelmCRD(&helmChart, repoMap[helmChart.Repository]))
+	}
+
+	return chartCRDs
+}
