@@ -26,12 +26,12 @@ import (
 
 type ReleaseManifest struct {
 	MetaData   *api.MetaData `yaml:"metadata"`
-	Components *Components   `yaml:"components"`
+	Components Components    `yaml:"components"`
 }
 
 type Components struct {
 	OperatingSystem *OperatingSystem `yaml:"operatingSystem"`
-	Kubernetes      *Kubernetes      `yaml:"kubernetes"`
+	Kubernetes      Kubernetes       `yaml:"kubernetes"`
 	Helm            *api.Helm        `yaml:"helm,omitempty"`
 }
 

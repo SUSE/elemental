@@ -174,9 +174,9 @@ func validateResolvedManifest(rm *resolver.ResolvedManifest, coreOnly bool) {
 	Expect(len(rm.CorePlatform.Components.Helm.Charts[0].Images)).To(Equal(1))
 	Expect(rm.CorePlatform.Components.Helm.Charts[0].Images[0].Name).To(Equal("foo"))
 	Expect(rm.CorePlatform.Components.Helm.Charts[0].Images[0].Image).To(Equal("registry.com/foo/foo:0.0.0"))
-	Expect(len(rm.CorePlatform.Components.Helm.Repository)).To(Equal(1))
-	Expect(rm.CorePlatform.Components.Helm.Repository[0].Name).To(Equal("foo-charts"))
-	Expect(rm.CorePlatform.Components.Helm.Repository[0].URL).To(Equal("https://foo.github.io/charts"))
+	Expect(len(rm.CorePlatform.Components.Helm.Repositories)).To(Equal(1))
+	Expect(rm.CorePlatform.Components.Helm.Repositories[0].Name).To(Equal("foo-charts"))
+	Expect(rm.CorePlatform.Components.Helm.Repositories[0].URL).To(Equal("https://foo.github.io/charts"))
 
 	if !coreOnly {
 		Expect(rm.ProductExtension).ToNot(BeNil())
@@ -204,9 +204,9 @@ func validateResolvedManifest(rm *resolver.ResolvedManifest, coreOnly bool) {
 		Expect(len(rm.ProductExtension.Components.Helm.Charts[0].Images)).To(Equal(1))
 		Expect(rm.ProductExtension.Components.Helm.Charts[0].Images[0].Name).To(Equal("bar"))
 		Expect(rm.ProductExtension.Components.Helm.Charts[0].Images[0].Image).To(Equal("registry.com/bar/bar:0.0.0"))
-		Expect(len(rm.ProductExtension.Components.Helm.Repository)).To(Equal(1))
-		Expect(rm.ProductExtension.Components.Helm.Repository[0].Name).To(Equal("bar-charts"))
-		Expect(rm.ProductExtension.Components.Helm.Repository[0].URL).To(Equal("https://bar.github.io/charts"))
+		Expect(len(rm.ProductExtension.Components.Helm.Repositories)).To(Equal(1))
+		Expect(rm.ProductExtension.Components.Helm.Repositories[0].Name).To(Equal("bar-charts"))
+		Expect(rm.ProductExtension.Components.Helm.Repositories[0].URL).To(Equal("https://bar.github.io/charts"))
 	} else {
 		Expect(rm.ProductExtension).To(BeNil())
 	}

@@ -27,7 +27,7 @@ import (
 type ReleaseManifest struct {
 	MetaData     *api.MetaData `yaml:"metadata,omitempty"`
 	CorePlatform *CorePlatform `yaml:"corePlatform"`
-	Components   *Components   `yaml:"components,omitempty"`
+	Components   Components    `yaml:"components,omitempty"`
 }
 
 type CorePlatform struct {

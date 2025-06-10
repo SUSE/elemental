@@ -38,6 +38,6 @@ components:
       images:
       - name: "bar"
         image: "registry.com/bar/bar:0.0.0"
-    repository:
+    repositories:
     - name: "bar-charts"
       url: "https://bar.github.io/charts"

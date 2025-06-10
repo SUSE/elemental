@@ -82,9 +82,9 @@ var _ = Describe("ReleaseManifest", Label("release-manifest"), func() {
 		Expect(len(rm.Components.Helm.Charts[0].Images)).To(Equal(1))
 		Expect(rm.Components.Helm.Charts[0].Images[0].Name).To(Equal("foo"))
 		Expect(rm.Components.Helm.Charts[0].Images[0].Image).To(Equal("registry.com/foo/foo:0.0.0"))
-		Expect(len(rm.Components.Helm.Repository)).To(Equal(1))
-		Expect(rm.Components.Helm.Repository[0].Name).To(Equal("foo-charts"))
-		Expect(rm.Components.Helm.Repository[0].URL).To(Equal("https://foo.github.io/charts"))
+		Expect(len(rm.Components.Helm.Repositories)).To(Equal(1))
+		Expect(rm.Components.Helm.Repositories[0].Name).To(Equal("foo-charts"))
+		Expect(rm.Components.Helm.Repositories[0].URL).To(Equal("https://foo.github.io/charts"))
 	})
 
 	It("fails when unknown field is introduced", func() {
