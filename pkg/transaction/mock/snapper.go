@@ -26,6 +26,7 @@ type Transactioner struct {
 	InitErr        error
 	StartErr       error
 	CommitErr      error
+	RollbackErr    error
 	Trans          *transaction.Transaction
 	UpgradeHelper  UpgradeHelper
 	SrcDigest      string
@@ -79,9 +80,9 @@ func (t Transactioner) Commit(_ *transaction.Transaction) error {
 	return t.CommitErr
 }
 
-func (t *Transactioner) Rollback(_ *transaction.Transaction, err error) error {
+func (t *Transactioner) Rollback(_ *transaction.Transaction, _ error) error {
 	t.rollbackCalled = true
-	return err
+	return t.RollbackErr
 }
 
 func (t Transactioner) RollbackCalled() bool {
