@@ -29,6 +29,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/suse/elemental/v3/internal/helm"
 	"github.com/suse/elemental/v3/internal/image"
 	"github.com/suse/elemental/v3/internal/manifest/extractor"
 	"github.com/suse/elemental/v3/internal/template"
@@ -36,10 +37,13 @@ import (
 	"github.com/suse/elemental/v3/pkg/deployment"
 	"github.com/suse/elemental/v3/pkg/firmware"
 	"github.com/suse/elemental/v3/pkg/install"
+	"github.com/suse/elemental/v3/pkg/manifest/api"
 	"github.com/suse/elemental/v3/pkg/manifest/resolver"
 	"github.com/suse/elemental/v3/pkg/manifest/source"
 	"github.com/suse/elemental/v3/pkg/sys"
+	"github.com/suse/elemental/v3/pkg/sys/vfs"
 	"github.com/suse/elemental/v3/pkg/upgrade"
+	"gopkg.in/yaml.v3"
 )
 
 //go:embed templates/config.sh.tpl
@@ -51,6 +55,7 @@ var k8sResDeployScriptTpl string
 func Run(ctx context.Context, d *image.Definition, buildDir string, system *sys.System) error {
 	logger := system.Logger()
 	runner := system.Runner()
+	overlaysPath := filepath.Join(buildDir, "overlays")
 
 	logger.Info("Resolving release manifest: %s", d.Release.ManifestURI)
 	m, err := resolveManifest(d.Release.ManifestURI, buildDir)
@@ -59,8 +64,40 @@ func Run(ctx context.Context, d *image.Definition, buildDir string, system *sys.
 		return err
 	}
 
+	var runtimeHelmCharts []string
+	relativeK8sPath := filepath.Join("var", "lib", "unified-core", "kubernetes")
+	if needsHelmChartsSetup(&d.Kubernetes, m) {
+		relativeHelmPath := filepath.Join(relativeK8sPath, "helm")
+		if runtimeHelmCharts, err = setupHelmCharts(d, m, overlaysPath, relativeHelmPath); err != nil {
+			logger.Error("Setting up HelmChart resoruces")
+			return err
+		}
+	}
+
+	var runtimeManifestsDir string
+	if needsManifestsSetup(&d.Kubernetes) {
+		relativeManfiestsPath := filepath.Join(relativeK8sPath, "manifests")
+		manifestsOverlayPath := filepath.Join(overlaysPath, relativeManfiestsPath)
+		if err = setupManifests(ctx, system.FS(), &d.Kubernetes, manifestsOverlayPath); err != nil {
+			logger.Error("Setting up Kubernetes manifests")
+			return err
+		}
+
+		runtimeManifestsDir = filepath.Join(string(os.PathSeparator), relativeManfiestsPath)
+	}
+
+	var runtimeK8sResDeployScript string
+	if len(runtimeHelmCharts) > 0 || runtimeManifestsDir != "" {
+		kubernetesOverlayPath := filepath.Join(overlaysPath, relativeK8sPath)
+		scriptInOverlay, err := writeK8sResDeployScript(kubernetesOverlayPath, runtimeManifestsDir, runtimeHelmCharts)
+		if err != nil {
+			logger.Error("Writing Kubernetes resource deployment script")
+			return err
+		}
+		runtimeK8sResDeployScript = filepath.Join(string(os.PathSeparator), relativeK8sPath, filepath.Base(scriptInOverlay))
+	}
+
 	logger.Info("Downloading RKE2 extension")
-	overlaysPath := filepath.Join(buildDir, "overlays")
 	extensionsPath := filepath.Join(overlaysPath, "var", "lib", "extensions")
 	if err = downloadExtension(ctx, m.CorePlatform.Components.Kubernetes.RKE2.Image, extensionsPath); err != nil {
 		logger.Error("Downloading RKE2 extension failed")
@@ -68,7 +105,7 @@ func Run(ctx context.Context, d *image.Definition, buildDir string, system *sys.
 	}
 
 	logger.Info("Preparing configuration script")
-	configScript, err := writeConfigScript(d, buildDir)
+	configScript, err := writeConfigScript(d, buildDir, runtimeK8sResDeployScript)
 	if err != nil {
 		logger.Error("Preparing configuration script failed")
 		return err
@@ -274,6 +311,93 @@ func downloadExtension(ctx context.Context, downloadURL, extensionsPath string) 
 
 	if err = file.Close(); err != nil {
 		return fmt.Errorf("closing file: %w", err)
+	}
+
+	return nil
+}
+
+func needsHelmChartsSetup(k *image.Kubernetes, rm *resolver.ResolvedManifest) bool {
+	return (rm.CorePlatform != nil && rm.CorePlatform.Components.Helm != nil) ||
+		(rm.ProductExtension != nil && rm.ProductExtension.Components.Helm != nil) || k.Helm != nil
+}
+
+func needsManifestsSetup(k *image.Kubernetes) bool {
+	return len(k.RemoteManifests) > 0 || len(k.LocalManifest) > 0
+}
+
+func setupHelmCharts(d *image.Definition, rm *resolver.ResolvedManifest, overlaysPath, relativeHelmPath string) (runtimeHelmCharts []string, err error) {
+	pathInOverlays := filepath.Join(overlaysPath, relativeHelmPath)
+	runtimePath := filepath.Join(string(os.PathSeparator), relativeHelmPath)
+	chartNames, err := writeHelmCharts(pathInOverlays, getPrioritisedHelmConfigs(&d.Kubernetes, rm))
+	if err != nil {
+		return nil, fmt.Errorf("writing helm chart resources to %s: %w", pathInOverlays, err)
+	}
+
+	for _, chartName := range chartNames {
+		runtimeHelmCharts = append(runtimeHelmCharts, filepath.Join(runtimePath, chartName))
+	}
+
+	return runtimeHelmCharts, nil
+}
+
+func getPrioritisedHelmConfigs(k *image.Kubernetes, rm *resolver.ResolvedManifest) []*api.Helm {
+	configs := []*api.Helm{}
+	if rm.CorePlatform != nil && rm.CorePlatform.Components.Helm != nil {
+		configs = append(configs, rm.CorePlatform.Components.Helm)
+	}
+
+	if rm.ProductExtension != nil && rm.ProductExtension.Components.Helm != nil {
+		configs = append(configs, rm.ProductExtension.Components.Helm)
+	}
+
+	if k.Helm != nil {
+		configs = append(configs, k.Helm)
+	}
+
+	return configs
+}
+
+func writeHelmCharts(dest string, configs []*api.Helm) (names []string, err error) {
+	if err := os.MkdirAll(dest, os.ModeDir); err != nil {
+		return nil, fmt.Errorf("setting up HelmChart destination directory '%s': %w", dest, err)
+	}
+
+	for _, config := range configs {
+		for _, helmCRD := range helm.ProduceCRDs(config) {
+			data, err := yaml.Marshal(helmCRD)
+			if err != nil {
+				return nil, fmt.Errorf("marshaling helm chart: %w", err)
+			}
+
+			chartName := fmt.Sprintf("%s.yaml", helmCRD.Metadata.Name)
+			chartPath := filepath.Join(dest, chartName)
+			if err = os.WriteFile(chartPath, data, os.FileMode(0o644)); err != nil {
+				return nil, fmt.Errorf("writing helm chart: %w", err)
+			}
+
+			names = append(names, chartName)
+		}
+	}
+
+	return names, nil
+}
+
+func setupManifests(ctx context.Context, fs vfs.FS, k *image.Kubernetes, manifestsDir string) error {
+	if err := os.MkdirAll(manifestsDir, os.ModeDir); err != nil {
+		return fmt.Errorf("setting up manifests directory '%s': %w", manifestsDir, err)
+	}
+
+	for _, manifest := range k.RemoteManifests {
+		if err := downloadExtension(ctx, manifest, manifestsDir); err != nil {
+			return fmt.Errorf("downloading remote Kubernetes manfiest '%s': %w", manifest, err)
+		}
+	}
+
+	for _, manifest := range k.LocalManifest {
+		overlayPath := filepath.Join(manifestsDir, filepath.Base(manifest))
+		if err := vfs.CopyFile(fs, manifest, overlayPath); err != nil {
+			return fmt.Errorf("copying local manifest '%s' to '%s': %w", manifest, overlayPath, err)
+		}
 	}
 
 	return nil
