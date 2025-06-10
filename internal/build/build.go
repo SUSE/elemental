@@ -65,7 +65,7 @@ func Run(ctx context.Context, d *image.Definition, buildDir string, system *sys.
 	}
 
 	var runtimeHelmCharts []string
-	relativeK8sPath := filepath.Join("var", "lib", "unified-core", "kubernetes")
+	relativeK8sPath := filepath.Join("var", "lib", "elemental", "kubernetes")
 	if needsHelmChartsSetup(&d.Kubernetes, m) {
 		relativeHelmPath := filepath.Join(relativeK8sPath, "helm")
 		if runtimeHelmCharts, err = setupHelmCharts(d, m, overlaysPath, relativeHelmPath); err != nil {
