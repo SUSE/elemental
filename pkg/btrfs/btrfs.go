@@ -18,6 +18,7 @@ limitations under the License.
 package btrfs
 
 import (
+	"fmt"
 	"path/filepath"
 
 	"github.com/suse/elemental/v3/pkg/sys"
@@ -32,8 +33,7 @@ func EnableQuota(s *sys.System, path string) error {
 	s.Logger().Debug("Enabling btrfs quota")
 	cmdOut, err := s.Runner().Run("btrfs", "quota", "enable", path)
 	if err != nil {
-		s.Logger().Error("failed setting quota for btrfs partition at %s: %s", path, string(cmdOut))
-		return err
+		return fmt.Errorf("setting quota for btrfs partition at %s: %s: %w", path, string(cmdOut), err)
 	}
 	return nil
 }
@@ -43,13 +43,11 @@ func CreateSubvolume(s *sys.System, path string, copyOnWrite bool) error {
 	s.Logger().Debug("Creating subvolume: %s", path)
 	err := vfs.MkdirAll(s.FS(), filepath.Dir(path), vfs.DirPerm)
 	if err != nil {
-		s.Logger().Error("failed creating subvolume path: %s", path)
-		return err
+		return fmt.Errorf("creating subvolume path %s: %w", path, err)
 	}
 	cmdOut, err := s.Runner().Run("btrfs", "subvolume", "create", path)
 	if err != nil {
-		s.Logger().Error("failed creating subvolume %s: %s", path, string(cmdOut))
-		return err
+		return fmt.Errorf("creating subvolume %s: %s: %w", path, string(cmdOut), err)
 	}
 	if !copyOnWrite {
 		return NoCopyOnWrite(s, path)
@@ -61,8 +59,7 @@ func CreateSubvolume(s *sys.System, path string, copyOnWrite bool) error {
 func NoCopyOnWrite(s *sys.System, path string) error {
 	cmdOut, err := s.Runner().Run("chattr", "+C", path)
 	if err != nil {
-		s.Logger().Error("failed setting no copy on write for volume '%s': %s", path, string(cmdOut))
-		return err
+		return fmt.Errorf("setting no copy on write for volume '%s': %s: %w", path, string(cmdOut), err)
 	}
 	return nil
 }
@@ -72,14 +69,12 @@ func CreateSnapshot(s *sys.System, path, base string, copyOnWrite bool) error {
 	s.Logger().Debug("Creating snapshot: %s", path)
 	err := vfs.MkdirAll(s.FS(), filepath.Dir(path), vfs.DirPerm)
 	if err != nil {
-		s.Logger().Error("failed creating snapshot subvolume path: %s", path)
-		return err
+		return fmt.Errorf("creating snapshot subvolume path %s: %w", path, err)
 	}
 
 	cmdOut, err := s.Runner().Run("btrfs", "subvolume", "snapshot", base, path)
 	if err != nil {
-		s.Logger().Error("failed creating snapshot subvolume '%s': %s", path, string(cmdOut))
-		return err
+		return fmt.Errorf("creating snapshot subvolume '%s': %s: %w", path, string(cmdOut), err)
 	}
 	if !copyOnWrite {
 		return NoCopyOnWrite(s, path)
@@ -93,8 +88,7 @@ func CreateQuotaGroup(s *sys.System, path, qGroup string) error {
 	s.Logger().Debug("Create btrfs quota group")
 	cmdOut, err := s.Runner().Run("btrfs", "qgroup", "create", qGroup, path)
 	if err != nil {
-		s.Logger().Error("failed creating quota group for %s: %s", path, string(cmdOut))
-		return err
+		return fmt.Errorf("creating quota group for %s: %s: %w", path, string(cmdOut), err)
 	}
 	return nil
 }
@@ -125,15 +119,10 @@ func DeleteSubvolume(s *sys.System, path string) error {
 	s.Logger().Debug("Setting rw property to subvolume: %s", path)
 	_, err := s.Runner().Run("btrfs", "property", "set", "-ts", path, "ro", "false")
 	if err != nil {
-		s.Logger().Error("failed setting rw to snapshot '%s' before deletion", path)
-		return err
+		return fmt.Errorf("setting rw permissions before deletion: %w", err)
 	}
 	_, err = s.Runner().Run("btrfs", "subvolume", "delete", "-c", "-R", path)
-	if err != nil {
-		s.Logger().Error("failed deleting snapshot '%s'", path)
-		return err
-	}
-	return nil
+	return err
 }
 
 // SetDefaultSubvolume sets the given subvolume as the default subvolume to mount
@@ -141,8 +130,7 @@ func SetDefaultSubvolume(s *sys.System, path string) error {
 	s.Logger().Debug("Setting default subvolume")
 	_, err := s.Runner().Run("btrfs", "subvolume", "set-default", path)
 	if err != nil {
-		s.Logger().Error("failed setting the default subvolume to %s", path)
-		return err
+		return fmt.Errorf("setting default subvolume to '%s': %w", path, err)
 	}
 	return nil
 }

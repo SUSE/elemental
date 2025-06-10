@@ -168,7 +168,7 @@ var _ = Describe("Install", Label("install"), func() {
 		upgrader.Error = fmt.Errorf("transaction failed")
 		err := i.Install(d)
 		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("transaction failed"))
+		Expect(err).To(MatchError("executing transaction: transaction failed"))
 		Expect(runner.MatchMilestones([][]string{
 			{"sgdisk", "--zap-all", "/dev/device"},
 			{"mkfs.vfat", "-n", "EFI"},

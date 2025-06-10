@@ -96,7 +96,7 @@ var _ = Describe("Deployment", Label("deployment"), func() {
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("multiple 'recovery'"))
 	})
-	It("fails if non last partitition is set to use all space available", func() {
+	It("fails if non last partition is set to use all space available", func() {
 		d := deployment.DefaultDeployment()
 		d.Disks[0].Partitions = append(d.Disks[0].Partitions, &deployment.Partition{
 			Role: deployment.Recovery,
@@ -147,7 +147,7 @@ var _ = Describe("Deployment", Label("deployment"), func() {
 		d := deployment.DefaultDeployment()
 		d.Disks[0].Device = "/dev/device"
 		Expect(d.WriteDeploymentFile(s, "/some/dir")).To(Succeed())
-		rD, err := deployment.ReadDeployment(s, "/some/dir")
+		rD, err := deployment.Parse(s, "/some/dir")
 		Expect(err).NotTo(HaveOccurred())
 		Expect(len(rD.Disks)).To(Equal(1))
 		Expect(rD.Disks[0].Device).To(BeEmpty())
@@ -159,12 +159,12 @@ var _ = Describe("Deployment", Label("deployment"), func() {
 		Expect(d.WriteDeploymentFile(s, "/some/dir")).To(Succeed())
 		d.Disks[0].Partitions[0].Label = "NEWEFI"
 		Expect(d.WriteDeploymentFile(s, "/some/dir")).To(Succeed())
-		rD, err := deployment.ReadDeployment(s, "/some/dir")
+		rD, err := deployment.Parse(s, "/some/dir")
 		Expect(err).NotTo(HaveOccurred())
 		Expect(rD.Disks[0].Partitions[0].Label).To(Equal("NEWEFI"))
 	})
 	It("throws a warning trying to read a non existing deployment", func() {
-		_, err := deployment.ReadDeployment(s, "/some/dir")
+		_, err := deployment.Parse(s, "/some/dir")
 		Expect(err).NotTo(HaveOccurred())
 		Expect(buffer.String()).To(ContainSubstring("deployment file not found"))
 	})

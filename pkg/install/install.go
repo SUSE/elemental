@@ -19,6 +19,7 @@ package install
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 
 	"github.com/suse/elemental/v3/pkg/block"
@@ -35,9 +36,8 @@ import (
 type Option func(*Installer)
 
 type Installer struct {
-	ctx context.Context
-	s   *sys.System
-	u   upgrade.Interface
+	s *sys.System
+	u upgrade.Interface
 }
 
 func WithUpgrader(u upgrade.Interface) Option {
@@ -48,8 +48,7 @@ func WithUpgrader(u upgrade.Interface) Option {
 
 func New(ctx context.Context, s *sys.System, opts ...Option) *Installer {
 	installer := &Installer{
-		s:   s,
-		ctx: ctx,
+		s: s,
 	}
 	for _, o := range opts {
 		o(installer)
@@ -67,22 +66,19 @@ func (i Installer) Install(d *deployment.Deployment) (err error) {
 	for _, disk := range d.Disks {
 		err = diskrepart.PartitionAndFormatDevice(i.s, disk)
 		if err != nil {
-			i.s.Logger().Error("installation failed, could not partition '%s'", disk.Device)
-			return err
+			return fmt.Errorf("partitioning disk '%s': %w", disk.Device, err)
 		}
 		for _, part := range disk.Partitions {
 			err = createPartitionVolumes(i.s, cleanup, part)
 			if err != nil {
-				i.s.Logger().Error("installation failed, could not create rw volumes")
-				return err
+				return fmt.Errorf("creating partition volumes: %w", err)
 			}
 		}
 	}
 
 	err = i.u.Upgrade(d)
 	if err != nil {
-		i.s.Logger().Error("installation failed, could not run transaction")
-		return err
+		return fmt.Errorf("executing transaction: %w", err)
 	}
 
 	return nil
@@ -94,27 +90,24 @@ func createPartitionVolumes(s *sys.System, cleanStack *cleanstack.CleanStack, pa
 	if len(part.RWVolumes) > 0 || part.Role == deployment.System {
 		mountPoint, err = vfs.TempDir(s.FS(), "", "elemental_"+part.Role.String())
 		if err != nil {
-			s.Logger().Error("failed creating temporary directory to mount system partition")
-			return err
+			return fmt.Errorf("creating temporary directory to mount system partition: %w", err)
 		}
 		cleanStack.PushSuccessOnly(func() error { return s.FS().RemoveAll(mountPoint) })
 
 		bDev := lsblk.NewLsDevice(s)
 		bPart, err := block.GetPartitionByUUID(s, bDev, part.UUID, 4)
 		if err != nil {
-			s.Logger().Error("failed to find partition %d", part.UUID)
-			return err
+			return fmt.Errorf("finding partition '%s': %w", part.UUID, err)
 		}
 		err = s.Mounter().Mount(bPart.Path, mountPoint, "", []string{})
 		if err != nil {
-			return err
+			return fmt.Errorf("mounting partition '%s': %w", bPart.Path, err)
 		}
 		cleanStack.Push(func() error { return s.Mounter().Unmount(mountPoint) })
 
 		err = btrfs.SetBtrfsPartition(s, mountPoint)
 		if err != nil {
-			s.Logger().Error("failed setting brfs partition volumes")
-			return err
+			return fmt.Errorf("setting btrfs partition volumes: %w", err)
 		}
 	}
 
@@ -125,8 +118,7 @@ func createPartitionVolumes(s *sys.System, cleanStack *cleanstack.CleanStack, pa
 		subvolume := filepath.Join(mountPoint, btrfs.TopSubVol, rwVol.Path)
 		err = btrfs.CreateSubvolume(s, subvolume, true)
 		if err != nil {
-			s.Logger().Error("failed creating subvolume %s", subvolume)
-			return err
+			return fmt.Errorf("creating subvolume '%s': %w", subvolume, err)
 		}
 	}
 

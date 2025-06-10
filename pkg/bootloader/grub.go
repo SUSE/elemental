@@ -60,36 +60,36 @@ var grubCfg []byte
 func (g *Grub) Install(rootPath, snapshotID, kernelCmdline string, d *deployment.Deployment) error {
 	esp := d.GetEfiSystemPartition()
 	if esp == nil {
-		g.s.Logger().Error("ESP not found")
 		return fmt.Errorf("ESP not found")
 	}
 
 	g.s.Logger().Info("Installing GRUB bootloader to partition '%s'", esp.Label)
 
 	if esp.Role != deployment.EFI {
-		g.s.Logger().Error("")
-		return fmt.Errorf("%w: installing bootloader to partition role %d", errors.ErrUnsupported, esp.Role)
+		return fmt.Errorf("installing bootloader to partition role %s: %w", esp.Role, errors.ErrUnsupported)
 	}
 
 	err := g.installElementalEFI(rootPath, esp)
 	if err != nil {
-		g.s.Logger().Error("Error installing elemental EFI app: %s", err.Error())
-		return err
+		return fmt.Errorf("installing elemental EFI apps: %w", err)
 	}
 
 	err = g.installGrub(rootPath, esp)
 	if err != nil {
-		g.s.Logger().Error("Error installing grub config: %s", err.Error())
-		return err
+		return fmt.Errorf("installing grub config: %w", err)
 	}
 
 	entries, err := g.installKernelInitrd(rootPath, snapshotID, kernelCmdline, esp)
 	if err != nil {
-		g.s.Logger().Error("Error installing kernel+initrd: %s", err.Error())
-		return err
+		return fmt.Errorf("installing kernel+initrd: %w", err)
 	}
 
-	return g.updateBootEntries(rootPath, esp, entries...)
+	err = g.updateBootEntries(rootPath, esp, entries...)
+	if err != nil {
+		return fmt.Errorf("updating boot entries: %w", err)
+	}
+
+	return nil
 }
 
 // installElementalEFI installs the efi applications (shim, MokManager, grub.efi) and grub.cfg into the ESP.
@@ -100,8 +100,7 @@ func (g *Grub) installElementalEFI(rootPath string, esp *deployment.Partition) e
 		targetDir := filepath.Join(rootPath, esp.MountPoint, "EFI", efiEntry)
 		err := vfs.MkdirAll(g.s.FS(), targetDir, vfs.DirPerm)
 		if err != nil {
-			g.s.Logger().Error("Error creating EFI dir '%s': %s", targetDir, err.Error())
-			return err
+			return fmt.Errorf("creating dir '%s': %w", targetDir, err)
 		}
 
 		srcDir := filepath.Join(rootPath, "usr", "share", "efi", grubArch(g.s.Platform().Arch))
@@ -110,8 +109,7 @@ func (g *Grub) installElementalEFI(rootPath string, esp *deployment.Partition) e
 			target := filepath.Join(targetDir, name)
 			err = vfs.CopyFile(g.s.FS(), src, target)
 			if err != nil {
-				g.s.Logger().Error("Error copying EFI app '%s': %s", src, err.Error())
-				return err
+				return fmt.Errorf("copying file '%s': %w", src, err)
 			}
 		}
 
@@ -119,8 +117,7 @@ func (g *Grub) installElementalEFI(rootPath string, esp *deployment.Partition) e
 		target := filepath.Join(targetDir, defaultEfiBootFileName(g.s.Platform()))
 		err = vfs.CopyFile(g.s.FS(), src, target)
 		if err != nil {
-			g.s.Logger().Error("Failed copying shim.efi: %s, skipping", err.Error())
-			return err
+			return fmt.Errorf("copying file '%s': %w", src, err)
 		}
 
 		// Write grub.cfg
@@ -169,8 +166,7 @@ func (g *Grub) installGrub(rootPath string, esp *deployment.Partition) error {
 
 	err := r.SyncData(filepath.Join(rootPath, "/usr/share/grub2"), filepath.Join(rootPath, esp.MountPoint, "grub2"))
 	if err != nil {
-		g.s.Logger().Error("Error syncing grub files: %s", err.Error())
-		return err
+		return fmt.Errorf("syncing grub files: %w", err)
 	}
 
 	return nil
@@ -182,8 +178,7 @@ func (g *Grub) installKernelInitrd(rootPath, snapshotID, kernelCmdline string, e
 
 	osVars, err := vfs.LoadEnvFile(g.s.FS(), filepath.Join(rootPath, OsReleasePath))
 	if err != nil {
-		g.s.Logger().Info("Error loading %s vars: %s", OsReleasePath, err.Error())
-		return nil, err
+		return nil, fmt.Errorf("loading %s vars: %w", OsReleasePath, err)
 	}
 
 	var (
@@ -191,38 +186,33 @@ func (g *Grub) installKernelInitrd(rootPath, snapshotID, kernelCmdline string, e
 		ok   bool
 	)
 	if osID, ok = osVars["ID"]; !ok {
-		g.s.Logger().Error("Error /etc/os-release ID var not set.")
 		return nil, fmt.Errorf("/etc/os-release ID not set")
 	}
 
 	kernel, kernelVersion, err := vfs.FindKernel(g.s.FS(), rootPath)
 	if err != nil {
-		g.s.Logger().Info("Error loading finding kernel: %s", err.Error())
-		return nil, err
+		return nil, fmt.Errorf("finding kernel: %w", err)
 	}
 
 	targetDir := filepath.Join(rootPath, esp.MountPoint, osID, kernelVersion)
 	err = vfs.MkdirAll(g.s.FS(), targetDir, vfs.DirPerm)
 	if err != nil {
-		g.s.Logger().Info("Error creating kernel dir '%s': %s", targetDir, err.Error())
-		return nil, err
+		return nil, fmt.Errorf("creating kernel dir '%s': %w", targetDir, err)
 	}
 
 	err = vfs.CopyFile(g.s.FS(), kernel, targetDir)
 	if err != nil {
-		g.s.Logger().Info("Error copying kernel '%s': %s", targetDir, err.Error())
-		return nil, err
+		return nil, fmt.Errorf("copying kernel '%s': %w", kernel, err)
 	}
 
-	expectedInitrdPath := filepath.Join(filepath.Dir(kernel), Initrd)
-	if exists, _ := vfs.Exists(g.s.FS(), expectedInitrdPath); !exists {
+	initrdPath := filepath.Join(filepath.Dir(kernel), Initrd)
+	if exists, _ := vfs.Exists(g.s.FS(), initrdPath); !exists {
 		return nil, fmt.Errorf("initrd not found")
 	}
 
-	err = vfs.CopyFile(g.s.FS(), expectedInitrdPath, targetDir)
+	err = vfs.CopyFile(g.s.FS(), initrdPath, targetDir)
 	if err != nil {
-		g.s.Logger().Info("Error copying initrd '%s': %s", targetDir, err.Error())
-		return nil, err
+		return nil, fmt.Errorf("copying initrd '%s': %w", initrdPath, err)
 	}
 
 	displayName, ok := osVars["PRETTY_NAME"]
@@ -260,8 +250,7 @@ func (g *Grub) updateBootEntries(rootPath string, esp *deployment.Partition, new
 	// Read current entries
 	stdOut, err := g.s.Runner().Run("grub2-editenv", grubEnvPath, "list")
 	if err != nil {
-		g.s.Logger().Error("Failed reading current boot entries: %s", err.Error())
-		return err
+		return fmt.Errorf("reading current boot entries: %w", err)
 	}
 
 	g.s.Logger().Debug("grub2-editenv stdout: %s", string(stdOut))
@@ -273,8 +262,7 @@ func (g *Grub) updateBootEntries(rootPath string, esp *deployment.Partition, new
 
 	err = vfs.MkdirAll(g.s.FS(), filepath.Join(rootPath, esp.MountPoint, "loader", "entries"), vfs.DirPerm)
 	if err != nil {
-		g.s.Logger().Error("Failed creating loader dir: %s:", err.Error())
-		return err
+		return fmt.Errorf("creating loader dir: %w", err)
 	}
 
 	// create boot entries
@@ -284,7 +272,7 @@ func (g *Grub) updateBootEntries(rootPath string, esp *deployment.Partition, new
 		initrd := fmt.Sprintf("initrd=%s", entry.initrd)
 		cmdline := fmt.Sprintf("cmdline=%s", entry.cmdline)
 
-		stdOut, err := g.s.Runner().Run("grub2-editenv", filepath.Join(rootPath, esp.MountPoint, "loader", "entries", entry.id), "set", displayName, linux, initrd, cmdline)
+		stdOut, err = g.s.Runner().Run("grub2-editenv", filepath.Join(rootPath, esp.MountPoint, "loader", "entries", entry.id), "set", displayName, linux, initrd, cmdline)
 		g.s.Logger().Debug("grub2-editenv stdout: %s", string(stdOut))
 		if err != nil {
 			return err

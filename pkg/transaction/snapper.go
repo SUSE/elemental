@@ -89,11 +89,11 @@ func (sn *snapperT) Init(d deployment.Deployment) (uh UpgradeHelper, err error) 
 	if ok, err := sn.isInitiated(d); ok {
 		return sn.snapperContext, nil
 	} else if err != nil {
-		return nil, fmt.Errorf("failed to determine snapshots state: %w", err)
+		return nil, fmt.Errorf("determining snapshots state: %w", err)
 	}
-	err = sn.snap.InitSnapperRootVolumes(sn.rootDir)
+	err = sn.snap.InitRootVolumes(sn.rootDir)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("initializing root snapper volumes: %w", err)
 	}
 	return sn.snapperContext, nil
 }
@@ -105,21 +105,19 @@ func (sn snapperT) Start() (trans *Transaction, err error) {
 	sn.s.Logger().Info("Starting a btrfs snapshotter transaction")
 
 	if len(sn.hwPartitions) == 0 {
-		sn.s.Logger().Error("snapshotter must be initalized before starting a transaction")
 		return nil, fmt.Errorf("uninitialized snapshotter")
 	}
 
 	sn.s.Logger().Info("Creating new snapshot")
 	trans, err = sn.createNewSnapshot(sn.defaultID)
 	if err != nil {
-		sn.s.Logger().Error("failed creating new snapshot")
-		return nil, err
+		return nil, fmt.Errorf("creating new snapshot: %w", err)
 	}
 
 	sn.s.Logger().Info("Setting RW subvolumes")
 	err = sn.preparePartitions(sn.defaultID, trans)
 	if err != nil {
-		sn.s.Logger().Error("failed setting rw volumes")
+		err = fmt.Errorf("preparing partitions: %w", err)
 		return trans, sn.Rollback(trans, err)
 	}
 
@@ -131,22 +129,20 @@ func (sn snapperT) Commit(trans *Transaction) (err error) {
 	defer func() { err = sn.checkCancelled(err) }()
 
 	if trans.status != started {
-		return fmt.Errorf("given transaction '%d' is not started", trans.ID)
+		return fmt.Errorf("transaction '%d' is not started", trans.ID)
 	}
 	sn.s.Logger().Info("Committing transaction")
 
 	sn.s.Logger().Info("Creating post-transaction snapshots")
 	err = sn.createPostSnapshots(trans.Path)
 	if err != nil {
-		sn.s.Logger().Error("failed creating post transaction snapshots")
-		return err
+		return fmt.Errorf("creating post transaction snapshots: %w", err)
 	}
 
 	sn.s.Logger().Info("Setting new default snapshot")
 	err = sn.snap.SetDefault(trans.Path, trans.ID, map[string]string{updateProgress: ""})
 	if err != nil {
-		sn.s.Logger().Error("failed setting new default snapshot")
-		return err
+		return fmt.Errorf("setting new default snapshot: %w", err)
 	}
 
 	// We are ignoring these errors as the default snapshot is already changed
@@ -171,7 +167,7 @@ func (sn snapperT) Rollback(trans *Transaction, e error) (err error) {
 		sn.s.Logger().Warn("cannot rollback a committed transaction")
 		return e
 	}
-	sn.s.Logger().Error("closing transaction due to a failure: %v", e)
+	sn.s.Logger().Error("Closing transaction due to a failure: %v", e)
 	err = sn.cleanStack.Cleanup(e)
 	err = errors.Join(err, sn.snap.DeleteByPath(trans.Path))
 	trans.status = failed
@@ -197,42 +193,46 @@ func (sn *snapperT) probe(d deployment.Deployment) (err error) {
 	blockDev := lsblk.NewLsDevice(sn.s)
 	sn.hwPartitions, err = blockDev.GetAllPartitions()
 	if err != nil {
-		return fmt.Errorf("failed probing host partitions: %w", err)
+		return fmt.Errorf("probing host partitions: %w", err)
 	}
+
 	sysPart := d.GetSystemPartition()
 	if sysPart == nil {
 		return fmt.Errorf("no system partition defined in deployment")
 	}
+
 	part := sn.hwPartitions.GetByUUIDNameOrLabel(sysPart.UUID, sysPart.Role.String(), sysPart.Label)
 	if part == nil {
 		return fmt.Errorf("system partition not found: %+v", sysPart)
 	}
-	mnts, err := sn.s.Mounter().GetMountPoints(part.Path)
+
+	mountPoints, err := sn.s.Mounter().GetMountPoints(part.Path)
 	if err != nil {
-		return err
-	}
-	if len(mnts) == 0 {
+		return fmt.Errorf("getting mount points: %w", err)
+	} else if len(mountPoints) == 0 {
 		return fmt.Errorf("no mountpoints found for device '%s'", part.Path)
 	}
+
 	r := regexp.MustCompile(fmt.Sprintf(`%s/.snapshots/\d+/snapshot$`, btrfs.TopSubVol))
-	for _, mnt := range mnts {
+	for _, mnt := range mountPoints {
 		for _, opt := range mnt.Opts {
 			if r.Match([]byte(opt)) {
 				sn.rootDir = mnt.Path
 			}
 		}
 	}
+
 	if sn.rootDir != "" {
 		snaps, err := sn.snap.ListSnapshots(sn.rootDir, "root")
 		if err != nil {
-			return err
+			return fmt.Errorf("listing snapshots: %w", err)
 		}
 		sn.defaultID = snaps.GetDefault()
 		sn.activeID = snaps.GetActive()
 	} else {
 		// Assume a freshly formatted partition
 		// setting root over top level volume
-		sn.rootDir = filepath.Join(mnts[0].Path, btrfs.TopSubVol)
+		sn.rootDir = filepath.Join(mountPoints[0].Path, btrfs.TopSubVol)
 	}
 
 	return nil
@@ -243,18 +243,15 @@ func (sn *snapperT) probe(d deployment.Deployment) (err error) {
 func (sn snapperT) mountPartition(part *deployment.Partition, mountPoint string) error {
 	err := vfs.MkdirAll(sn.s.FS(), mountPoint, vfs.DirPerm)
 	if err != nil {
-		sn.s.Logger().Error("failed creating partition mountpoint path '%s'", mountPoint)
-		return err
+		return fmt.Errorf("creating partition mountpoint path '%s': %w", mountPoint, err)
 	}
 	bPart := sn.hwPartitions.GetByUUID(part.UUID)
 	if bPart == nil {
-		sn.s.Logger().Error("failed to find partition '%s'", part.UUID)
-		return fmt.Errorf("partition not found")
+		return fmt.Errorf("partition '%s' not found", part.UUID)
 	}
 	err = sn.s.Mounter().Mount(bPart.Path, mountPoint, "", []string{"rw"})
 	if err != nil {
-		sn.s.Logger().Error("failed mounting partition at '%s'", mountPoint)
-		return err
+		return fmt.Errorf("mounting partition at '%s': %w", mountPoint, err)
 	}
 	sn.cleanStack.Push(func() error { return sn.s.Mounter().Unmount(mountPoint) })
 	return nil
@@ -265,8 +262,7 @@ func (sn snapperT) mountPartition(part *deployment.Partition, mountPoint string)
 func (sn snapperT) mountPartitionToTempDir(part *deployment.Partition) (string, error) {
 	mountPoint, err := vfs.TempDir(sn.s.FS(), "", "elemental_"+part.Role.String())
 	if err != nil {
-		sn.s.Logger().Error("failed creating a temporary directory to mount partition %s", part.UUID)
-		return "", err
+		return "", fmt.Errorf("creating a temporary directory: %w", err)
 	}
 	sn.cleanStack.PushSuccessOnly(func() error { return sn.s.FS().RemoveAll(mountPoint) })
 
@@ -283,21 +279,18 @@ func (sn snapperT) mountPartitionToTempDir(part *deployment.Partition) (string, 
 func (sn snapperT) mountVol(part *deployment.Partition, volumePath, mountPoint string) error {
 	bPart := sn.hwPartitions.GetByUUID(part.UUID)
 	if bPart == nil {
-		sn.s.Logger().Error("failed to find partition '%s'", part.UUID)
-		return fmt.Errorf("partition not found")
+		return fmt.Errorf("partition '%s' not found", part.UUID)
 	}
 	err := vfs.MkdirAll(sn.s.FS(), mountPoint, vfs.DirPerm)
 	if err != nil {
-		sn.s.Logger().Error("failed to create mountpoint", mountPoint)
-		return err
+		return fmt.Errorf("creating mountpoint at '%s': %w", mountPoint, err)
 	}
 	err = sn.s.Mounter().Mount(
 		bPart.Path, mountPoint, "",
 		[]string{"rw", fmt.Sprintf("subvol=%s", filepath.Join(btrfs.TopSubVol, volumePath))},
 	)
 	if err != nil {
-		sn.s.Logger().Error("failed mounting rw volume '%s'", mountPoint)
-		return err
+		return fmt.Errorf("mounting rw volume at '%s': %w", mountPoint, err)
 	}
 	sn.cleanStack.Push(func() error { return sn.s.Mounter().Unmount(mountPoint) })
 	return nil
@@ -308,27 +301,23 @@ func (sn snapperT) mountVol(part *deployment.Partition, volumePath, mountPoint s
 func (sn snapperT) createSnapshottedVolWithMerge(root string, target string, rwVol deployment.RWVolume) (*Merge, error) {
 	snaps, err := sn.snap.ListSnapshots(root, snapper.ConfigName(rwVol.Path))
 	if err != nil {
-		sn.s.Logger().Error("failed to list snapshots for rw subvolume '%s'", rwVol.Path)
-		return nil, err
+		return nil, fmt.Errorf("listing snapshots for rw volume '%s': %w", rwVol.Path, err)
 	}
 	stock := snaps.GetWithUserdata("stock", "true")
 	if len(stock) != 1 {
-		sn.s.Logger().Error("failed to find stock snapshot for base '%d'and subvolume '%s'", rwVol.Path)
-		return nil, fmt.Errorf("inconsistent number of stock rw snapshots: %d", len(stock))
+		return nil, fmt.Errorf("inconsistent number of stock rw snapshots for subvolume '%s': %d", rwVol.Path, len(stock))
 	}
 	preID, err := sn.snap.CreateSnapshot(
 		root, snapper.ConfigName(rwVol.Path), 0, false,
 		fmt.Sprintf("pre-transaction %s snapshot", rwVol.Path), map[string]string{"pre-transaction": "true"},
 	)
 	if err != nil {
-		sn.s.Logger().Error("failed creating the pre-transaction snapshot for volume '%s': %s", rwVol.Path)
-		return nil, err
+		return nil, fmt.Errorf("creating the pre-transaction snapshot for volume '%s': %w", rwVol.Path, err)
 	}
 	oldStockPath := filepath.Join(root, rwVol.Path, fmt.Sprintf(snapshotPathTmpl, stock[0]))
 	err = btrfs.CreateSnapshot(sn.s, target, oldStockPath, !rwVol.NoCopyOnWrite)
 	if err != nil {
-		sn.s.Logger().Error("failed creating the snapshotted volume '%s'", rwVol.Path)
-		return nil, err
+		return nil, fmt.Errorf("creating the snapshotted volume '%s': %w", rwVol.Path, err)
 	}
 	return &Merge{
 		Old:      oldStockPath,
@@ -342,21 +331,18 @@ func (sn snapperT) createSnapshottedVol(baseID int, rwVol deployment.RWVolume, p
 	fullVolPath := filepath.Join(path, rwVol.Path)
 	err := sn.s.FS().RemoveAll(fullVolPath)
 	if err != nil {
-		sn.s.Logger().Error("failed to clear the new subvolume path '%s'", fullVolPath)
-		return nil, err
+		return nil, fmt.Errorf("clearing the new subvolume path '%s': %w", fullVolPath, err)
 	}
 	if baseID > 0 {
 		merge, err := sn.createSnapshottedVolWithMerge(basePath, fullVolPath, rwVol)
 		if err != nil {
-			sn.s.Logger().Error("failed to create snapshotted volume '%s'", fullVolPath)
-			return nil, err
+			return nil, fmt.Errorf("creating volume with merge: %w", err)
 		}
 		return merge, nil
 	}
 	err = btrfs.CreateSubvolume(sn.s, fullVolPath, !rwVol.NoCopyOnWrite)
 	if err != nil {
-		sn.s.Logger().Error("failed creating snapshotted subvolume '%s'", rwVol.Path)
-		return nil, err
+		return nil, fmt.Errorf("creating subvolume: %w", err)
 	}
 	return nil, nil
 }
@@ -377,7 +363,7 @@ func (sn snapperT) createPostSnapshots(root string) (err error) {
 	return nil
 }
 
-// preparePartitions this method essentially prepares all the volumes and partitions to be mounted at the
+// preparePartitions essentially prepares all the volumes and partitions to be mounted at the
 // expected locations of the new snapshot for the given in progress transaction.
 func (sn snapperT) preparePartitions(baseID int, trans *Transaction) error {
 	for _, part := range sn.partitions {
@@ -391,8 +377,7 @@ func (sn snapperT) preparePartitions(baseID int, trans *Transaction) error {
 			volumePath := filepath.Join(trans.Path, rwVol.Path)
 			err := vfs.MkdirAll(sn.s.FS(), filepath.Dir(volumePath), vfs.DirPerm)
 			if err != nil {
-				sn.s.Logger().Error("failed creating snapshotted subvolume  path for '%s'", rwVol.Path)
-				return err
+				return fmt.Errorf("creating snapshotted subvolume path for '%s': %w", rwVol.Path, err)
 			}
 			if rwVol.Snapshotted {
 				rootPath := trans.Path
@@ -400,8 +385,7 @@ func (sn snapperT) preparePartitions(baseID int, trans *Transaction) error {
 				if part.Role != deployment.System {
 					tmpDir, err := sn.mountPartitionToTempDir(part)
 					if err != nil {
-						sn.s.Logger().Error("failed mounting partition %s", part.UUID)
-						return err
+						return fmt.Errorf("mounting partition '%s' to temp dir: %w", part.UUID, err)
 					}
 					rootPath = filepath.Join(tmpDir, fmt.Sprintf(snapshotPathTmpl, trans.ID))
 					basePath = filepath.Join(tmpDir, fmt.Sprintf(snapshotPathTmpl, baseID))
@@ -409,22 +393,21 @@ func (sn snapperT) preparePartitions(baseID int, trans *Transaction) error {
 				sn.s.Logger().Debug("Creating snapshotted subvolume for '%s'", rwVol.Path)
 				merge, err := sn.createSnapshottedVol(baseID, rwVol, rootPath, basePath)
 				if err != nil {
-					sn.s.Logger().Error("failed creating snapshotted subvolume '%s'", rwVol.Path)
-					return err
+					return fmt.Errorf("creating snapshotted subvolume '%s': %w", rwVol.Path, err)
 				}
 				if merge != nil {
 					trans.Merges[rwVol.Path] = merge
 				}
 				if part.Role != deployment.System {
-					err := sn.mountVol(part, filepath.Join(fmt.Sprintf(snapshotPathTmpl, trans.ID), rwVol.Path), volumePath)
+					err = sn.mountVol(part, filepath.Join(fmt.Sprintf(snapshotPathTmpl, trans.ID), rwVol.Path), volumePath)
 					if err != nil {
-						return err
+						return fmt.Errorf("mounting partition '%s': %w", part.UUID, err)
 					}
 				}
 			} else {
-				err := sn.mountVol(part, rwVol.Path, volumePath)
+				err = sn.mountVol(part, rwVol.Path, volumePath)
 				if err != nil {
-					return err
+					return fmt.Errorf("mounting partition '%s': %w", part.UUID, err)
 				}
 			}
 		}

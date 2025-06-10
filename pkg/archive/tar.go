@@ -94,8 +94,8 @@ func ExtractTarBz2(ctx context.Context, s *sys.System, body io.Reader, target st
 
 // ExtractTar extracts a .tar archived stream of data to the given target
 func ExtractTar(ctx context.Context, s *sys.System, body io.Reader, target string) error {
-	links := []*link{}
-	symlinks := []*link{}
+	var links []*link
+	var symlinks []*link
 
 	tr := tar.NewReader(body)
 	for {
@@ -106,21 +106,18 @@ func ExtractTar(ctx context.Context, s *sys.System, body io.Reader, target strin
 		}
 
 		header, err := tr.Next()
-		if errors.Is(err, io.EOF) {
-			break
-		}
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			} else if !errors.Is(err, tar.ErrInsecurePath) {
+				return fmt.Errorf("reading tar stream: %w", err)
+			}
 
-		if err != nil && !errors.Is(err, tar.ErrInsecurePath) {
-			s.Logger().Error("failed reading tar stream: %v", err)
-			return err
-		}
-
-		path := header.Name
-		if errors.Is(err, tar.ErrInsecurePath) {
-			s.Logger().Warn("Ignoring non local path '%s': %v", path, err)
+			s.Logger().Warn("Ignoring non local path '%s': %v", header.Name, err)
 			continue
 		}
 
+		path := header.Name
 		path, err = sanitizeArchivePath(target, path)
 		if err != nil {
 			s.Logger().Warn("Ignoring non local path '%s': %v", path, err)
@@ -131,14 +128,12 @@ func ExtractTar(ctx context.Context, s *sys.System, body io.Reader, target strin
 
 		switch header.Typeflag {
 		case tar.TypeDir:
-			if err := vfs.MkdirAll(s.FS(), path, info.Mode()); err != nil {
-				s.Logger().Error("failed creating directory from tar: %v", err)
-				return err
+			if err = vfs.MkdirAll(s.FS(), path, info.Mode()); err != nil {
+				return fmt.Errorf("creating directory from tar: %w", err)
 			}
 		case tar.TypeReg:
-			if err := copyFile(ctx, s, path, info.Mode(), tr); err != nil {
-				s.Logger().Error("failed creating file file %s: %v", path, err)
-				return err
+			if err = copyFile(ctx, s, path, info.Mode(), tr); err != nil {
+				return fmt.Errorf("creating file %s: %w", path, err)
 			}
 		case tar.TypeLink:
 			name := header.Linkname
@@ -156,16 +151,14 @@ func ExtractTar(ctx context.Context, s *sys.System, body io.Reader, target strin
 	for _, link := range links {
 		_ = s.FS().Remove(link.Path)
 		if err := s.FS().Link(link.Name, link.Path); err != nil {
-			s.Logger().Error("failed creating link %s: %v", link.Path, err)
-			return err
+			return fmt.Errorf("creating link %s: %w", link.Path, err)
 		}
 	}
 
 	for _, symlink := range symlinks {
 		_ = s.FS().Remove(symlink.Path)
 		if err := s.FS().Symlink(symlink.Name, symlink.Path); err != nil {
-			s.Logger().Error("failed creating link %s: %v", symlink.Path, err)
-			return err
+			return fmt.Errorf("creating symlink %s: %w", symlink.Path, err)
 		}
 	}
 
@@ -219,5 +212,5 @@ func sanitizeArchivePath(root, filename string) (string, error) {
 		return path, nil
 	}
 
-	return path, fmt.Errorf("%s: %s", "content filepath is tainted", filename)
+	return path, fmt.Errorf("content filepath '%s' is tainted", path)
 }

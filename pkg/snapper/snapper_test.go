@@ -18,6 +18,8 @@ limitations under the License.
 package snapper_test
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"testing"
@@ -106,22 +108,29 @@ var _ = Describe("Snapper", Label("snapper"), func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(id).To(Equal(1))
 		Expect(runner.CmdsMatch([][]string{
-			{snapper.SnapperInstaller, "--root-prefix", "/some/root", "--step", "config"},
+			{snapper.Installer, "--root-prefix", "/some/root", "--step", "config"},
 		})).To(Succeed())
 
-		runner.ReturnError = fmt.Errorf("installation helper failed")
+		runner.SideEffect = func(command string, args ...string) ([]byte, error) {
+			return []byte("<creation-output>"), fmt.Errorf("installation helper failed")
+		}
 		id, err = snap.FirstRootSnapshot("/some/root", map[string]string{"key": "value"})
 		Expect(err).To(HaveOccurred())
+		Expect(err).To(MatchError("creating initial snapshot: <creation-output>: installation helper failed"))
 		Expect(id).To(Equal(0))
 	})
 	It("initiates root subvolume", func() {
-		Expect(snap.InitSnapperRootVolumes("/some/root")).To(Succeed())
+		Expect(snap.InitRootVolumes("/some/root")).To(Succeed())
 		Expect(runner.CmdsMatch([][]string{
-			{snapper.SnapperInstaller, "--root-prefix", "/some/root", "--step", "filesystem"},
+			{snapper.Installer, "--root-prefix", "/some/root", "--step", "filesystem"},
 		})).To(Succeed())
 
-		runner.ReturnError = fmt.Errorf("installation helper failed")
-		Expect(snap.InitSnapperRootVolumes("/some/root")).NotTo(Succeed())
+		runner.SideEffect = func(command string, args ...string) ([]byte, error) {
+			return []byte("<init-output>"), fmt.Errorf("init root failed")
+		}
+		err := snap.InitRootVolumes("/some/root")
+		Expect(err).To(HaveOccurred())
+		Expect(err).To(MatchError("initiating btrfs subvolumes: <init-output>: init root failed"))
 	})
 	It("creates a new configuration", func() {
 		Expect(snap.CreateConfig("/some/root", "/etc/systemd/")).To(Succeed())
@@ -131,7 +140,9 @@ var _ = Describe("Snapper", Label("snapper"), func() {
 		}})).To(Succeed())
 
 		runner.ReturnError = fmt.Errorf("snapper create-config failed")
-		Expect(snap.CreateConfig("/some/root", "/etc/systemd/")).NotTo(Succeed())
+		err := snap.CreateConfig("/some/root", "/etc/systemd/")
+		Expect(err).To(HaveOccurred())
+		Expect(err).To(MatchError("snapper create-config failed"))
 	})
 	It("creates a new snapshot", func() {
 		snapperCmd := [][]string{{
@@ -160,6 +171,7 @@ var _ = Describe("Snapper", Label("snapper"), func() {
 		)
 		Expect(id).To(Equal(0))
 		Expect(err).To(HaveOccurred())
+		Expect(err).To(MatchError("creating a new snapshot: snapper failed"))
 	})
 	It("sets default snapshot", func() {
 		Expect(snap.SetDefault("/some/root", 3, map[string]string{"key": "value"})).To(Succeed())
@@ -175,7 +187,9 @@ var _ = Describe("Snapper", Label("snapper"), func() {
 		}})).To(Succeed())
 
 		runner.ReturnError = fmt.Errorf("snapper modify failed")
-		Expect(snap.SetDefault("/some/root", 3, nil)).NotTo(Succeed())
+		err := snap.SetDefault("/some/root", 3, nil)
+		Expect(err).To(HaveOccurred())
+		Expect(err).To(MatchError("snapper modify failed"))
 	})
 	It("sets snapshot permissions", func() {
 		Expect(snap.SetPermissions("/some/root", 3, true)).To(Succeed())
@@ -191,7 +205,9 @@ var _ = Describe("Snapper", Label("snapper"), func() {
 		}})).To(Succeed())
 
 		runner.ReturnError = fmt.Errorf("snapper modify failed")
-		Expect(snap.SetDefault("/some/root", 3, nil)).NotTo(Succeed())
+		err := snap.SetPermissions("/some/root", 3, false)
+		Expect(err).To(HaveOccurred())
+		Expect(err).To(MatchError("snapper modify failed"))
 	})
 	Describe("ListSnapshots", func() {
 		It("gets the list of snapshots", func() {
@@ -210,16 +226,23 @@ var _ = Describe("Snapper", Label("snapper"), func() {
 			}
 			_, err := snap.ListSnapshots("/some/root", "wrong")
 			Expect(err).To(HaveOccurred())
+			Expect(err).To(MatchError("unmarshalling snapshots: invalid json object, no 'wrong' key found"))
 		})
 		It("'snapper list' command fails", func() {
-			runner.ReturnError = fmt.Errorf("snapper call failed")
+			runner.SideEffect = func(_ string, _ ...string) ([]byte, error) {
+				return []byte("<list-output>"), fmt.Errorf("snapper call failed")
+			}
 			_, err := snap.ListSnapshots("/some/root", "root")
 			Expect(err).To(HaveOccurred())
+			Expect(err).To(MatchError("collecting snapshots: <list-output>: snapper call failed"))
 		})
 		It("fails to unmarshal 'snapper list' command output", func() {
 			runner.ReturnValue = []byte("this is not a json")
 			_, err := snap.ListSnapshots("/some/root", "root")
 			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("unmarshalling snapshots:"))
+			var syntaxErr *json.SyntaxError
+			Expect(errors.As(err, &syntaxErr)).To(BeTrue())
 		})
 	})
 	Describe("Cleanup", func() {
@@ -246,26 +269,37 @@ var _ = Describe("Snapper", Label("snapper"), func() {
 			})).To(Succeed())
 		})
 		It("fails to list current snapshots", func() {
-			runner.ReturnError = fmt.Errorf("snapper call failed")
-			Expect(snap.Cleanup("/some/root", 4)).NotTo(Succeed())
+			runner.SideEffect = func(_ string, _ ...string) ([]byte, error) {
+				return []byte("<list-output>"), fmt.Errorf("listing failed")
+			}
+			err := snap.Cleanup("/some/root", 4)
+			Expect(err).To(HaveOccurred())
+			Expect(err).To(MatchError("listing snapshots: collecting snapshots: <list-output>: listing failed"))
 			Expect(runner.CmdsMatch([][]string{{
 				"snapper", "--no-dbus", "--root", "/some/root", "-c", "root",
 				"--jsonout", "list", "--columns", "number,default,active,userdata",
 			}})).To(Succeed())
 		})
 		It("fails to delete specific snapshot", func() {
-			runner.SideEffect = func(cmd string, _ ...string) ([]byte, error) {
+			runner.SideEffect = func(cmd string, args ...string) ([]byte, error) {
 				if cmd == "btrfs" {
-					return []byte{}, fmt.Errorf("btrfs command failed")
+					if args[0] == "subvolume" && args[1] == "delete" {
+						return []byte{}, fmt.Errorf("delete failed")
+					}
 				}
 				return []byte(snapperList), nil
 			}
-			Expect(snap.Cleanup("/some/root", 2)).NotTo(Succeed())
+			err := snap.Cleanup("/some/root", 2)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("cleaning up snapshot"))
+			Expect(err.Error()).To(ContainSubstring("deleting subvolume: delete failed"))
 			Expect(runner.CmdsMatch([][]string{
 				{
 					"snapper", "--no-dbus", "--root", "/some/root", "-c", "root",
 					"--jsonout", "list", "--columns", "number,default,active,userdata",
-				}, {"btrfs", "property"},
+				},
+				{"btrfs", "property"},
+				{"btrfs", "subvolume", "delete"},
 			})).To(Succeed())
 		})
 	})

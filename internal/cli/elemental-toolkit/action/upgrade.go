@@ -44,7 +44,7 @@ func Upgrade(ctx *cli.Context) error { //nolint:dupl
 
 	d, err := digestUpgradeSetup(s, args)
 	if err != nil {
-		s.Logger().Error("failed to collect upgrade setup: %v", err)
+		s.Logger().Error("Failed to collect upgrade setup")
 		return err
 	}
 
@@ -60,7 +60,7 @@ func Upgrade(ctx *cli.Context) error { //nolint:dupl
 
 	bootloader, err := bootloader.New(d.BootConfig.Bootloader, s)
 	if err != nil {
-		s.Logger().Error("installation failed: %v", err)
+		s.Logger().Error("Parsing boot config failed")
 		return err
 	}
 
@@ -69,7 +69,7 @@ func Upgrade(ctx *cli.Context) error { //nolint:dupl
 
 	err = upgrader.Upgrade(d)
 	if err != nil {
-		s.Logger().Error("upgrade failed: %v", err)
+		s.Logger().Error("Upgrade failed")
 		return err
 	}
 
@@ -79,9 +79,11 @@ func Upgrade(ctx *cli.Context) error { //nolint:dupl
 }
 
 func digestUpgradeSetup(s *sys.System, flags *cmd.UpgradeFlags) (*deployment.Deployment, error) {
-	d, err := deployment.ReadDeployment(s, "/")
-	if err != nil || d == nil {
-		return nil, fmt.Errorf("could not read deployment file: %w", err)
+	d, err := deployment.Parse(s, "/")
+	if err != nil {
+		return nil, fmt.Errorf("parsing deployment: %w", err)
+	} else if d == nil {
+		return nil, fmt.Errorf("deployment not found")
 	}
 
 	srcOS, err := deployment.NewSrcFromURI(flags.OperatingSystemImage)

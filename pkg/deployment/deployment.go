@@ -46,7 +46,7 @@ const (
 	SystemMnt            = "/"
 	AllAvailableSize MiB = 0
 
-	DeploymentFile = "/etc/elemental/deployment.yaml"
+	deploymentFile = "/etc/elemental/deployment.yaml"
 
 	Unknown = "unknown"
 )
@@ -304,25 +304,22 @@ func (d *Deployment) Sanitize(s *sys.System) error {
 }
 
 func (d Deployment) WriteDeploymentFile(s *sys.System, root string) error {
-	path := filepath.Join(root, DeploymentFile)
+	path := filepath.Join(root, deploymentFile)
 	if ok, _ := vfs.Exists(s.FS(), path); !ok {
 		err := vfs.MkdirAll(s.FS(), filepath.Dir(path), vfs.DirPerm)
 		if err != nil {
-			s.Logger().Error("failed creating elemental directory")
-			return err
+			return fmt.Errorf("creating elemental directory: %w", err)
 		}
 	} else {
 		err := s.FS().Remove(path)
 		if err != nil {
-			s.Logger().Error("removing previous deployment file")
-			return err
+			return fmt.Errorf("removing previous deployment file: %w", err)
 		}
 	}
 
 	data, err := yaml.Marshal(d)
 	if err != nil {
-		s.Logger().Error("failed marshalling deployment info")
-		return err
+		return fmt.Errorf("marshalling deployment: %w", err)
 	}
 
 	dataStr := string(data)
@@ -330,28 +327,25 @@ func (d Deployment) WriteDeploymentFile(s *sys.System, root string) error {
 
 	err = s.FS().WriteFile(path, []byte(dataStr), 0444)
 	if err != nil {
-		s.Logger().Error("failed writing deployment file: %s", path)
-		return err
+		return fmt.Errorf("writing deployment file '%s': %w", path, err)
 	}
 	return nil
 }
 
-func ReadDeployment(s *sys.System, root string) (*Deployment, error) {
-	path := filepath.Join(root, DeploymentFile)
+func Parse(s *sys.System, root string) (*Deployment, error) {
+	path := filepath.Join(root, deploymentFile)
 	if ok, err := vfs.Exists(s.FS(), path); !ok {
 		s.Logger().Warn("deployment file not found '%s'", path)
 		return nil, err
 	}
 	data, err := s.FS().ReadFile(path)
 	if err != nil {
-		s.Logger().Error("failed to read deployment file '%s'", path)
-		return nil, err
+		return nil, fmt.Errorf("reading deployment file '%s': %w", path, err)
 	}
 	d := &Deployment{}
 	err = yaml.Unmarshal(data, d)
 	if err != nil {
-		s.Logger().Error("failed to unmarshal deployment file: %w", err.Error())
-		return nil, err
+		return nil, fmt.Errorf("unmarshalling deployment file '%s': %w", path, err)
 	}
 	return d, nil
 }

@@ -232,7 +232,7 @@ func initSnapperInstall(root string) transaction.UpgradeHelper {
 	}
 	sn = transaction.NewSnapperTransaction(ctx, s)
 	upgradeH, err := sn.Init(*d)
-	Expect(err).To(Succeed())
+	Expect(err).NotTo(HaveOccurred())
 	Expect(runner.CmdsMatch([][]string{
 		{"lsblk", "-p", "-b", "-n", "-J", "--output"},
 		{"/usr/lib/snapper/installation-helper", "--root-prefix", "/some/root"},

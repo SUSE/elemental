@@ -72,7 +72,7 @@ var _ = Describe("Upgrade action", Label("upgrade"), func() {
 		cmd.UpgradeArgs.OperatingSystemImage = "my.registry.org/my/image:test"
 		err = action.Upgrade(ctx)
 		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("could not read deployment file"))
+		Expect(err).To(MatchError("deployment not found"))
 	})
 	It("fails if the setup is inconsistent", func() {
 		cmd.UpgradeArgs.OperatingSystemImage = "my.registry.org/my/image:test"

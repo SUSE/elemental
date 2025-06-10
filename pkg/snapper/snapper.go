@@ -30,10 +30,10 @@ import (
 )
 
 const (
-	SnapshotsPath    = ".snapshots"
-	SnapperInstaller = "/usr/lib/snapper/installation-helper"
+	SnapshotsPath = ".snapshots"
+	Installer     = "/usr/lib/snapper/installation-helper"
 
-	snapperDefaultconfig = "/etc/default/snapper"
+	snapperDefaultConfig = "/etc/default/snapper"
 	snapperSysconfig     = "/etc/sysconfig/snapper"
 	snapperRootConfig    = "/etc/snapper/configs/" + rootConfig
 	rootConfig           = "root"
@@ -108,11 +108,10 @@ func New(s *sys.System) *Snapper {
 	return &Snapper{s: s}
 }
 
-func (sn Snapper) InitSnapperRootVolumes(root string) error {
-	out, err := sn.s.Runner().Run(SnapperInstaller, "--root-prefix", root, "--step", "filesystem")
+func (sn Snapper) InitRootVolumes(root string) error {
+	out, err := sn.s.Runner().Run(Installer, "--root-prefix", root, "--step", "filesystem")
 	if err != nil {
-		sn.s.Logger().Error("failed initiating btrfs subvolumes to work with snapper: %s", strings.TrimSpace(string(out)))
-		return err
+		return fmt.Errorf("initiating btrfs subvolumes: %s: %w", strings.TrimSpace(string(out)), err)
 	}
 	return nil
 }
@@ -128,22 +127,26 @@ func (sn Snapper) ListSnapshots(root string, config string) (Snapshots, error) {
 	args = append(args, "-c", config, "--jsonout", "list", "--columns", "number,default,active,userdata")
 	cmdOut, err := sn.s.Runner().Run("snapper", args...)
 	if err != nil {
-		sn.s.Logger().Error("failed collecting snapshots: %s", string(cmdOut))
-		return nil, err
+		return nil, fmt.Errorf("collecting snapshots: %s: %w", string(cmdOut), err)
 	}
-	return unmarshalSnapperList(cmdOut, config)
+
+	snapshots, err := unmarshalSnapperList(cmdOut, config)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshalling snapshots: %w", err)
+	}
+
+	return snapshots, nil
 }
 
 func (sn Snapper) FirstRootSnapshot(root string, metadata Metadata) (int, error) {
 	sn.s.Logger().Debug("Creating first root filesystem as a snapshot")
 	cmdOut, err := sn.s.Runner().Run(
-		SnapperInstaller, "--root-prefix", root, "--step",
+		Installer, "--root-prefix", root, "--step",
 		"config", "--description", "first root filesystem, snapshot 1",
 		"--userdata", metadata.String(),
 	)
 	if err != nil {
-		sn.s.Logger().Error("failed creating initial snapshot: %s", strings.TrimSpace(string(cmdOut)))
-		return 0, err
+		return 0, fmt.Errorf("creating initial snapshot: %s: %w", strings.TrimSpace(string(cmdOut)), err)
 	}
 	return 1, nil
 }
@@ -160,11 +163,7 @@ func (sn Snapper) CreateConfig(root, volumePath string) error {
 	}
 	args = append(args, "-c", conf, "create-config", "--fstype", "btrfs", volumePath)
 	_, err = sn.s.Runner().Run("snapper", args...)
-	if err != nil {
-		sn.s.Logger().Error("failed creating config for '%s'", volumePath)
-		return err
-	}
-	return nil
+	return err
 }
 
 // CreateSnapshot creates a new snapper snapshot by calling "snapper create"
@@ -195,13 +194,11 @@ func (sn Snapper) CreateSnapshot(root string, config string, base int, rw bool, 
 	sn.s.Logger().Info("Creating a new snapshot")
 	cmdOut, err := sn.s.Runner().Run("env", args...)
 	if err != nil {
-		sn.s.Logger().Error("snapper failed to create a new snapshot: %w", err)
-		return 0, err
+		return 0, fmt.Errorf("creating a new snapshot: %w", err)
 	}
 	newSnap, err = strconv.Atoi(strings.TrimSpace(string(cmdOut)))
 	if err != nil {
-		sn.s.Logger().Error("failed parsing new snapshot ID")
-		return 0, err
+		return 0, fmt.Errorf("parsing new snapshot ID: %w", err)
 	}
 
 	return newSnap, nil
@@ -222,11 +219,7 @@ func (sn Snapper) SetPermissions(root string, id int, rw bool) error {
 	args = append(args, strconv.Itoa(id))
 	sn.s.Logger().Info("Setting permissions to snapshot")
 	_, err := sn.s.Runner().Run("snapper", args...)
-	if err != nil {
-		sn.s.Logger().Error("snapper failed set snapshot permissions: %v", err)
-		return err
-	}
-	return nil
+	return err
 }
 
 func (sn Snapper) SetDefault(root string, id int, metadata Metadata) error {
@@ -242,20 +235,15 @@ func (sn Snapper) SetDefault(root string, id int, metadata Metadata) error {
 	args = append(args, strconv.Itoa(id))
 	sn.s.Logger().Info("Setting default snapshot")
 	_, err := sn.s.Runner().Run("snapper", args...)
-	if err != nil {
-		sn.s.Logger().Error("snapper failed to set default snapshot: %v", err)
-		return err
-	}
-	return nil
+	return err
 }
 
 func (sn Snapper) Cleanup(root string, maxSnaps int) error {
-	// TODO instead of relaying on manual cleanup we could provide a snapper pluging
-	// to handle cleanup and relay on 'snapper cleanup' command
+	// TODO instead of relying on manual cleanup we could provide a snapper plugin
+	// to handle cleanup and rely on 'snapper cleanup' command
 	snaps, err := sn.ListSnapshots(root, rootConfig)
 	if err != nil {
-		sn.s.Logger().Error("cannot proceed with snapshots cleanup")
-		return err
+		return fmt.Errorf("listing snapshots: %w", err)
 	}
 	deletes := len(snaps) - maxSnaps
 	i := 0
@@ -264,8 +252,7 @@ func (sn Snapper) Cleanup(root string, maxSnaps int) error {
 			path := filepath.Join(root, SnapshotsPath, strconv.Itoa(snaps[i].Number), "snapshot")
 			err = sn.DeleteByPath(path)
 			if err != nil {
-				sn.s.Logger().Error("could not clean up snapshot %s", path)
-				return err
+				return fmt.Errorf("cleaning up snapshot '%s': %w", path, err)
 			}
 			deletes--
 		}
@@ -274,19 +261,17 @@ func (sn Snapper) Cleanup(root string, maxSnaps int) error {
 	return nil
 }
 
-// Delete removes the given snapshot path including any nested RO subvolume
+// DeleteByPath removes the given snapshot path including any nested RO subvolume
 func (sn Snapper) DeleteByPath(path string) error {
-	// TODO instead of relaying on btrfs manual calls we could provide a snapper pluging
+	// TODO instead of relying on manual btrfs calls we could provide a snapper plugin
 	// to handle deletion and cleanup
 	err := btrfs.DeleteSubvolume(sn.s, path)
 	if err != nil {
-		sn.s.Logger().Error("failed deleting snapshot '%s'", path)
-		return err
+		return fmt.Errorf("deleting subvolume: %w", err)
 	}
 	err = sn.s.FS().RemoveAll(filepath.Dir(path))
 	if err != nil {
-		sn.s.Logger().Error("failed deleting snapshot '%s' parent directory", path)
-		return err
+		return fmt.Errorf("removing snapshot parent directory: %w", err)
 	}
 	return nil
 }
@@ -295,12 +280,11 @@ func (sn Snapper) DeleteByPath(path string) error {
 func (sn Snapper) ConfigureRoot(snapshotPath string, maxSnapshots int) error {
 	defaultTmpl, err := vfs.FindFile(sn.s.FS(), snapshotPath, configTemplatesPaths()...)
 	if err != nil {
-		sn.s.Logger().Error("failed to find default snapper configuration template")
-		return err
+		return fmt.Errorf("finding default snapper configuration template: %w", err)
 	}
 
 	sysconfigData := map[string]string{}
-	sysconfig := filepath.Join(snapshotPath, snapperDefaultconfig)
+	sysconfig := filepath.Join(snapshotPath, snapperDefaultConfig)
 	if ok, _ := vfs.Exists(sn.s.FS(), sysconfig); !ok {
 		sysconfig = filepath.Join(snapshotPath, snapperSysconfig)
 	}
@@ -308,8 +292,7 @@ func (sn Snapper) ConfigureRoot(snapshotPath string, maxSnapshots int) error {
 	if ok, _ := vfs.Exists(sn.s.FS(), sysconfig); ok {
 		sysconfigData, err = vfs.LoadEnvFile(sn.s.FS(), sysconfig)
 		if err != nil {
-			sn.s.Logger().Error("failed to load global snapper sysconfig")
-			return err
+			return fmt.Errorf("loading global snapper sysconfig: %w", err)
 		}
 	}
 	sysconfigData["SNAPPER_CONFIGS"] = rootConfig
@@ -317,14 +300,12 @@ func (sn Snapper) ConfigureRoot(snapshotPath string, maxSnapshots int) error {
 	sn.s.Logger().Debug("Creating sysconfig snapper configuration at '%s'", sysconfig)
 	err = vfs.WriteEnvFile(sn.s.FS(), sysconfigData, sysconfig)
 	if err != nil {
-		sn.s.Logger().Error("failed writing snapper global configuration file: %v", err)
-		return err
+		return fmt.Errorf("writing global snapper configuration: %w", err)
 	}
 
 	snapCfg, err := vfs.LoadEnvFile(sn.s.FS(), defaultTmpl)
 	if err != nil {
-		sn.s.Logger().Error("failed to load default snapper templage configuration")
-		return err
+		return fmt.Errorf("loading default snapper configuration template: %w", err)
 	}
 
 	snapCfg["TIMELINE_CREATE"] = "no"
@@ -336,8 +317,7 @@ func (sn Snapper) ConfigureRoot(snapshotPath string, maxSnapshots int) error {
 	sn.s.Logger().Debug("Creating 'root' snapper configuration at '%s'", rootCfg)
 	err = vfs.WriteEnvFile(sn.s.FS(), snapCfg, rootCfg)
 	if err != nil {
-		sn.s.Logger().Error("failed writing snapper root configuration file: %v", err)
-		return err
+		return fmt.Errorf("writing snapper root configuration: %w", err)
 	}
 	return nil
 }

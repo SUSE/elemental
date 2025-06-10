@@ -100,50 +100,54 @@ var _ = Describe("Upgrade", Label("upgrade"), func() {
 			{"/etc/elemental/config.sh"},
 		}))
 	})
-	It("fails on transaction initalization", func() {
+	It("fails on transaction initialization", func() {
 		t.InitErr = fmt.Errorf("init failed")
 		err := u.Upgrade(d)
 		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("init failed"))
+		Expect(err).To(MatchError("initializing transaction: init failed"))
 		Expect(t.RollbackCalled()).To(BeFalse())
 	})
 	It("fails on transaction start", func() {
 		t.StartErr = fmt.Errorf("start failed")
 		err := u.Upgrade(d)
 		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("start failed"))
+		Expect(err).To(MatchError("starting transaction: start failed"))
 		Expect(t.RollbackCalled()).To(BeFalse())
 	})
 	It("fails on image sync", func() {
 		t.UpgradeHelper.SyncError = fmt.Errorf("failed sync")
 		err := u.Upgrade(d)
 		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("failed sync"))
+		Expect(err).To(MatchError("syncing OS image content: failed sync"))
+		Expect(t.RollbackCalled()).To(BeTrue())
 	})
 	It("fails on image merge", func() {
 		t.UpgradeHelper.MergeError = fmt.Errorf("failed merge")
 		err := u.Upgrade(d)
 		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("failed merge"))
+		Expect(err).To(MatchError("merging RW volumes: failed merge"))
+		Expect(t.RollbackCalled()).To(BeTrue())
 	})
 	It("fails on fstab update", func() {
 		t.UpgradeHelper.FstabError = fmt.Errorf("failed fstab update")
 		err := u.Upgrade(d)
 		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("failed fstab update"))
+		Expect(err).To(MatchError("updating fstab: failed fstab update"))
+		Expect(t.RollbackCalled()).To(BeTrue())
 	})
 	It("fails on locking snapshot", func() {
 		t.UpgradeHelper.LockError = fmt.Errorf("failed lock")
 		err := u.Upgrade(d)
 		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("failed lock"))
+		Expect(err).To(MatchError("locking transaction '2': failed lock"))
+		Expect(t.RollbackCalled()).To(BeTrue())
 	})
 	It("fails on unpacking overlay", func() {
 		runner.SideEffect = func(cmd string, args ...string) ([]byte, error) {
 			if cmd == "rsync" {
 				for _, arg := range args {
 					if strings.Contains(arg, "/opt/overlaytree/") {
-						return []byte{}, fmt.Errorf("failed to sync overlaytree")
+						return []byte{}, fmt.Errorf("failed to sync overlay tree")
 					}
 				}
 			}
@@ -151,24 +155,25 @@ var _ = Describe("Upgrade", Label("upgrade"), func() {
 		}
 		err := u.Upgrade(d)
 		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("failed to sync overlaytree"))
+		Expect(err).To(MatchError("unpacking overlay tree: failed to sync overlay tree"))
+		Expect(t.RollbackCalled()).To(BeTrue())
 	})
 	It("fails on config script execution", func() {
 		runner.SideEffect = func(cmd string, args ...string) ([]byte, error) {
 			if cmd == "/etc/elemental/config.sh" {
-				return []byte{}, fmt.Errorf("failed to running config script")
+				return []byte{}, fmt.Errorf("failed hook")
 			}
 			return []byte{}, nil
 		}
 		err := u.Upgrade(d)
 		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("failed to running config script"))
+		Expect(err).To(MatchError("executing configuration hook: failed hook"))
 	})
 	It("fails on transaction commit", func() {
 		t.CommitErr = fmt.Errorf("commit failed")
 		err := u.Upgrade(d)
 		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("commit failed"))
+		Expect(err).To(MatchError("committing transaction: commit failed"))
 		Expect(t.RollbackCalled()).To(BeTrue())
 	})
 })

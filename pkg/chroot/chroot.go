@@ -185,24 +185,21 @@ func (c *Chroot) Close() (err error) {
 		c.logger.Debug("Unmounting %s from chroot", mnt)
 		e := c.mounter.Unmount(mnt)
 		if e != nil {
-			c.logger.Error("error unmounting %s", mnt)
 			uFailures = append(uFailures, mnt)
-			err = errors.Join(err, e)
+			err = errors.Join(err, fmt.Errorf("unmounting %s: %w", mnt, e))
 			continue
 		}
 		if i := slices.Index(c.touchedFiles, mnt); i >= 0 {
 			e = c.fs.Remove(mnt)
 			if e != nil {
-				c.logger.Error("error removing %s", mnt)
-				err = errors.Join(err, e)
-				err = errors.Join(err, e)
+				err = errors.Join(err, fmt.Errorf("removing %s: %w", mnt, e))
 			}
 			c.touchedFiles = slices.Delete(c.touchedFiles, i, i)
 		}
 	}
 	c.activeMounts = uFailures
 	if err != nil {
-		return fmt.Errorf("failed closing chroot environment. Unmount or removal failures: %w", err)
+		return fmt.Errorf("failed closing chroot environment, unmount or removal failures: %w", err)
 	}
 	return nil
 }
@@ -212,11 +209,10 @@ func (c *Chroot) RunCallback(callback func() error) (err error) {
 	var currentPath string
 	var oldRootF *os.File
 
-	// Store current path
+	// Store the current path
 	currentPath, err = os.Getwd()
 	if err != nil {
-		c.logger.Error("failed to get current path")
-		return err
+		return fmt.Errorf("getting current path: %w", err)
 	}
 	defer func() {
 		tmpErr := os.Chdir(currentPath)
@@ -235,16 +231,14 @@ func (c *Chroot) RunCallback(callback func() error) (err error) {
 	// Store current root
 	oldRootF, err = c.fs.OpenFile("/", os.O_RDONLY, vfs.DirPerm)
 	if err != nil {
-		c.logger.Error("can't open current root")
-		return err
+		return fmt.Errorf("opening current root: %w", err)
 	}
 	defer oldRootF.Close()
 
 	if len(c.activeMounts) == 0 {
 		err = c.Prepare()
 		if err != nil {
-			c.logger.Error("can't mount default mounts")
-			return err
+			return fmt.Errorf("preparing default mounts: %w", err)
 		}
 		defer func() {
 			tmpErr := c.Close()
@@ -256,14 +250,12 @@ func (c *Chroot) RunCallback(callback func() error) (err error) {
 	// Change to new dir before running chroot!
 	err = c.syscall.Chdir(c.path)
 	if err != nil {
-		c.logger.Error("can't chdir %s: %s", c.path, err)
-		return err
+		return fmt.Errorf("chdir %s: %w", c.path, err)
 	}
 
 	err = c.syscall.Chroot(c.path)
 	if err != nil {
-		c.logger.Error("can't chroot %s: %s", c.path, err)
-		return err
+		return fmt.Errorf("chroot %s: %w", c.path, err)
 	}
 
 	// Restore to old root

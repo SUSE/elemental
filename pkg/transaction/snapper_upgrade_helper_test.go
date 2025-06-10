@@ -55,7 +55,10 @@ var _ = Describe("SnapperUpgradeHelper", Label("transaction"), func() {
 			sideEffects["rsync"] = func(args ...string) ([]byte, error) {
 				return []byte{}, fmt.Errorf("rsync error")
 			}
-			Expect(upgradeH.SyncImageContent(imgsrc, trans)).NotTo(Succeed())
+			err := upgradeH.SyncImageContent(imgsrc, trans)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("unpacking image to "))
+			Expect(err.Error()).To(ContainSubstring("rsync error"))
 			Expect(runner.CmdsMatch([][]string{
 				{"rsync", "--info=progress2", "--human-readable"},
 			})).To(Succeed())
@@ -90,7 +93,8 @@ var _ = Describe("SnapperUpgradeHelper", Label("transaction"), func() {
 		It("fails to create snapper configuration if templates are not found", func() {
 			err = upgradeH.Merge(trans)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("failed to find file matching"))
+			Expect(err.Error()).To(ContainSubstring("configuring snapper: setting root configuration: " +
+				"finding default snapper configuration template: failed to find file matching"))
 		})
 		It("creates fstab", func() {
 			path := filepath.Join(root, btrfs.TopSubVol, ".snapshots/1/snapshot/etc")
@@ -104,7 +108,10 @@ var _ = Describe("SnapperUpgradeHelper", Label("transaction"), func() {
 			Expect(ok).To(BeTrue())
 		})
 		It("it fails to create fstab file if the path does not exist", func() {
-			Expect(upgradeH.UpdateFstab(trans)).NotTo(Succeed())
+			err := upgradeH.UpdateFstab(trans)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("creating fstab: creating file: open"))
+			Expect(err.Error()).To(ContainSubstring("no such file or directory"))
 		})
 		It("locks the current transaction", func() {
 			Expect(upgradeH.Lock(trans)).To(Succeed())
@@ -116,13 +123,15 @@ var _ = Describe("SnapperUpgradeHelper", Label("transaction"), func() {
 			sideEffects["snapper"] = func(args ...string) ([]byte, error) {
 				return []byte{}, fmt.Errorf("snapper error")
 			}
-			Expect(upgradeH.Lock(trans)).NotTo(Succeed())
+			err := upgradeH.Lock(trans)
+			Expect(err).To(HaveOccurred())
+			Expect(err).To(MatchError("configuring new snapshot as read-only: snapper error"))
 			Expect(runner.CmdsMatch([][]string{
 				{"snapper", "--no-dbus", "--root", "/some/root/@/.snapshots/1/snapshot", "modify", "--read-only"},
 			})).To(Succeed())
 		})
 	})
-	Describe("upgrade helper for an ugrade] transaction", func() {
+	Describe("upgrade helper for an upgrade transaction", func() {
 		BeforeEach(func() {
 			root = "/"
 			upgradeH = initSnapperUpgrade(root)

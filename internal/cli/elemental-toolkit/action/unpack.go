@@ -54,7 +54,7 @@ func Unpack(ctx *cli.Context) error {
 
 	_, err := unpacker.Unpack(ctxSignal, args.TargetDir)
 	if err != nil {
-		s.Logger().Error("Failed to unpack image %s: %s", args.Image, err.Error())
+		s.Logger().Error("Failed to unpack image %s", args.Image)
 		return err
 	}
 

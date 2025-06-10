@@ -76,7 +76,7 @@ var _ = Describe("Chroot", Label("chroot"), func() {
 				return fmt.Errorf("callback error")
 			})
 			Expect(err).Should(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("callback error"))
+			Expect(err).To(MatchError("callback error"))
 		})
 	})
 	Describe("on success", func() {
@@ -132,23 +132,29 @@ var _ = Describe("Chroot", Label("chroot"), func() {
 			runner.ReturnError = errors.New("run error")
 			_, err := chr.Run("chroot-command")
 			Expect(err).NotTo(BeNil())
+			Expect(err).To(MatchError("run error"))
 			Expect(syscall.WasChrootCalledWith("/whatever")).To(BeTrue())
 		})
 		It("should return error if callback fails", func() {
 			called := false
 			callback := func() error {
 				called = true
-				return errors.New("Callback error")
+				return errors.New("callback error")
 			}
 			err := chr.RunCallback(callback)
 			Expect(err).NotTo(BeNil())
+			Expect(err).To(MatchError("callback error"))
 			Expect(syscall.WasChrootCalledWith("/whatever")).To(BeTrue())
 			Expect(called).To(BeTrue())
 		})
 		It("should return error if preparing twice before closing", func() {
 			Expect(chr.Prepare()).To(BeNil())
-			defer chr.Close()
-			Expect(chr.Prepare()).NotTo(BeNil())
+			DeferCleanup(func() {
+				Expect(chr.Close()).To(Succeed())
+			})
+			err := chr.Prepare()
+			Expect(err).NotTo(BeNil())
+			Expect(err).To(MatchError("there are already active mountpoints for this instance"))
 			Expect(chr.Close()).To(BeNil())
 			Expect(chr.Prepare()).To(BeNil())
 		})
@@ -157,13 +163,13 @@ var _ = Describe("Chroot", Label("chroot"), func() {
 			_, err := chr.Run("chroot-command")
 			Expect(err).ToNot(BeNil())
 			Expect(syscall.WasChrootCalledWith("/whatever")).To(BeTrue())
-			Expect(err.Error()).To(ContainSubstring("chroot error"))
+			Expect(err).To(MatchError("chroot /whatever: chroot error"))
 		})
 		It("should return error if failed to mount on prepare", Label("mount"), func() {
 			mounter.ErrorOnMount = true
 			_, err := chr.Run("chroot-command")
 			Expect(err).ToNot(BeNil())
-			Expect(err.Error()).To(ContainSubstring("mount error"))
+			Expect(err).To(MatchError("preparing default mounts: mount error"))
 		})
 		It("should return error if failed to unmount on close", Label("unmount"), func() {
 			mounter.ErrorOnUnmount = true

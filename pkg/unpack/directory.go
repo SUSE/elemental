@@ -59,12 +59,12 @@ func (d Directory) SynchedUnpack(ctx context.Context, destination string, exclud
 	return digest, sync.MirrorData(d.path, destination, excludes, deleteExcludes)
 }
 
-// findDeploymentDigest attemps to read a deployment file from the source directory tree
+// findDeploymentDigest attempts to read a deployment file from the source directory tree
 // and read the source digest if any. This is helpful to get the original image digest
 // if the source is already a deployment.
 func findDeploymentDigest(s *sys.System, path string) string {
 	var digest string
-	d, _ := deployment.ReadDeployment(s, path)
+	d, _ := deployment.Parse(s, path)
 	if d != nil && d.SourceOS != nil {
 		digest = d.SourceOS.GetDigest()
 	}

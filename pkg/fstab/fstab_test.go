@@ -93,7 +93,9 @@ var _ = Describe("Fstab", Label("fstab"), func() {
 		s, err = sys.NewSystem(sys.WithFS(tfs), sys.WithLogger(log.New(log.WithDiscardAll())))
 		Expect(err).NotTo(HaveOccurred())
 
-		Expect(fstab.WriteFstab(s, fstab.File, lines)).NotTo(Succeed())
+		err = fstab.WriteFstab(s, fstab.File, lines)
+		Expect(err).To(HaveOccurred())
+		Expect(err).To(MatchError("creating file: Create /etc/fstab: operation not permitted"))
 	})
 	It("updates the fstab file with a new line", func() {
 		Expect(fstab.WriteFstab(s, fstab.File, lines)).To(Succeed())
@@ -126,6 +128,8 @@ var _ = Describe("Fstab", Label("fstab"), func() {
 		s, err = sys.NewSystem(sys.WithFS(tfs), sys.WithLogger(log.New(log.WithDiscardAll())))
 		Expect(err).NotTo(HaveOccurred())
 
-		Expect(fstab.WriteFstab(s, fstab.File, lines)).NotTo(Succeed())
+		err = fstab.UpdateFstab(s, fstab.File, lines, lines)
+		Expect(err).To(HaveOccurred())
+		Expect(err).To(MatchError("opening file: OpenFile /etc/fstab: operation not permitted"))
 	})
 })

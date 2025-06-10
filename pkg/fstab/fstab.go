@@ -47,20 +47,18 @@ type Line struct {
 func WriteFstab(s *sys.System, fstabFile string, fstabLines []Line) (err error) {
 	fstab, err := s.FS().Create(fstabFile)
 	if err != nil {
-		s.Logger().Error("could not create fstab file %s", fstabFile)
-		return err
+		return fmt.Errorf("creating file: %w", err)
 	}
 	defer func() {
 		e := fstab.Close()
 		if err == nil && e != nil {
-			err = e
+			err = fmt.Errorf("closing file: %w", e)
 		}
 	}()
 
 	err = writeFstabLines(fstab, fstabLines)
 	if err != nil {
-		s.Logger().Error("failed writing fstab lines")
-		return err
+		return fmt.Errorf("writing content: %w", err)
 	}
 
 	return nil
@@ -74,13 +72,12 @@ func UpdateFstab(s *sys.System, fstabFile string, oldLines, newLines []Line) (er
 
 	fstab, err := s.FS().OpenFile(fstabFile, os.O_RDWR, vfs.FilePerm)
 	if err != nil {
-		s.Logger().Error("could not open fstab file %s", fstabFile)
-		return err
+		return fmt.Errorf("opening file: %w", err)
 	}
 	defer func() {
 		e := fstab.Close()
 		if err == nil && e != nil {
-			err = e
+			err = fmt.Errorf("closing file: %w", e)
 		}
 	}()
 
@@ -91,8 +88,7 @@ func UpdateFstab(s *sys.System, fstabFile string, oldLines, newLines []Line) (er
 		line := scanner.Text()
 		fstabLine, err := fstabLineFromFields(strings.Fields(line))
 		if err != nil {
-			s.Logger().Error("invalid fstab line '%s'", line)
-			return err
+			return fmt.Errorf("invalid fstab line '%s': %w", line, err)
 		}
 		fstabLines = append(fstabLines, fstabLine)
 	}
@@ -101,20 +97,17 @@ func UpdateFstab(s *sys.System, fstabFile string, oldLines, newLines []Line) (er
 
 	_, err = fstab.Seek(0, 0)
 	if err != nil {
-		s.Logger().Error("failed to reset fstab file cursor")
-		return err
+		return fmt.Errorf("resetting file cursor: %w", err)
 	}
 
 	err = fstab.Truncate(0)
 	if err != nil {
-		s.Logger().Error("failed truncating fstab file '%s'", fstabFile)
-		return err
+		return fmt.Errorf("truncating file: %w", err)
 	}
 
 	err = writeFstabLines(fstab, fstabLines)
 	if err != nil {
-		s.Logger().Error("failed writing fstab lines")
-		return err
+		return fmt.Errorf("writing content: %w", err)
 	}
 
 	return nil
@@ -132,10 +125,10 @@ func updateFstabLines(lines []Line, oldLines, newLines []Line) []Line {
 	return fstabLines
 }
 
-func writeFstabLines(w io.Writer, fstabLines []Line) (err error) {
+func writeFstabLines(w io.Writer, fstabLines []Line) error {
 	tw := tabwriter.NewWriter(w, 1, 4, 1, ' ', 0)
 	for _, fLine := range fstabLines {
-		_, err = fmt.Fprintf(
+		_, err := fmt.Fprintf(
 			tw, "%s\t%s\t%s\t%s\t%d\t%d\n",
 			fLine.Device, fLine.MountPoint, fLine.FileSystem,
 			strings.Join(fLine.Options, ","), fLine.DumpFreq, fLine.FsckOrder,
@@ -144,12 +137,8 @@ func writeFstabLines(w io.Writer, fstabLines []Line) (err error) {
 			return err
 		}
 	}
-	err = tw.Flush()
-	if err != nil {
-		return err
-	}
 
-	return nil
+	return tw.Flush()
 }
 
 // matchFstabLine compares device, mountpoint, filesystem and options of the given fstab line, with the

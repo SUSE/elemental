@@ -79,10 +79,10 @@ var _ = Describe("SnapperTransaction", Label("transaction"), func() {
 				cancel()
 				err := sn.Commit(trans)
 				Expect(err).To(HaveOccurred())
+				Expect(err).To(MatchError("context canceled"))
 				Expect(runner.MatchMilestones([][]string{
 					{"snapper", "--no-dbus", "--root", "/some/root/@/.snapshots/1/snapshot", "modify", "--default"},
 				})).To(Succeed())
-				Expect(err.Error()).To(ContainSubstring("context canceled"))
 			})
 			It("fails to set default snapshot", func() {
 				sideEffects["snapper"] = func(args ...string) ([]byte, error) {
@@ -93,13 +93,13 @@ var _ = Describe("SnapperTransaction", Label("transaction"), func() {
 				}
 				err = sn.Commit(trans)
 				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(ContainSubstring("failed setting default"))
+				Expect(err).To(MatchError("setting new default snapshot: failed setting default"))
 			})
 			It("fails to commit a non started transaction", func() {
-				trans = &transaction.Transaction{}
+				trans = &transaction.Transaction{ID: 4}
 				err := sn.Commit(trans)
 				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(ContainSubstring("not started"))
+				Expect(err).To(MatchError("transaction '4' is not started"))
 			})
 		})
 		It("returns error if context is cancelled", func() {
@@ -113,7 +113,7 @@ var _ = Describe("SnapperTransaction", Label("transaction"), func() {
 			_, err = sn.Start()
 
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("context canceled"))
+			Expect(err).To(MatchError("context canceled"))
 			Expect(runner.MatchMilestones([][]string{
 				{"btrfs", "subvolume", "create"},
 			})).To(Succeed())
@@ -122,14 +122,15 @@ var _ = Describe("SnapperTransaction", Label("transaction"), func() {
 		It("fails to create etc subvolume", func() {
 			sideEffects["btrfs"] = func(args ...string) ([]byte, error) {
 				if slices.Contains(args, "/some/root/@/.snapshots/1/snapshot/etc") {
-					return []byte{}, fmt.Errorf("failed creating etc")
+					return []byte{}, fmt.Errorf("failed creating /etc")
 				}
 				return runner.ReturnValue, runner.ReturnError
 			}
 			_, err = sn.Start()
 
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("failed creating etc"))
+			Expect(err.Error()).To(ContainSubstring("preparing partitions: creating snapshotted subvolume '/etc': creating subvolume"))
+			Expect(err.Error()).To(ContainSubstring("failed creating /etc"))
 			Expect(runner.MatchMilestones([][]string{
 				{"btrfs", "subvolume", "create"},
 				{"btrfs", "property", "set", "-ts", "/some/root/@/.snapshots/1/snapshot", "ro", "false"},
@@ -171,19 +172,24 @@ var _ = Describe("SnapperTransaction", Label("transaction"), func() {
 			}
 			trans, err = sn.Start()
 			Expect(err).To(HaveOccurred())
+			Expect(err).To(MatchError("preparing partitions: creating snapshotted subvolume '/etc': " +
+				"creating volume with merge: listing snapshots for rw volume '/etc': " +
+				"unmarshalling snapshots: unexpected end of JSON input"))
 			Expect(runner.MatchMilestones([][]string{
 				{"snapper", "--no-dbus", "--root", "/.snapshots/4/snapshot", "-c", "etc", "--jsonout", "list"},
 			})).To(Succeed())
 		})
 	})
 	It("fails to init snapper transactioner if it can't list snapshots", func() {
-		mount.Mount("/dev/sda2", "/", "", []string{"ro", "subvol=@/.snapshots/4/snapshot"})
+		Expect(mount.Mount("/dev/sda2", "/", "", []string{"ro", "subvol=@/.snapshots/4/snapshot"})).To(Succeed())
 		sideEffects["lsblk"] = func(args ...string) ([]byte, error) {
 			return []byte(lsblkJson), nil
 		}
 		sn = transaction.NewSnapperTransaction(ctx, s)
 		_, err = sn.Init(*d)
 		Expect(err).To(HaveOccurred())
+		Expect(err).To(MatchError("determining snapshots state: listing snapshots: " +
+			"unmarshalling snapshots: unexpected end of JSON input"))
 		Expect(runner.CmdsMatch([][]string{
 			{"lsblk", "-p", "-b", "-n", "-J", "--output"},
 			{"snapper", "--no-dbus", "-c", "root", "--jsonout", "list"},
@@ -193,6 +199,7 @@ var _ = Describe("SnapperTransaction", Label("transaction"), func() {
 		sn = transaction.NewSnapperTransaction(ctx, s)
 		_, err = sn.Init(*d)
 		Expect(err).To(HaveOccurred())
+		Expect(err).To(MatchError("determining snapshots state: probing host partitions: unexpected end of JSON input"))
 		Expect(runner.CmdsMatch([][]string{{
 			"lsblk", "-p", "-b", "-n", "-J", "--output",
 		}})).To(Succeed())
@@ -206,6 +213,7 @@ var _ = Describe("SnapperTransaction", Label("transaction"), func() {
 		cancel()
 		_, err = sn.Init(*d)
 		Expect(err).To(HaveOccurred())
+		Expect(err).To(MatchError("context canceled"))
 		Expect(runner.CmdsMatch([][]string{
 			{"lsblk", "-p", "-b", "-n", "-J", "--output"},
 			{"/usr/lib/snapper/installation-helper", "--root-prefix", "/some/root"},

@@ -92,51 +92,43 @@ func (u Upgrader) Upgrade(d *deployment.Deployment) (err error) {
 
 	uh, err = u.t.Init(*d)
 	if err != nil {
-		u.s.Logger().Error("could not initialize transaction")
-		return err
+		return fmt.Errorf("initializing transaction: %w", err)
 	}
 
 	trans, err := u.t.Start()
 	if err != nil {
-		u.s.Logger().Error("could not start transaction")
-		return err
+		return fmt.Errorf("starting transaction: %w", err)
 	}
 	cleanup.PushErrorOnly(func() error { return u.t.Rollback(trans, err) })
 
 	err = uh.SyncImageContent(d.SourceOS, trans)
 	if err != nil {
-		u.s.Logger().Error("could not dump OS image")
-		return err
+		return fmt.Errorf("syncing OS image content: %w", err)
 	}
 
 	err = uh.Merge(trans)
 	if err != nil {
-		u.s.Logger().Error("could not merge RW volumes")
-		return err
+		return fmt.Errorf("merging RW volumes: %w", err)
 	}
 
 	err = uh.UpdateFstab(trans)
 	if err != nil {
-		u.s.Logger().Error("could not update fstab")
-		return err
+		return fmt.Errorf("updating fstab: %w", err)
 	}
 
 	err = selinux.ChrootedRelabel(u.ctx, u.s, trans.Path, nil)
 	if err != nil {
-		u.s.Logger().Error("failed relabelling snapshot path: %s", trans.Path)
-		return err
+		return fmt.Errorf("relabelling snapshot path '%s': %w", trans.Path, err)
 	}
 
 	err = d.WriteDeploymentFile(u.s, trans.Path)
 	if err != nil {
-		u.s.Logger().Error("could not write deployment file")
-		return err
+		return fmt.Errorf("writing deployment file: %w", err)
 	}
 
 	err = uh.Lock(trans)
 	if err != nil {
-		u.s.Logger().Error("failed locking snapshot: %s", trans.Path)
-		return err
+		return fmt.Errorf("locking transaction '%d': %w", trans.ID, err)
 	}
 
 	if d.OverlayTree != nil && !d.OverlayTree.IsEmpty() {
@@ -144,21 +136,18 @@ func (u Upgrader) Upgrade(d *deployment.Deployment) (err error) {
 			u.s, d.OverlayTree, unpack.WithRsyncFlags(overlayTreeSyncFlags()...),
 		)
 		if err != nil {
-			u.s.Logger().Error("could not initialize unpacker")
-			return err
+			return fmt.Errorf("initializing unpacker: %w", err)
 		}
 		_, err = unpacker.Unpack(u.ctx, trans.Path)
 		if err != nil {
-			u.s.Logger().Error("could not unpack overlay tree")
-			return err
+			return fmt.Errorf("unpacking overlay tree: %w", err)
 		}
 	}
 
 	if d.CfgScript != "" {
 		err = u.configHook(d.CfgScript, trans.Path)
 		if err != nil {
-			u.s.Logger().Error("configuration hook error")
-			return err
+			return fmt.Errorf("executing configuration hook: %w", err)
 		}
 	}
 
@@ -171,14 +160,12 @@ func (u Upgrader) Upgrade(d *deployment.Deployment) (err error) {
 
 	err = u.b.Install(trans.Path, strconv.Itoa(trans.ID), kernelCmdline, d)
 	if err != nil {
-		u.s.Logger().Error("could not install bootloader: %s", err.Error())
-		return err
+		return fmt.Errorf("installing bootloader: %w", err)
 	}
 
 	err = u.t.Commit(trans)
 	if err != nil {
-		u.s.Logger().Error("could not close transaction")
-		return err
+		return fmt.Errorf("committing transaction: %w", err)
 	}
 
 	return nil

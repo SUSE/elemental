@@ -159,6 +159,7 @@ var _ = Describe("Grub tests", Label("bootloader", "grub"), func() {
 
 		err = grub.Install("/target/dir", "1", "kernel cmdline", d)
 		Expect(err).To(HaveOccurred())
+		Expect(err).To(MatchError("installing kernel+initrd: initrd not found"))
 	})
 	It("Leaves old snapshots and overwrites 'active' entry", func() {
 		err := grub.Install("/target/dir", "1", "snapshot1", d)

@@ -47,7 +47,7 @@ func Install(ctx *cli.Context) error { //nolint:dupl
 
 	d, err := digestInstallSetup(s, args)
 	if err != nil {
-		s.Logger().Error("failed to collect installation setup: %v", err)
+		s.Logger().Error("Failed to collect installation setup")
 		return err
 	}
 
@@ -63,7 +63,7 @@ func Install(ctx *cli.Context) error { //nolint:dupl
 
 	bootloader, err := bootloader.New(d.BootConfig.Bootloader, s)
 	if err != nil {
-		s.Logger().Error("installation failed: %v", err)
+		s.Logger().Error("Parsing boot config failed")
 		return err
 	}
 
@@ -73,7 +73,7 @@ func Install(ctx *cli.Context) error { //nolint:dupl
 
 	err = installer.Install(d)
 	if err != nil {
-		s.Logger().Error("installation failed: %v", err)
+		s.Logger().Error("Installation failed")
 		return err
 	}
 
