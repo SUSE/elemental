@@ -45,6 +45,9 @@ import (
 //go:embed templates/config.sh.tpl
 var configScriptTpl string
 
+//go:embed templates/k8s_res_deploy.sh.tpl
+var k8sResDeployScriptTpl string
+
 func Run(ctx context.Context, d *image.Definition, buildDir string, system *sys.System) error {
 	logger := system.Logger()
 	runner := system.Runner()
@@ -267,4 +270,27 @@ func downloadExtension(ctx context.Context, downloadURL, extensionsPath string) 
 	}
 
 	return nil
+}
+
+func writeK8sResDeployScript(dest, runtimeManifestsDir string, runtimeHelmCharts []string) (path string, err error) {
+	const k8sResDeployScriptName = "k8s_res_deploy.sh"
+
+	values := struct {
+		HelmCharts   []string
+		ManifestsDir string
+	}{
+		HelmCharts:   runtimeHelmCharts,
+		ManifestsDir: runtimeManifestsDir,
+	}
+
+	data, err := template.Parse(k8sResDeployScriptName, k8sResDeployScriptTpl, &values)
+	if err != nil {
+		return "", fmt.Errorf("parsing template for %s: %w", k8sResDeployScriptName, err)
+	}
+
+	filename := filepath.Join(dest, k8sResDeployScriptName)
+	if err := os.WriteFile(filename, []byte(data), os.FileMode(0o744)); err != nil {
+		return "", fmt.Errorf("writing %s: %w", filename, err)
+	}
+	return filename, nil
 }
