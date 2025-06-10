@@ -176,13 +176,20 @@ func resolveManifest(manifestURI, storeDir string) (*resolver.ResolvedManifest, 
 	return m, nil
 }
 
-func writeConfigScript(d *image.Definition, dest string) (string, error) {
+func writeConfigScript(d *image.Definition, dest, runtimeK8sResDeployScript string) (string, error) {
 	const configScriptName = "config.sh"
 
 	values := struct {
-		Users []image.User
+		Users                []image.User
+		KubernetesDir        string
+		ManifestDeployScript string
 	}{
 		Users: d.OperatingSystem.Users,
+	}
+
+	if runtimeK8sResDeployScript != "" {
+		values.KubernetesDir = filepath.Dir(runtimeK8sResDeployScript)
+		values.ManifestDeployScript = runtimeK8sResDeployScript
 	}
 
 	data, err := template.Parse(configScriptName, configScriptTpl, &values)
