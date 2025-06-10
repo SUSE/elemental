@@ -86,26 +86,22 @@ func (clean *CleanStack) Pop() *Job {
 // Cleanup runs the whole cleanup stack. In case of error it runs all jobs
 // and returns the first error occurrence.
 func (clean *CleanStack) Cleanup(err error) error {
-	var errs error
-	if err != nil {
-		errs = errors.Join(errs, err)
-	}
 	for clean.count > 0 {
 		job := clean.Pop()
 		switch job.Type() {
 		case successOnly:
-			if errs == nil {
-				errs = runCleanJob(job, errs)
+			if err == nil {
+				err = runCleanJob(job, err)
 			}
 		case errorOnly:
-			if errs != nil {
-				errs = runCleanJob(job, errs)
+			if err != nil {
+				err = runCleanJob(job, err)
 			}
 		default:
-			errs = runCleanJob(job, errs)
+			err = runCleanJob(job, err)
 		}
 	}
-	return errs
+	return err
 }
 
 func runCleanJob(job *Job, errs error) error {
