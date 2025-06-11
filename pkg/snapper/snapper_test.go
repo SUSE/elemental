@@ -212,6 +212,23 @@ var _ = Describe("Snapper", Label("snapper"), func() {
 		Expect(err).To(HaveOccurred())
 		Expect(err).To(MatchError("snapper modify failed"))
 	})
+	It("runs snapper status and writes to a file", func() {
+		Expect(snap.Status("/some/root", "", "/status_file", 3, 4)).To(Succeed())
+
+		runner.ReturnError = fmt.Errorf("snapper status failed")
+		err := snap.Status("", "etc", "/status_file", 3, 4)
+		Expect(err).To(HaveOccurred())
+
+		Expect(runner.CmdsMatch([][]string{
+			{
+				"snapper", "--no-dbus", "--root", "/some/root",
+				"-c", "root", "status", "--output", "/status_file", "3..4",
+			}, {
+				"snapper", "--no-dbus", "-c", "etc",
+				"status", "--output", "/status_file", "3..4",
+			},
+		})).To(Succeed())
+	})
 	Describe("ListSnapshots", func() {
 		It("gets the list of snapshots", func() {
 			runner.SideEffect = func(_ string, _ ...string) ([]byte, error) {

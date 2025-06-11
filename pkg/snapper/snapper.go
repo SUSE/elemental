@@ -323,6 +323,23 @@ func (sn Snapper) ConfigureRoot(snapshotPath string, maxSnapshots int) error {
 	return nil
 }
 
+func (sn Snapper) Status(root, config, output string, num1, num2 int) error {
+	args := []string{"--no-dbus"}
+
+	if root != "" && root != "/" {
+		args = append(args, "--root", root)
+	}
+	if config == "" {
+		config = rootConfig
+	}
+	args = append(args, "-c", config, "status", "--output", output, fmt.Sprintf("%d..%d", num1, num2))
+	_, err := sn.s.Runner().RunEnv("snapper", []string{env.CLocale}, args...)
+	if err != nil {
+		return fmt.Errorf("snapper failed to produce status file (%s) between snapshots %d and %d: %w", output, num1, num2, err)
+	}
+	return nil
+}
+
 func unmarshalSnapperList(snapperOut []byte, config string) (Snapshots, error) {
 	var objmap map[string]*json.RawMessage
 	err := json.Unmarshal(snapperOut, &objmap)

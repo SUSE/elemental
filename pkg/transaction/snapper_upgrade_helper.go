@@ -18,8 +18,13 @@ limitations under the License.
 package transaction
 
 import (
+	"bufio"
 	"fmt"
+	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
+	"strings"
 
 	"github.com/suse/elemental/v3/pkg/btrfs"
 	"github.com/suse/elemental/v3/pkg/chroot"
@@ -207,20 +212,160 @@ func (sc snapperContext) configureRWVolumes(trans *Transaction) error {
 }
 
 // merge runs a 3 way merge for snapshotted RW volumes.
-// Current implementation doesn't allow for resolving potential conflicts!
-func (sc snapperContext) merge(trans *Transaction) error {
+// Current implementation solves potential conflicts by always keeping
+// custom changes over changes coming from the OS image.
+func (sc snapperContext) merge(trans *Transaction) (err error) {
+	var status, tmpDir string
+
 	for _, rwVol := range sc.partitions.GetSnapshottedVolumes() {
 		m := trans.Merges[rwVol.Path]
 		if m == nil {
 			continue
 		}
-		r := rsync.NewRsync(sc.s, rsync.WithContext(sc.ctx))
-		err := r.SyncData(m.Modified, m.New, snapper.SnapshotsPath)
+
+		tmpDir, err = vfs.TempDir(sc.s.FS(), "", "snapStatus")
 		if err != nil {
-			return fmt.Errorf("merging %s and %s: %w", m.Modified, m.New, err)
+			return fmt.Errorf("failed creating temporary directory to store snapper output: %w", err)
+		}
+		defer func() {
+			e := sc.s.FS().RemoveAll(tmpDir)
+			if err == nil {
+				err = e
+			}
+		}()
+
+		status = filepath.Join(tmpDir, fmt.Sprintf("snap_status_%s", snapper.ConfigName(rwVol.Path)))
+		err = sc.customChangesStatus(rwVol.Path, m, status)
+		if err != nil {
+			return err
+		}
+
+		err = sc.applyCustomChanges(status, rwVol.Path, m)
+		if err != nil {
+			return err
 		}
 	}
 	return nil
+}
+
+// customChangesStatus checks the status between the old stock content and the current customized content
+// and stores the result in the given output file
+func (sc snapperContext) customChangesStatus(volPath string, merge *Merge, output string) (err error) {
+	oldID, err := snapshotIDFromPath(merge.Old)
+	if err != nil {
+		return err
+	}
+
+	modifiedID, err := snapshotIDFromPath(merge.Modified)
+	if err != nil {
+		return err
+	}
+
+	root, err := rootFromMerge(volPath, merge)
+	if err != nil {
+		return err
+	}
+
+	err = sc.snap.Status(root, snapper.ConfigName(volPath), output, oldID, modifiedID)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// applyCustomChanges reads the given status file and applies reported changes in to the target destination.
+// This method is the responsible of applying customizations to the new volume
+func (sc snapperContext) applyCustomChanges(status, rwVolPath string, merge *Merge) (err error) {
+	sc.s.Logger().Debug("rw volume path: %s", rwVolPath)
+	statusF, err := sc.s.FS().OpenFile(status, os.O_RDONLY, vfs.FilePerm)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		e := statusF.Close()
+		if err != nil {
+			err = fmt.Errorf("failed closing status file: %w", e)
+		}
+	}()
+
+	syncFiles := filepath.Join(filepath.Dir(status), fmt.Sprintf("sync_%s", snapper.ConfigName(rwVolPath)))
+	syncF, err := sc.s.FS().OpenFile(syncFiles, os.O_CREATE|os.O_WRONLY, vfs.FilePerm)
+	if err != nil {
+		return fmt.Errorf("failed opening modified files list: %w", err)
+	}
+
+	r := regexp.MustCompile(`(([-+ct.])[p.][u.][g.][x.][a.])\s+(.*)`)
+
+	scanner := bufio.NewScanner(statusF)
+	for scanner.Scan() {
+		line := scanner.Text()
+		match := r.FindStringSubmatch(line)
+
+		switch {
+		case len(match) == 0:
+			continue
+		case match[1] == "....":
+			// Ignore extended attributes changes because the stock snapshot used for
+			// comparison was taken before SELINUX relabelling, hence this is likely to
+			// list almost every single file.
+			continue
+		case match[2] == "-":
+			err = sc.s.FS().RemoveAll(filepath.Join(merge.New, match[3]))
+			if err != nil {
+				_ = syncF.Close()
+				return err
+			}
+		default:
+			_, err = fmt.Fprintln(syncF, strings.TrimPrefix(match[3], rwVolPath))
+			if err != nil {
+				_ = syncF.Close()
+				return err
+			}
+		}
+	}
+	err = syncF.Close()
+	if err != nil {
+		return fmt.Errorf("failed closing modified files list: %w", err)
+	}
+
+	syncFlags := append(rsync.DefaultFlags(), "--files-from", syncFiles)
+
+	sync := rsync.NewRsync(sc.s, rsync.WithContext(sc.ctx), rsync.WithFlags(syncFlags...))
+	err = sync.SyncData(merge.Modified, merge.New, snapper.SnapshotsPath)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// snapshotIDFromPath determines the snapshot ID form the snapshot root path
+func snapshotIDFromPath(path string) (int, error) {
+	r := regexp.MustCompile(`.*/.snapshots/(\d+)/snapshot$`)
+	match := r.FindStringSubmatch(path)
+	if match == nil {
+		return 0, fmt.Errorf("could not determine snapshot ID to diff")
+	}
+	id, _ := strconv.Atoi(match[1])
+	return id, nil
+}
+
+// rootFromMerge determines the snapper root based on the merge snapshots paths
+func rootFromMerge(volPath string, merge *Merge) (string, error) {
+	r := regexp.MustCompile(fmt.Sprintf(`(.*)%s/.snapshots/\d+/snapshot$`, volPath))
+	matchOld := r.FindStringSubmatch(merge.Old)
+	if matchOld == nil {
+		return "", fmt.Errorf("could not determine snapper root for path %s", merge.Old)
+	}
+	matchModified := r.FindStringSubmatch(merge.Modified)
+	if matchModified == nil {
+		return "", fmt.Errorf("could not determine snapper root for path %s", merge.Modified)
+	}
+	if matchModified[1] != matchOld[1] {
+		return "", fmt.Errorf("could not determine snapper root, inconsistent merge")
+	}
+	return matchModified[1], nil
 }
 
 // updateFstab updates the fstab file with the given transaction data
