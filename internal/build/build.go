@@ -322,7 +322,7 @@ func needsHelmChartsSetup(k *image.Kubernetes, rm *resolver.ResolvedManifest) bo
 }
 
 func needsManifestsSetup(k *image.Kubernetes) bool {
-	return len(k.RemoteManifests) > 0 || len(k.LocalManifest) > 0
+	return len(k.RemoteManifests) > 0 || len(k.LocalManifests) > 0
 }
 
 func setupHelmCharts(d *image.Definition, rm *resolver.ResolvedManifest, overlaysPath, relativeHelmPath string) (runtimeHelmCharts []string, err error) {
@@ -393,7 +393,7 @@ func setupManifests(ctx context.Context, fs vfs.FS, k *image.Kubernetes, manifes
 		}
 	}
 
-	for _, manifest := range k.LocalManifest {
+	for _, manifest := range k.LocalManifests {
 		overlayPath := filepath.Join(manifestsDir, filepath.Base(manifest))
 		if err := vfs.CopyFile(fs, manifest, overlayPath); err != nil {
 			return fmt.Errorf("copying local manifest '%s' to '%s': %w", manifest, overlayPath, err)

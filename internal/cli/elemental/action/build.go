@@ -175,7 +175,7 @@ func parseKubernetesDir(configDir image.ConfigDir, k *image.Kubernetes) error {
 
 	for _, entry := range entries {
 		localManifestPath := filepath.Join(configDir.KubernetesManifestsDir(), entry.Name())
-		k.LocalManifest = append(k.LocalManifest, localManifestPath)
+		k.LocalManifests = append(k.LocalManifests, localManifestPath)
 	}
 
 	return nil

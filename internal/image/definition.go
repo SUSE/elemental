@@ -90,5 +90,5 @@ type Kubernetes struct {
 	RemoteManifests []string  `yaml:"manifests,omitempty"`
 	Helm            *api.Helm `yaml:"helm,omitempty"`
 	// LocalManifests - local manifest files specified under config/kubernetes/manifests
-	LocalManifest []string
+	LocalManifests []string
 }
