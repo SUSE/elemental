@@ -69,7 +69,7 @@ func Run(ctx context.Context, d *image.Definition, buildDir string, system *sys.
 	if needsHelmChartsSetup(&d.Kubernetes, m) {
 		relativeHelmPath := filepath.Join(relativeK8sPath, "helm")
 		if runtimeHelmCharts, err = setupHelmCharts(d, m, overlaysPath, relativeHelmPath); err != nil {
-			logger.Error("Setting up HelmChart resoruces")
+			logger.Error("Setting up Helm charts failed")
 			return err
 		}
 	}
@@ -79,7 +79,7 @@ func Run(ctx context.Context, d *image.Definition, buildDir string, system *sys.
 		relativeManfiestsPath := filepath.Join(relativeK8sPath, "manifests")
 		manifestsOverlayPath := filepath.Join(overlaysPath, relativeManfiestsPath)
 		if err = setupManifests(ctx, system.FS(), &d.Kubernetes, manifestsOverlayPath); err != nil {
-			logger.Error("Setting up Kubernetes manifests")
+			logger.Error("Setting up Kubernetes manifests failed")
 			return err
 		}
 
@@ -91,7 +91,7 @@ func Run(ctx context.Context, d *image.Definition, buildDir string, system *sys.
 		kubernetesOverlayPath := filepath.Join(overlaysPath, relativeK8sPath)
 		scriptInOverlay, err := writeK8sResDeployScript(kubernetesOverlayPath, runtimeManifestsDir, runtimeHelmCharts)
 		if err != nil {
-			logger.Error("Writing Kubernetes resource deployment script")
+			logger.Error("Setting up Kuberentes resource deployment script failed")
 			return err
 		}
 		runtimeK8sResDeployScript = filepath.Join(string(os.PathSeparator), relativeK8sPath, filepath.Base(scriptInOverlay))
