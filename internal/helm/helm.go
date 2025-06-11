@@ -29,43 +29,36 @@ const (
 )
 
 type CRD struct {
-	APIVersion string `yaml:"apiVersion"`
-	Kind       string `yaml:"kind"`
-	Metadata   struct {
-		Name      string `yaml:"name"`
-		Namespace string `yaml:"namespace,omitempty"`
-	} `yaml:"metadata"`
-	Spec struct {
-		Chart           string `yaml:"chart"`
-		Version         string `yaml:"version"`
-		Repo            string `yaml:"repo,omitempty"`
-		ValuesContent   string `yaml:"valuesContent,omitempty"`
-		TargetNamespace string `yaml:"targetNamespace,omitempty"`
-		CreateNamespace bool   `yaml:"createNamespace,omitempty"`
-		BackOffLimit    int    `yaml:"backOffLimit"`
-	} `yaml:"spec"`
+	APIVersion string   `yaml:"apiVersion"`
+	Kind       string   `yaml:"kind"`
+	Metadata   Metadata `yaml:"metadata"`
+	Spec       CRDSpec  `yaml:"spec"`
+}
+
+type Metadata struct {
+	Name      string `yaml:"name"`
+	Namespace string `yaml:"namespace,omitempty"`
+}
+
+type CRDSpec struct {
+	Chart           string `yaml:"chart"`
+	Version         string `yaml:"version"`
+	Repo            string `yaml:"repo,omitempty"`
+	ValuesContent   string `yaml:"valuesContent,omitempty"`
+	TargetNamespace string `yaml:"targetNamespace,omitempty"`
+	CreateNamespace bool   `yaml:"createNamespace,omitempty"`
+	BackOffLimit    int    `yaml:"backOffLimit"`
 }
 
 func NewHelmCRD(chart *api.HelmChart, repositoryURL string) *CRD {
 	return &CRD{
 		APIVersion: helmChartAPIVersion,
 		Kind:       helmChartKind,
-		Metadata: struct {
-			Name      string `yaml:"name"`
-			Namespace string `yaml:"namespace,omitempty"`
-		}{
+		Metadata: Metadata{
 			Name:      chart.Chart,
 			Namespace: kubeSystemNamespace,
 		},
-		Spec: struct {
-			Chart           string `yaml:"chart"`
-			Version         string `yaml:"version"`
-			Repo            string `yaml:"repo,omitempty"`
-			ValuesContent   string `yaml:"valuesContent,omitempty"`
-			TargetNamespace string `yaml:"targetNamespace,omitempty"`
-			CreateNamespace bool   `yaml:"createNamespace,omitempty"`
-			BackOffLimit    int    `yaml:"backOffLimit"`
-		}{
+		Spec: CRDSpec{
 			Chart:           chart.Chart,
 			Version:         chart.Version,
 			Repo:            repositoryURL,
