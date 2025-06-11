@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -67,9 +68,16 @@ var _ = Describe("Grub tests", Label("bootloader", "grub"), func() {
 		runner.SideEffect = func(command string, args ...string) ([]byte, error) {
 			switch filepath.Base(command) {
 			case "grub2-editenv":
-				// Write last arg to the file (should be kernel cmdline)
-				err := tfs.WriteFile(args[0], []byte(args[len(args)-1]), vfs.FilePerm)
-				Expect(err).NotTo(HaveOccurred())
+				path := args[0]
+				switch args[1] {
+				case "set":
+					// Write args to the file
+					content := strings.Join(args[2:], "\n")
+					err := tfs.WriteFile(path, []byte(content), vfs.FilePerm)
+					Expect(err).NotTo(HaveOccurred())
+				case "list":
+					return tfs.ReadFile(path)
+				}
 				return nil, nil
 			case "rsync":
 				return nil, nil
@@ -131,7 +139,7 @@ var _ = Describe("Grub tests", Label("bootloader", "grub"), func() {
 				Partitions: deployment.Partitions{sysPart},
 			}},
 		}
-		err := grub.Install("/target/dir", "", "", broken)
+		err := grub.Install("/target/dir", "1", "kernel cmdline", broken)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(Equal("ESP not found"))
 	})
@@ -176,17 +184,21 @@ var _ = Describe("Grub tests", Label("bootloader", "grub"), func() {
 		// 'active' entry should point to snapshot 2
 		activeEntry, err := tfs.ReadFile("/target/dir/boot/loader/entries/active")
 		Expect(err).ToNot(HaveOccurred())
-		Expect(string(activeEntry)).To(Equal("cmdline=snapshot2"))
+		Expect(strings.SplitSeq(string(activeEntry), "\n")).To(ContainElement("cmdline=snapshot2"))
 
 		// entry 1 should point to snapshot 1
 		entry1, err := tfs.ReadFile("/target/dir/boot/loader/entries/1")
 		Expect(err).ToNot(HaveOccurred())
-		Expect(string(entry1)).To(Equal("cmdline=snapshot1"))
+		Expect(strings.SplitSeq(string(entry1), "\n")).To(ContainElement("cmdline=snapshot1"))
 
 		// entry 2 should point to snapshot 1
 		entry2, err := tfs.ReadFile("/target/dir/boot/loader/entries/2")
 		Expect(err).ToNot(HaveOccurred())
-		Expect(string(entry2)).To(Equal("cmdline=snapshot2"))
+		Expect(strings.SplitSeq(string(entry2), "\n")).To(ContainElement("cmdline=snapshot2"))
 
+		// entries should read "active 2 1"
+		entries, err := tfs.ReadFile("/target/dir/boot/grubenv")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(string(entries)).To(Equal("entries=active 2 1"))
 	})
 })

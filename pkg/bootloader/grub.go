@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/suse/elemental/v3/pkg/deployment"
@@ -248,19 +249,21 @@ func (g *Grub) updateBootEntries(rootPath string, esp *deployment.Partition, new
 	activeEntries := []string{}
 
 	// Read current entries
-	stdOut, err := g.s.Runner().Run("grub2-editenv", grubEnvPath, "list")
-	if err != nil {
-		return fmt.Errorf("reading current boot entries: %w", err)
-	}
+	if ok, _ := vfs.Exists(g.s.FS(), grubEnvPath); ok {
+		stdOut, err := g.s.Runner().Run("grub2-editenv", grubEnvPath, "list")
+		if err != nil {
+			return fmt.Errorf("reading current boot entries: %w", err)
+		}
 
-	g.s.Logger().Debug("grub2-editenv stdout: %s", string(stdOut))
-	for line := range strings.SplitSeq(string(stdOut), "\n") {
-		if after, found := strings.CutPrefix(line, "entries="); found {
-			activeEntries = append(activeEntries, strings.Fields(after)...)
+		g.s.Logger().Debug("grub2-editenv stdout: %s", string(stdOut))
+		for line := range strings.SplitSeq(string(stdOut), "\n") {
+			if after, found := strings.CutPrefix(line, "entries="+DefaultBootID); found {
+				activeEntries = append(activeEntries, strings.Fields(after)...)
+			}
 		}
 	}
 
-	err = vfs.MkdirAll(g.s.FS(), filepath.Join(rootPath, esp.MountPoint, "loader", "entries"), vfs.DirPerm)
+	err := vfs.MkdirAll(g.s.FS(), filepath.Join(rootPath, esp.MountPoint, "loader", "entries"), vfs.DirPerm)
 	if err != nil {
 		return fmt.Errorf("creating loader dir: %w", err)
 	}
@@ -272,17 +275,24 @@ func (g *Grub) updateBootEntries(rootPath string, esp *deployment.Partition, new
 		initrd := fmt.Sprintf("initrd=%s", entry.initrd)
 		cmdline := fmt.Sprintf("cmdline=%s", entry.cmdline)
 
-		stdOut, err = g.s.Runner().Run("grub2-editenv", filepath.Join(rootPath, esp.MountPoint, "loader", "entries", entry.id), "set", displayName, linux, initrd, cmdline)
+		stdOut, err := g.s.Runner().Run("grub2-editenv", filepath.Join(rootPath, esp.MountPoint, "loader", "entries", entry.id), "set", displayName, linux, initrd, cmdline)
 		g.s.Logger().Debug("grub2-editenv stdout: %s", string(stdOut))
 		if err != nil {
 			return err
 		}
 
+		if entry.id == DefaultBootID {
+			continue
+		}
+
 		activeEntries = append(activeEntries, entry.id)
 	}
 
+	slices.Reverse(activeEntries)
+	activeEntries = append([]string{DefaultBootID}, activeEntries...)
+
 	// update entries variable in /boot/grubenv
-	stdOut, err = g.s.Runner().Run("grub2-editenv", grubEnvPath, "set", fmt.Sprintf("entries=%s", strings.Join(activeEntries, " ")))
+	stdOut, err := g.s.Runner().Run("grub2-editenv", grubEnvPath, "set", fmt.Sprintf("entries=%s", strings.Join(activeEntries, " ")))
 	g.s.Logger().Debug("grub2-editenv stdout: %s", string(stdOut))
 
 	return err
