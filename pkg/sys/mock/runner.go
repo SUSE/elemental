@@ -29,6 +29,7 @@ import (
 
 type Runner struct {
 	cmds        [][]string
+	envs        [][]string
 	ReturnValue []byte
 	SideEffect  func(command string, args ...string) ([]byte, error)
 	ReturnError error
@@ -42,11 +43,16 @@ func NewRunner() *Runner {
 }
 
 func (r *Runner) Run(command string, args ...string) ([]byte, error) {
+	return r.RunEnv(command, []string{}, args...)
+}
+
+func (r *Runner) RunEnv(command string, envs []string, args ...string) ([]byte, error) {
 	err := r.ReturnError
 	out := r.ReturnValue
 
 	r.debug(fmt.Sprintf("Running cmd: '%s %s'", command, strings.Join(args, " ")))
 	r.cmds = append(r.cmds, append([]string{command}, args...))
+	r.envs = append(r.envs, append([]string{command}, envs...))
 	if r.SideEffect != nil {
 		if len(r.cmds) > 0 {
 			lastCmd := len(r.cmds) - 1
@@ -88,6 +94,20 @@ func (r Runner) CmdsMatch(cmdList [][]string) error {
 		got := strings.Join(r.cmds[i], " ")
 		if !strings.HasPrefix(got, expect) {
 			return fmt.Errorf("expected command: '%s.*' got: '%s'", expect, got)
+		}
+	}
+	return nil
+}
+
+func (r Runner) EnvsMatch(envList [][]string) error {
+	if len(envList) != len(r.envs) {
+		return fmt.Errorf("number of envs mismatch, expected %d calls but got %d", len(envList), len(r.envs))
+	}
+	for i, env := range envList {
+		expect := strings.Join(env, " ")
+		got := strings.Join(r.envs[i], " ")
+		if !strings.HasPrefix(got, expect) {
+			return fmt.Errorf("expected env var: '%s.*' got: '%s'", expect, got)
 		}
 	}
 	return nil

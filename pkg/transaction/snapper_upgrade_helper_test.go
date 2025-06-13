@@ -20,6 +20,7 @@ package transaction_test
 import (
 	"fmt"
 	"path/filepath"
+	"slices"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -77,13 +78,20 @@ var _ = Describe("SnapperUpgradeHelper", Label("transaction"), func() {
 			Expect(vfs.MkdirAll(tfs, filepath.Dir(snSysConf), vfs.DirPerm)).To(Succeed())
 			Expect(tfs.WriteFile(snSysConf, []byte{}, vfs.FilePerm)).To(Succeed())
 
+			sideEffects["snapper"] = func(args ...string) ([]byte, error) {
+				if slices.Contains(args, "create") {
+					return []byte("2\n"), nil
+				}
+				return []byte{}, nil
+			}
+
 			Expect(upgradeH.Merge(trans)).To(Succeed())
 			// Snapper configuration is done before merging
 			Expect(runner.MatchMilestones([][]string{
 				{"snapper", "--no-dbus", "-c", "etc", "create-config", "--fstype", "btrfs", "/etc"},
-				{"env", "LC_ALL=C", "snapper", "--no-dbus", "-c", "etc", "create", "--print-number"},
+				{"snapper", "--no-dbus", "-c", "etc", "create", "--print-number"},
 				{"snapper", "--no-dbus", "-c", "home", "create-config", "--fstype", "btrfs", "/home"},
-				{"env", "LC_ALL=C", "snapper", "--no-dbus", "-c", "home", "create", "--print-number"},
+				{"snapper", "--no-dbus", "-c", "home", "create", "--print-number"},
 			})).To(Succeed())
 			// No merge is executed on first (install) transaction
 			Expect(runner.MatchMilestones([][]string{
@@ -154,9 +162,9 @@ var _ = Describe("SnapperUpgradeHelper", Label("transaction"), func() {
 			Expect(upgradeH.Merge(trans)).To(Succeed())
 			Expect(runner.MatchMilestones([][]string{
 				{"snapper", "--no-dbus", "-c", "etc", "create-config", "--fstype", "btrfs", "/etc"},
-				{"env", "LC_ALL=C", "snapper", "--no-dbus", "-c", "etc", "create", "--print-number"},
+				{"snapper", "--no-dbus", "-c", "etc", "create", "--print-number"},
 				{"snapper", "--no-dbus", "-c", "home", "create-config", "--fstype", "btrfs", "/home"},
-				{"env", "LC_ALL=C", "snapper", "--no-dbus", "-c", "home", "create", "--print-number"},
+				{"snapper", "--no-dbus", "-c", "home", "create", "--print-number"},
 				{"rsync"},
 			})).To(Succeed())
 		})

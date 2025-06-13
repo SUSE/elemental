@@ -46,13 +46,10 @@ var _ = Describe("SnapperTransaction", Label("transaction"), func() {
 				trans = startInstallTransaction()
 			})
 			It("commits the current transaction", func() {
-				sideEffects["env"] = func(args ...string) ([]byte, error) {
-					if slices.Contains(args, "snapper") {
+				sideEffects["snapper"] = func(args ...string) ([]byte, error) {
+					if slices.Contains(args, "create") {
 						return []byte("2\n"), nil
 					}
-					return runner.ReturnValue, runner.ReturnError
-				}
-				sideEffects["snapper"] = func(args ...string) ([]byte, error) {
 					if slices.Contains(args, "list") {
 						return []byte(installSnapList), nil
 					}
@@ -64,13 +61,10 @@ var _ = Describe("SnapperTransaction", Label("transaction"), func() {
 				})).To(Succeed())
 			})
 			It("commits a transaction with error if context is cancelled", func() {
-				sideEffects["env"] = func(args ...string) ([]byte, error) {
-					if slices.Contains(args, "snapper") {
+				sideEffects["snapper"] = func(args ...string) ([]byte, error) {
+					if slices.Contains(args, "create") {
 						return []byte("2\n"), nil
 					}
-					return runner.ReturnValue, runner.ReturnError
-				}
-				sideEffects["snapper"] = func(args ...string) ([]byte, error) {
 					if slices.Contains(args, "list") {
 						return []byte(installSnapList), nil
 					}
@@ -86,6 +80,9 @@ var _ = Describe("SnapperTransaction", Label("transaction"), func() {
 			})
 			It("fails to set default snapshot", func() {
 				sideEffects["snapper"] = func(args ...string) ([]byte, error) {
+					if slices.Contains(args, "create") {
+						return []byte("2\n"), nil
+					}
 					if slices.Contains(args, "--default") {
 						return []byte("error setting default\n"), fmt.Errorf("failed setting default")
 					}
@@ -103,8 +100,8 @@ var _ = Describe("SnapperTransaction", Label("transaction"), func() {
 			})
 		})
 		It("returns error if context is cancelled", func() {
-			sideEffects["env"] = func(args ...string) ([]byte, error) {
-				if slices.Contains(args, "snapper") {
+			sideEffects["snapper"] = func(args ...string) ([]byte, error) {
+				if slices.Contains(args, "create") {
 					return []byte("1\n"), nil
 				}
 				return runner.ReturnValue, runner.ReturnError
@@ -149,8 +146,8 @@ var _ = Describe("SnapperTransaction", Label("transaction"), func() {
 				trans = startUpgradeTransaction()
 			})
 			It("commits a transaction", func() {
-				sideEffects["env"] = func(args ...string) ([]byte, error) {
-					if slices.Contains(args, "snapper") {
+				sideEffects["snapper"] = func(args ...string) ([]byte, error) {
+					if slices.Contains(args, "create") {
 						if slices.Contains(args, "etc") || slices.Contains(args, "home") {
 							return []byte("2\n"), nil
 						}
@@ -164,8 +161,8 @@ var _ = Describe("SnapperTransaction", Label("transaction"), func() {
 			})
 		})
 		It("it fails to start a transaction if it does not find previous snapshotted volumes", func() {
-			sideEffects["env"] = func(args ...string) ([]byte, error) {
-				if slices.Contains(args, "snapper") {
+			sideEffects["snapper"] = func(args ...string) ([]byte, error) {
+				if slices.Contains(args, "create") {
 					return []byte("5\n"), nil
 				}
 				return runner.ReturnValue, runner.ReturnError

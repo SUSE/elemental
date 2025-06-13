@@ -26,6 +26,7 @@ import (
 
 	"github.com/suse/elemental/v3/pkg/btrfs"
 	"github.com/suse/elemental/v3/pkg/sys"
+	"github.com/suse/elemental/v3/pkg/sys/env"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
 
@@ -169,7 +170,7 @@ func (sn Snapper) CreateConfig(root, volumePath string) error {
 // CreateSnapshot creates a new snapper snapshot by calling "snapper create"
 func (sn Snapper) CreateSnapshot(root string, config string, base int, rw bool, description string, metadata Metadata) (int, error) {
 	var newSnap int
-	args := []string{"LC_ALL=C", "snapper", "--no-dbus"}
+	args := []string{"--no-dbus"}
 
 	if root != "" && root != "/" {
 		args = append(args, "--root", root)
@@ -192,7 +193,7 @@ func (sn Snapper) CreateSnapshot(root string, config string, base int, rw bool, 
 	}
 
 	sn.s.Logger().Info("Creating a new snapshot")
-	cmdOut, err := sn.s.Runner().Run("env", args...)
+	cmdOut, err := sn.s.Runner().RunEnv("snapper", []string{env.CLocale}, args...)
 	if err != nil {
 		return 0, fmt.Errorf("creating a new snapshot: %w", err)
 	}

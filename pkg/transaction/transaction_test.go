@@ -265,7 +265,7 @@ func initSnapperUpgrade(root string) transaction.UpgradeHelper {
 func startInstallTransaction() *transaction.Transaction {
 	By("starting a transaction")
 
-	sideEffects["env"] = func(args ...string) ([]byte, error) {
+	sideEffects["snapper"] = func(args ...string) ([]byte, error) {
 		if slices.Contains(args, "snapper") {
 			if slices.Contains(args, "--print-number") {
 				return []byte("1\n"), nil
@@ -291,13 +291,10 @@ func startInstallTransaction() *transaction.Transaction {
 func startUpgradeTransaction() *transaction.Transaction {
 	By("starting a transaction")
 
-	sideEffects["env"] = func(args ...string) ([]byte, error) {
-		if slices.Contains(args, "snapper") {
+	sideEffects["snapper"] = func(args ...string) ([]byte, error) {
+		if slices.Contains(args, "create") {
 			return []byte("5\n"), nil
 		}
-		return runner.ReturnValue, runner.ReturnError
-	}
-	sideEffects["snapper"] = func(args ...string) ([]byte, error) {
 		if slices.Contains(args, "etc") && slices.Contains(args, "list") {
 			return []byte(etcSnaps), nil
 		}
