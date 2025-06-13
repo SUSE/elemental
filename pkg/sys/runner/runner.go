@@ -51,8 +51,17 @@ func NewRunner(opts ...RunOption) *run { //nolint:revive
 }
 
 func (r run) Run(command string, args ...string) ([]byte, error) {
-	r.debug("Running cmd: '%s %s'", command, strings.Join(args, " "))
+	return r.RunEnv(command, []string{}, args...)
+}
+
+func (r run) RunEnv(command string, env []string, args ...string) ([]byte, error) {
+	displayEnv := ""
+	if len(env) > 0 {
+		displayEnv = strings.Join(env, " ") + " "
+	}
+	r.debug("Running cmd: '%s%s %s'", displayEnv, command, strings.Join(args, " "))
 	cmd := exec.Command(command, args...)
+	cmd.Env = env
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		r.debug("'%s' command reported an error: %s", command, err.Error())

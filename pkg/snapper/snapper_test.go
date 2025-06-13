@@ -27,6 +27,7 @@ import (
 	"github.com/joho/godotenv"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
 	"github.com/suse/elemental/v3/pkg/log"
 	"github.com/suse/elemental/v3/pkg/snapper"
 	"github.com/suse/elemental/v3/pkg/sys"
@@ -146,10 +147,11 @@ var _ = Describe("Snapper", Label("snapper"), func() {
 	})
 	It("creates a new snapshot", func() {
 		snapperCmd := [][]string{{
-			"env", "LC_ALL=C", "snapper", "--no-dbus", "--root", "/some/root", "-c", "root",
+			"snapper", "--no-dbus", "--root", "/some/root", "-c", "root",
 			"create", "--print-number", "-c", "number", "--userdata", "key=value",
 			"--description", "description", "--read-write", "--from", "3",
 		}}
+		snapperEnv := [][]string{{"snapper", "LC_ALL=C"}}
 		runner.ReturnValue = []byte("4")
 		id, err := snap.CreateSnapshot(
 			"/some/root", "", 3, true, "description", map[string]string{"key": "value"},
@@ -157,6 +159,7 @@ var _ = Describe("Snapper", Label("snapper"), func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(id).To(Equal(4))
 		Expect(runner.CmdsMatch(snapperCmd)).To(Succeed())
+		Expect(runner.EnvsMatch(snapperEnv)).To(Succeed())
 
 		runner.ReturnValue = []byte("wrong")
 		id, err = snap.CreateSnapshot(

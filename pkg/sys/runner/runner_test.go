@@ -43,6 +43,12 @@ var _ = Describe("Runner", Label("runner"), func() {
 		_, err := r.Run("pwd")
 		Expect(err).To(BeNil())
 	})
+	It("Runs commands with env vars on the real Runner", func() {
+		r := runner.NewRunner()
+		stdOut, err := r.RunEnv("bash", []string{"FOO=BAR"}, "-c", "echo $FOO")
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(string(stdOut)).To(Equal("BAR\n"))
+	})
 	It("logs the command when on debug", func() {
 		memLog := &bytes.Buffer{}
 		logger := log.New(log.WithBuffer(memLog))
