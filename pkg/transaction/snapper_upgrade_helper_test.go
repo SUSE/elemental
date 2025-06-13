@@ -29,6 +29,13 @@ import (
 	"github.com/suse/elemental/v3/pkg/transaction"
 )
 
+const snapperStatus = `{
+-..... /etc/deletedFile
++..... /etc/createdFile
+c..... /etc/modifiedFile
+....x. /etc/relabelledFile
+`
+
 var _ = Describe("SnapperUpgradeHelper", Label("transaction"), func() {
 	var root string
 	var trans *transaction.Transaction
@@ -138,6 +145,8 @@ var _ = Describe("SnapperUpgradeHelper", Label("transaction"), func() {
 			trans = startUpgradeTransaction()
 		})
 		It("configures snapper and merges RW volumes", func() {
+			etcStatus := "/tmp/snapStatus/snap_status_etc"
+			homeStatus := "/tmp/snapStatus/snap_status_home"
 			snapshotP := ".snapshots/5/snapshot"
 			snTemplate := "/usr/share/snapper/config-templates/default"
 			snSysConf := filepath.Join(root, snapshotP, "/etc/sysconfig/snapper")
@@ -150,6 +159,9 @@ var _ = Describe("SnapperUpgradeHelper", Label("transaction"), func() {
 			Expect(tfs.WriteFile(template, []byte{}, vfs.FilePerm)).To(Succeed())
 			Expect(vfs.MkdirAll(tfs, filepath.Dir(snSysConf), vfs.DirPerm)).To(Succeed())
 			Expect(tfs.WriteFile(snSysConf, []byte{}, vfs.FilePerm)).To(Succeed())
+			Expect(vfs.MkdirAll(tfs, filepath.Dir(etcStatus), vfs.DirPerm)).To(Succeed())
+			Expect(tfs.WriteFile(etcStatus, []byte(snapperStatus), vfs.FilePerm)).To(Succeed())
+			Expect(tfs.WriteFile(homeStatus, []byte{}, vfs.FilePerm)).To(Succeed())
 
 			Expect(upgradeH.Merge(trans)).To(Succeed())
 			Expect(runner.MatchMilestones([][]string{
@@ -157,6 +169,15 @@ var _ = Describe("SnapperUpgradeHelper", Label("transaction"), func() {
 				{"env", "LC_ALL=C", "snapper", "--no-dbus", "-c", "etc", "create", "--print-number"},
 				{"snapper", "--no-dbus", "-c", "home", "create-config", "--fstype", "btrfs", "/home"},
 				{"env", "LC_ALL=C", "snapper", "--no-dbus", "-c", "home", "create", "--print-number"},
+				{
+					"env", "LC_ALL=C", "snapper", "--no-dbus", "--root", "/.snapshots/4/snapshot", "-c", "etc",
+					"status", "--output", "/tmp/snapStatus/snap_status_etc", "1..5",
+				},
+				{"rsync"},
+				{
+					"env", "LC_ALL=C", "snapper", "--no-dbus", "--root", "/tmp/elemental_data/.snapshots/4/snapshot",
+					"-c", "home", "status", "--output", "/tmp/snapStatus/snap_status_home", "1..5",
+				},
 				{"rsync"},
 			})).To(Succeed())
 		})
