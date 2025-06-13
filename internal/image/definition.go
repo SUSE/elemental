@@ -81,8 +81,9 @@ type Installation struct {
 }
 
 type Release struct {
-	Name        string `yaml:"name,omitempty"`
-	ManifestURI string `yaml:"manifestURI"`
+	Name        string   `yaml:"name,omitempty"`
+	ManifestURI string   `yaml:"manifestURI"`
+	Enable      []string `yaml:"enable,omitempty"`
 }
 
 type Kubernetes struct {

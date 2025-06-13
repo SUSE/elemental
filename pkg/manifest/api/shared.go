@@ -25,7 +25,7 @@ type MetaData struct {
 }
 
 type Helm struct {
-	Charts       []HelmChart  `yaml:"charts"`
+	Charts       []*HelmChart `yaml:"charts"`
 	Repositories []Repository `yaml:"repositories"`
 }
 

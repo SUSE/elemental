@@ -1,2 +1,4 @@
 name: suse-edge
 manifestURI: oci://registry.opensuse.org/home/adinov/core/containerfile/release-manifest:0.0.1
+enable:
+  - neuvector

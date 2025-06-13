@@ -29,7 +29,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/suse/elemental/v3/internal/helm"
 	"github.com/suse/elemental/v3/internal/image"
 	"github.com/suse/elemental/v3/internal/manifest/extractor"
 	"github.com/suse/elemental/v3/internal/template"
@@ -37,13 +36,10 @@ import (
 	"github.com/suse/elemental/v3/pkg/deployment"
 	"github.com/suse/elemental/v3/pkg/firmware"
 	"github.com/suse/elemental/v3/pkg/install"
-	"github.com/suse/elemental/v3/pkg/manifest/api"
 	"github.com/suse/elemental/v3/pkg/manifest/resolver"
 	"github.com/suse/elemental/v3/pkg/manifest/source"
 	"github.com/suse/elemental/v3/pkg/sys"
-	"github.com/suse/elemental/v3/pkg/sys/vfs"
 	"github.com/suse/elemental/v3/pkg/upgrade"
-	"gopkg.in/yaml.v3"
 )
 
 //go:embed templates/config.sh.tpl
@@ -66,7 +62,11 @@ func Run(ctx context.Context, d *image.Definition, buildDir string, system *sys.
 
 	var runtimeHelmCharts []string
 	relativeK8sPath := filepath.Join("var", "lib", "elemental", "kubernetes")
-	if needsHelmChartsSetup(&d.Kubernetes, m) {
+	if needsHelmChartsSetup(d, m) {
+		if len(d.Release.Enable) != 0 {
+			logger.Info("Enabling the following product extensions: %s", strings.Join(d.Release.Enable, ", "))
+		}
+
 		relativeHelmPath := filepath.Join(relativeK8sPath, "helm")
 		if runtimeHelmCharts, err = setupHelmCharts(d, m, overlaysPath, relativeHelmPath); err != nil {
 			logger.Error("Setting up Helm charts failed")
@@ -76,14 +76,14 @@ func Run(ctx context.Context, d *image.Definition, buildDir string, system *sys.
 
 	var runtimeManifestsDir string
 	if needsManifestsSetup(&d.Kubernetes) {
-		relativeManfiestsPath := filepath.Join(relativeK8sPath, "manifests")
-		manifestsOverlayPath := filepath.Join(overlaysPath, relativeManfiestsPath)
+		relativeManifestsPath := filepath.Join(relativeK8sPath, "manifests")
+		manifestsOverlayPath := filepath.Join(overlaysPath, relativeManifestsPath)
 		if err = setupManifests(ctx, system.FS(), &d.Kubernetes, manifestsOverlayPath); err != nil {
 			logger.Error("Setting up Kubernetes manifests failed")
 			return err
 		}
 
-		runtimeManifestsDir = filepath.Join(string(os.PathSeparator), relativeManfiestsPath)
+		runtimeManifestsDir = filepath.Join(string(os.PathSeparator), relativeManifestsPath)
 	}
 
 	var runtimeK8sResDeployScript string
@@ -91,7 +91,7 @@ func Run(ctx context.Context, d *image.Definition, buildDir string, system *sys.
 		kubernetesOverlayPath := filepath.Join(overlaysPath, relativeK8sPath)
 		scriptInOverlay, err := writeK8sResDeployScript(kubernetesOverlayPath, runtimeManifestsDir, runtimeHelmCharts)
 		if err != nil {
-			logger.Error("Setting up Kuberentes resource deployment script failed")
+			logger.Error("Setting up Kubernetes resource deployment script failed")
 			return err
 		}
 		runtimeK8sResDeployScript = filepath.Join(string(os.PathSeparator), relativeK8sPath, filepath.Base(scriptInOverlay))
@@ -314,114 +314,4 @@ func downloadExtension(ctx context.Context, downloadURL, extensionsPath string) 
 	}
 
 	return nil
-}
-
-func needsHelmChartsSetup(k *image.Kubernetes, rm *resolver.ResolvedManifest) bool {
-	return (rm.CorePlatform != nil && rm.CorePlatform.Components.Helm != nil) ||
-		(rm.ProductExtension != nil && rm.ProductExtension.Components.Helm != nil) || k.Helm != nil
-}
-
-func needsManifestsSetup(k *image.Kubernetes) bool {
-	return len(k.RemoteManifests) > 0 || len(k.LocalManifests) > 0
-}
-
-func setupHelmCharts(d *image.Definition, rm *resolver.ResolvedManifest, overlaysPath, relativeHelmPath string) (runtimeHelmCharts []string, err error) {
-	pathInOverlays := filepath.Join(overlaysPath, relativeHelmPath)
-	runtimePath := filepath.Join(string(os.PathSeparator), relativeHelmPath)
-	chartNames, err := writeHelmCharts(pathInOverlays, getPrioritisedHelmConfigs(&d.Kubernetes, rm))
-	if err != nil {
-		return nil, fmt.Errorf("writing helm chart resources to %s: %w", pathInOverlays, err)
-	}
-
-	for _, chartName := range chartNames {
-		runtimeHelmCharts = append(runtimeHelmCharts, filepath.Join(runtimePath, chartName))
-	}
-
-	return runtimeHelmCharts, nil
-}
-
-func getPrioritisedHelmConfigs(k *image.Kubernetes, rm *resolver.ResolvedManifest) []*api.Helm {
-	configs := []*api.Helm{}
-	if rm.CorePlatform != nil && rm.CorePlatform.Components.Helm != nil {
-		configs = append(configs, rm.CorePlatform.Components.Helm)
-	}
-
-	if rm.ProductExtension != nil && rm.ProductExtension.Components.Helm != nil {
-		configs = append(configs, rm.ProductExtension.Components.Helm)
-	}
-
-	if k.Helm != nil {
-		configs = append(configs, k.Helm)
-	}
-
-	return configs
-}
-
-func writeHelmCharts(dest string, configs []*api.Helm) (names []string, err error) {
-	if err := os.MkdirAll(dest, os.ModeDir); err != nil {
-		return nil, fmt.Errorf("setting up HelmChart destination directory '%s': %w", dest, err)
-	}
-
-	for _, config := range configs {
-		for _, helmCRD := range helm.ProduceCRDs(config) {
-			data, err := yaml.Marshal(helmCRD)
-			if err != nil {
-				return nil, fmt.Errorf("marshaling helm chart: %w", err)
-			}
-
-			chartName := fmt.Sprintf("%s.yaml", helmCRD.Metadata.Name)
-			chartPath := filepath.Join(dest, chartName)
-			if err = os.WriteFile(chartPath, data, os.FileMode(0o644)); err != nil {
-				return nil, fmt.Errorf("writing helm chart: %w", err)
-			}
-
-			names = append(names, chartName)
-		}
-	}
-
-	return names, nil
-}
-
-func setupManifests(ctx context.Context, fs vfs.FS, k *image.Kubernetes, manifestsDir string) error {
-	if err := os.MkdirAll(manifestsDir, os.ModeDir); err != nil {
-		return fmt.Errorf("setting up manifests directory '%s': %w", manifestsDir, err)
-	}
-
-	for _, manifest := range k.RemoteManifests {
-		if err := downloadExtension(ctx, manifest, manifestsDir); err != nil {
-			return fmt.Errorf("downloading remote Kubernetes manfiest '%s': %w", manifest, err)
-		}
-	}
-
-	for _, manifest := range k.LocalManifests {
-		overlayPath := filepath.Join(manifestsDir, filepath.Base(manifest))
-		if err := vfs.CopyFile(fs, manifest, overlayPath); err != nil {
-			return fmt.Errorf("copying local manifest '%s' to '%s': %w", manifest, overlayPath, err)
-		}
-	}
-
-	return nil
-}
-
-func writeK8sResDeployScript(dest, runtimeManifestsDir string, runtimeHelmCharts []string) (path string, err error) {
-	const k8sResDeployScriptName = "k8s_res_deploy.sh"
-
-	values := struct {
-		HelmCharts   []string
-		ManifestsDir string
-	}{
-		HelmCharts:   runtimeHelmCharts,
-		ManifestsDir: runtimeManifestsDir,
-	}
-
-	data, err := template.Parse(k8sResDeployScriptName, k8sResDeployScriptTpl, &values)
-	if err != nil {
-		return "", fmt.Errorf("parsing template for %s: %w", k8sResDeployScriptName, err)
-	}
-
-	filename := filepath.Join(dest, k8sResDeployScriptName)
-	if err := os.WriteFile(filename, []byte(data), os.FileMode(0o744)); err != nil {
-		return "", fmt.Errorf("writing %s: %w", filename, err)
-	}
-	return filename, nil
 }

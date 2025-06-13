@@ -78,7 +78,7 @@ func ProduceCRDs(helm *api.Helm) []*CRD {
 
 	chartCRDs := []*CRD{}
 	for _, helmChart := range helm.Charts {
-		chartCRDs = append(chartCRDs, NewHelmCRD(&helmChart, repoMap[helmChart.Repository]))
+		chartCRDs = append(chartCRDs, NewHelmCRD(helmChart, repoMap[helmChart.Repository]))
 	}
 
 	return chartCRDs
