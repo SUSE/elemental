@@ -4,7 +4,7 @@ go 1.24.0
 
 require (
 	github.com/cenkalti/backoff/v4 v4.3.0
-	github.com/containerd/containerd/v2 v2.1.1
+	github.com/containerd/containerd/v2 v2.1.2
 	github.com/distribution/reference v0.6.0
 	github.com/google/go-containerregistry v0.20.5
 	github.com/google/uuid v1.6.0
@@ -74,7 +74,7 @@ require (
 	golang.org/x/text v0.25.0 // indirect
 	golang.org/x/tools v0.33.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250218202821-56aae31c358a // indirect
-	google.golang.org/grpc v1.72.0 // indirect
+	google.golang.org/grpc v1.72.2 // indirect
 	google.golang.org/protobuf v1.36.6 // indirect
 	howett.net/plist v1.0.0 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
