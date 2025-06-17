@@ -1,11 +1,35 @@
 #!/bin/bash
 
-set -euo pipefail
+set -uo pipefail
 
 KUBE_SYSTEM_NS="kube-system"
 
 kubectl_cmd() {
   KUBECONFIG=/etc/rancher/rke2/rke2.yaml /var/lib/rancher/rke2/bin/kubectl "$@"
+}
+
+retryKubectlCreate() {
+  local resource="$1"
+  local retries="$2"
+  local sleep="$3"
+  local failed=true
+  for i in $(seq 1 "$retries"); do
+    output=$(kubectl_cmd create -f "$resource" 2>&1)
+    if [[ $? -eq 0 || "$output" == *AlreadyExists* ]]; then
+      echo "$output"
+      failed=false
+      break
+    fi
+    echo "Creation for resource '$resource' failed with error '$output'. Retrying in $sleep seconds.."
+    sleep $sleep
+  done
+
+  if [ "$failed" = true ]; then
+    echo "Creation for resource '$resource' failed.."
+    return 1
+  fi
+
+  return 0
 }
 
 waitForHelmChart() {
@@ -49,14 +73,11 @@ deployHelmCharts() {
   echo "Deploying HelmCharts.."
   for chart in "${helmCharts[@]}"; do
     chart_name=$(kubectl_cmd create --dry-run=client -f "$chart" -o jsonpath='{.metadata.name}')
-    output=$(kubectl_cmd create -f "$chart" 2>&1)
+    retryKubectlCreate "$chart" 6 10
     if [[ $? -ne 0 ]]; then
-      if ! grep -q "AlreadyExists" <<< "$output"; then
       failed=true
-      fi
     fi
 
-    echo "$output"
     echo "Waiting for $chart_name HelmChart to be available.."
     if ! waitForHelmChart "$chart_name" "$KUBE_SYSTEM_NS"; then
         failed=true
@@ -74,13 +95,10 @@ deployManifests() {
   local failed=false
   echo "Deploying Kubernetes manifests.."
   for manifest in {{ .ManifestsDir }}/*.yaml; do
-    output=$(kubectl_cmd create -f "$manifest" 2>&1)
+    retryKubectlCreate "$manifest" 6 10
     if [[ $? -ne 0 ]]; then
-      if ! grep -q "AlreadyExists" <<< "$output"; then
       failed=true
-      fi
     fi
-    echo "$output"
   done
 
   if [ "$failed" = true ]; then
