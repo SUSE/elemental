@@ -90,7 +90,7 @@ func WithRunner(runner Runner) SystemOpts {
 
 func WithPlatform(pf string) SystemOpts {
 	return func(s *System) error {
-		p, err := platform.ParsePlatform(pf)
+		p, err := platform.Parse(pf)
 		if err != nil {
 			return err
 		}
@@ -121,7 +121,7 @@ func NewSystem(opts ...SystemOpts) (*System, error) {
 	}
 
 	if sysObj.platform == nil {
-		defaultPlatform, err := platform.NewPlatformFromArch(runtime.GOARCH)
+		defaultPlatform, err := platform.NewFromArch(runtime.GOARCH)
 		if err != nil {
 			return nil, err
 		}

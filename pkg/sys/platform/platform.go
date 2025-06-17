@@ -38,7 +38,7 @@ type Platform struct {
 	GolangArch string
 }
 
-func NewPlatform(os, arch string) (*Platform, error) {
+func New(os, arch string) (*Platform, error) {
 	golangArch, err := archToGolangArch(arch)
 	if err != nil {
 		return nil, err
@@ -56,17 +56,17 @@ func NewPlatform(os, arch string) (*Platform, error) {
 	}, nil
 }
 
-func NewPlatformFromArch(arch string) (*Platform, error) {
-	return NewPlatform("linux", arch)
+func NewFromArch(arch string) (*Platform, error) {
+	return New("linux", arch)
 }
 
-func NewDefaultPlatform() (*Platform, error) {
-	return NewPlatformFromArch(runtime.GOARCH)
+func NewDefault() (*Platform, error) {
+	return NewFromArch(runtime.GOARCH)
 }
 
-// ParsePlatform parses a string representing a Platform, if possible.
+// Parse parses a string representing a Platform, if possible.
 // code ported from go-containerregistry library
-func ParsePlatform(s string) (*Platform, error) {
+func Parse(s string) (*Platform, error) {
 	var architecture, os string
 	parts := strings.Split(strings.TrimSpace(s), ":")
 	// We ignore parts[1] if any, as it represents the OS Version
@@ -81,7 +81,7 @@ func ParsePlatform(s string) (*Platform, error) {
 	if len(parts) > 3 {
 		return nil, fmt.Errorf("too many slashes in platform spec: %s", s)
 	}
-	return NewPlatform(os, architecture)
+	return New(os, architecture)
 }
 
 func (p *Platform) String() string {
