@@ -27,8 +27,8 @@ import (
 	"github.com/suse/elemental/v3/internal/cli/elemental-toolkit/cmd"
 	"github.com/suse/elemental/v3/pkg/bootloader"
 	"github.com/suse/elemental/v3/pkg/deployment"
-	"github.com/suse/elemental/v3/pkg/firmware"
 	"github.com/suse/elemental/v3/pkg/sys"
+	"github.com/suse/elemental/v3/pkg/unpack"
 	"github.com/suse/elemental/v3/pkg/upgrade"
 )
 
@@ -64,8 +64,7 @@ func Upgrade(ctx *cli.Context) error { //nolint:dupl
 		return err
 	}
 
-	manager := firmware.NewEfiBootManager(s)
-	upgrader := upgrade.New(ctxCancel, s, upgrade.WithBootManager(manager), upgrade.WithBootloader(bootloader))
+	upgrader := upgrade.New(ctxCancel, s, upgrade.WithBootloader(bootloader), upgrade.WithUnpackOpts(unpack.WithVerify(args.Verify)))
 
 	err = upgrader.Upgrade(d)
 	if err != nil {

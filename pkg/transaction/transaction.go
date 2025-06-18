@@ -19,6 +19,7 @@ package transaction
 
 import (
 	"github.com/suse/elemental/v3/pkg/deployment"
+	"github.com/suse/elemental/v3/pkg/unpack"
 )
 
 type transactionState int
@@ -53,7 +54,7 @@ type Interface interface {
 }
 
 type UpgradeHelper interface {
-	SyncImageContent(*deployment.ImageSource, *Transaction) error
+	SyncImageContent(*deployment.ImageSource, *Transaction, ...unpack.Opt) error
 	Merge(*Transaction) error
 	UpdateFstab(*Transaction) error
 	Lock(*Transaction) error
