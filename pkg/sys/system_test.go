@@ -50,7 +50,7 @@ var _ = Describe("System", Label("system"), func() {
 		fs, _, _ = mocksys.TestFS(nil)
 	})
 	It("Can be set to use custom implementations", func() {
-		platform, err := platform.ParsePlatform("linux/arm64")
+		platform, err := platform.Parse("linux/arm64")
 		Expect(err).NotTo(HaveOccurred())
 		s, err := sys.NewSystem(
 			sys.WithFS(fs), sys.WithLogger(logger),
@@ -66,7 +66,7 @@ var _ = Describe("System", Label("system"), func() {
 		Expect(s.Platform()).To(Equal(platform))
 	})
 	It("It is initalized with all defaults", func() {
-		platform, err := platform.NewPlatformFromArch(runtime.GOARCH)
+		platform, err := platform.NewFromArch(runtime.GOARCH)
 		Expect(err).NotTo(HaveOccurred())
 		s, err := sys.NewSystem()
 		Expect(err).ToNot(HaveOccurred())

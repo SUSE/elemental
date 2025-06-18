@@ -28,11 +28,13 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/urfave/cli/v2"
+
 	"github.com/suse/elemental/v3/internal/build"
 	"github.com/suse/elemental/v3/internal/cli/elemental/cmd"
 	"github.com/suse/elemental/v3/internal/image"
 	"github.com/suse/elemental/v3/pkg/sys"
-	"github.com/urfave/cli/v2"
+	"github.com/suse/elemental/v3/pkg/sys/platform"
 )
 
 func Build(ctx *cli.Context) error {
@@ -68,7 +70,7 @@ func Build(ctx *cli.Context) error {
 		return err
 	}
 
-	logger.Info("Starting build process for %s %s image", definition.Image.Arch, definition.Image.ImageType)
+	logger.Info("Starting build process for %s %s image", definition.Image.Platform.String(), definition.Image.ImageType)
 	if err = build.Run(ctxCancel, definition, buildDir, system); err != nil {
 		logger.Error("Build process failed")
 		return err
@@ -85,14 +87,12 @@ func validateArgs(args *cmd.BuildFlags) error {
 	}
 
 	validImageTypes := []string{image.TypeRAW}
-	validImageArchs := []image.Arch{image.ArchTypeARM, image.ArchTypeX86}
-
 	if !slices.Contains(validImageTypes, args.ImageType) {
 		return fmt.Errorf("image type %q not supported", args.ImageType)
 	}
 
-	if !slices.Contains(validImageArchs, image.Arch(args.Architecture)) {
-		return fmt.Errorf("image arch %q not supported", args.Architecture)
+	if _, err := platform.Parse(args.Platform); err != nil {
+		return fmt.Errorf("malformed platform %q", args.Platform)
 	}
 
 	return nil
@@ -105,10 +105,15 @@ func parseImageDefinition(args *cmd.BuildFlags) (*image.Definition, error) {
 		outputPath = filepath.Join(args.BuildDir, imageName)
 	}
 
+	p, err := platform.Parse(args.Platform)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing platform %s", args.Platform)
+	}
+
 	definition := &image.Definition{
 		Image: image.Image{
 			ImageType:       args.ImageType,
-			Arch:            image.Arch(args.Architecture),
+			Platform:        p,
 			OutputImageName: outputPath,
 		},
 	}

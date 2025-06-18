@@ -35,28 +35,28 @@ func TestPlatformSuite(t *testing.T) {
 var _ = Describe("Platform", Label("platform"), func() {
 	Describe("Source", func() {
 		It("initiates platform as expected", func() {
-			platform, err := platform.NewPlatform("linux", "x86_64")
+			platform, err := platform.New("linux", "x86_64")
 			Expect(err).To(BeNil())
 			Expect(platform.OS).To(Equal("linux"))
 			Expect(platform.Arch).To(Equal("x86_64"))
 			Expect(platform.GolangArch).To(Equal("amd64"))
 		})
 		It("parses platform as expected", func() {
-			platform, err := platform.ParsePlatform("linux/amd64")
+			platform, err := platform.Parse("linux/amd64")
 			Expect(err).To(BeNil())
 			Expect(platform.OS).To(Equal("linux"))
 			Expect(platform.Arch).To(Equal("x86_64"))
 			Expect(platform.GolangArch).To(Equal("amd64"))
 		})
 		It("initiates arm64 platform as expected", func() {
-			platform, err := platform.NewPlatformFromArch("arm64")
+			platform, err := platform.NewFromArch("arm64")
 			Expect(err).To(BeNil())
 			Expect(platform.OS).To(Equal("linux"))
 			Expect(platform.Arch).To(Equal("arm64"))
 			Expect(platform.GolangArch).To(Equal("arm64"))
 		})
 		It("initiates a default platform", func() {
-			platform, err := platform.NewDefaultPlatform()
+			platform, err := platform.NewDefault()
 			Expect(err).NotTo(HaveOccurred())
 			Expect(platform.GolangArch).To(Equal(runtime.GOARCH))
 		})

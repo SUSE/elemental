@@ -18,32 +18,15 @@ limitations under the License.
 package image
 
 import (
-	"fmt"
 	"regexp"
 
 	"github.com/suse/elemental/v3/pkg/manifest/api"
+	"github.com/suse/elemental/v3/pkg/sys/platform"
 )
 
 const (
 	TypeRAW = "raw"
-
-	ArchTypeX86 Arch = "x86_64"
-	ArchTypeARM Arch = "aarch64"
 )
-
-type Arch string
-
-func (a Arch) Short() string {
-	switch a {
-	case ArchTypeX86:
-		return "amd64"
-	case ArchTypeARM:
-		return "arm64"
-	default:
-		message := fmt.Sprintf("unknown arch: %s", a)
-		panic(message)
-	}
-}
 
 type Definition struct {
 	Image           Image
@@ -55,7 +38,7 @@ type Definition struct {
 
 type Image struct {
 	ImageType       string
-	Arch            Arch
+	Platform        *platform.Platform
 	OutputImageName string
 }
 

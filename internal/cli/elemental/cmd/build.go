@@ -19,16 +19,17 @@ package cmd
 
 import (
 	"fmt"
+	"runtime"
 
 	"github.com/urfave/cli/v2"
 )
 
 type BuildFlags struct {
-	ImageType    string
-	Architecture string
-	ConfigDir    string
-	BuildDir     string
-	OutputPath   string
+	ImageType  string
+	Platform   string
+	ConfigDir  string
+	BuildDir   string
+	OutputPath string
 }
 
 var BuildArgs BuildFlags
@@ -47,10 +48,10 @@ func NewBuildCommand(appName string, action func(*cli.Context) error) *cli.Comma
 				Required:    true,
 			},
 			&cli.StringFlag{
-				Name:        "arch",
-				Usage:       "Target architecture for the image (x86_64 or aarch64)",
-				Destination: &BuildArgs.Architecture,
-				Required:    true,
+				Name:        "platform",
+				Usage:       "Target platform",
+				Destination: &BuildArgs.Platform,
+				Value:       fmt.Sprintf("linux/%s", runtime.GOARCH),
 			},
 			&cli.StringFlag{
 				Name:        "config-dir",
