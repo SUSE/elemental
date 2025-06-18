@@ -42,11 +42,12 @@ type Interface interface {
 type Option func(*Upgrader)
 
 type Upgrader struct {
-	ctx context.Context
-	s   *sys.System
-	t   transaction.Interface
-	bm  *firmware.EfiBootManager
-	b   bootloader.Bootloader
+	ctx        context.Context
+	s          *sys.System
+	t          transaction.Interface
+	bm         *firmware.EfiBootManager
+	b          bootloader.Bootloader
+	unpackOpts []unpack.Opt
 }
 
 func WithTransaction(t transaction.Interface) Option {
@@ -64,6 +65,12 @@ func WithBootManager(bm *firmware.EfiBootManager) Option {
 func WithBootloader(b bootloader.Bootloader) Option {
 	return func(u *Upgrader) {
 		u.b = b
+	}
+}
+
+func WithUnpackOpts(opts ...unpack.Opt) Option {
+	return func(u *Upgrader) {
+		u.unpackOpts = opts
 	}
 }
 
@@ -101,7 +108,7 @@ func (u Upgrader) Upgrade(d *deployment.Deployment) (err error) {
 	}
 	cleanup.PushErrorOnly(func() error { return u.t.Rollback(trans, err) })
 
-	err = uh.SyncImageContent(d.SourceOS, trans)
+	err = uh.SyncImageContent(d.SourceOS, trans, u.unpackOpts...)
 	if err != nil {
 		return fmt.Errorf("syncing OS image content: %w", err)
 	}

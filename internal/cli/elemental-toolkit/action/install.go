@@ -32,6 +32,7 @@ import (
 	"github.com/suse/elemental/v3/pkg/install"
 	"github.com/suse/elemental/v3/pkg/sys"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
+	"github.com/suse/elemental/v3/pkg/unpack"
 	"github.com/suse/elemental/v3/pkg/upgrade"
 )
 
@@ -68,7 +69,7 @@ func Install(ctx *cli.Context) error { //nolint:dupl
 	}
 
 	manager := firmware.NewEfiBootManager(s)
-	upgrader := upgrade.New(ctxCancel, s, upgrade.WithBootManager(manager), upgrade.WithBootloader(bootloader))
+	upgrader := upgrade.New(ctxCancel, s, upgrade.WithBootManager(manager), upgrade.WithBootloader(bootloader), upgrade.WithUnpackOpts(unpack.WithVerify(args.Verify)))
 	installer := install.New(ctxCancel, s, install.WithUpgrader(upgrader))
 
 	err = installer.Install(d)
