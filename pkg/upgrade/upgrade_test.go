@@ -27,6 +27,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/suse/elemental/v3/pkg/deployment"
+	"github.com/suse/elemental/v3/pkg/firmware"
 	"github.com/suse/elemental/v3/pkg/log"
 	"github.com/suse/elemental/v3/pkg/sys"
 	sysmock "github.com/suse/elemental/v3/pkg/sys/mock"
@@ -80,7 +81,7 @@ var _ = Describe("Upgrade", Label("upgrade"), func() {
 		d.OverlayTree = deployment.NewDirSrc("/opt/overlaytree")
 		d.CfgScript = "/opt/config.sh"
 		Expect(d.Sanitize(s)).To(Succeed())
-		u = upgrade.New(context.Background(), s, upgrade.WithTransaction(t))
+		u = upgrade.New(context.Background(), s, upgrade.WithTransaction(t), upgrade.WithBootManager(firmware.NewEfiBootManager(s)))
 
 		trans = &transaction.Transaction{
 			ID:   2,
@@ -175,5 +176,32 @@ var _ = Describe("Upgrade", Label("upgrade"), func() {
 		Expect(err).To(HaveOccurred())
 		Expect(err).To(MatchError("committing transaction: commit failed"))
 		Expect(t.RollbackCalled()).To(BeTrue())
+	})
+	It("creates an efi boot entry", func() {
+		efiBootMgrCalled := false
+		disk := "/dev/sdz"
+		runner.SideEffect = func(cmd string, args ...string) ([]byte, error) {
+			if cmd == "efibootmgr" {
+				Expect(args).To(ContainElement(disk))
+				Expect(args).To(ContainElement("loader"))
+				efiBootMgrCalled = true
+				return []byte{}, nil
+			}
+			return []byte{}, nil
+		}
+
+		d.Firmware = &deployment.FirmwareConfig{
+			BootEntries: []*firmware.EfiBootEntry{
+				{
+					Label:  "test",
+					Loader: "loader",
+					Disk:   disk,
+				},
+			},
+		}
+
+		err := u.Upgrade(d)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(efiBootMgrCalled).To(BeTrue())
 	})
 })

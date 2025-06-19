@@ -170,6 +170,13 @@ func (u Upgrader) Upgrade(d *deployment.Deployment) (err error) {
 		return fmt.Errorf("installing bootloader: %w", err)
 	}
 
+	if d.Firmware != nil {
+		err = u.bm.CreateBootEntries(d.Firmware.BootEntries)
+		if err != nil {
+			return fmt.Errorf("creating EFI boot entries: %w", err)
+		}
+	}
+
 	err = u.t.Commit(trans)
 	if err != nil {
 		return fmt.Errorf("committing transaction: %w", err)

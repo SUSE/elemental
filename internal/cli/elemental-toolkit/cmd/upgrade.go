@@ -28,6 +28,7 @@ type UpgradeFlags struct {
 	ConfigScript         string
 	Overlay              string
 	Verify               bool
+	CreateBootEntry      bool
 }
 
 var UpgradeArgs UpgradeFlags
@@ -60,6 +61,11 @@ func NewUpgradeCommand(appName string, action func(*cli.Context) error) *cli.Com
 				Value:       true,
 				Usage:       "Verify OCI ssl",
 				Destination: &UpgradeArgs.Verify,
+			},
+			&cli.BoolFlag{
+				Name:        "create-boot-entry",
+				Usage:       "Create EFI boot entry",
+				Destination: &UpgradeArgs.CreateBootEntry,
 			},
 		},
 	}

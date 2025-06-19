@@ -27,6 +27,7 @@ import (
 	"github.com/suse/elemental/v3/internal/cli/elemental-toolkit/cmd"
 	"github.com/suse/elemental/v3/pkg/bootloader"
 	"github.com/suse/elemental/v3/pkg/deployment"
+	"github.com/suse/elemental/v3/pkg/firmware"
 	"github.com/suse/elemental/v3/pkg/sys"
 	"github.com/suse/elemental/v3/pkg/unpack"
 	"github.com/suse/elemental/v3/pkg/upgrade"
@@ -101,6 +102,15 @@ func digestUpgradeSetup(s *sys.System, flags *cmd.UpgradeFlags) (*deployment.Dep
 
 	if flags.ConfigScript != "" {
 		d.CfgScript = flags.ConfigScript
+	}
+
+	if flags.CreateBootEntry {
+		if d.Firmware == nil {
+			d.Firmware = &deployment.FirmwareConfig{}
+		}
+		d.Firmware.BootEntries = []*firmware.EfiBootEntry{
+			firmware.DefaultBootEntry(s.Platform(), d.Disks[0].Device),
+		}
 	}
 
 	err = d.Sanitize(s)
