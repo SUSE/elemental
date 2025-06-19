@@ -32,6 +32,7 @@ type InstallFlags struct {
 	CreateBootEntry      bool
 	Bootloader           string
 	KernelCmdline        string
+	Verify               bool
 }
 
 var InstallArgs InstallFlags
@@ -87,6 +88,12 @@ func NewInstallCommand(appName string, action func(*cli.Context) error) *cli.Com
 				Value:       "",
 				Usage:       "Kernel cmdline for installed system",
 				Destination: &InstallArgs.KernelCmdline,
+			},
+			&cli.BoolFlag{
+				Name:        "verify",
+				Value:       true,
+				Usage:       "Verify OCI ssl",
+				Destination: &InstallArgs.Verify,
 			},
 		},
 	}

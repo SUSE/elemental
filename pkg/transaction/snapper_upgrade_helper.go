@@ -39,7 +39,7 @@ import (
 // SyncImageContent syncs the given image tree to given transaction. For the first transaction all content
 // is synced regardless if some paths are under a persistent path or not. On upgrades it only syncs the immutable
 // content and snapshotted paths.
-func (sc snapperContext) SyncImageContent(imgSrc *deployment.ImageSource, trans *Transaction) (err error) {
+func (sc snapperContext) SyncImageContent(imgSrc *deployment.ImageSource, trans *Transaction, opts ...unpack.Opt) (err error) {
 	defer func() { err = sc.checkCancelled(err) }()
 	if trans.status != started {
 		return fmt.Errorf("given transaction '%d' is not started", trans.ID)
@@ -47,7 +47,7 @@ func (sc snapperContext) SyncImageContent(imgSrc *deployment.ImageSource, trans 
 	var unpacker unpack.Interface
 
 	sc.s.Logger().Info("Unpacking image source: %s", imgSrc.String())
-	unpacker, err = unpack.NewUnpacker(sc.s, imgSrc)
+	unpacker, err = unpack.NewUnpacker(sc.s, imgSrc, opts...)
 	if err != nil {
 		return fmt.Errorf("initializing unpacker: %w", err)
 	}

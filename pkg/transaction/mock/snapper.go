@@ -20,6 +20,7 @@ package mock
 import (
 	"github.com/suse/elemental/v3/pkg/deployment"
 	"github.com/suse/elemental/v3/pkg/transaction"
+	"github.com/suse/elemental/v3/pkg/unpack"
 )
 
 type Transactioner struct {
@@ -42,7 +43,7 @@ type UpgradeHelper struct {
 	kernelCmdline string
 }
 
-func (u UpgradeHelper) SyncImageContent(imgSrc *deployment.ImageSource, _ *transaction.Transaction) error {
+func (u UpgradeHelper) SyncImageContent(imgSrc *deployment.ImageSource, _ *transaction.Transaction, _ ...unpack.Opt) error {
 	imgSrc.SetDigest(u.srcDigest)
 	return u.SyncError
 }
