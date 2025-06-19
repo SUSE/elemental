@@ -27,6 +27,7 @@ type UpgradeFlags struct {
 	OperatingSystemImage string
 	ConfigScript         string
 	Overlay              string
+	CreateBootEntry      bool
 }
 
 var UpgradeArgs UpgradeFlags
@@ -53,6 +54,11 @@ func NewUpgradeCommand(appName string, action func(*cli.Context) error) *cli.Com
 				Name:        "overlay",
 				Usage:       "URI of the overlay content for the OS image",
 				Destination: &UpgradeArgs.Overlay,
+			},
+			&cli.BoolFlag{
+				Name:        "create-boot-entry",
+				Usage:       "Create EFI boot entry",
+				Destination: &UpgradeArgs.CreateBootEntry,
 			},
 		},
 	}
