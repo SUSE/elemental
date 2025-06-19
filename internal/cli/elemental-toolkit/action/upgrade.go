@@ -104,6 +104,15 @@ func digestUpgradeSetup(s *sys.System, flags *cmd.UpgradeFlags) (*deployment.Dep
 		d.CfgScript = flags.ConfigScript
 	}
 
+	if flags.CreateBootEntry {
+		if d.Firmware == nil {
+			d.Firmware = &deployment.FirmwareConfig{}
+		}
+		d.Firmware.BootEntries = []*firmware.EfiBootEntry{
+			firmware.DefaultBootEntry(s.Platform(), d.Disks[0].Device),
+		}
+	}
+
 	err = d.Sanitize(s)
 	if err != nil {
 		return nil, fmt.Errorf("inconsistent deployment setup found: %w", err)
