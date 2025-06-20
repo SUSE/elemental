@@ -20,25 +20,24 @@ package build
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 
-	"github.com/suse/elemental/v3/internal/image"
+	"github.com/suse/elemental/v3/internal/image/kubernetes"
 	"github.com/suse/elemental/v3/internal/template"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
 
-func needsManifestsSetup(k *image.Kubernetes) bool {
+func needsManifestsSetup(k *kubernetes.Kubernetes) bool {
 	return len(k.RemoteManifests) > 0 || len(k.LocalManifests) > 0
 }
 
-func setupManifests(ctx context.Context, fs vfs.FS, k *image.Kubernetes, manifestsDir string) error {
-	if err := os.MkdirAll(manifestsDir, os.ModeDir); err != nil {
+func setupManifests(ctx context.Context, fs vfs.FS, k *kubernetes.Kubernetes, manifestsDir string) error {
+	if err := vfs.MkdirAll(fs, manifestsDir, vfs.DirPerm); err != nil {
 		return fmt.Errorf("setting up manifests directory '%s': %w", manifestsDir, err)
 	}
 
 	for _, manifest := range k.RemoteManifests {
-		if err := downloadExtension(ctx, manifest, manifestsDir); err != nil {
+		if err := downloadExtension(ctx, fs, manifest, manifestsDir); err != nil {
 			return fmt.Errorf("downloading remote Kubernetes manfiest '%s': %w", manifest, err)
 		}
 	}
@@ -53,7 +52,7 @@ func setupManifests(ctx context.Context, fs vfs.FS, k *image.Kubernetes, manifes
 	return nil
 }
 
-func writeK8sResDeployScript(dest, runtimeManifestsDir string, runtimeHelmCharts []string) (path string, err error) {
+func writeK8sResDeployScript(fs vfs.FS, dest, runtimeManifestsDir string, runtimeHelmCharts []string) (path string, err error) {
 	const k8sResDeployScriptName = "k8s_res_deploy.sh"
 
 	values := struct {
@@ -70,7 +69,7 @@ func writeK8sResDeployScript(dest, runtimeManifestsDir string, runtimeHelmCharts
 	}
 
 	filename := filepath.Join(dest, k8sResDeployScriptName)
-	if err = os.WriteFile(filename, []byte(data), os.FileMode(0o744)); err != nil {
+	if err = fs.WriteFile(filename, []byte(data), 0o744); err != nil {
 		return "", fmt.Errorf("writing %s: %w", filename, err)
 	}
 	return filename, nil

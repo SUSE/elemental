@@ -41,7 +41,7 @@ const (
 	NoWriteDirPerm = 0555 | os.ModeDir
 	TempDirPerm    = os.ModePerm | os.ModeSticky | os.ModeDir
 
-	// Maxium number of nested symlinks to resolve
+	// MaxLinkDepth is a maximum number of nested symlinks to resolve
 	MaxLinkDepth = 4
 )
 

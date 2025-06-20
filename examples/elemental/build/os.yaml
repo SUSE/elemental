@@ -1,3 +1,4 @@
+diskSize: 20G
 users:
   - username: root
     password: linux

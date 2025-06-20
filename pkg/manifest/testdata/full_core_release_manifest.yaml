@@ -34,7 +34,7 @@ components:
       version: "0.0.0"
       namespace: "foo-system"
       repository: "foo-charts"
-      values: |-
+      values:
         image:
           tag: latest
       dependsOn:

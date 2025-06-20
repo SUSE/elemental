@@ -19,9 +19,11 @@ package image
 
 import (
 	"fmt"
-	"regexp"
 
-	"github.com/suse/elemental/v3/pkg/manifest/api"
+	"github.com/suse/elemental/v3/internal/image/install"
+	"github.com/suse/elemental/v3/internal/image/kubernetes"
+	"github.com/suse/elemental/v3/internal/image/os"
+	"github.com/suse/elemental/v3/internal/image/release"
 )
 
 const (
@@ -47,49 +49,14 @@ func (a Arch) Short() string {
 
 type Definition struct {
 	Image           Image
-	Installation    Installation
-	OperatingSystem OperatingSystem
-	Release         Release
-	Kubernetes      Kubernetes
+	Installation    install.Installation
+	OperatingSystem os.OperatingSystem
+	Release         release.Release
+	Kubernetes      kubernetes.Kubernetes
 }
 
 type Image struct {
 	ImageType       string
 	Arch            Arch
 	OutputImageName string
-}
-
-type OperatingSystem struct {
-	DiskSize DiskSize `yaml:"diskSize"`
-	Users    []User   `yaml:"users"`
-}
-
-type User struct {
-	Username string `yaml:"username"`
-	Password string `yaml:"password"`
-}
-
-type DiskSize string
-
-func (d DiskSize) IsValid() bool {
-	return regexp.MustCompile(`^[1-9]\d*[KMGT]$`).MatchString(string(d))
-}
-
-type Installation struct {
-	Bootloader    string `yaml:"bootloader"`
-	KernelCmdLine string `yaml:"kernelCmdLine"`
-}
-
-type Release struct {
-	Name        string   `yaml:"name,omitempty"`
-	ManifestURI string   `yaml:"manifestURI"`
-	Enable      []string `yaml:"enable,omitempty"`
-}
-
-type Kubernetes struct {
-	// RemoteManifests - manifest URLs specified under config/kubernetes.yaml
-	RemoteManifests []string  `yaml:"manifests,omitempty"`
-	Helm            *api.Helm `yaml:"helm,omitempty"`
-	// LocalManifests - local manifest files specified under config/kubernetes/manifests
-	LocalManifests []string
 }

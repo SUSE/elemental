@@ -76,7 +76,7 @@ var _ = Describe("ReleaseManifest", Label("release-manifest"), func() {
 		Expect(rm.Components.Helm.Charts[0].Chart).To(Equal("foo"))
 		Expect(rm.Components.Helm.Charts[0].Version).To(Equal("0.0.0"))
 		Expect(rm.Components.Helm.Charts[0].Namespace).To(Equal("foo-system"))
-		Expect(rm.Components.Helm.Charts[0].Values).To(Equal("image:\n  tag: latest"))
+		Expect(rm.Components.Helm.Charts[0].Values).To(Equal(map[string]any{"image": map[string]any{"tag": "latest"}}))
 		Expect(len(rm.Components.Helm.Charts[0].DependsOn)).To(Equal(1))
 		Expect(rm.Components.Helm.Charts[0].DependsOn[0]).To(Equal("baz"))
 		Expect(len(rm.Components.Helm.Charts[0].Images)).To(Equal(1))

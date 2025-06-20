@@ -31,6 +31,7 @@ import (
 	"github.com/suse/elemental/v3/internal/build"
 	"github.com/suse/elemental/v3/internal/cli/elemental/cmd"
 	"github.com/suse/elemental/v3/internal/image"
+	"github.com/suse/elemental/v3/internal/image/kubernetes"
 	"github.com/suse/elemental/v3/pkg/sys"
 	"github.com/urfave/cli/v2"
 )
@@ -68,8 +69,10 @@ func Build(ctx *cli.Context) error {
 		return err
 	}
 
+	configDir := image.ConfigDir(args.ConfigDir)
+
 	logger.Info("Starting build process for %s %s image", definition.Image.Arch, definition.Image.ImageType)
-	if err = build.Run(ctxCancel, definition, buildDir, system); err != nil {
+	if err = build.Run(ctxCancel, definition, buildDir, configDir, system); err != nil {
 		logger.Error("Build process failed")
 		return err
 	}
@@ -164,7 +167,7 @@ func createBuildDir(rootBuildDir string) (string, error) {
 	return buildDirPath, os.MkdirAll(buildDirPath, 0700)
 }
 
-func parseKubernetesDir(configDir image.ConfigDir, k *image.Kubernetes) error {
+func parseKubernetesDir(configDir image.ConfigDir, k *kubernetes.Kubernetes) error {
 	entries, err := os.ReadDir(configDir.KubernetesManifestsDir())
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {

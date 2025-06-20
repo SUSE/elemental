@@ -17,10 +17,6 @@ limitations under the License.
 
 package helm
 
-import (
-	"github.com/suse/elemental/v3/pkg/manifest/api"
-)
-
 const (
 	helmChartAPIVersion = "helm.cattle.io/v1"
 	helmChartKind       = "HelmChart"
@@ -50,36 +46,22 @@ type CRDSpec struct {
 	BackOffLimit    int    `yaml:"backOffLimit"`
 }
 
-func NewHelmCRD(chart *api.HelmChart, repositoryURL string) *CRD {
+func NewCRD(namespace, chart, version, valuesContent, repositoryURL string) *CRD {
 	return &CRD{
 		APIVersion: helmChartAPIVersion,
 		Kind:       helmChartKind,
 		Metadata: Metadata{
-			Name:      chart.Chart,
+			Name:      chart,
 			Namespace: kubeSystemNamespace,
 		},
 		Spec: CRDSpec{
-			Chart:           chart.Chart,
-			Version:         chart.Version,
+			Chart:           chart,
+			Version:         version,
 			Repo:            repositoryURL,
-			ValuesContent:   chart.Values,
-			TargetNamespace: chart.Namespace,
+			ValuesContent:   valuesContent,
+			TargetNamespace: namespace,
 			CreateNamespace: true,
 			BackOffLimit:    helmBackoffLimit,
 		},
 	}
-}
-
-func ProduceCRDs(helm *api.Helm) []*CRD {
-	repoMap := map[string]string{}
-	for _, repo := range helm.Repositories {
-		repoMap[repo.Name] = repo.URL
-	}
-
-	chartCRDs := []*CRD{}
-	for _, helmChart := range helm.Charts {
-		chartCRDs = append(chartCRDs, NewHelmCRD(helmChart, repoMap[helmChart.Repository]))
-	}
-
-	return chartCRDs
 }

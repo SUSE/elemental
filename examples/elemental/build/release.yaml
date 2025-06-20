@@ -1,4 +1,14 @@
 name: suse-edge
 manifestURI: oci://registry.opensuse.org/home/adinov/core/containerfile/release-manifest:0.0.1
-enable:
-  - neuvector
+# Enable core components explicitly or modify their default deployment (e.g. via additional Helm values)
+#core:
+#  helm:
+#    - chart: metallb
+#      valuesFile: metallb-values.yaml
+#
+# Enable product components
+product:
+  helm:
+    - chart: neuvector
+    - chart: rancher
+      valuesFile: rancher.yaml

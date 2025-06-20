@@ -30,14 +30,14 @@ type Helm struct {
 }
 
 type HelmChart struct {
-	Name       string       `yaml:"name,omitempty"`
-	Chart      string       `yaml:"chart"`
-	Version    string       `yaml:"version"`
-	Namespace  string       `yaml:"namespace,omitempty"`
-	Repository string       `yaml:"repository,omitempty"`
-	Values     string       `yaml:"values,omitempty"`
-	DependsOn  []string     `yaml:"dependsOn,omitempty"`
-	Images     []ChartImage `yaml:"images,omitempty"`
+	Name       string         `yaml:"name,omitempty"`
+	Chart      string         `yaml:"chart"`
+	Version    string         `yaml:"version"`
+	Namespace  string         `yaml:"namespace,omitempty"`
+	Repository string         `yaml:"repository,omitempty"`
+	Values     map[string]any `yaml:"values,omitempty"`
+	DependsOn  []string       `yaml:"dependsOn,omitempty"`
+	Images     []ChartImage   `yaml:"images,omitempty"`
 }
 
 type ChartImage struct {

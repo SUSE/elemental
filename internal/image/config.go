@@ -42,12 +42,16 @@ func (dir ConfigDir) KubernetesFilepath() string {
 	return filepath.Join(string(dir), "kubernetes.yaml")
 }
 
-func (dir ConfigDir) KubernetesDir() string {
+func (dir ConfigDir) kubernetesDir() string {
 	return filepath.Join(string(dir), "kubernetes")
 }
 
 func (dir ConfigDir) KubernetesManifestsDir() string {
-	return filepath.Join(dir.KubernetesDir(), "manifests")
+	return filepath.Join(dir.kubernetesDir(), "manifests")
+}
+
+func (dir ConfigDir) HelmValuesDir() string {
+	return filepath.Join(dir.kubernetesDir(), "helm", "values")
 }
 
 func ParseConfig(data []byte, target any) error {

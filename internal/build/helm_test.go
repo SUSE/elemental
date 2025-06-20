@@ -18,18 +18,41 @@ limitations under the License.
 package build
 
 import (
+	"fmt"
+	"path/filepath"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"github.com/suse/elemental/v3/internal/helm"
 	"github.com/suse/elemental/v3/internal/image"
+	"github.com/suse/elemental/v3/internal/image/kubernetes"
+	"github.com/suse/elemental/v3/internal/image/release"
 	"github.com/suse/elemental/v3/pkg/manifest/api"
 	"github.com/suse/elemental/v3/pkg/manifest/api/core"
 	"github.com/suse/elemental/v3/pkg/manifest/api/product"
 	"github.com/suse/elemental/v3/pkg/manifest/resolver"
+	sysmock "github.com/suse/elemental/v3/pkg/sys/mock"
 )
 
+type valuesResolverMock struct {
+	Err          error
+	SuccessCount int // Number of successful calls allowed when Err is set
+	currentCalls int
+}
+
+func (v *valuesResolverMock) Resolve(*helm.ValueSource) ([]byte, error) {
+	v.currentCalls++
+
+	if v.Err != nil && v.currentCalls > v.SuccessCount {
+		return nil, v.Err
+	}
+
+	return nil, nil
+}
+
 var _ = Describe("Helm tests", Label("helm"), func() {
-	Describe("Prioritising", func() {
+	Describe("Complete setup", func() {
 		rm := &resolver.ResolvedManifest{
 			CorePlatform: &core.ReleaseManifest{
 				Components: core.Components{
@@ -41,6 +64,11 @@ var _ = Describe("Helm tests", Label("helm"), func() {
 								Version:    "302.0.0+up0.14.9",
 								Namespace:  "metallb-system",
 								Repository: "suse-core",
+								Values: map[string]any{
+									"frrk8s": map[string]any{
+										"enabled": true,
+									},
+								},
 							},
 						},
 						Repositories: []api.Repository{
@@ -83,131 +111,258 @@ var _ = Describe("Helm tests", Label("helm"), func() {
 			},
 		}
 
-		It("Successfully returns prioritised Helm charts, with enabled charts", func() {
-			definition := &image.Definition{
-				Release: image.Release{
-					Enable: []string{"neuvector"},
-				},
-				Kubernetes: image.Kubernetes{
-					Helm: &api.Helm{
-						Charts:       []*api.HelmChart{{Name: "Foo", Chart: "foo", Repository: "bar"}},
-						Repositories: []api.Repository{{Name: "bar", URL: "https://example.com/bar"}},
-					},
-				},
-			}
+		It("Fails resolving values of core Helm chart", func() {
+			resolver := &valuesResolverMock{Err: fmt.Errorf("resolving failed")}
+			definition := &image.Definition{}
 
-			configs, err := getPrioritisedHelmConfigs(definition, rm)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(configs).To(HaveLen(3))
-
-			Expect(configs[0].Charts).To(HaveLen(1))
-			Expect(configs[0].Repositories).To(HaveLen(1))
-
-			chart := configs[0].Charts[0]
-			Expect(chart.Name).To(Equal("MetalLB"))
-			Expect(chart.Chart).To(Equal("metallb"))
-			Expect(chart.Version).To(Equal("302.0.0+up0.14.9"))
-			Expect(chart.Namespace).To(Equal("metallb-system"))
-			Expect(chart.Repository).To(Equal("suse-core"))
-			Expect(chart.DependsOn).To(BeEmpty())
-
-			repository := configs[0].Repositories[0]
-			Expect(repository.Name).To(Equal("suse-core"))
-			Expect(repository.URL).To(Equal("https://example.com/suse-core"))
-
-			Expect(configs[1].Charts).To(HaveLen(2))
-			Expect(configs[1].Repositories).To(HaveLen(1))
-
-			chart = configs[1].Charts[0]
-			Expect(chart.Name).To(Equal("NeuVector CRD"))
-			Expect(chart.Chart).To(Equal("neuvector-crd"))
-			Expect(chart.Version).To(Equal("106.0.0+up2.8.5"))
-			Expect(chart.Namespace).To(Equal("neuvector-system"))
-			Expect(chart.Repository).To(Equal("rancher-charts"))
-			Expect(chart.DependsOn).To(BeEmpty())
-
-			chart = configs[1].Charts[1]
-
-			Expect(chart.Name).To(Equal("NeuVector"))
-			Expect(chart.Chart).To(Equal("neuvector"))
-			Expect(chart.Version).To(Equal("106.0.0+up2.8.5"))
-			Expect(chart.Namespace).To(Equal("neuvector-system"))
-			Expect(chart.Repository).To(Equal("rancher-charts"))
-			Expect(chart.DependsOn).To(ConsistOf("neuvector-crd"))
-
-			repository = configs[1].Repositories[0]
-			Expect(repository.Name).To(Equal("rancher-charts"))
-			Expect(repository.URL).To(Equal("https://charts.rancher.io/"))
-
-			Expect(configs[2].Charts).To(HaveLen(1))
-			Expect(configs[2].Repositories).To(HaveLen(1))
-
-			chart = configs[2].Charts[0]
-			Expect(chart.Name).To(Equal("Foo"))
-			Expect(chart.Chart).To(Equal("foo"))
-			Expect(chart.Repository).To(Equal("bar"))
-
-			repository = configs[2].Repositories[0]
-			Expect(repository.Name).To(Equal("bar"))
-			Expect(repository.URL).To(Equal("https://example.com/bar"))
-		})
-
-		It("Successfully returns prioritised Helm charts, without enabled charts", func() {
-			definition := &image.Definition{
-				Release: image.Release{
-					Enable: []string{},
-				},
-				Kubernetes: image.Kubernetes{
-					Helm: &api.Helm{
-						Charts:       []*api.HelmChart{{Name: "Foo", Chart: "foo", Repository: "bar"}},
-						Repositories: []api.Repository{{Name: "bar", URL: "https://example.com/bar"}},
-					},
-				},
-			}
-
-			configs, err := getPrioritisedHelmConfigs(definition, rm)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(configs).To(HaveLen(2))
-
-			Expect(configs[0].Charts).To(HaveLen(1))
-			Expect(configs[0].Repositories).To(HaveLen(1))
-
-			chart := configs[0].Charts[0]
-			Expect(chart.Name).To(Equal("MetalLB"))
-			Expect(chart.Chart).To(Equal("metallb"))
-			Expect(chart.Version).To(Equal("302.0.0+up0.14.9"))
-			Expect(chart.Namespace).To(Equal("metallb-system"))
-			Expect(chart.Repository).To(Equal("suse-core"))
-			Expect(chart.DependsOn).To(BeEmpty())
-
-			repository := configs[0].Repositories[0]
-			Expect(repository.Name).To(Equal("suse-core"))
-			Expect(repository.URL).To(Equal("https://example.com/suse-core"))
-
-			Expect(configs[1].Charts).To(HaveLen(1))
-			Expect(configs[1].Repositories).To(HaveLen(1))
-
-			chart = configs[1].Charts[0]
-			Expect(chart.Name).To(Equal("Foo"))
-			Expect(chart.Chart).To(Equal("foo"))
-			Expect(chart.Repository).To(Equal("bar"))
-
-			repository = configs[1].Repositories[0]
-			Expect(repository.Name).To(Equal("bar"))
-			Expect(repository.URL).To(Equal("https://example.com/bar"))
-		})
-
-		It("Fails to prioritise Helm charts due to attempting to enable missing one", func() {
-			definition := &image.Definition{
-				Release: image.Release{
-					Enable: []string{"rancher"},
-				},
-			}
-
-			configs, err := getPrioritisedHelmConfigs(definition, rm)
+			charts, err := setupHelmCharts(nil, definition, rm, "", "", resolver)
 			Expect(err).To(HaveOccurred())
-			Expect(err).To(MatchError("filtering enabled helm charts: adding helm chart 'rancher': helm chart does not exist"))
-			Expect(configs).To(BeNil())
+			Expect(err).To(MatchError("retrieving helm charts: collecting core helm charts: resolving values for chart metallb: resolving failed"))
+			Expect(charts).To(BeNil())
+		})
+
+		It("Fails resolving values of product Helm chart", func() {
+			resolver := &valuesResolverMock{Err: fmt.Errorf("resolving failed"), SuccessCount: 1}
+			definition := &image.Definition{
+				Release: release.Release{
+					Product: release.Components{
+						Helm: []release.HelmChart{
+							{
+								Name: "neuvector",
+							},
+						},
+					},
+				},
+			}
+
+			charts, err := setupHelmCharts(nil, definition, rm, "", "", resolver)
+			Expect(err).To(HaveOccurred())
+			Expect(err).To(MatchError("retrieving helm charts: collecting product helm charts: resolving values for chart neuvector-crd: resolving failed"))
+			Expect(charts).To(BeNil())
+		})
+
+		It("Fails resolving values of user Helm chart", func() {
+			resolver := &valuesResolverMock{Err: fmt.Errorf("resolving failed"), SuccessCount: 1}
+			definition := &image.Definition{
+				Kubernetes: kubernetes.Kubernetes{
+					Helm: &kubernetes.Helm{
+						Charts: []*kubernetes.HelmChart{
+							{
+								Name:            "apache",
+								RepositoryName:  "apache-repo",
+								TargetNamespace: "web",
+								Version:         "10.7.0",
+								ValuesFile:      "apache-values.yaml",
+							},
+						},
+						Repositories: []*kubernetes.HelmRepository{
+							{
+								Name: "apache-repo",
+								URL:  "https://example.com/apache",
+							},
+						},
+					},
+				},
+			}
+
+			charts, err := setupHelmCharts(nil, definition, rm, "", "", resolver)
+			Expect(err).To(HaveOccurred())
+			Expect(err).To(MatchError("retrieving helm charts: collecting user helm charts: resolving values for chart apache: resolving failed"))
+			Expect(charts).To(BeNil())
+		})
+
+		It("Fails to collect chart with a missing repository", func() {
+			resolver := &valuesResolverMock{}
+			definition := &image.Definition{
+				Kubernetes: kubernetes.Kubernetes{
+					Helm: &kubernetes.Helm{
+						Charts: []*kubernetes.HelmChart{
+							{
+								Name:            "apache",
+								RepositoryName:  "apache-repo",
+								TargetNamespace: "web",
+								Version:         "10.7.0",
+								ValuesFile:      "apache-values.yaml",
+							},
+						},
+					},
+				},
+			}
+
+			charts, err := setupHelmCharts(nil, definition, rm, "", "", resolver)
+			Expect(err).To(HaveOccurred())
+			Expect(err).To(MatchError("retrieving helm charts: collecting user helm charts: repository not found for chart: apache"))
+			Expect(charts).To(BeNil())
+		})
+
+		It("Fails enabling a missing product chart", func() {
+			resolver := &valuesResolverMock{}
+			definition := &image.Definition{
+				Release: release.Release{
+					Product: release.Components{
+						Helm: []release.HelmChart{
+							{
+								Name: "rancher",
+							},
+						},
+					},
+				},
+			}
+
+			charts, err := setupHelmCharts(nil, definition, rm, "", "", resolver)
+			Expect(err).To(HaveOccurred())
+			Expect(err).To(MatchError("retrieving helm charts: filtering enabled product helm charts: adding helm chart 'rancher': helm chart does not exist"))
+			Expect(charts).To(BeNil())
+		})
+
+		It("Fails writing Helm charts to the FS", func() {
+			fs, cleanup, err := sysmock.TestFS(nil)
+			Expect(err).NotTo(HaveOccurred())
+			DeferCleanup(cleanup)
+
+			fs, err = sysmock.ReadOnlyTestFS(fs)
+			Expect(err).NotTo(HaveOccurred())
+
+			resolver := &valuesResolverMock{}
+			definition := &image.Definition{}
+
+			charts, err := setupHelmCharts(fs, definition, rm, "/etc/overlays", "helm", resolver)
+			Expect(err).To(HaveOccurred())
+			Expect(err).To(MatchError("writing helm chart resources: creating directory: Mkdir /etc/overlays/helm: operation not permitted"))
+			Expect(charts).To(BeNil())
+		})
+
+		It("Collects and writes core, product and user Helm charts to the FS", func() {
+			overlaysPath := "/etc/overlays"
+			helmPath := "helm"
+
+			fs, cleanup, err := sysmock.TestFS(map[string]string{
+				filepath.Join(overlaysPath, helmPath, "apache-values.yaml"):  "image:\n  debug: true\nreplicaCount: 1\n",
+				filepath.Join(overlaysPath, helmPath, "metallb-values.yaml"): "controller:\n  logLevel: warn",
+			})
+			Expect(err).NotTo(HaveOccurred())
+			DeferCleanup(cleanup)
+
+			resolver := &helm.ValuesResolver{
+				ValuesDir: filepath.Join(overlaysPath, helmPath),
+				FS:        fs,
+			}
+
+			definition := &image.Definition{
+				Release: release.Release{
+					Core: release.Components{
+						Helm: []release.HelmChart{{Name: "metallb", ValuesFile: "metallb-values.yaml"}},
+					},
+					Product: release.Components{
+						Helm: []release.HelmChart{{Name: "neuvector"}},
+					},
+				},
+				Kubernetes: kubernetes.Kubernetes{
+					Helm: &kubernetes.Helm{
+						Charts: []*kubernetes.HelmChart{
+							{
+								Name:            "apache",
+								RepositoryName:  "apache-repo",
+								TargetNamespace: "web",
+								Version:         "10.7.0",
+								ValuesFile:      "apache-values.yaml",
+							},
+						},
+						Repositories: []*kubernetes.HelmRepository{
+							{
+								Name: "apache-repo",
+								URL:  "https://example.com/apache",
+							},
+						},
+					},
+				},
+			}
+
+			charts, err := setupHelmCharts(fs, definition, rm, overlaysPath, helmPath, resolver)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(charts).To(ConsistOf(
+				"/helm/metallb.yaml",
+				"/helm/neuvector-crd.yaml",
+				"/helm/neuvector.yaml",
+				"/helm/apache.yaml"))
+
+			// Verify the contents of the various written Helm resources
+			contents := `apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+    name: neuvector
+    namespace: kube-system
+spec:
+    chart: neuvector
+    version: 106.0.0+up2.8.5
+    repo: https://charts.rancher.io/
+    targetNamespace: neuvector-system
+    createNamespace: true
+    backOffLimit: 20
+`
+			b, err := fs.ReadFile(filepath.Join(overlaysPath, helmPath, "neuvector.yaml"))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(string(b)).To(Equal(contents))
+
+			contents = `apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+    name: neuvector-crd
+    namespace: kube-system
+spec:
+    chart: neuvector-crd
+    version: 106.0.0+up2.8.5
+    repo: https://charts.rancher.io/
+    targetNamespace: neuvector-system
+    createNamespace: true
+    backOffLimit: 20
+`
+			b, err = fs.ReadFile(filepath.Join(overlaysPath, helmPath, "neuvector-crd.yaml"))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(string(b)).To(Equal(contents))
+
+			contents = `apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+    name: metallb
+    namespace: kube-system
+spec:
+    chart: metallb
+    version: 302.0.0+up0.14.9
+    repo: https://example.com/suse-core
+    valuesContent: |
+        controller:
+            logLevel: warn
+        frrk8s:
+            enabled: true
+    targetNamespace: metallb-system
+    createNamespace: true
+    backOffLimit: 20
+`
+			b, err = fs.ReadFile(filepath.Join(overlaysPath, helmPath, "metallb.yaml"))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(string(b)).To(Equal(contents))
+
+			contents = `apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+    name: apache
+    namespace: kube-system
+spec:
+    chart: apache
+    version: 10.7.0
+    repo: https://example.com/apache
+    valuesContent: |
+        image:
+            debug: true
+        replicaCount: 1
+    targetNamespace: web
+    createNamespace: true
+    backOffLimit: 20
+`
+			b, err = fs.ReadFile(filepath.Join(overlaysPath, helmPath, "apache.yaml"))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(string(b)).To(Equal(contents))
 		})
 	})
 
@@ -248,7 +403,7 @@ var _ = Describe("Helm tests", Label("helm"), func() {
 		}
 
 		It("Successfully filters enabled Helm charts with dependency", func() {
-			e, err := enabledHelmCharts(h, []string{"neuvector"})
+			e, err := enabledHelmCharts(h, &release.Components{Helm: []release.HelmChart{{Name: "neuvector"}}})
 			Expect(err).NotTo(HaveOccurred())
 			Expect(e.Charts).To(HaveLen(2))
 			Expect(e.Repositories).To(HaveLen(1))
@@ -274,7 +429,7 @@ var _ = Describe("Helm tests", Label("helm"), func() {
 		})
 
 		It("Successfully filters enabled Helm chart", func() {
-			e, err := enabledHelmCharts(h, []string{"neuvector-crd"})
+			e, err := enabledHelmCharts(h, &release.Components{Helm: []release.HelmChart{{Name: "neuvector-crd"}}})
 			Expect(err).NotTo(HaveOccurred())
 			Expect(e.Charts).To(HaveLen(1))
 			Expect(e.Repositories).To(HaveLen(1))
@@ -293,14 +448,14 @@ var _ = Describe("Helm tests", Label("helm"), func() {
 		})
 
 		It("Fails to find non-existing enabled Helm chart", func() {
-			e, err := enabledHelmCharts(h, []string{"rancher"})
+			e, err := enabledHelmCharts(h, &release.Components{Helm: []release.HelmChart{{Name: "rancher"}}})
 			Expect(err).To(HaveOccurred())
 			Expect(err).To(MatchError("adding helm chart 'rancher': helm chart does not exist"))
 			Expect(e).To(BeNil())
 		})
 
 		It("Fails to find non-existing dependency Helm chart", func() {
-			e, err := enabledHelmCharts(h, []string{"longhorn"})
+			e, err := enabledHelmCharts(h, &release.Components{Helm: []release.HelmChart{{Name: "longhorn"}}})
 			Expect(err).To(HaveOccurred())
 			Expect(err).To(MatchError("adding helm chart 'longhorn': adding dependent helm chart 'longhorn-crd': helm chart does not exist"))
 			Expect(e).To(BeNil())

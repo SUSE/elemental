@@ -30,7 +30,7 @@ components:
       version: "0.0.0"
       namespace: "bar-system"
       repository: "bar-charts"
-      values: |-
+      values:
         image:
           tag: latest
       dependsOn:

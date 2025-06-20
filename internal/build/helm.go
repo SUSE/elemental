@@ -19,92 +19,167 @@ package build
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"slices"
 
 	"github.com/suse/elemental/v3/internal/helm"
 	"github.com/suse/elemental/v3/internal/image"
+	"github.com/suse/elemental/v3/internal/image/release"
 	"github.com/suse/elemental/v3/pkg/manifest/api"
 	"github.com/suse/elemental/v3/pkg/manifest/resolver"
+	"github.com/suse/elemental/v3/pkg/sys/vfs"
 	"gopkg.in/yaml.v3"
 )
 
+type helmValuesResolver interface {
+	Resolve(*helm.ValueSource) ([]byte, error)
+}
+
 func needsHelmChartsSetup(def *image.Definition, rm *resolver.ResolvedManifest) bool {
 	return (rm.CorePlatform != nil && rm.CorePlatform.Components.Helm != nil) ||
-		(rm.ProductExtension != nil && rm.ProductExtension.Components.Helm != nil && len(def.Release.Enable) != 0) ||
+		(rm.ProductExtension != nil && rm.ProductExtension.Components.Helm != nil && len(def.Release.Product.Helm) != 0) ||
 		def.Kubernetes.Helm != nil
 }
 
-func setupHelmCharts(d *image.Definition, rm *resolver.ResolvedManifest, overlaysPath, relativeHelmPath string) (runtimeHelmCharts []string, err error) {
-	pathInOverlays := filepath.Join(overlaysPath, relativeHelmPath)
-	runtimePath := filepath.Join(string(os.PathSeparator), relativeHelmPath)
-
-	configs, err := getPrioritisedHelmConfigs(d, rm)
+func setupHelmCharts(fs vfs.FS, def *image.Definition, rm *resolver.ResolvedManifest, overlaysPath, helmPath string, valuesResolver helmValuesResolver) (runtimeHelmCharts []string, err error) {
+	charts, err := retrieveHelmCharts(rm, def, valuesResolver)
 	if err != nil {
-		return nil, fmt.Errorf("prioritizing helm charts: %w", err)
+		return nil, fmt.Errorf("retrieving helm charts: %w", err)
 	}
 
-	chartNames, err := writeHelmCharts(pathInOverlays, configs)
+	helmDestPath := filepath.Join(overlaysPath, helmPath)
+
+	chartNames, err := writeHelmCharts(fs, charts, helmDestPath)
 	if err != nil {
-		return nil, fmt.Errorf("writing helm chart resources to %s: %w", pathInOverlays, err)
+		return nil, fmt.Errorf("writing helm chart resources: %w", err)
 	}
 
 	for _, chartName := range chartNames {
-		runtimeHelmCharts = append(runtimeHelmCharts, filepath.Join(runtimePath, chartName))
+		runtimeHelmCharts = append(runtimeHelmCharts, filepath.Join("/", helmPath, chartName))
 	}
 
 	return runtimeHelmCharts, nil
 }
 
-func writeHelmCharts(dest string, configs []*api.Helm) (names []string, err error) {
-	if err = os.MkdirAll(dest, os.ModeDir); err != nil {
-		return nil, fmt.Errorf("setting up HelmChart destination directory '%s': %w", dest, err)
+func writeHelmCharts(fs vfs.FS, crds []*helm.CRD, destDir string) (names []string, err error) {
+	if err = vfs.MkdirAll(fs, destDir, vfs.DirPerm); err != nil {
+		return nil, fmt.Errorf("creating directory: %w", err)
 	}
 
-	for _, config := range configs {
-		for _, helmCRD := range helm.ProduceCRDs(config) {
-			data, err := yaml.Marshal(helmCRD)
-			if err != nil {
-				return nil, fmt.Errorf("marshaling helm chart: %w", err)
-			}
-
-			chartName := fmt.Sprintf("%s.yaml", helmCRD.Metadata.Name)
-			chartPath := filepath.Join(dest, chartName)
-			if err = os.WriteFile(chartPath, data, os.FileMode(0o644)); err != nil {
-				return nil, fmt.Errorf("writing helm chart: %w", err)
-			}
-
-			names = append(names, chartName)
+	for _, crd := range crds {
+		data, err := yaml.Marshal(crd)
+		if err != nil {
+			return nil, fmt.Errorf("marshaling helm chart %s: %w", crd.Metadata.Name, err)
 		}
+
+		chartName := fmt.Sprintf("%s.yaml", crd.Metadata.Name)
+		chartPath := filepath.Join(destDir, chartName)
+		if err = fs.WriteFile(chartPath, data, 0o644); err != nil {
+			return nil, fmt.Errorf("writing helm chart: %w", err)
+		}
+
+		names = append(names, chartName)
 	}
 
 	return names, nil
 }
 
-func getPrioritisedHelmConfigs(def *image.Definition, rm *resolver.ResolvedManifest) ([]*api.Helm, error) {
-	var configs []*api.Helm
+func retrieveHelmCharts(rm *resolver.ResolvedManifest, def *image.Definition, valuesResolver helmValuesResolver) ([]*helm.CRD, error) {
+	var crds []*helm.CRD
 
 	if rm.CorePlatform != nil && rm.CorePlatform.Components.Helm != nil {
-		configs = append(configs, rm.CorePlatform.Components.Helm)
+		c, err := releaseHelmCharts(rm.CorePlatform.Components.Helm, &def.Release.Core, valuesResolver)
+		if err != nil {
+			return nil, fmt.Errorf("collecting core helm charts: %w", err)
+		}
+
+		crds = append(crds, c...)
 	}
 
-	if rm.ProductExtension != nil && rm.ProductExtension.Components.Helm != nil && len(def.Release.Enable) != 0 {
-		enabledCharts, err := enabledHelmCharts(rm.ProductExtension.Components.Helm, def.Release.Enable)
+	if rm.ProductExtension != nil && rm.ProductExtension.Components.Helm != nil && len(def.Release.Product.Helm) != 0 {
+		enabledCharts, err := enabledHelmCharts(rm.ProductExtension.Components.Helm, &def.Release.Product)
 		if err != nil {
-			return nil, fmt.Errorf("filtering enabled helm charts: %w", err)
+			return nil, fmt.Errorf("filtering enabled product helm charts: %w", err)
 		}
-		configs = append(configs, enabledCharts)
+
+		c, err := releaseHelmCharts(enabledCharts, &def.Release.Product, valuesResolver)
+		if err != nil {
+			return nil, fmt.Errorf("collecting product helm charts: %w", err)
+		}
+
+		crds = append(crds, c...)
 	}
 
 	if def.Kubernetes.Helm != nil {
-		configs = append(configs, def.Kubernetes.Helm)
+		c, err := userHelmCharts(def, valuesResolver)
+		if err != nil {
+			return nil, fmt.Errorf("collecting user helm charts: %w", err)
+		}
+
+		crds = append(crds, c...)
 	}
 
-	return configs, nil
+	return crds, nil
 }
 
-func enabledHelmCharts(helm *api.Helm, enabled []string) (*api.Helm, error) {
+func releaseHelmCharts(h *api.Helm, release *release.Components, valuesResolver helmValuesResolver) ([]*helm.CRD, error) {
+	var crds []*helm.CRD
+
+	repositories := map[string]string{}
+	for _, repo := range h.Repositories {
+		repositories[repo.Name] = repo.URL
+	}
+
+	valueFiles := map[string]string{}
+	for _, chart := range release.Helm {
+		valueFiles[chart.Name] = chart.ValuesFile
+	}
+
+	for _, chart := range h.Charts {
+		repository, ok := repositories[chart.Repository]
+		if !ok {
+			return nil, fmt.Errorf("repository not found for chart: %s", chart.Chart)
+		}
+
+		source := &helm.ValueSource{Inline: chart.Values, File: valueFiles[chart.Chart]}
+		values, err := valuesResolver.Resolve(source)
+		if err != nil {
+			return nil, fmt.Errorf("resolving values for chart %s: %w", chart.Chart, err)
+		}
+
+		crds = append(crds, helm.NewCRD(chart.Namespace, chart.Chart, chart.Version, string(values), repository))
+	}
+
+	return crds, nil
+}
+
+func userHelmCharts(def *image.Definition, valuesResolver helmValuesResolver) ([]*helm.CRD, error) {
+	var crds []*helm.CRD
+
+	repositories := map[string]string{}
+	for _, repo := range def.Kubernetes.Helm.Repositories {
+		repositories[repo.Name] = repo.URL
+	}
+
+	for _, chart := range def.Kubernetes.Helm.Charts {
+		repository, ok := repositories[chart.RepositoryName]
+		if !ok {
+			return nil, fmt.Errorf("repository not found for chart: %s", chart.Name)
+		}
+
+		source := &helm.ValueSource{File: chart.ValuesFile}
+		values, err := valuesResolver.Resolve(source)
+		if err != nil {
+			return nil, fmt.Errorf("resolving values for chart %s: %w", chart.Name, err)
+		}
+
+		crds = append(crds, helm.NewCRD(chart.TargetNamespace, chart.Name, chart.Version, string(values), repository))
+	}
+
+	return crds, nil
+}
+
+func enabledHelmCharts(helm *api.Helm, enabled *release.Components) (*api.Helm, error) {
 	h := &api.Helm{Repositories: helm.Repositories}
 
 	allCharts := map[string]*api.HelmChart{}
@@ -140,9 +215,9 @@ func enabledHelmCharts(helm *api.Helm, enabled []string) (*api.Helm, error) {
 		return nil
 	}
 
-	for _, e := range enabled {
-		if err := addChart(e); err != nil {
-			return nil, fmt.Errorf("adding helm chart '%s': %w", e, err)
+	for _, e := range enabled.Helm {
+		if err := addChart(e.Name); err != nil {
+			return nil, fmt.Errorf("adding helm chart '%s': %w", e.Name, err)
 		}
 	}
 

@@ -24,12 +24,13 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/suse/elemental/v3/internal/helm"
 	"github.com/suse/elemental/v3/internal/image"
+	"github.com/suse/elemental/v3/internal/image/os"
 	"github.com/suse/elemental/v3/internal/manifest/extractor"
 	"github.com/suse/elemental/v3/internal/template"
 	"github.com/suse/elemental/v3/pkg/bootloader"
@@ -39,6 +40,7 @@ import (
 	"github.com/suse/elemental/v3/pkg/manifest/resolver"
 	"github.com/suse/elemental/v3/pkg/manifest/source"
 	"github.com/suse/elemental/v3/pkg/sys"
+	"github.com/suse/elemental/v3/pkg/sys/vfs"
 	"github.com/suse/elemental/v3/pkg/upgrade"
 )
 
@@ -48,13 +50,14 @@ var configScriptTpl string
 //go:embed templates/k8s_res_deploy.sh.tpl
 var k8sResDeployScriptTpl string
 
-func Run(ctx context.Context, d *image.Definition, buildDir string, system *sys.System) error {
+func Run(ctx context.Context, d *image.Definition, buildDir string, configDir image.ConfigDir, system *sys.System) error {
 	logger := system.Logger()
 	runner := system.Runner()
+	fs := system.FS()
 	overlaysPath := filepath.Join(buildDir, "overlays")
 
 	logger.Info("Resolving release manifest: %s", d.Release.ManifestURI)
-	m, err := resolveManifest(d.Release.ManifestURI, buildDir)
+	m, err := resolveManifest(fs, d.Release.ManifestURI, buildDir)
 	if err != nil {
 		logger.Error("Resolving release manifest failed")
 		return err
@@ -63,12 +66,22 @@ func Run(ctx context.Context, d *image.Definition, buildDir string, system *sys.
 	var runtimeHelmCharts []string
 	relativeK8sPath := filepath.Join("var", "lib", "elemental", "kubernetes")
 	if needsHelmChartsSetup(d, m) {
-		if len(d.Release.Enable) != 0 {
-			logger.Info("Enabling the following product extensions: %s", strings.Join(d.Release.Enable, ", "))
+		if len(d.Release.Product.Helm) != 0 {
+			var charts []string
+			for _, c := range d.Release.Product.Helm {
+				charts = append(charts, c.Name)
+			}
+
+			logger.Info("Enabling the following product extensions: %s", strings.Join(charts, ", "))
 		}
 
-		relativeHelmPath := filepath.Join(relativeK8sPath, "helm")
-		if runtimeHelmCharts, err = setupHelmCharts(d, m, overlaysPath, relativeHelmPath); err != nil {
+		helmPath := filepath.Join(relativeK8sPath, "helm")
+		valuesResolver := &helm.ValuesResolver{
+			ValuesDir: configDir.HelmValuesDir(),
+			FS:        fs,
+		}
+
+		if runtimeHelmCharts, err = setupHelmCharts(fs, d, m, overlaysPath, helmPath, valuesResolver); err != nil {
 			logger.Error("Setting up Helm charts failed")
 			return err
 		}
@@ -78,34 +91,34 @@ func Run(ctx context.Context, d *image.Definition, buildDir string, system *sys.
 	if needsManifestsSetup(&d.Kubernetes) {
 		relativeManifestsPath := filepath.Join(relativeK8sPath, "manifests")
 		manifestsOverlayPath := filepath.Join(overlaysPath, relativeManifestsPath)
-		if err = setupManifests(ctx, system.FS(), &d.Kubernetes, manifestsOverlayPath); err != nil {
+		if err = setupManifests(ctx, fs, &d.Kubernetes, manifestsOverlayPath); err != nil {
 			logger.Error("Setting up Kubernetes manifests failed")
 			return err
 		}
 
-		runtimeManifestsDir = filepath.Join(string(os.PathSeparator), relativeManifestsPath)
+		runtimeManifestsDir = filepath.Join("/", relativeManifestsPath)
 	}
 
 	var runtimeK8sResDeployScript string
 	if len(runtimeHelmCharts) > 0 || runtimeManifestsDir != "" {
 		kubernetesOverlayPath := filepath.Join(overlaysPath, relativeK8sPath)
-		scriptInOverlay, err := writeK8sResDeployScript(kubernetesOverlayPath, runtimeManifestsDir, runtimeHelmCharts)
+		scriptInOverlay, err := writeK8sResDeployScript(fs, kubernetesOverlayPath, runtimeManifestsDir, runtimeHelmCharts)
 		if err != nil {
 			logger.Error("Setting up Kubernetes resource deployment script failed")
 			return err
 		}
-		runtimeK8sResDeployScript = filepath.Join(string(os.PathSeparator), relativeK8sPath, filepath.Base(scriptInOverlay))
+		runtimeK8sResDeployScript = filepath.Join("/", relativeK8sPath, filepath.Base(scriptInOverlay))
 	}
 
 	logger.Info("Downloading RKE2 extension")
 	extensionsPath := filepath.Join(overlaysPath, "var", "lib", "extensions")
-	if err = downloadExtension(ctx, m.CorePlatform.Components.Kubernetes.RKE2.Image, extensionsPath); err != nil {
+	if err = downloadExtension(ctx, fs, m.CorePlatform.Components.Kubernetes.RKE2.Image, extensionsPath); err != nil {
 		logger.Error("Downloading RKE2 extension failed")
 		return err
 	}
 
 	logger.Info("Preparing configuration script")
-	configScript, err := writeConfigScript(d, buildDir, runtimeK8sResDeployScript)
+	configScript, err := writeConfigScript(fs, d, buildDir, runtimeK8sResDeployScript)
 	if err != nil {
 		logger.Error("Preparing configuration script failed")
 		return err
@@ -193,9 +206,9 @@ func newDeployment(system *sys.System, installationDevice, bootloader, kernelCmd
 	return d, nil
 }
 
-func resolveManifest(manifestURI, storeDir string) (*resolver.ResolvedManifest, error) {
+func resolveManifest(fs vfs.FS, manifestURI, storeDir string) (*resolver.ResolvedManifest, error) {
 	manifestStore := filepath.Join(storeDir, "release-manifests")
-	if err := os.MkdirAll(manifestStore, 0700); err != nil {
+	if err := vfs.MkdirAll(fs, manifestStore, 0700); err != nil {
 		return nil, fmt.Errorf("creating release manifest store '%s': %w", manifestStore, err)
 	}
 
@@ -213,11 +226,11 @@ func resolveManifest(manifestURI, storeDir string) (*resolver.ResolvedManifest, 
 	return m, nil
 }
 
-func writeConfigScript(d *image.Definition, dest, runtimeK8sResDeployScript string) (string, error) {
+func writeConfigScript(fs vfs.FS, d *image.Definition, dest, runtimeK8sResDeployScript string) (string, error) {
 	const configScriptName = "config.sh"
 
 	values := struct {
-		Users                []image.User
+		Users                []os.User
 		KubernetesDir        string
 		ManifestDeployScript string
 	}{
@@ -235,13 +248,13 @@ func writeConfigScript(d *image.Definition, dest, runtimeK8sResDeployScript stri
 	}
 
 	filename := filepath.Join(dest, configScriptName)
-	if err = os.WriteFile(filename, []byte(data), os.FileMode(0o744)); err != nil {
+	if err = fs.WriteFile(filename, []byte(data), 0o744); err != nil {
 		return "", fmt.Errorf("writing config script: %w", err)
 	}
 	return filename, nil
 }
 
-func createDisk(runner sys.Runner, img image.Image, diskSize image.DiskSize) error {
+func createDisk(runner sys.Runner, img image.Image, diskSize os.DiskSize) error {
 	const defaultSize = "10G"
 
 	if diskSize == "" {
@@ -269,8 +282,8 @@ func detachDevice(runner sys.Runner, device string) error {
 	return err
 }
 
-func downloadExtension(ctx context.Context, downloadURL, extensionsPath string) error {
-	if err := os.MkdirAll(extensionsPath, 0700); err != nil {
+func downloadExtension(ctx context.Context, fs vfs.FS, downloadURL, extensionsPath string) error {
+	if err := vfs.MkdirAll(fs, extensionsPath, 0700); err != nil {
 		return fmt.Errorf("setting up extensions directory '%s': %w", extensionsPath, err)
 	}
 
@@ -298,7 +311,7 @@ func downloadExtension(ctx context.Context, downloadURL, extensionsPath string) 
 	fileName := filepath.Base(parsedURL.Path)
 	output := filepath.Join(extensionsPath, fileName)
 
-	file, err := os.OpenFile(output, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	file, err := fs.Create(output)
 	if err != nil {
 		return fmt.Errorf("creating file %q: %w", output, err)
 	}
