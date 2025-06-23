@@ -4,7 +4,7 @@ go 1.24.0
 
 require (
 	github.com/cenkalti/backoff/v4 v4.3.0
-	github.com/containerd/containerd/v2 v2.1.2
+	github.com/containerd/containerd/v2 v2.1.3
 	github.com/distribution/reference v0.6.0
 	github.com/google/go-containerregistry v0.20.6
 	github.com/google/uuid v1.6.0
