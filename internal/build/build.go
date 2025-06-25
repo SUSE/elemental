@@ -116,7 +116,7 @@ func Run(ctx context.Context, d *image.Definition, buildDir string, valuesResolv
 	logger.Info("Downloading RKE2 extension")
 	extensionsPath := filepath.Join(overlaysPath, "var", "lib", "extensions")
 	if err = downloadExtension(ctx, fs, m.CorePlatform.Components.Kubernetes.RKE2.Image, extensionsPath); err != nil {
-		logger.Error("Downloading RKE2 extension failed")
+		logger.Error("Downloading RKE2 extension %q failed", m.CorePlatform.Components.Kubernetes.RKE2.Image)
 		return err
 	}
 
