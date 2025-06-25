@@ -24,13 +24,13 @@ jobs:
           go-version-file: go.mod
       - name: Install dependencies
         run: |
-          sudo apt update
-          sudo apt-get install -y rootlesskit
+          sudo apt-get install rootlesskit
       - name: Run tests
         env:
           COV_THRESHOLD: "70"
         run: |
-          # Execute the Unit tests
+          set -e
+
           make VERBOSE=true unit-tests
 
           # Remove mock files from coverage analysis
