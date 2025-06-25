@@ -21,7 +21,7 @@ import (
 	"bytes"
 	"path/filepath"
 
-	"gopkg.in/yaml.v3"
+	yaml "sigs.k8s.io/yaml/goyaml.v3"
 )
 
 type ConfigDir string
