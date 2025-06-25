@@ -1,4 +1,4 @@
-name: Unit Tests
+name: Integration Tests
 on:
   pull_request:
   push:
@@ -22,25 +22,24 @@ jobs:
         with:
           cache-dependency-path: go.sum
           go-version-file: go.mod
-      - name: Install dependencies
+      - name: QEMU/Libvirt installation and configuration
         run: |
-          sudo apt-get install rootlesskit
-      - name: Run tests
-        env:
-          COV_THRESHOLD: "70"
+          # Install QEMU/Libvirt packages
+          sudo apt update
+          sudo apt install -y qemu-kvm libvirt-daemon-system libvirt-clients bridge-utils virt-manager
+
+          # Configure udev
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Generate OS disk image
         run: |
-          set -e
-
-          make VERBOSE=true unit-tests
-
-          # Remove mock files from coverage analysis
-          sed -n -i '/\/mock\//!p' coverprofile.out
-          coverage=$(go tool cover -func=coverprofile.out | grep total | grep -Eo "[0-9]+\.[0-9]+")
-
-          if (( $(echo "${coverage} ${COV_THRESHOLD}" | awk '{print ($1 > $2)}') )); then
-            echo "Total Coverage is: ${coverage}%"
-          else
-            echo "Current test coverage (${coverage}%) is below the threshold (${COV_THRESHOLD}%)."
-            echo "Failed"
-            exit 1
-          fi
+          make build-disk
+      - name: Run installer test
+        run: |
+          make INTEGRATION_TESTS=true VERBOSE=true ELMNTL_FIRMWARE=/usr/share/OVMF/OVMF_CODE_4M.fd test-installer
+      - name: Clean test
+        if: ${{ always() }}
+        run: |
+          make INTEGRATION_TESTS=true test-stop || true
+          make INTEGRATION_TESTS=true test-clean || true
