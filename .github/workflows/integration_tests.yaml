@@ -29,7 +29,8 @@ jobs:
         env:
           COV_THRESHOLD: "70"
         run: |
-          # Execute the Unit tests
+          set -e
+
           make VERBOSE=true unit-tests
 
           # Remove mock files from coverage analysis
