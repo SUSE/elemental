@@ -18,10 +18,12 @@ limitations under the License.
 package product
 
 import (
+	"bytes"
 	"fmt"
 
+	"go.yaml.in/yaml/v3"
+
 	"github.com/suse/elemental/v3/pkg/manifest/api"
-	"sigs.k8s.io/yaml"
 )
 
 type ReleaseManifest struct {
@@ -41,7 +43,10 @@ type Components struct {
 
 func Parse(data []byte) (*ReleaseManifest, error) {
 	rm := &ReleaseManifest{}
-	if err := yaml.UnmarshalStrict(data, rm); err != nil {
+	decoder := yaml.NewDecoder(bytes.NewReader(data))
+	decoder.KnownFields(true)
+
+	if err := decoder.Decode(rm); err != nil {
 		return nil, fmt.Errorf("unmarshaling 'product' release manifest: %w", err)
 	}
 

@@ -24,7 +24,7 @@ import (
 	"sort"
 	"strings"
 
-	"sigs.k8s.io/yaml"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/suse/elemental/v3/pkg/firmware"
 	"github.com/suse/elemental/v3/pkg/sys"
@@ -104,17 +104,24 @@ func (f FileSystem) String() string {
 	}
 }
 
-func (f FileSystem) MarshalJSON() ([]byte, error) {
-	return json.Marshal(f.String())
+var (
+	_ yaml.Marshaler   = FileSystem(0)
+	_ yaml.Unmarshaler = (*FileSystem)(nil)
+)
+
+func (f FileSystem) MarshalYAML() (any, error) {
+	if str := f.String(); str != Unknown {
+		return str, nil
+	}
+	return nil, fmt.Errorf("unknown filesystem: %s", f)
 }
 
-func (f *FileSystem) UnmarshalJSON(data []byte) (err error) {
-	var function string
-	if err = json.Unmarshal(data, &function); err != nil {
+func (f *FileSystem) UnmarshalYAML(data *yaml.Node) (err error) {
+	var fs string
+	if err = data.Decode(&fs); err != nil {
 		return err
 	}
-
-	*f, err = ParseFileSystem(function)
+	*f, err = ParseFileSystem(fs)
 	return err
 }
 
@@ -148,13 +155,13 @@ func (p PartRole) String() string {
 	}
 }
 
-func (p PartRole) MarshalJSON() ([]byte, error) {
-	return json.Marshal(p.String())
+func (p PartRole) MarshalYAML() ([]byte, error) {
+	return yaml.Marshal(p.String())
 }
 
-func (p *PartRole) UnmarshalJSON(data []byte) (err error) {
+func (p *PartRole) UnmarshalYAML(data []byte) (err error) {
 	var role string
-	if err = json.Unmarshal(data, &role); err != nil {
+	if err = yaml.Unmarshal(data, &role); err != nil {
 		return err
 	}
 
@@ -163,62 +170,55 @@ func (p *PartRole) UnmarshalJSON(data []byte) (err error) {
 }
 
 type RWVolume struct {
-	Path          string   `json:"path"`
-	Snapshotted   bool     `json:"snapshotted,omitempty"`
-	NoCopyOnWrite bool     `json:"noCopyOnWrite,omitempty"`
-	MountOpts     []string `json:"mountOpts,omitempty"`
+	Path          string   `yaml:"path"`
+	Snapshotted   bool     `yaml:"snapshotted,omitempty"`
+	NoCopyOnWrite bool     `yaml:"noCopyOnWrite,omitempty"`
+	MountOpts     []string `yaml:"mountOpts,omitempty"`
 }
 
 type RWVolumes []RWVolume
 
 type Partition struct {
-	Label       string     `json:"label,omitempty"`
-	FileSystem  FileSystem `json:"fileSystem,omitempty"`
-	Size        MiB        `json:"size,omitempty"`
-	Role        PartRole   `json:"role"`
-	StartSector uint       `json:"startSector,omitempty"`
-	MountPoint  string     `json:"mountPoint,omitempty"`
-	MountOpts   []string   `json:"mountOpts,omitempty"`
-	RWVolumes   RWVolumes  `json:"rwVolumes,omitempty"`
-	UUID        string     `json:"uuid,omitempty"`
+	Label       string     `yaml:"label,omitempty"`
+	FileSystem  FileSystem `yaml:"fileSystem,omitempty"`
+	Size        MiB        `yaml:"size,omitempty"`
+	Role        PartRole   `yaml:"role"`
+	StartSector uint       `yaml:"startSector,omitempty"`
+	MountPoint  string     `yaml:"mountPoint,omitempty"`
+	MountOpts   []string   `yaml:"mountOpts,omitempty"`
+	RWVolumes   RWVolumes  `yaml:"rwVolumes,omitempty"`
+	UUID        string     `yaml:"uuid,omitempty"`
 }
 
 type Partitions []*Partition
 
 type Disk struct {
-	Device      string     `json:"device,omitempty"`
-	Partitions  Partitions `json:"partitions"`
-	StartSector uint       `json:"startSector,omitempty"`
+	// omit the device name as this is a runtime information which might
+	// not be consistent across reboots, there is no need to store it.
+	Device      string     `yaml:"-"`
+	Partitions  Partitions `yaml:"partitions"`
+	StartSector uint       `yaml:"startSector,omitempty"`
 }
 
 type BootConfig struct {
-	Bootloader    string `json:"name"`
-	KernelCmdline string `json:"kernelCmdline"`
-}
-
-// MarshalJSON on disks omits the device name as this is a runtime information
-// which might not be consistent across reboots, there is no need to store it.
-func (d Disk) MarshalJSON() ([]byte, error) {
-	type diskAlias Disk
-	disk := diskAlias(d)
-	disk.Device = ""
-	return json.Marshal(disk)
+	Bootloader    string `yaml:"name"`
+	KernelCmdline string `yaml:"kernelCmdline"`
 }
 
 type FirmwareConfig struct {
-	BootEntries []*firmware.EfiBootEntry `json:"entries"`
+	BootEntries []*firmware.EfiBootEntry `yaml:"entries"`
 }
 
 type Deployment struct {
-	SourceOS   *ImageSource    `json:"sourceOS"`
-	Disks      []*Disk         `json:"disks"`
-	Firmware   *FirmwareConfig `json:"firmware"`
-	BootConfig *BootConfig     `json:"bootloader"`
+	SourceOS   *ImageSource    `yaml:"sourceOS"`
+	Disks      []*Disk         `yaml:"disks"`
+	Firmware   *FirmwareConfig `yaml:"firmware"`
+	BootConfig *BootConfig     `yaml:"bootloader"`
 	// Consider adding a systemd-sysext list here
 	// All of them would extracted in the RO context, so only
 	// additions to the RWVolumes would succeed.
-	OverlayTree *ImageSource `json:"overlayTree,omitempty"`
-	CfgScript   string       `json:"configScript,omitempty"`
+	OverlayTree *ImageSource `yaml:"overlayTree,omitempty"`
+	CfgScript   string       `yaml:"configScript,omitempty"`
 }
 
 // MarshalJSON on deploy omits the overlay tree and the configuration script

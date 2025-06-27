@@ -24,6 +24,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
 	"github.com/suse/elemental/v3/pkg/manifest/api/core"
 )
 
@@ -88,11 +89,11 @@ var _ = Describe("ReleaseManifest", Label("release-manifest"), func() {
 	})
 
 	It("fails when unknown field is introduced", func() {
-		expErrMsg := "unmarshaling 'core' release manifest: error unmarshaling JSON: while decoding JSON: json: unknown field \"corePlatform\""
+		expErrMsg := "field corePlatform not found in type core.ReleaseManifest"
 		data := []byte(invalidManifest)
 		rm, err := core.Parse(data)
 		Expect(err).To(HaveOccurred())
-		Expect(err).To(MatchError(expErrMsg))
+		Expect(err.Error()).To(ContainSubstring(expErrMsg))
 		Expect(rm).To(BeNil())
 	})
 })
