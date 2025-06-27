@@ -21,8 +21,9 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"go.yaml.in/yaml/v3"
+
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
-	"gopkg.in/yaml.v3"
 )
 
 type ValuesResolver struct {
