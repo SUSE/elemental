@@ -20,7 +20,7 @@ package deployment_test
 import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"sigs.k8s.io/yaml"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/suse/elemental/v3/pkg/deployment"
 )
@@ -86,9 +86,10 @@ var _ = Describe("Image Source", Label("imagesource"), func() {
 		imgsrc.SetDigest("somedigest")
 		data, err := yaml.Marshal(imgsrc)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(string(data)).To(Equal(`digest: somedigest
+		expected := `digest: somedigest
 uri: oci://registry.org/my/image:latest
-`))
+`
+		Expect(string(data)).To(Equal(expected), "asd", string(data), expected)
 	})
 	It("deserializes an image source", func() {
 		imgsrc := deployment.NewEmptySrc()
