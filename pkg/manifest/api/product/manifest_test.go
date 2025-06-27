@@ -24,6 +24,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
 	"github.com/suse/elemental/v3/pkg/manifest/api/product"
 )
 
@@ -38,6 +39,12 @@ components:
   operatingSystem:
     version: "6.2"
     image: "registry.com/foo/bar/sl-micro:6.2"
+`
+
+const missingFieldManifest = `
+metadata:
+  name: "suse-edge"
+  version: "3.2.0"
 `
 
 func TestProductManifestSuite(t *testing.T) {
@@ -83,21 +90,20 @@ var _ = Describe("ReleaseManifest", Label("release-manifest"), func() {
 	})
 
 	It("fails when unknown field is introduced", func() {
-		expErrMsg := "unmarshaling 'product' release manifest: error unmarshaling JSON: while decoding JSON: json: unknown field \"operatingSystem\""
+		expErrMsg := "field operatingSystem not found in type product.Components"
 		data := []byte(unknownFieldManifest)
 		rm, err := product.Parse(data)
 		Expect(err).To(HaveOccurred())
-		Expect(err).To(MatchError(expErrMsg))
+		Expect(err.Error()).To(ContainSubstring(expErrMsg))
 		Expect(rm).To(BeNil())
 	})
 
 	It("fails when 'corePlatform' is missing", func() {
 		expErrMsg := "missing 'corePlatform' field"
-		missingBasePlatformManifest := ""
-		data := []byte(missingBasePlatformManifest)
+		data := []byte(missingFieldManifest)
 		rm, err := product.Parse(data)
 		Expect(err).To(HaveOccurred())
-		Expect(err).To(MatchError(expErrMsg))
+		Expect(err.Error()).To(ContainSubstring(expErrMsg))
 		Expect(rm).To(BeNil())
 	})
 })

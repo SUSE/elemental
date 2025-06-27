@@ -23,7 +23,7 @@ import (
 	"syscall"
 
 	"github.com/urfave/cli/v2"
-	"sigs.k8s.io/yaml"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/suse/elemental/v3/internal/cli/elemental-toolkit/cmd"
 	"github.com/suse/elemental/v3/pkg/bootloader"

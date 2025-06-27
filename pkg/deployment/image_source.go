@@ -18,12 +18,12 @@ limitations under the License.
 package deployment
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/url"
 	"path/filepath"
 
 	"github.com/distribution/reference"
+	"go.yaml.in/yaml/v3"
 )
 
 type ImageSrcType int
@@ -70,6 +70,11 @@ type ImageSource struct {
 	digest  string
 	srcType ImageSrcType
 }
+
+var (
+	_ yaml.Marshaler   = ImageSource{}
+	_ yaml.Unmarshaler = (*ImageSource)(nil)
+)
 
 func (i *ImageSource) SetDigest(digest string) {
 	i.digest = digest
@@ -142,22 +147,30 @@ func NewTarSrc(src string) *ImageSource {
 	return &ImageSource{uri: src, srcType: Tar}
 }
 
-func (i ImageSource) MarshalJSON() ([]byte, error) {
-	imgSrc := map[string]string{}
-	if i.digest != "" {
-		imgSrc["digest"] = i.digest
+func (i ImageSource) MarshalYAML() (any, error) {
+	type imageSource struct {
+		Digest string `yaml:"digest,omitempty"`
+		URI    string `yaml:"uri"`
 	}
-	imgSrc["uri"] = i.String()
-	return json.Marshal(imgSrc)
+	imgSrc := imageSource{}
+	if i.digest != "" {
+		imgSrc.Digest = i.digest
+	}
+	imgSrc.URI = i.String()
+
+	n := &yaml.Node{}
+	err := n.Encode(imgSrc)
+
+	return n, err
 }
 
-func (i *ImageSource) UnmarshalJSON(data []byte) (err error) {
+func (i *ImageSource) UnmarshalYAML(data *yaml.Node) (err error) {
 	imgSrc := map[string]string{}
-	if err = json.Unmarshal(data, &imgSrc); err != nil {
+	if err = data.Decode(&imgSrc); err != nil {
 		return err
 	}
 	if imgSrc["uri"] == "" {
-		return fmt.Errorf("no 'uri' provided for the image source: %s", string(data))
+		return fmt.Errorf("no 'uri' provided for the image source: %s", string(data.Value))
 	}
 
 	err = i.updateFromURI(imgSrc["uri"])
