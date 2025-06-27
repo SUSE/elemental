@@ -22,13 +22,14 @@ import (
 	"path/filepath"
 	"slices"
 
+	"go.yaml.in/yaml/v3"
+
 	"github.com/suse/elemental/v3/internal/image"
 	"github.com/suse/elemental/v3/internal/image/release"
 	"github.com/suse/elemental/v3/pkg/helm"
 	"github.com/suse/elemental/v3/pkg/manifest/api"
 	"github.com/suse/elemental/v3/pkg/manifest/resolver"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
-	"gopkg.in/yaml.v3"
 )
 
 type helmValuesResolver interface {
