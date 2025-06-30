@@ -18,7 +18,6 @@ limitations under the License.
 package deployment
 
 import (
-	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"sort"
@@ -155,13 +154,18 @@ func (p PartRole) String() string {
 	}
 }
 
-func (p PartRole) MarshalYAML() ([]byte, error) {
-	return yaml.Marshal(p.String())
+var (
+	_ yaml.Marshaler   = PartRole(0)
+	_ yaml.Unmarshaler = (*PartRole)(nil)
+)
+
+func (p PartRole) MarshalYAML() (any, error) {
+	return p.String(), nil
 }
 
-func (p *PartRole) UnmarshalYAML(data []byte) (err error) {
+func (p *PartRole) UnmarshalYAML(data *yaml.Node) (err error) {
 	var role string
-	if err = yaml.Unmarshal(data, &role); err != nil {
+	if err = data.Decode(&role); err != nil {
 		return err
 	}
 
@@ -217,19 +221,8 @@ type Deployment struct {
 	// Consider adding a systemd-sysext list here
 	// All of them would extracted in the RO context, so only
 	// additions to the RWVolumes would succeed.
-	OverlayTree *ImageSource `yaml:"overlayTree,omitempty"`
-	CfgScript   string       `yaml:"configScript,omitempty"`
-}
-
-// MarshalJSON on deploy omits the overlay tree and the configuration script
-// as these are install|ugrade time information which is no longer guaranteed
-// to be (re)applicable on a deployed system as those are not kept aside.
-func (d Deployment) MarshalJSON() ([]byte, error) {
-	type deployAlias Deployment
-	deploy := deployAlias(d)
-	deploy.CfgScript = ""
-	deploy.OverlayTree = nil
-	return json.Marshal(deploy)
+	OverlayTree *ImageSource `yaml:"-"`
+	CfgScript   string       `yaml:"-"`
 }
 
 // GetSnapshottedVolumes returns a list of snapshotted rw volumes defined in the

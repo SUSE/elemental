@@ -190,5 +190,21 @@ var _ = Describe("Deployment", Label("deployment"), func() {
 			err := yaml.Unmarshal([]byte("not an fs"), &t)
 			Expect(err).To(HaveOccurred())
 		})
+		It("Un/marshals PartRole", func() {
+			roles := []string{"efi", "system", "recovery", "data"}
+			var r deployment.PartRole
+
+			for _, role := range roles {
+				Expect(yaml.Unmarshal([]byte(role), &r)).To(Succeed())
+				Expect(r.String()).To(Equal(role))
+
+				actual, err := yaml.Marshal(r)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(string(actual)).To(ContainSubstring(role))
+			}
+
+			err := yaml.Unmarshal([]byte("not a partition role"), &r)
+			Expect(err).To(HaveOccurred())
+		})
 	})
 })
