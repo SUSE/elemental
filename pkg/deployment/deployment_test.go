@@ -157,6 +157,21 @@ var _ = Describe("Deployment", Label("deployment"), func() {
 			Expect(len(rD.Disks[0].Partitions)).To(Equal(2))
 			Expect(rD.Sanitize(s)).To(Succeed())
 		})
+		It("does not marshal Disk.Device", func() {
+			disk := deployment.Disk{StartSector: 123, Device: "test"}
+
+			m, err := yaml.Marshal(disk)
+			Expect(err).To(Succeed())
+			Expect(string(m)).To(Equal("partitions: []\nstartSector: 123\n"))
+		})
+		It("unmarshals Disk.Device", func() {
+			disk := "target: /dev/sometarget"
+
+			var d deployment.Disk
+			err := yaml.Unmarshal([]byte(disk), &d)
+			Expect(err).To(Succeed())
+			Expect(d.Device).To(Equal("/dev/sometarget"))
+		})
 		It("overwrites any pre-existing deployment file", func() {
 			d := deployment.DefaultDeployment()
 			Expect(d.WriteDeploymentFile(s, "/some/dir")).To(Succeed())

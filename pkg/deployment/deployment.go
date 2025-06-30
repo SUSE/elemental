@@ -197,11 +197,22 @@ type Partition struct {
 type Partitions []*Partition
 
 type Disk struct {
-	// omit the device name as this is a runtime information which might
-	// not be consistent across reboots, there is no need to store it.
-	Device      string     `yaml:"-"`
+	Device      string     `yaml:"target,omitempty"`
 	Partitions  Partitions `yaml:"partitions"`
 	StartSector uint       `yaml:"startSector,omitempty"`
+}
+
+var _ yaml.Marshaler = Disk{}
+
+func (d Disk) MarshalYAML() (any, error) {
+	type diskAlias Disk
+	d2 := diskAlias(d)
+
+	// omit the device name as this is a runtime information which might
+	// not be consistent across reboots, there is no need to store it.
+	d2.Device = ""
+
+	return d2, nil
 }
 
 type BootConfig struct {
@@ -221,8 +232,22 @@ type Deployment struct {
 	// Consider adding a systemd-sysext list here
 	// All of them would extracted in the RO context, so only
 	// additions to the RWVolumes would succeed.
-	OverlayTree *ImageSource `yaml:"-"`
-	CfgScript   string       `yaml:"-"`
+	OverlayTree *ImageSource `yaml:"overlayTree,omitempty"`
+	CfgScript   string       `yaml:"configScript,omitempty"`
+}
+
+var _ yaml.Marshaler = Deployment{}
+
+func (d Deployment) MarshalYAML() (any, error) {
+	type deploymentAlias Deployment
+	d2 := deploymentAlias(d)
+
+	// omit the OverlayTree and CfgTree as this is a runtime information which might
+	// not be consistent across reboots, there is no need to store it.
+	d2.OverlayTree = nil
+	d2.CfgScript = ""
+
+	return d2, nil
 }
 
 // GetSnapshottedVolumes returns a list of snapshotted rw volumes defined in the
@@ -338,7 +363,7 @@ func Parse(s *sys.System, root string) (*Deployment, error) {
 	d := &Deployment{}
 	err = yaml.Unmarshal(data, d)
 	if err != nil {
-		return nil, fmt.Errorf("unmarshalling deployment file '%s': %w", path, err)
+		return nil, fmt.Errorf("unmarshalling deployment file '%s': %w: %s", path, err, string(data))
 	}
 	return d, nil
 }
