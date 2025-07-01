@@ -20,7 +20,11 @@ Elemental is a tool for installing, configuring and updating operating system im
 
 For contributing to Elemental, please create a fork of the repository and send a Pull Request (PR). A number of GitHub Actions will be triggered on the PR and they need to pass.
 
-Before opening a Pull Request, use `golangci-lint fmt` to format the code and
-`golangci-lint run` to execute linting steps that are configured in `/.golangci.yml` in the base directory of the repository.
+Before opening a Pull Request, use `golangci-lint fmt` to format the code and `golangci-lint run` to execute linting steps that are configured in `/.golangci.yml` in the base directory of the repository.
+
+Please make sure to follow these guidelines with regards to logging and error-handling:
+* Avoid logging the very same error in multiple places on error-return
+* Error logging must include at least one piece of detail, never a log without details
+* Prefer logging in multiple lines rather than wrapping it into a single line
 
 PRs will be reviewed by the maintainers and require two reviews without outstanding change-request to pass and become mergable.
