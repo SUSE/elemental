@@ -65,7 +65,10 @@ func Upgrade(ctx *cli.Context) error { //nolint:dupl
 		return err
 	}
 
-	upgrader := upgrade.New(ctxCancel, s, upgrade.WithBootloader(bootloader), upgrade.WithUnpackOpts(unpack.WithVerify(args.Verify)))
+	upgrader := upgrade.New(
+		ctxCancel, s, upgrade.WithBootloader(bootloader),
+		upgrade.WithUnpackOpts(unpack.WithVerify(args.Verify), unpack.WithLocal(args.Local)),
+	)
 
 	err = upgrader.Upgrade(d)
 	if err != nil {

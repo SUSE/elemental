@@ -69,7 +69,10 @@ func Install(ctx *cli.Context) error { //nolint:dupl
 	}
 
 	manager := firmware.NewEfiBootManager(s)
-	upgrader := upgrade.New(ctxCancel, s, upgrade.WithBootManager(manager), upgrade.WithBootloader(bootloader), upgrade.WithUnpackOpts(unpack.WithVerify(args.Verify)))
+	upgrader := upgrade.New(
+		ctxCancel, s, upgrade.WithBootManager(manager), upgrade.WithBootloader(bootloader),
+		upgrade.WithUnpackOpts(unpack.WithVerify(args.Verify), unpack.WithLocal(args.Local)),
+	)
 	installer := install.New(ctxCancel, s, install.WithUpgrader(upgrader))
 
 	err = installer.Install(d)
