@@ -40,6 +40,7 @@ import (
 	"github.com/suse/elemental/v3/pkg/manifest/source"
 	"github.com/suse/elemental/v3/pkg/sys"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
+	"github.com/suse/elemental/v3/pkg/unpack"
 	"github.com/suse/elemental/v3/pkg/upgrade"
 )
 
@@ -50,7 +51,7 @@ var configScriptTpl string
 var k8sResDeployScriptTpl string
 
 // nolint:gocyclo
-func Run(ctx context.Context, d *image.Definition, buildDir string, valuesResolver helmValuesResolver, system *sys.System) error {
+func Run(ctx context.Context, d *image.Definition, buildDir string, valuesResolver helmValuesResolver, system *sys.System, local bool) error {
 	logger := system.Logger()
 	runner := system.Runner()
 	fs := system.FS()
@@ -167,7 +168,7 @@ func Run(ctx context.Context, d *image.Definition, buildDir string, valuesResolv
 	}
 
 	manager := firmware.NewEfiBootManager(system)
-	upgrader := upgrade.New(ctx, system, upgrade.WithBootManager(manager), upgrade.WithBootloader(boot))
+	upgrader := upgrade.New(ctx, system, upgrade.WithBootManager(manager), upgrade.WithBootloader(boot), upgrade.WithUnpackOpts(unpack.WithLocal(local)))
 	installer := install.New(ctx, system, install.WithUpgrader(upgrader))
 
 	logger.Info("Installing OS")

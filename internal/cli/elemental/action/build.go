@@ -78,7 +78,7 @@ func Build(ctx *cli.Context) error {
 	}
 
 	logger.Info("Starting build process for %s %s image", definition.Image.Platform.String(), definition.Image.ImageType)
-	if err = build.Run(ctxCancel, definition, buildDir, valuesResolver, system); err != nil {
+	if err = build.Run(ctxCancel, definition, buildDir, valuesResolver, system, args.Local); err != nil {
 		logger.Error("Build process failed")
 		return err
 	}

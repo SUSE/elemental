@@ -160,10 +160,8 @@ func (o OCI) Unpack(ctx context.Context, destination string) (string, error) {
 }
 
 func fetchImage(ctx context.Context, ref name.Reference, platform containerregistry.Platform, local bool) (containerregistry.Image, error) {
-	// Always attempt to fetch the image locally first.
-	image, err := daemon.Image(ref, daemon.WithContext(ctx))
-	if err == nil || local {
-		return image, err
+	if local {
+		return daemon.Image(ref, daemon.WithContext(ctx))
 	}
 
 	return remote.Image(ref,

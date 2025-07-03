@@ -29,6 +29,7 @@ type UpgradeFlags struct {
 	Overlay              string
 	Verify               bool
 	CreateBootEntry      bool
+	Local                bool
 }
 
 var UpgradeArgs UpgradeFlags
@@ -66,6 +67,11 @@ func NewUpgradeCommand(appName string, action func(*cli.Context) error) *cli.Com
 				Name:        "create-boot-entry",
 				Usage:       "Create EFI boot entry",
 				Destination: &UpgradeArgs.CreateBootEntry,
+			},
+			&cli.BoolFlag{
+				Name:        "local",
+				Usage:       "Load OCI images from the local container storage instead of a remote registry",
+				Destination: &UpgradeArgs.Local,
 			},
 		},
 	}
