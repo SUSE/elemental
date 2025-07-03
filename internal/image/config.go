@@ -54,6 +54,32 @@ func (dir ConfigDir) HelmValuesDir() string {
 	return filepath.Join(dir.kubernetesDir(), "helm", "values")
 }
 
+type BuildDir string
+
+func (dir BuildDir) OverlaysDir() string {
+	return filepath.Join(string(dir), "overlays")
+}
+
+func (dir BuildDir) ReleaseManifestsDir() string {
+	return filepath.Join(string(dir), "release-manifests")
+}
+
+func ExtensionsPath() string {
+	return filepath.Join("var", "lib", "extensions")
+}
+
+func KubernetesPath() string {
+	return filepath.Join("var", "lib", "elemental", "kubernetes")
+}
+
+func KubernetesManifestsPath() string {
+	return filepath.Join(KubernetesPath(), "manifests")
+}
+
+func HelmPath() string {
+	return filepath.Join(KubernetesPath(), "helm")
+}
+
 func ParseConfig(data []byte, target any) error {
 	decoder := yaml.NewDecoder(bytes.NewReader(data))
 	decoder.KnownFields(true)

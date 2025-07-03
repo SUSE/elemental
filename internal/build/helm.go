@@ -21,12 +21,14 @@ import (
 	"fmt"
 	"path/filepath"
 	"slices"
+	"strings"
 
 	"go.yaml.in/yaml/v3"
 
 	"github.com/suse/elemental/v3/internal/image"
 	"github.com/suse/elemental/v3/internal/image/release"
 	"github.com/suse/elemental/v3/pkg/helm"
+	"github.com/suse/elemental/v3/pkg/log"
 	"github.com/suse/elemental/v3/pkg/manifest/api"
 	"github.com/suse/elemental/v3/pkg/manifest/resolver"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
@@ -43,34 +45,66 @@ type helmChart interface {
 	ToCRD(values []byte, repository string) *helm.CRD
 }
 
+type Helm struct {
+	FS             vfs.FS
+	RelativePath   string
+	DestinationDir string
+	ValuesResolver helmValuesResolver
+	Logger         log.Logger
+}
+
+func NewHelm(fs vfs.FS, valuesResolver helmValuesResolver, logger log.Logger, destinationDir string) *Helm {
+	return &Helm{
+		FS:             fs,
+		RelativePath:   image.HelmPath(),
+		DestinationDir: destinationDir,
+		ValuesResolver: valuesResolver,
+		Logger:         logger,
+	}
+}
+
 func needsHelmChartsSetup(def *image.Definition) bool {
 	return len(def.Release.Core.Helm) > 0 || len(def.Release.Product.Helm) > 0 || def.Kubernetes.Helm != nil
 }
 
-func setupHelmCharts(fs vfs.FS, def *image.Definition, rm *resolver.ResolvedManifest, overlaysPath, helmPath string, valuesResolver helmValuesResolver) (runtimeHelmCharts []string, err error) {
-	charts, err := retrieveHelmCharts(rm, def, valuesResolver)
+func (h *Helm) Configure(def *image.Definition, rm *resolver.ResolvedManifest) ([]string, error) {
+	if len(def.Release.Core.Helm) > 0 {
+		var charts []string
+		for _, c := range def.Release.Core.Helm {
+			charts = append(charts, c.Name)
+		}
+
+		h.Logger.Info("Enabling the following core components: %s", strings.Join(charts, ", "))
+	}
+
+	if len(def.Release.Product.Helm) > 0 {
+		var charts []string
+		for _, c := range def.Release.Product.Helm {
+			charts = append(charts, c.Name)
+		}
+
+		h.Logger.Info("Enabling the following product extensions: %s", strings.Join(charts, ", "))
+	}
+
+	charts, err := h.retrieveHelmCharts(rm, def)
 	if err != nil {
 		return nil, fmt.Errorf("retrieving helm charts: %w", err)
 	}
 
-	helmDestPath := filepath.Join(overlaysPath, helmPath)
-
-	chartNames, err := writeHelmCharts(fs, charts, helmDestPath)
+	chartFiles, err := h.writeHelmCharts(charts)
 	if err != nil {
 		return nil, fmt.Errorf("writing helm chart resources: %w", err)
 	}
 
-	for _, chartName := range chartNames {
-		runtimeHelmCharts = append(runtimeHelmCharts, filepath.Join("/", helmPath, chartName))
-	}
-
-	return runtimeHelmCharts, nil
+	return chartFiles, nil
 }
 
-func writeHelmCharts(fs vfs.FS, crds []*helm.CRD, destDir string) (names []string, err error) {
-	if err = vfs.MkdirAll(fs, destDir, vfs.DirPerm); err != nil {
+func (h *Helm) writeHelmCharts(crds []*helm.CRD) ([]string, error) {
+	if err := vfs.MkdirAll(h.FS, filepath.Join(h.DestinationDir, h.RelativePath), vfs.DirPerm); err != nil {
 		return nil, fmt.Errorf("creating directory: %w", err)
 	}
+
+	var charts []string
 
 	for _, crd := range crds {
 		data, err := yaml.Marshal(crd)
@@ -79,18 +113,19 @@ func writeHelmCharts(fs vfs.FS, crds []*helm.CRD, destDir string) (names []strin
 		}
 
 		chartName := fmt.Sprintf("%s.yaml", crd.Metadata.Name)
-		chartPath := filepath.Join(destDir, chartName)
-		if err = fs.WriteFile(chartPath, data, 0o644); err != nil {
+		relativePath := filepath.Join("/", h.RelativePath, chartName)
+		fullPath := filepath.Join(h.DestinationDir, relativePath)
+		if err = h.FS.WriteFile(fullPath, data, 0o644); err != nil {
 			return nil, fmt.Errorf("writing helm chart: %w", err)
 		}
 
-		names = append(names, chartName)
+		charts = append(charts, relativePath)
 	}
 
-	return names, nil
+	return charts, nil
 }
 
-func retrieveHelmCharts(rm *resolver.ResolvedManifest, def *image.Definition, valuesResolver helmValuesResolver) ([]*helm.CRD, error) {
+func (h *Helm) retrieveHelmCharts(rm *resolver.ResolvedManifest, def *image.Definition) ([]*helm.CRD, error) {
 	var crds []*helm.CRD
 
 	if rm.CorePlatform != nil && rm.CorePlatform.Components.Helm != nil && len(def.Release.Core.Helm) > 0 {
@@ -99,7 +134,7 @@ func retrieveHelmCharts(rm *resolver.ResolvedManifest, def *image.Definition, va
 			return nil, fmt.Errorf("filtering enabled core helm charts: %w", err)
 		}
 
-		if err := collectHelmCharts(charts, rm.CorePlatform.Components.Helm.ChartRepositories(), def.Release.Core.HelmValueFiles(), valuesResolver, &crds); err != nil {
+		if err = h.collectHelmCharts(charts, rm.CorePlatform.Components.Helm.ChartRepositories(), def.Release.Core.HelmValueFiles(), &crds); err != nil {
 			return nil, fmt.Errorf("collecting core helm charts: %w", err)
 		}
 	}
@@ -110,7 +145,7 @@ func retrieveHelmCharts(rm *resolver.ResolvedManifest, def *image.Definition, va
 			return nil, fmt.Errorf("filtering enabled product helm charts: %w", err)
 		}
 
-		if err = collectHelmCharts(charts, rm.ProductExtension.Components.Helm.ChartRepositories(), def.Release.Product.HelmValueFiles(), valuesResolver, &crds); err != nil {
+		if err = h.collectHelmCharts(charts, rm.ProductExtension.Components.Helm.ChartRepositories(), def.Release.Product.HelmValueFiles(), &crds); err != nil {
 			return nil, fmt.Errorf("collecting product helm charts: %w", err)
 		}
 	}
@@ -121,7 +156,7 @@ func retrieveHelmCharts(rm *resolver.ResolvedManifest, def *image.Definition, va
 			charts = append(charts, chart)
 		}
 
-		if err := collectHelmCharts(charts, def.Kubernetes.Helm.ChartRepositories(), def.Kubernetes.Helm.ValueFiles(), valuesResolver, &crds); err != nil {
+		if err := h.collectHelmCharts(charts, def.Kubernetes.Helm.ChartRepositories(), def.Kubernetes.Helm.ValueFiles(), &crds); err != nil {
 			return nil, fmt.Errorf("collecting user helm charts: %w", err)
 		}
 	}
@@ -129,7 +164,7 @@ func retrieveHelmCharts(rm *resolver.ResolvedManifest, def *image.Definition, va
 	return crds, nil
 }
 
-func collectHelmCharts(charts []helmChart, repositories, valueFiles map[string]string, valuesResolver helmValuesResolver, crds *[]*helm.CRD) error {
+func (h *Helm) collectHelmCharts(charts []helmChart, repositories, valueFiles map[string]string, crds *[]*helm.CRD) error {
 	for _, chart := range charts {
 		name := chart.GetName()
 		repository, ok := repositories[chart.GetRepositoryName()]
@@ -138,7 +173,7 @@ func collectHelmCharts(charts []helmChart, repositories, valueFiles map[string]s
 		}
 
 		source := &helm.ValueSource{Inline: chart.GetInlineValues(), File: valueFiles[name]}
-		values, err := valuesResolver.Resolve(source)
+		values, err := h.ValuesResolver.Resolve(source)
 		if err != nil {
 			return fmt.Errorf("resolving values for chart %s: %w", name, err)
 		}
