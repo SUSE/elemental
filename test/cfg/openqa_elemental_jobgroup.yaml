@@ -16,13 +16,14 @@
   distri: sle-micro
 
 .test_settings: &test_settings
-  HDDSIZEGB: '20'
-  QEMURAM: '2048'
-  PASSWORD: ros
+  HDDSIZEGB: '30'
+  QEMUCPUS: '4'
+  QEMURAM: '4096'
   TEST_PASSWORD: Elemental@R00t
   YAML_SCHEDULE: schedule/elemental3/test_image.yaml
 
 .generate_settings: &generate_settings
+  HDDSIZEGB: '30'
   BOOT_HDD_IMAGE: "1"
   CONTAINER_RUNTIMES: "podman"
   DESKTOP: "textmode"
@@ -31,17 +32,14 @@
   KEEP_GRUB_TIMEOUT: "0"
   TEST_PASSWORD: Elemental@R00t
   VIDEOMODE: "text"
+  REPO_TO_TEST: "https://dist.suse.de/ibs/Devel:/UnifiedCore:/Main:/ToTest/standard"
+  SYSEXT_PATH: "https://dist.suse.de/ibs/Devel:/UnifiedCore:/Main:/ToTest/sysexts"
   YAML_SCHEDULE: schedule/elemental3/generate_image.yaml
 
 .image_test_settings: &image_test_settings
   HDD_1: 'elemental-%BUILD%-%ARCH%.qcow2'
   IMAGE_TYPE: disk
   START_AFTER_TEST: generate_image
-
-.iso_test_settings: &iso_test_settings
-  IMAGE_TYPE: iso
-  ISO: 'elemental-%BUILD%-%ARCH%.iso'
-  START_AFTER_TEST: generate_iso
 
 defaults:
   aarch64:
@@ -54,18 +52,18 @@ defaults:
       QEMUCPU: host
 
 products:
-  sl-micro-elemental-image-6.2-aarch64:
+  sl-micro-unifiedcore-image-6.2-aarch64:
     <<: *default_products
-    flavor: Elemental-Image
-    version : '6.2' 
-  sl-micro-elemental-image-6.2-x86_64:
+    flavor: UnifiedCore-Image
+    version : '6.2'
+  sl-micro-unifiedcore-image-6.2-x86_64:
     <<: *default_products
-    flavor: Elemental-Image
+    flavor: UnifiedCore-Image
     version : '6.2'
 
 scenarios:
   aarch64:
-    sl-micro-elemental-image-6.2-aarch64:
+    sl-micro-unifiedcore-image-6.2-aarch64:
       - generate_image:
           testsuite: null
           settings:
@@ -76,7 +74,7 @@ scenarios:
             <<: *test_settings
             <<: *image_test_settings
   x86_64:
-    sl-micro-elemental-image-6.2-x86_64:
+    sl-micro-unifiedcore-image-6.2-x86_64:
       - generate_image:
           machine: 64bit
           testsuite: null
