@@ -4,7 +4,7 @@ set -xe
 
 # Disable Grub timeout
 grub2-editenv /boot/grubenv set timeout=5
-grub2-editenv /boot/grubenv set console=ttyS0,115200
+grub2-editenv /boot/grubenv set extra_cmdline=console=ttyS0,115200
 
 # Setting root passwd
 echo "uc0@linux" | passwd root --stdin
