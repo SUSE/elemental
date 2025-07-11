@@ -19,10 +19,6 @@ package mounter
 
 import "k8s.io/mount-utils"
 
-const (
-	Binary = "/usr/bin/mount"
-)
-
 type Interface interface {
 	Mount(source string, target string, fstype string, options []string) error
 	Unmount(target string) error
@@ -45,18 +41,6 @@ type MountPoint struct {
 
 type Mounter struct {
 	mnt mount.Interface
-}
-
-func NewMounter(binary string) Interface {
-	return &Mounter{
-		mnt: mount.NewWithoutSystemd(binary),
-	}
-}
-
-func NewDummyMounter() *Mounter {
-	return &Mounter{
-		mnt: mount.NewFakeMounter([]mount.MountPoint{}),
-	}
 }
 
 func (m Mounter) Mount(source string, target string, fstype string, options []string) error {

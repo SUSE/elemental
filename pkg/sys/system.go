@@ -105,7 +105,7 @@ func NewSystem(opts ...SystemOpts) (*System, error) {
 		fs:      vfs.New(),
 		logger:  logger,
 		syscall: syscall.Syscall(),
-		mounter: mounter.NewMounter(mounter.Binary),
+		mounter: mounter.NewMounter(),
 	}
 
 	for _, o := range opts {
