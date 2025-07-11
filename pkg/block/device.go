@@ -19,7 +19,6 @@ package block
 
 import (
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 
@@ -132,12 +131,9 @@ func GetPartitionByUUID(s *sys.System, b Device, uuid string, attempts int) (*Pa
 		if err != nil {
 			return nil, err
 		}
-		for i, _ := range parts {
+		for i := range parts {
 			if parts[i].UUID == "" {
-				parts[i].UUID, err = lookupUUID(s, parts[i].Path)
-				if err != nil {
-					s.Logger().Warn("Failed looking up UUID for partition %s", parts[i].Path)
-				}
+				parts[i].UUID, _ = lookupUUID(s, parts[i].Path)
 			}
 		}
 		part := parts.GetByUUID(uuid)
@@ -160,7 +156,7 @@ func lookupUUID(s *sys.System, path string) (string, error) {
 			return strings.TrimSuffix(strings.TrimPrefix(str, "UUID=\""), "\""), nil
 		}
 	}
-	return "", fmt.Errorf("failed parsing blkid output")
+	return "", errors.New("failed parsing blkid output")
 }
 
 // GetPartitionDeviceByLabel will try to return the device that matches the given label.
