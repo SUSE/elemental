@@ -203,7 +203,10 @@ func (sn *snapperT) probe(d deployment.Deployment) (err error) {
 
 	part := sn.hwPartitions.GetByUUIDNameOrLabel(sysPart.UUID, sysPart.Role.String(), sysPart.Label)
 	if part == nil {
-		return fmt.Errorf("system partition not found: %+v", sysPart)
+		part, err = block.GetPartitionByUUID(sn.s, blockDev, sysPart.UUID, 4)
+		if part == nil || err != nil {
+			return fmt.Errorf("system partition not found: %+v", sysPart)
+		}
 	}
 
 	mountPoints, err := sn.s.Mounter().GetMountPoints(part.Path)
@@ -241,19 +244,21 @@ func (sn *snapperT) probe(d deployment.Deployment) (err error) {
 // mountPartition mounts the given partition to the given mount point. In addition it also
 // sets the umount cleanup task.
 func (sn snapperT) mountPartition(part *deployment.Partition, mountPoint string) error {
-	err := vfs.MkdirAll(sn.s.FS(), mountPoint, vfs.DirPerm)
-	if err != nil {
+	if err := vfs.MkdirAll(sn.s.FS(), mountPoint, vfs.DirPerm); err != nil {
 		return fmt.Errorf("creating partition mountpoint path '%s': %w", mountPoint, err)
 	}
-	bPart := sn.hwPartitions.GetByUUID(part.UUID)
-	if bPart == nil {
-		return fmt.Errorf("partition '%s' not found", part.UUID)
-	}
-	err = sn.s.Mounter().Mount(bPart.Path, mountPoint, "", []string{"rw"})
+
+	bDev := lsblk.NewLsDevice(sn.s)
+	bPart, err := block.GetPartitionByUUID(sn.s, bDev, part.UUID, 4)
 	if err != nil {
-		return fmt.Errorf("mounting partition at '%s': %w", mountPoint, err)
+		return fmt.Errorf("finding partition '%s': %w", part.UUID, err)
+	}
+
+	if err = sn.s.Mounter().Mount(bPart.Path, mountPoint, "", []string{"rw"}); err != nil {
+		return fmt.Errorf("mounting partition at '%s': %w", bPart.Path, err)
 	}
 	sn.cleanStack.Push(func() error { return sn.s.Mounter().Unmount(mountPoint) })
+
 	return nil
 }
 
@@ -277,14 +282,17 @@ func (sn snapperT) mountPartitionToTempDir(part *deployment.Partition) (string, 
 // mountVol mounts the given volume from the given partition. In addition it also sets
 // the umount cleanup task.
 func (sn snapperT) mountVol(part *deployment.Partition, volumePath, mountPoint string) error {
-	bPart := sn.hwPartitions.GetByUUID(part.UUID)
-	if bPart == nil {
-		return fmt.Errorf("partition '%s' not found", part.UUID)
+	bDev := lsblk.NewLsDevice(sn.s)
+	bPart, err := block.GetPartitionByUUID(sn.s, bDev, part.UUID, 4)
+	if err != nil {
+		return fmt.Errorf("finding partition '%s': %w", part.UUID, err)
 	}
-	err := vfs.MkdirAll(sn.s.FS(), mountPoint, vfs.DirPerm)
+
+	err = vfs.MkdirAll(sn.s.FS(), mountPoint, vfs.DirPerm)
 	if err != nil {
 		return fmt.Errorf("creating mountpoint at '%s': %w", mountPoint, err)
 	}
+
 	err = sn.s.Mounter().Mount(
 		bPart.Path, mountPoint, "",
 		[]string{"rw", fmt.Sprintf("subvol=%s", filepath.Join(btrfs.TopSubVol, volumePath))},
@@ -293,6 +301,7 @@ func (sn snapperT) mountVol(part *deployment.Partition, volumePath, mountPoint s
 		return fmt.Errorf("mounting rw volume at '%s': %w", mountPoint, err)
 	}
 	sn.cleanStack.Push(func() error { return sn.s.Mounter().Unmount(mountPoint) })
+
 	return nil
 }
 
