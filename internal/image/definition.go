@@ -36,10 +36,16 @@ type Definition struct {
 	OperatingSystem os.OperatingSystem
 	Release         release.Release
 	Kubernetes      kubernetes.Kubernetes
+	Network         Network
 }
 
 type Image struct {
 	ImageType       string
 	Platform        *platform.Platform
 	OutputImageName string
+}
+
+type Network struct {
+	CustomScript string
+	ConfigDir    string
 }

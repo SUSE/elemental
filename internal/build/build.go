@@ -62,6 +62,12 @@ func (b *Builder) Run(ctx context.Context, d *image.Definition, buildDir image.B
 		return err
 	}
 
+	networkScript, err := b.configureNetwork(d, buildDir)
+	if err != nil {
+		logger.Error("Configuring network failed")
+		return err
+	}
+
 	k8sScript, err := b.configureKubernetes(ctx, d, m, buildDir)
 	if err != nil {
 		logger.Error("Configuring Kubernetes failed")
@@ -69,7 +75,7 @@ func (b *Builder) Run(ctx context.Context, d *image.Definition, buildDir image.B
 	}
 
 	logger.Info("Preparing configuration script")
-	configScript, err := writeConfigScript(fs, d, string(buildDir), k8sScript)
+	configScript, err := writeConfigScript(fs, d, string(buildDir), networkScript, k8sScript)
 	if err != nil {
 		logger.Error("Preparing configuration script failed")
 		return err

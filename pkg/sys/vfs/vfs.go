@@ -513,8 +513,8 @@ func readDir(vfs FS, dirname string) ([]fs.DirEntry, error) {
 	return dirs, nil
 }
 
-// CopyFile Copies source file to target file using Fs interface. If target
-// is  directory source is copied into that directory using source name file.
+// CopyFile copies source file to a target file using the FS interface. If the target
+// is a directory, the source is copied into that directory using a source name file.
 // File mode is preserved.
 func CopyFile(fs FS, source string, target string) error {
 	return ConcatFiles(fs, []string{source}, target)

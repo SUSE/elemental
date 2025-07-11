@@ -73,14 +73,16 @@ func Build(ctx *cli.Context) error {
 		return err
 	}
 
+	configDir := image.ConfigDir(args.ConfigDir)
+
 	valuesResolver := &helm.ValuesResolver{
-		ValuesDir: image.ConfigDir(args.ConfigDir).HelmValuesDir(),
+		ValuesDir: configDir.HelmValuesDir(),
 		FS:        system.FS(),
 	}
 
 	builder := &build.Builder{
 		System:       system,
-		Helm:         build.NewHelm(system.FS(), valuesResolver, system.Logger(), buildDir.OverlaysDir()),
+		Helm:         build.NewHelm(system.FS(), valuesResolver, logger, buildDir.OverlaysDir()),
 		DownloadFile: http.DownloadFile,
 		Local:        args.Local,
 	}
@@ -175,6 +177,10 @@ func parseImageDefinition(args *cmd.BuildFlags) (*image.Definition, error) {
 		return nil, fmt.Errorf("parsing local kubernetes directory: %w", err)
 	}
 
+	if err = parseNetworkDir(configDir, &definition.Network); err != nil {
+		return nil, fmt.Errorf("parsing network directory: %w", err)
+	}
+
 	return definition, nil
 }
 
@@ -196,6 +202,37 @@ func parseKubernetesDir(configDir image.ConfigDir, k *kubernetes.Kubernetes) err
 	for _, entry := range entries {
 		localManifestPath := filepath.Join(configDir.KubernetesManifestsDir(), entry.Name())
 		k.LocalManifests = append(k.LocalManifests, localManifestPath)
+	}
+
+	return nil
+}
+
+func parseNetworkDir(configDir image.ConfigDir, n *image.Network) error {
+	const networkCustomScriptName = "configure-network.sh"
+
+	networkDir := configDir.NetworkDir()
+
+	entries, err := os.ReadDir(networkDir)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			// Not configured.
+			return nil
+		}
+
+		return fmt.Errorf("reading network directory: %w", err)
+	}
+
+	switch len(entries) {
+	case 0:
+		return fmt.Errorf("network directory is empty")
+	case 1:
+		if entries[0].Name() == networkCustomScriptName {
+			n.CustomScript = filepath.Join(networkDir, networkCustomScriptName)
+			return nil
+		}
+		fallthrough
+	default:
+		n.ConfigDir = networkDir
 	}
 
 	return nil

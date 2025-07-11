@@ -51,7 +51,7 @@ var _ = Describe("Config tests", func() {
 
 		definition := &image.Definition{}
 
-		script, err := writeConfigScript(fs, definition, buildDir, "")
+		script, err := writeConfigScript(fs, definition, buildDir, "", "")
 		Expect(err).To(HaveOccurred())
 		Expect(err).To(MatchError("writing config script: WriteFile /_build/config.sh: operation not permitted"))
 		Expect(script).To(BeEmpty())
@@ -67,7 +67,7 @@ var _ = Describe("Config tests", func() {
 			},
 		}
 
-		script, err := writeConfigScript(fs, definition, buildDir, "")
+		script, err := writeConfigScript(fs, definition, buildDir, "", "")
 		Expect(err).NotTo(HaveOccurred())
 		Expect(script).To(Equal("/_build/config.sh"))
 
@@ -100,7 +100,7 @@ var _ = Describe("Config tests", func() {
 			},
 		}
 
-		script, err := writeConfigScript(fs, definition, buildDir, "/var/lib/elemental/k8s-resources.sh")
+		script, err := writeConfigScript(fs, definition, buildDir, "/var/lib/elemental/configure-network.sh", "/var/lib/elemental/k8s-resources.sh")
 		Expect(err).NotTo(HaveOccurred())
 		Expect(script).To(Equal("/_build/config.sh"))
 
@@ -123,5 +123,8 @@ var _ = Describe("Config tests", func() {
 		Expect(contents).To(ContainSubstring("/etc/systemd/system/k8s-resource-installer.service"))
 		Expect(contents).To(ContainSubstring("ExecStart=\"/var/lib/elemental/k8s-resources.sh\""))
 		Expect(contents).To(ContainSubstring("ExecStartPost=/bin/sh -c 'rm -rf \"/var/lib/elemental\""))
+
+		// Network
+		Expect(contents).To(ContainSubstring("ExecStart=/var/lib/elemental/configure-network.sh"))
 	})
 })
