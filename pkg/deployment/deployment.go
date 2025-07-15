@@ -202,19 +202,6 @@ type Disk struct {
 	StartSector uint       `yaml:"startSector,omitempty"`
 }
 
-var _ yaml.Marshaler = Disk{}
-
-func (d Disk) MarshalYAML() (any, error) {
-	type diskAlias Disk
-	d2 := diskAlias(d)
-
-	// omit the device name as this is a runtime information which might
-	// not be consistent across reboots, there is no need to store it.
-	d2.Device = ""
-
-	return d2, nil
-}
-
 type BootConfig struct {
 	Bootloader    string `yaml:"name"`
 	KernelCmdline string `yaml:"kernelCmdline"`
@@ -234,20 +221,6 @@ type Deployment struct {
 	// additions to the RWVolumes would succeed.
 	OverlayTree *ImageSource `yaml:"overlayTree,omitempty"`
 	CfgScript   string       `yaml:"configScript,omitempty"`
-}
-
-var _ yaml.Marshaler = Deployment{}
-
-func (d Deployment) MarshalYAML() (any, error) {
-	type deploymentAlias Deployment
-	d2 := deploymentAlias(d)
-
-	// omit the OverlayTree and CfgTree as this is a runtime information which might
-	// not be consistent across reboots, there is no need to store it.
-	d2.OverlayTree = nil
-	d2.CfgScript = ""
-
-	return d2, nil
 }
 
 // GetSnapshottedVolumes returns a list of snapshotted rw volumes defined in the
@@ -321,6 +294,9 @@ func (d *Deployment) Sanitize(s *sys.System) error {
 	return nil
 }
 
+// WriteDeploymentFile serialized the Deployment variable into a file. As part of the
+// serialization it omits runitme information such as device paths, overlay and config
+// script paths.
 func (d Deployment) WriteDeploymentFile(s *sys.System, root string) error {
 	path := filepath.Join(root, deploymentFile)
 	if ok, _ := vfs.Exists(s.FS(), path); !ok {
@@ -338,6 +314,25 @@ func (d Deployment) WriteDeploymentFile(s *sys.System, root string) error {
 	data, err := yaml.Marshal(d)
 	if err != nil {
 		return fmt.Errorf("marshalling deployment: %w", err)
+	}
+
+	// Unmarshal it back for a deep copy
+	dep := &Deployment{}
+	_ = yaml.Unmarshal(data, dep)
+
+	// omit the device name as this is a runtime information which might
+	// not be consistent across reboots, there is no need to store it.
+	for _, disk := range dep.Disks {
+		disk.Device = ""
+	}
+	// omit the OverlayTree and CfgTree as this is a runtime information which might
+	// not be consistent across reboots, there is no need to store it.
+	dep.OverlayTree = nil
+	dep.CfgScript = ""
+
+	data, err = yaml.Marshal(dep)
+	if err != nil {
+		return fmt.Errorf("could not re-marshal deployment: %w", err)
 	}
 
 	dataStr := string(data)
