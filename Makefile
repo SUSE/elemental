@@ -30,7 +30,7 @@ GO_BUILD_ARGS?=-ldflags '$(LDFLAGS)'
 DOCKER?=docker
 DISKSIZE?=20G
 OS_REPO?=registry.opensuse.org/devel/unifiedcore/tumbleweed/containers/uc-base-os-kernel-default
-OS_VERSION?=0.0.1
+OS_VERSION?=latest
 ELEMENTAL_IMAGE_REPO?=local/elemental-image
 DOCKER_SOCK?=/var/run/docker.sock
 ifdef PLATFORM
