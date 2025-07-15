@@ -27,6 +27,7 @@ import (
 	"github.com/suse/elemental/v3/pkg/cleanstack"
 	"github.com/suse/elemental/v3/pkg/deployment"
 	"github.com/suse/elemental/v3/pkg/firmware"
+	"github.com/suse/elemental/v3/pkg/rsync"
 	"github.com/suse/elemental/v3/pkg/selinux"
 	"github.com/suse/elemental/v3/pkg/sys"
 	"github.com/suse/elemental/v3/pkg/transaction"
@@ -140,7 +141,7 @@ func (u Upgrader) Upgrade(d *deployment.Deployment) (err error) {
 
 	if d.OverlayTree != nil && !d.OverlayTree.IsEmpty() {
 		unpacker, err := unpack.NewUnpacker(
-			u.s, d.OverlayTree, unpack.WithRsyncFlags(overlayTreeSyncFlags()...),
+			u.s, d.OverlayTree, unpack.WithRsyncFlags(rsync.OverlayTreeSyncFlags()...),
 		)
 		if err != nil {
 			return fmt.Errorf("initializing unpacker: %w", err)
@@ -213,18 +214,4 @@ func logOutput(s *sys.System, stdOut, stdErr string) {
 	output += stdErr
 	output += "----------------------\n"
 	s.Logger().Debug("Install config hook output:\n%s", output)
-}
-
-// overlayTreeSyncFlags provides the rsync flags that are used to sync directories or raw images
-// during the overlay tree extraction. It does not keep permissions on pre-existing files or
-// directories and it does not keep ownership of files and directories.
-func overlayTreeSyncFlags() []string {
-	return []string{
-		"--recursive",
-		"--hard-links",
-		"--links",
-		"--info=progress2",
-		"--human-readable",
-		"--partial",
-	}
 }
