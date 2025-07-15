@@ -31,7 +31,7 @@ DOCKER?=docker
 FLAVOR?=green
 DISKSIZE?=20G
 OS_REPO?=registry.opensuse.org/devel/unifiedcore/tumbleweed/containers/uc-base-os-kernel-default
-OS_VERSION?=0.0.1
+OS_VERSION?=latest
 TOOLKIT_REPO?=local/elemental3-toolkit
 DOCKER_SOCK?=/var/run/docker.sock
 ifdef PLATFORM
