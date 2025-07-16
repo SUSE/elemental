@@ -65,8 +65,9 @@ func Upgrade(ctx *cli.Context) error { //nolint:dupl
 		return err
 	}
 
+	manager := firmware.NewEfiBootManager(s)
 	upgrader := upgrade.New(
-		ctxCancel, s, upgrade.WithBootloader(bootloader),
+		ctxCancel, s, upgrade.WithBootloader(bootloader), upgrade.WithBootManager(manager),
 		upgrade.WithUnpackOpts(unpack.WithVerify(args.Verify), unpack.WithLocal(args.Local)),
 	)
 
