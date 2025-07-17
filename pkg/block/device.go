@@ -19,6 +19,7 @@ package block
 
 import (
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/suse/elemental/v3/pkg/sys"
@@ -130,6 +131,11 @@ func GetPartitionByUUID(s *sys.System, b Device, uuid string, attempts int) (*Pa
 		if err != nil {
 			return nil, err
 		}
+		for i := range parts {
+			if parts[i].UUID == "" {
+				parts[i].UUID, _ = lookupUUID(s, parts[i].Path)
+			}
+		}
 		part := parts.GetByUUID(uuid)
 		if part != nil {
 			return part, nil
@@ -137,6 +143,20 @@ func GetPartitionByUUID(s *sys.System, b Device, uuid string, attempts int) (*Pa
 		time.Sleep(1 * time.Second)
 	}
 	return nil, errors.New("no device found")
+}
+
+func lookupUUID(s *sys.System, path string) (string, error) {
+	stdOut, err := s.Runner().Run("blkid", path)
+	if err != nil {
+		return "", err
+	}
+	strs := strings.Split(string(stdOut), " ")
+	for _, str := range strs {
+		if strings.HasPrefix(str, "UUID=\"") {
+			return strings.TrimSuffix(strings.TrimPrefix(str, "UUID=\""), "\""), nil
+		}
+	}
+	return "", errors.New("failed parsing blkid output")
 }
 
 // GetPartitionDeviceByLabel will try to return the device that matches the given label.
