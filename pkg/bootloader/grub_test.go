@@ -160,6 +160,23 @@ var _ = Describe("Grub tests", Label("bootloader", "grub"), func() {
 		Expect(vfs.Exists(tfs, "/target/dir/boot/grubenv")).To(BeTrue())
 		Expect(vfs.Exists(tfs, "/target/dir/boot/loader/entries/active")).To(BeTrue())
 	})
+	It("Installs grub for LiveOS image", func() {
+		err := grub.InstallLive("/target/dir", "/iso/dir", "kernel cmdline")
+		Expect(err).ToNot(HaveOccurred())
+
+		// Shim, MokManager and grub.efi should exist.
+		Expect(vfs.Exists(tfs, "/iso/dir/EFI/BOOT/bootx64.efi")).To(BeTrue())
+		Expect(vfs.Exists(tfs, "/iso/dir/EFI/BOOT/MokManager.efi")).To(BeTrue())
+		Expect(vfs.Exists(tfs, "/iso/dir/EFI/BOOT/grub.efi")).To(BeTrue())
+
+		// Kernel and initrd exist
+		Expect(vfs.Exists(tfs, "/iso/dir/boot/opensuse-tumbleweed/6.14.4-1-default/vmlinuz")).To(BeTrue())
+		Expect(vfs.Exists(tfs, "/iso/dir/boot/opensuse-tumbleweed/6.14.4-1-default/initrd")).To(BeTrue())
+
+		// Grub config is written
+		Expect(vfs.Exists(tfs, "/iso/dir/EFI/BOOT/grub.cfg")).To(BeTrue())
+		Expect(vfs.Exists(tfs, "/iso/dir/boot/grub2/grub.cfg")).To(BeTrue())
+	})
 	It("Fails with an error if initrd is not found", func() {
 		// Remove initrd
 		err := tfs.Remove("/target/dir/usr/lib/modules/6.14.4-1-default/initrd")
