@@ -93,13 +93,6 @@ var _ = Describe("Install action", Label("install"), func() {
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("config file 'doesntexist' not found"))
 	})
-	It("fails to start installing if the target device does not exist", func() {
-		cmd.InstallArgs.Target = "/dev/doesntexist"
-		cmd.InstallArgs.OperatingSystemImage = "my.registry.org/my/image:test"
-		err = action.Install(ctx)
-		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("inconsistent deployment"))
-	})
 	It("fails if the setup is inconsistent", func() {
 		cmd.InstallArgs.Target = "/dev/device"
 		cmd.InstallArgs.OperatingSystemImage = "my.registry.org/my/image:test"

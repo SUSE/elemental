@@ -241,8 +241,7 @@ type SanitizeDeployment func(*sys.System, *Deployment) error
 
 var sanitizers = []SanitizeDeployment{
 	checkSystemPart, checkEFIPart, checkRecoveryPart,
-	checkAllAvailableSize, checkDiskDeviceExists,
-	checkPartitionsFS, checkRWVolumes,
+	checkAllAvailableSize, checkPartitionsFS, checkRWVolumes,
 }
 
 // GetSystemPartition gets the data of the system partition.
@@ -508,23 +507,6 @@ func checkAllAvailableSize(_ *sys.System, d *Deployment) error {
 			if i < pNum-1 && part.Size == 0 {
 				return fmt.Errorf("only last partition can be defined to be as big as available size in disk")
 			}
-		}
-	}
-	return nil
-}
-
-// checkDiskDeviceExists ensures the given device exists in the current host
-func checkDiskDeviceExists(s *sys.System, d *Deployment) error {
-	for _, disk := range d.Disks {
-		if disk.Device == "" {
-			return nil
-		}
-		ok, err := vfs.Exists(s.FS(), disk.Device)
-		if err != nil {
-			return fmt.Errorf("failed to check target device '%s' existence: %w", disk.Device, err)
-		}
-		if !ok {
-			return fmt.Errorf("target device '%s' not found", disk.Device)
 		}
 	}
 	return nil
