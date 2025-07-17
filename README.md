@@ -16,6 +16,11 @@ Elemental is a tool for installing, configuring and updating operating system im
 *   **Updates:** Update an existing OS installation from a newer image.
 *   **Extensibility:** Extend the OS installation image with extensions.
 
+
+## Documentation
+
+* [Build systemd-sysext for use with Elemental](doc/building_sysexts.md)
+
 ## Contribution
 
 For contributing to Elemental, please create a fork of the repository and send a Pull Request (PR). A number of GitHub Actions will be triggered on the PR and they need to pass.

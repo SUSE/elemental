@@ -1,0 +1,12 @@
+#!/bin/bash
+
+PACKAGE=tools-1.0
+
+echo "mkosi.postoutput ${PACKAGE}" "$@"
+
+# Remove symlink without *.raw suffix
+if [ -n "${IMAGE_VERSION}" ]; then
+        rm -f ${OUTPUTDIR}/${PACKAGE}-${IMAGE_VERSION}.${ARCHITECTURE}
+else
+        rm -f ${OUTPUTDIR}/${PACKAGE}-*.${ARCHITECTURE}
+fi
