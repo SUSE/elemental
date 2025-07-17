@@ -1,2 +1,2 @@
 bootloader: grub
-kernelCmdLine: "root=LABEL=SYSTEM console=ttyS0"
+kernelCmdLine: "root=LABEL=SYSTEM console=ttyS0 quiet loglevel=3"

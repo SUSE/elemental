@@ -1,3 +1,2 @@
-hostname: 192.168.76.15.sslip.io
-replicas: 1
-bootstrapPassword: admin1234
+hostname: "192.168.76.15.sslip.io"
+bootstrapPassword: "admin1234"
