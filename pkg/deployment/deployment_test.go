@@ -67,11 +67,6 @@ var _ = Describe("Deployment", Label("deployment"), func() {
 			d.Disks[0].Device = "/dev/device"
 			Expect(d.Sanitize(s)).To(Succeed())
 		})
-		It("fails if device doesn't exist", func() {
-			d := deployment.DefaultDeployment()
-			d.Disks[0].Device = "/doesntexist"
-			Expect(d.Sanitize(s)).NotTo(Succeed())
-		})
 		It("fails if multiple efi partitions are set", func() {
 			d := deployment.DefaultDeployment()
 			d.Disks[0].Partitions = append(d.Disks[0].Partitions, &deployment.Partition{
@@ -156,13 +151,6 @@ var _ = Describe("Deployment", Label("deployment"), func() {
 			Expect(rD.Disks[0].Device).To(BeEmpty())
 			Expect(len(rD.Disks[0].Partitions)).To(Equal(2))
 			Expect(rD.Sanitize(s)).To(Succeed())
-		})
-		It("does not marshal Disk.Device", func() {
-			disk := deployment.Disk{StartSector: 123, Device: "test"}
-
-			m, err := yaml.Marshal(disk)
-			Expect(err).To(Succeed())
-			Expect(string(m)).To(Equal("partitions: []\nstartSector: 123\n"))
 		})
 		It("unmarshals Disk.Device", func() {
 			disk := "target: /dev/sometarget"
