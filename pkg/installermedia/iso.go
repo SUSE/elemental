@@ -19,7 +19,9 @@ package installermedia
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
+	"io"
 	"path/filepath"
 
 	"go.yaml.in/yaml/v3"
@@ -341,6 +343,17 @@ func (i ISO) burnISO(isoDir, output, efiImg string) error {
 		return fmt.Errorf("failed creating the installer ISO image: %w", err)
 	}
 
+	checksum, err := calcFileChecksum(i.s.FS(), output)
+	if err != nil {
+		return fmt.Errorf("could not comput ISO's checksum: %w", err)
+	}
+
+	checksumFile := fmt.Sprintf("%s.sha256", output)
+	err = i.s.FS().WriteFile(checksumFile, fmt.Appendf(nil, "%s %s\n", checksum, output), vfs.FilePerm)
+	if err != nil {
+		return fmt.Errorf("failed writing ISO's checksum file %s: %w", checksumFile, err)
+	}
+
 	return nil
 }
 
@@ -355,4 +368,25 @@ func xorrisoBooloaderArgs(efiImg string) []string {
 		"-boot_image", "any", "partition_offset=16",
 	}
 	return args
+}
+
+// calcFileChecksum opens the given file and returns the sha256 checksum of it.
+func calcFileChecksum(fs vfs.FS, fileName string) (string, error) {
+	f, err := fs.Open(fileName)
+	if err != nil {
+		return "", err
+	}
+
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		_ = f.Close()
+		return "", fmt.Errorf("reading data for a sha256 checksum failed: %w", err)
+	}
+
+	err = f.Close()
+	if err != nil {
+		return "", fmt.Errorf("failed closing file %s after calculating checksum: %w", fileName, err)
+	}
+
+	return fmt.Sprintf("%x", h.Sum(nil)), nil
 }
