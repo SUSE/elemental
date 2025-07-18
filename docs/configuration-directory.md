@@ -1,6 +1,6 @@
 # Configuration Directory Guide
 
-The configuration directory is the place where customers define the desired state of the image they intend to build by using the [elemental3 build](image-build-and-customization.md#elemental3-build) command.
+The configuration directory is the place where users define the desired state of the image they intend to build by using the [elemental3 build](image-build-and-customization.md#elemental3-build) command.
 
 Generally, the available configuaration areas that this directory supports are the following:
 
@@ -14,7 +14,7 @@ This document provides an overview of each configuration area, the rationale beh
 
 > **NOTE:** Before reviewing this file, make sure you familiarize yourself with the [release manifest](release-manifest.md) concept.
 
-One of Elemental's key features is enabling customers to base their image on a set of components that are aligned with a specific product release.
+One of Elemental's key features is enabling users to base their image on a set of components that are aligned with a specific product release.
 
 Consumers can use the `release.yaml` file to configure the desired product that they wish to use as base. Furthermore, they can explicitly choose which components from this product to enable based on their specific use-case.
 
@@ -47,11 +47,11 @@ product:
 
 ## Operating System
 
-Customers can provide configurations related to the operating system using the `install.yaml` and `os.yaml` files.
+Users can provide configurations related to the operating system through the `install.yaml` and `os.yaml` files.
 
 ### install.yaml
 
-The `install.yaml` file enables customers to configure the OS installation process by introducing the following API:
+The `install.yaml` file enables users to configure the OS installation process by introducing the following API:
 
 ```yaml
 bootloader: grub
@@ -63,7 +63,7 @@ kernelCmdLine: "root=LABEL=SYSTEM console=ttyS0"
 
 ### os.yaml
 
-The `os.yaml` file enalbes customers to configure the actual operating system by introducing the following API:
+The `os.yaml` file enalbes users to configure the actual operating system by introducing the following API:
 
 ```yaml
 diskSize: 35G
@@ -79,11 +79,11 @@ users:
 
 ## Kubernetes
 
-Customers can provide Kubernetes releated configurations by using the `kubernetes.yaml` file and/or the `kubernetes` directory.
+Users can provide Kubernetes releated configurations through the `kubernetes.yaml` file and/or the `kubernetes` directory.
 
 ### kubernetes.yaml
 
-The `kubernetes.yaml` file enables customers to extend the Kubernetes cluster with Helm charts and/or remote Kubernetes manifests by introducing the following API:
+The `kubernetes.yaml` file enables users to extend the Kubernetes cluster with Helm charts and/or remote Kubernetes manifests by introducing the following API:
 
 ```yaml
 manifests:
@@ -115,7 +115,7 @@ helm:
 
 ### Kubernetes Directory
 
-The `kubernetes` directory enables customers to configure custom Helm chart values and/or further extend the Kubernetes cluster with locally define manifests.
+The `kubernetes` directory enables users to configure custom Helm chart values and/or further extend the Kubernetes cluster with locally define manifests.
 
 The directory's structure is as follows:
 

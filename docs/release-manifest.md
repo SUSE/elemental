@@ -1,6 +1,6 @@
 # Release Manifest Guide
 
-The `Release Manifest` acts as a descriptor of the system's desired state from a component-level perspective. It specifies the underlying components, their specific versions and pull locations, and bundles all this into a single manifest that can be versioned by consumers and leveraged by customers to deploy as a unified, single version.
+The `Release Manifest` acts as a descriptor of the system's desired state from a component-level perspective. It specifies the underlying components, their specific versions and pull locations, and bundles all this into a single manifest that can be versioned by consumers and leveraged by users to deploy as a unified, single version.
 
 Ultimately, there are two types of release manifests:
 
@@ -13,7 +13,7 @@ Ultimately, there are two types of release manifests:
 
 > **IMPORTANT:** The Product Release Manifest is intended to be created, maintained and supported by the consumer.
 
-Enables consumers to extend a specific `Unified Core` release with additional components tailored to their product, bundling everything into a single versioned file called a `Product Release Manifest`. Customers will use this manifest to describe a new image base at build time, or upgrade a target during day 2 operations.
+Enables consumers to extend a specific `Unified Core` release with additional components tailored to their product, bundling everything into a single versioned file called a `Product Release Manifest`. Users will utilize this manifest to describe a new image base at build time, or upgrade a target during day 2 operations.
 
 ### Product Release Manifest API
 
@@ -82,7 +82,7 @@ components:
 
 ### Bundle into an OCI image
 
-As mentioned in the [release.yaml](configuration-directory.md#releaseyaml) configuration file, consumers can refer to a `Product Release Manifest` from an OCI image. This section outlines the minimum steps needed for consumers and/or customers to setup said image, while also outlining any caveats and recommendations for the process.
+As mentioned in the [release.yaml](configuration-directory.md#releaseyaml) configuration file, consumers can refer to a `Product Release Manifest` from an OCI image. This section outlines the minimum steps needed for consumers and/or users to setup said image, while also outlining any caveats and recommendations for the process.
 
 *Steps:*
 1. Create a product release manifest YAML file by using the [Product Release Manifest API](#product-release-manifest-api) reference. **Make sure you provide only components relevant to your product and remove the example components from the reference.**
@@ -100,7 +100,7 @@ Defines the set of components that make up a specific `Unified Core` platform re
 
 ### Core Platform Release Manifest API
 
-> **IMPORTANT:** This section is for informational purposes only. Consumers and/or customers should always refer to a Core Platform release manifest provided by the `Unified Core` team.
+> **IMPORTANT:** This section is for informational purposes only. Consumers should always refer to a Core Platform release manifest provided by the `Unified Core` team.
 
 ```yaml
 # The values shown in this example are for illustrative purposes only

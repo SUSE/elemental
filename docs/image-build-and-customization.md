@@ -1,15 +1,15 @@
 # Image Build and Customization
 
-This section provides an overview of how customers can use the `elemental3` command-line client to build ready to boot images that are customized, extended and based on a specific set of components defined in a [release manifest](release-manifest.md).
+This section provides an overview of how the `elemental3` command-line client enables users to build ready to boot images that are customized, extended and based on a specific set of components defined in a [release manifest](release-manifest.md).
 
 ## elemental3 build
 
 The `elemental3 build` command is the entry point for the image build and customization process.
 
-Customers using this command, are expected to provide:
+As part of the command, users are expected to provide:
 
 1. **Specifications for the image** - these are defined as options to the command itself. Available specification options can be viewed by calling the command's help message: `elemental3 build -h`.
-2. **Information about the desired state of the image** - this is done through the definition of a configuration directory that the customer creates beforehand. For more information on the directory itself, refer to the [Configuration Directory Guide](configuration-directory.md).
+2. **Information about the desired state of the image** - this is done through the definition of a configuration directory that the user creates beforehand. For more information on the directory itself, refer to the [Configuration Directory Guide](configuration-directory.md).
 
 We recommend you familiarize yourself with both points before attempting to build your first image.
 
@@ -20,7 +20,7 @@ Currently the image build and customization process has the following limitation
 1. Supports building images only for `x86_64` platforms.
 2. Supports building only `RAW` type images.
 3. Supports building images for non air-gapped environments only.
-3. Does not support building Linux-only images. Customers looking to build Linux-only images should refer to the [Linux-only Image](linux-only-image.md) guide.
+3. Does not support building Linux-only images. Users looking to build Linux-only images should refer to the [Linux-only Image](linux-only-image.md) guide.
 
 Elemental is in active development and much of these limitations are on our roadmap and **will** be fixed.
 
@@ -68,19 +68,19 @@ _build/
 This section provides a high-level overview of the steps that Elemental's tooling goes through in order to produce a built, customized and extended image.
 
 *Steps:*
-1. Parse the customer provided image specifications.
-2. Parse the configuration directory that the customer has defined in the image specification.
-3. Parse the [product release manifest](release-manifest.md#product-release-manifest) that the customer has defined as a [release reference](configuration-directory.md#product-release-reference) in the `release.yaml` file of the configuration directory.
+1. Parse the user provided image specifications.
+2. Parse the configuration directory that the user has defined in the image specification.
+3. Parse the [product release manifest](release-manifest.md#product-release-manifest) that the user has defined as a [release reference](configuration-directory.md#product-release-reference) in the `release.yaml` file of the configuration directory.
 4. Pull and parse the [core platform release manifest](release-manifest.md#core-platform-release-manifest) that the aforementioned product manifest extends.
 5. Prepare for Kubernetes cluster creation and resource deployment:
    1. Prepare Helm charts and Kubernetes manifests
    2. Download the RKE2 extension image, as specified in the parsed core platform release manifest.
 6. Begin OS installation process:
-   1. Create a new disk image with size as defined in `os.yaml` and type as specified by the customer.
+   1. Create a new disk image with size as defined in `os.yaml` and type as specified by the user.
    2. Attach a loop device to the newly created image.
    3. Partition loop device and start a btrfs snapshotter transaction.
    4. Unpack the base operating system image that was defined in the parsed core platform release manifest.
-   5. Merge the base operating system image setup with the configurations and/or extensions provided either by the customer, or by a release manifest.
+   5. Merge the base operating system image setup with the configurations and/or extensions provided either by the user, or by a release manifest.
    6. Install the bootloader and setup the kernel parameters, as defined in the `install.yaml` file.
    7. Setup the default snapshot for the operating system.
 14. Mark installation and build as completed.
@@ -89,7 +89,7 @@ This section provides a high-level overview of the steps that Elemental's toolin
 
 ## Example
 
-This section provides an example on how customers can leverage the `elemental3` command-line client to start an image build process and produce a ready to boot image that is customized and extended based on a specific customer use-case.
+This section provides an example on how users can leverage the `elemental3` command-line client to start an image build process and produce a ready to boot image that is customized and extended based on a specific use-case.
 
 ### Prerequisites 
 
@@ -100,21 +100,21 @@ This section provides an example on how customers can leverage the `elemental3` 
 
 A consumer has created a release manfiest for their product that extends a specific Unified Core version with additional components, namely `Rancher` and `cert-manager`.
 
-A customer wants to setup their environment by using an operating system, Kubernetes distribution and Rancher version that are supported by the aforementioned consumer product. 
+A user wants their environment to be running an operating system, Kubernetes distribution and Rancher version that are supported by the aforementioned consumer product. 
 
-In addition, the customer wants to extends their environment by deploying the `NeuVector` Helm chart along with a specific set of Kubernetes manifests that will enable access to the Rancher UI.
+In addition, the user wants to extend their environment by deploying the `NeuVector` Helm chart along with a specific set of Kubernetes manifests that will enable access to the Rancher UI.
 
 ### Configuration directory setup
 
-The customer creates a [configuration directory](../examples/elemental/build/) that describes the desired state that of the image that needs to be built.
+The user creates a [configuration directory](../examples/elemental/build/) that describes the desired state of the image that needs to be built.
 
 The contents of this directory include:
 
 * [install.yaml](../examples/elemental/build/install.yaml) - specify which `bootloader` and `kernel command line` arguments to use during the OS installation process.
 * [os.yaml](../examples/elemental/build/os.yaml) - specify `users` that the OS should have and the `disk size` of the built image.
-* [kubernetes.yaml](../examples/elemental/build/kubernetes.yaml) - specify the Helm charts and Kubernetes manifests that the customer wishes to deploy as part of their use-case.
-* [release.yaml](../examples/elemental/build/release.yaml) - specify the reference to the customer desired product and enable the necessary Helm chart components.
-* [suse-product-manifest.yaml](../examples/elemental/build/suse-product-manifest.yaml) - the release manifest for the desired product that the customer has referred in the `release.yaml` configuration file.
+* [kubernetes.yaml](../examples/elemental/build/kubernetes.yaml) - specify the Helm charts and Kubernetes manifests that the user wishes to deploy as part of their use-case.
+* [release.yaml](../examples/elemental/build/release.yaml) - specify the reference to the user desired product and enable the necessary Helm chart components.
+* [suse-product-manifest.yaml](../examples/elemental/build/suse-product-manifest.yaml) - the release manifest for the desired product that the user has referred in the `release.yaml` configuration file.
 * [rancher.yaml](../examples/elemental/build/kubernetes/helm/values/rancher.yaml) - custom values for the `Rancher` Helm chart that we enabled from the SUSE Product manifest.
 * [ip-pool.yaml](../examples/elemental/build/kubernetes/manifests/ip-pool.yaml) - local manifest to apply to the cluster and have the enabled `MetalLB` component setup an `IPAddressPool`.
 * [l2-adv.yaml](../examples/elemental/build/kubernetes/manifests/l2-adv.yaml) - local manifest to apply to the cluster and have the enabled `MetalLB` component setup a `L2Advertisement`.
@@ -279,4 +279,4 @@ After booting the image and logging into it using the user we specified under th
       rke2-ingress-nginx-controller   LoadBalancer   10.43.117.57   192.168.76.15   80:30594/TCP,443:32133/TCP   42m
       ```
 
-After a successful validation, we can conclude that the booted environment matches the customer's desired state.
+After a successful validation, we can conclude that the booted environment matches the user's desired state.

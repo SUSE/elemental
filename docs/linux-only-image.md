@@ -1,6 +1,6 @@
 # Building a Linux-only Image
 
-This section provides an overview of how customers wishing to build a Linux-only image can leverage the `elemental3-toolkit` command-line client to install an operating system on a target device. 
+This section provides an overview of how users wishing to build a Linux-only image can leverage the `elemental3-toolkit` command-line client to install an operating system on a target device. 
 
 ## Prerequisites
 
@@ -24,22 +24,22 @@ This section provides an overview of how customers wishing to build a Linux-only
 
 ## Prepare Basic Configuration
 
-Customers using `elemental3-toolkit` to build a Linux-only image can apply their basic configurations at installation time in the following ways:
+To build a Linux-only image, users of the `elemental3-toolkit` can apply their basic configurations at installation time in the following ways:
 
 * Through a [system extension image](#configuring-through-a-system-extension-image)
 * Through a [configuration script](#configuring-through-a-configuration-script)
 
 ### Configuring through a System Extension Image
 
-System extension images can be disk image files or simple folders that get loaded by the `systemd-sysext.service`. They allow customers to dynamically extend the operating system's directory hierarchies with additional files. For more information, refer to the [man systemd-sysext](https://www.freedesktop.org/software/systemd/man/latest/systemd-sysext.html) documentation.
+System extension images can be disk image files or simple folders that get loaded by the `systemd-sysext.service`. They allow users to dynamically extend the operating system's directory hierarchies with additional files. For more information, refer to the [man systemd-sysext](https://www.freedesktop.org/software/systemd/man/latest/systemd-sysext.html) documentation.
 
-Using Elemental's toolset, customers can wrap any number of these extension images inside a tarball and provide that tarball during [OS installation](#install-os-on-target-device).
+Using Elemental's toolset, users can wrap any number of these extension images inside a tarball and provide that tarball during [OS installation](#install-os-on-target-device).
 
 > **IMPORTANT:** To be compliant with Elemental's standards, system extension images should always be added under the `/var/lib/extensions` directory of the underlying operating system.
 
 #### Example System Extension Image
 
-This example demonstrates how customers can create a system extension image and wrap it inside of a tarball that will be later provided during OS installation. 
+This example demonstrates how users can create a system extension image and wrap it inside of a tarball that will be later provided during OS installation. 
 
 To illustrate the process, we will build an extension image for the `elemental3-toolkit` command line client.
 
@@ -134,7 +134,7 @@ We have successfully prepared an archive containing a system extension image tha
 
 The OS installation supports configurations through a script that will be executed in a `chroot` on the unpacked operating system. 
 
-> **NOTE:** The script is executed after any customer provided overlays archive are expanded.
+> **NOTE:** The script is executed after any user provided overlays archive are expanded.
 
 #### Example Config Script
 
