@@ -79,6 +79,8 @@ components:
         * `name` - Required; Reference name for the specified image.
         * `image` - Required; Location of the container image that this chart utilizes.
     * `repositories` - Required; Source repositories for to Helm charts.
+      * `name` - Required; Defines the name for this repository. This name doesn't have to match the name of the actual repository, but must correspond with the `repository` field of one or more charts.
+      * `url` - Required; Defines the source URL where this repository can be accessed.
 
 ### Bundle into an OCI image
 
