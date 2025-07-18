@@ -98,7 +98,7 @@ This section provides an example on how users can leverage the `elemental3` comm
 
 ### Use-case
 
-A consumer has created a release manfiest for their product that extends a specific Unified Core version with additional components, namely `Rancher` and `cert-manager`.
+A consumer has created a release manfiest for their product that extends a specific `Core Platform` version with additional components, namely `Rancher` and `cert-manager`.
 
 A user wants their environment to be running an operating system, Kubernetes distribution and Rancher version that are supported by the aforementioned consumer product. 
 

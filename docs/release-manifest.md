@@ -13,7 +13,7 @@ Ultimately, there are two types of release manifests:
 
 > **IMPORTANT:** The Product Release Manifest is intended to be created, maintained and supported by the consumer.
 
-Enables consumers to extend a specific `Unified Core` release with additional components tailored to their product, bundling everything into a single versioned file called a `Product Release Manifest`. Users will utilize this manifest to describe a new image base at build time, or upgrade a target during day 2 operations.
+Enables consumers to extend a specific `Core Platform` release with additional components tailored to their product, bundling everything into a single versioned file called a `Product Release Manifest`. Users will utilize this manifest to describe a new image base at build time, or upgrade a target during day 2 operations.
 
 ### Product Release Manifest API
 
@@ -62,12 +62,12 @@ components:
   * `version` - Required; Release version of the product that this manifest describes.
   * `upgradePathsFrom` - Optional; Previous versions from which and upgrade to this release manifest version is supported.
   * `creationDate` - Optional; Defines the release date for the specified version.
-* `corePlatform` - Required; Defines the `Unified Core` release version that this product wishes to be based upon and extend.
-  * `image` - Required; Container image pointing to the desired `Unified Core` release manifest.
-  * `version` - Required; Version of the release manifest that you wish to use. The version of the manifest matches the version of the `Unified Core` platform.
-* `components` - Optional; Components with which to extend the `Unified Core` platform.
-  * `helm` - Optional; Defines Helm components with which to extend the `Unified Core` platform.
-    * `charts` - Required; Defines a list of Helm charts to be deployed along side any `Unified Core` defined Helm charts.
+* `corePlatform` - Required; Defines the `Core Platform` release version that this product wishes to be based upon and extend.
+  * `image` - Required; Container image pointing to the desired `Core Platform` release manifest.
+  * `version` - Required; Version of the release manifest that you wish to use. The version of the manifest matches the version of the `Core Platform`.
+* `components` - Optional; Components with which to extend the `Core Platform`.
+  * `helm` - Optional; Defines Helm components with which to extend the `Core Platform`.
+    * `charts` - Required; Defines a list of Helm charts to be deployed along side any `Core Platform` defined Helm charts.
       * `chart` - Required; Name of the Helm chart, as seen in the repository.
       * `version` - Required; Version of the Helm chart, as seen in the repository.
       * `repository` - Optional if running an OCI chart; Name of the source repository that this chart can be retrieved from.
@@ -94,19 +94,19 @@ As mentioned in the [release.yaml](configuration-directory.md#releaseyaml) confi
 
 > **NOTE:** Elemental is in active development and the Core Platform manifest API may change over time.
 
-> **IMPORTANT:** This manifest is maintained and provided by the `Unified Core` team and is intended to act as a base for all `Product Release Manifests`.
+> **IMPORTANT:** This manifest is maintained and provided by the `Elemental` team and is intended to act as a base for all `Product Release Manifests`.
 
-Defines the set of components that make up a specific `Unified Core` platform release version.
+Defines the set of components that make up a specific `Core Platform` release version.
 
 ### Core Platform Release Manifest API
 
-> **IMPORTANT:** This section is for informational purposes only. Consumers should always refer to a Core Platform release manifest provided by the `Unified Core` team.
+> **IMPORTANT:** This section is for informational purposes only. Consumers should always refer to a Core Platform release manifest provided by the `Elemental` team.
 
 ```yaml
 # The values shown in this example are for illustrative purposes only
 # and should not be used directly
 metadata:
-  name: "SUSE Unified Core Platform"
+  name: "SUSE Core Platform"
   version: "0.0.2"
   upgradePathsFrom: 
   - "0.0.1"
