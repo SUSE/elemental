@@ -1,12 +1,11 @@
-name: suse-edge
-manifestURI: oci://registry.opensuse.org/home/adinov/core/containerfile/release-manifest:0.0.1
-# Enable core components explicitly or modify their default deployment (e.g. via additional Helm values)
+name: suse-product
+manifestURI: file://./suse-product-manifest.yaml
+# Alternatively, the product release manifest can be specified from an OCI image.
+# manifestURI: oci://registry.suse.com/suse-product/release-manifest:0.0.1
 core:
   helm:
     - chart: metallb
-# Enable product components
 product:
   helm:
-    - chart: neuvector
     - chart: rancher
       valuesFile: rancher.yaml

@@ -1,0 +1,35 @@
+# This configuration represents a fictional SUSE Product and is meant for example purposes only.
+metadata:
+  name: "suse-product"
+  version: "4.2.0"
+  upgradePathsFrom:
+  - "4.1.9"
+  creationDate: "2025-07-10"
+corePlatform:
+  # Registry path to the release manifest OCI image of the Core Platform that this SUSE Product extends
+  image: "registry.suse.de/devel/unifiedcore/releases/0.1/containers/release-manifest"
+  # Release manifest version to use
+  version: "0.0.1"
+components:
+  helm:
+    charts:
+    - chart: "cert-manager"
+      version: "v1.17.2"
+      namespace: "cert-manager"
+      repository: "jetstack"
+      values:
+        crds:
+          enabled: true
+    - chart: "rancher"
+      version: "2.11.1"
+      namespace: "cattle-system"
+      repository: "rancher"
+      values:
+        replicas: 1
+      dependsOn:
+      - "cert-manager"
+    repositories:
+    - name: "rancher"
+      url: "https://releases.rancher.com/server-charts/stable"
+    - name: "jetstack"
+      url: "https://charts.jetstack.io"
