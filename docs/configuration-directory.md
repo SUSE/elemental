@@ -93,11 +93,11 @@ helm:
     - name: "rancher"
       version: "2.11.1"
       targetNamespace: "cattle-system"
-      repositoryName: "rancher-prime"
+      repositoryName: "rancher"
       valuesFile: rancher.yaml
   repositories:
-    - name: "rancher-prime"
-      url: "https://charts.rancher.com/server-charts/prime"
+    - name: "rancher"
+      url: "https://releases.rancher.com/server-charts/stable"
 ```
 
 * `manifests` - Optional; Defines remote Kubernetes manifests to be deployed on the cluster.

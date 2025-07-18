@@ -243,7 +243,6 @@ After booting the image and logging into it using the user we specified under th
 
    # Example output
    bootstrapPassword: admin1234
-   global.cattle.psp.enabled: "false"
    hostname: 192.168.76.15.sslip.io
    replicas: 1
    ```

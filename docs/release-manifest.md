@@ -42,18 +42,17 @@ components:
     - chart: "rancher"
       version: "2.11.1"
       namespace: "cattle-system"
-      repository: "rancher-prime"
+      repository: "rancher"
       values:
         replicas: 1
-        global.cattle.psp.enabled: "false"
       dependsOn:
       - "cert-manager"
       images:
       - name: "rancher"
         image: "registry.rancher.com/rancher/rancher:v2.11.1"
     repositories:
-    - name: "rancher-prime"
-      url: "https://charts.rancher.com/server-charts/prime"
+    - name: "rancher"
+      url: "https://releases.rancher.com/server-charts/stable"
     - name: "jetstack"
       url: "https://charts.jetstack.io"
 ```
