@@ -1,6 +1,6 @@
 # Release Manifest Guide
 
-The `Release Manifest` acts as a descriptor of the system's desired state from a component-level perspective. It specifies the underlying components, their specific versions and pull locations, and bundles all this into a single manifest that can be versioned by consumers and leveraged by users to deploy as a unified, single version.
+The `Release Manifest` serves as a component-level descriptor of a product's system. It specifies the underlying components, their specific versions and pull locations, and bundles all this into a single manifest that can be versioned by consumers and leveraged by users to deploy as a unified, single version.
 
 Ultimately, there are two types of release manifests:
 
@@ -60,7 +60,7 @@ components:
 * `metadata` - Optional; General information about the product version that this manifest describes.
   * `name` - Required; Name of the product that this manifest describes.
   * `version` - Required; Release version of the product that this manifest describes.
-  * `upgradePathsFrom` - Optional; Previous versions from which and upgrade to this release manifest version is supported.
+  * `upgradePathsFrom` - Optional; Previous versions from which an upgrade to this release manifest version is supported.
   * `creationDate` - Optional; Defines the release date for the specified version.
 * `corePlatform` - Required; Defines the `Core Platform` release version that this product wishes to be based upon and extend.
   * `image` - Required; Container image pointing to the desired `Core Platform` release manifest.
@@ -78,7 +78,7 @@ components:
       * `images` - Optional; Defines images that this chart utilizes.
         * `name` - Required; Reference name for the specified image.
         * `image` - Required; Location of the container image that this chart utilizes.
-  * `repositories` - Required; Source repositories for to Helm charts.
+    * `repositories` - Required; Source repositories for to Helm charts.
 
 ### Bundle into an OCI image
 

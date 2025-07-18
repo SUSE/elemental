@@ -79,7 +79,7 @@ To illustrate the process, we will build an extension image for the `elemental3-
         mkdir -p example-extension/mkosi.extra/usr/local/bin
         ```
 
-    * Copy the `elemntal3-toolkit` binary from the `build/` directory of the `SUSE/elemental` repository:
+    * Copy the `elemental3-toolkit` binary from the `build/` directory of the `SUSE/elemental` repository:
 
         > **NOTE:** If you have not yet built your binaries, run the `make all` command from the root of the `SUSE/elemental` repository.
 
@@ -211,7 +211,7 @@ losetup -d /dev/loop0
 
 ## Booting the Image
 
-Too boot the image in a virtual machine you can use either QEMU or libvirt utilities for creating the VM. Keep in mind that the emulated CPU (or vCPU) has to be at least `x86_64-v2` compliant.
+To boot the image in a virtual machine you can use either QEMU or libvirt utilities for creating the VM. Keep in mind that the emulated CPU (or vCPU) has to be at least `x86_64-v2` compliant.
 
 *Using QEMU:*
 ```shell

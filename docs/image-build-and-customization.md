@@ -51,17 +51,17 @@ Expanded, the aforementioned build directory holds the following files/sub-direc
 _build/
 ├── build-<timestamp>
 │   ├── config.sh
-│   ├── overlays
-│   └── release-manifests
+│   ├── overlays/
+│   └── release-manifests/
 └── image-<timestamp>.raw
 ```
 *Files:*
-* config.sh - script responsible for applying configurations to the operating system during installation.
-* image-<timestamp>.raw - the built image. This file will be present in the build directory only if the `--output` option was not specified.
+* `config.sh` - script responsible for applying configurations to the operating system during installation.
+* `image-<timestamp>.raw` - the built image. This file will be present in the build directory only if the `--output` option was not specified.
 
 *Directories:*
-* overlays - resources under this directory will be directly overlayed onto the booted operating system.
-* release-manifests - holds any release manifests that were pulled from an OCI image.
+* `overlays` - resources under this directory will be directly overlayed onto the booted operating system.
+* `release-manifests` - holds any release manifests that were pulled from an OCI image.
 
 ## Build and Customization Process Overview
 
@@ -142,7 +142,7 @@ After execution, your `examples/elemental/build` directory should look similar t
 ```
 ### Booting the built image
 
-> **NOTE:** The below RAM and vCPU resources are just reference values, feel free to tweak them based on what your environment's needs.
+> **NOTE:** The below RAM and vCPU resources are just reference values, feel free to tweak them based on what your environment needs.
 
 *Using Libvirt:*
 

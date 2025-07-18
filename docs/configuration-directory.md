@@ -2,7 +2,7 @@
 
 The configuration directory is the place where users define the desired state of the image they intend to build by using the [elemental3 build](image-build-and-customization.md#elemental3-build) command.
 
-Generally, the available configuaration areas that this directory supports are the following:
+Generally, the available configuration areas that this directory supports are the following:
 
 * [Product Release Reference](#product-release-reference)
 * [Operating System](#operating-system)
@@ -63,7 +63,7 @@ kernelCmdLine: "root=LABEL=SYSTEM console=ttyS0"
 
 ### os.yaml
 
-The `os.yaml` file enalbes users to configure the actual operating system by introducing the following API:
+The `os.yaml` file enables users to configure the actual operating system by introducing the following API:
 
 ```yaml
 diskSize: 35G
@@ -79,7 +79,7 @@ users:
 
 ## Kubernetes
 
-Users can provide Kubernetes releated configurations through the `kubernetes.yaml` file and/or the `kubernetes` directory.
+Users can provide Kubernetes related configurations through the `kubernetes.yaml` file and/or the `kubernetes` directory.
 
 ### kubernetes.yaml
 
@@ -115,7 +115,7 @@ helm:
 
 ### Kubernetes Directory
 
-The `kubernetes` directory enables users to configure custom Helm chart values and/or further extend the Kubernetes cluster with locally define manifests.
+The `kubernetes` directory enables users to configure custom Helm chart values and/or further extend the Kubernetes cluster with locally defined manifests.
 
 The directory's structure is as follows:
 
