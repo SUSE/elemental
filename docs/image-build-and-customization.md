@@ -174,7 +174,7 @@ qemu-kvm -m 16000 \
 ```
 ### Environment overview
 
-After booting the image and logging into it using the user we specified under the `os.yaml` configuration file, let's view how the end environment looks like.
+After booting the image and logging into it using the user specified under the `os.yaml` configuration file, let's view how the end environment looks like.
 
 1. Verify that the expected operating system is running:
 
@@ -279,4 +279,4 @@ After booting the image and logging into it using the user we specified under th
       rke2-ingress-nginx-controller   LoadBalancer   10.43.117.57   192.168.76.15   80:30594/TCP,443:32133/TCP   42m
       ```
 
-After a successful validation, we can conclude that the booted environment matches the user's desired state.
+Verifying this confirms that the booted environment matches the desired state.

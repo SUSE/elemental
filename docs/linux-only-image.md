@@ -39,9 +39,9 @@ Using Elemental's toolset, users can wrap any number of these extension images i
 
 #### Example System Extension Image
 
-This example demonstrates how users can create a system extension image and wrap it inside of a tarball that will be later provided during OS installation. 
+This example demonstrates how users can create a system extension image and wrap it inside a tarball that will be later provided during OS installation.  
 
-To illustrate the process, we will build an extension image for the `elemental3-toolkit` command line client.
+The following builds an extension image for the `elemental3-toolkit` command line client.
 
 > **NOTE:** The below steps use the `mkosi` tool. For more information on the tool, refer to the [upstream repository](https://github.com/systemd/mkosi).
 
@@ -73,7 +73,7 @@ To illustrate the process, we will build an extension image for the `elemental3-
 
 3. Prepare the `mkosi.extra` directory inside the `example-extension`:
 
-    * Create the directory structure where the `elemental3-toolkit` needs to end up:
+    * Create the directory structure for `elemental3-toolkit`:
 
         ```shell
         mkdir -p example-extension/mkosi.extra/usr/local/bin
@@ -128,7 +128,7 @@ To illustrate the process, we will build an extension image for the `elemental3-
     tar cavf overlays.tar.gz -C overlays .
     ```
 
-We have successfully prepared an archive containing a system extension image that we can use during the installation process to ensure that the `elemental3-toolkit` binary is present on the operating system after boot.
+You have successfully prepared an archive containing a system extension image for use during the installation process. This adds the `elemental3-toolkit` binary to the operating system after boot.
 
 ### Configuring through a configuration script
 
@@ -203,7 +203,7 @@ In case you encounter issues with the process, make sure to enable the `--debug`
 
 ## Cleanup
 
-Since a loop device was attached to the RAW disk that was created as part of the [Prepare the Installation Target](#prepare-the-installation-target) section, we must clean this up.
+Since a loop device was attached to the RAW disk that was created as part of the [Prepare the Installation Target](#prepare-the-installation-target) section, you should deallocate the loop device:
 
 ```shell
 losetup -d /dev/loop0
@@ -222,7 +222,7 @@ qemu-kvm -m 8190 \
          -nographic
 ```
 
-You should now be seeing the bootloader that’s prompting you to start `openSUSE Tumbleweed`.
+You should see the bootloader prompting you to start `openSUSE Tumbleweed`.
 
 ### Validate Booted Image
 
@@ -264,9 +264,9 @@ You should now be seeing the bootloader that’s prompting you to start `openSUS
 
 ## Upgrading the OS of a Booted Image
 
-Suppose the image that we created as part of the previous sections has been running for a while and now we want to upgrade its operating system to include the latest available package versions.
+Suppose the image that you created as part of the previous sections has been running for a while and now you want to upgrade its operating system to include the latest available package versions.
 
-We can do this through the `elemental3-toolkit` command line tool, by executing the following command:
+You can do this through the `elemental3-toolkit` command line tool, by executing the following command:
 
 ```shell
 elemental3-toolkit upgrade --os-image registry.opensuse.org/devel/unifiedcore/tumbleweed/containers/uc-base-os-kernel-default:latest
