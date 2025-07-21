@@ -43,9 +43,9 @@ For a real-life example usage for the command, refer to the [Example](#example) 
 
 ### Build Directory Overview
 
-A build directory is created for each execution of the `elemental3 build` command. Apart from the actual built image, this build directory will also hold all the files and sub-directories that where used during the build process.
+The `elemental3 build` command creates a build directory for each execution. Apart from the image, this build directory holds all the files and sub-directories used for build.
 
-Expanded, the aforementioned build directory holds the following files/sub-directories:
+The expanded build directory contains the following files and subdirectories:
 
 ```shell
 _build/
@@ -55,6 +55,7 @@ _build/
 │   └── release-manifests/
 └── image-<timestamp>.raw
 ```
+
 *Files:*
 * `config.sh` - script responsible for applying configurations to the operating system during installation.
 * `image-<timestamp>.raw` - the built image. This file will be present in the build directory only if the `--output` option was not specified.
@@ -91,7 +92,7 @@ This section provides a high-level overview of the steps that Elemental's toolin
 
 This section provides an example on how users can leverage the `elemental3` command-line client to start an image build process and produce a ready to boot image that is customized and extended based on a specific use case.
 
-### Prerequisites 
+### Prerequisites
 
 * A server or virtual machine running Tumbleweed, Leap 16.0, SLES 16 or SUSE Linux Micro 6.2, with a minimum x86_64-v2 instruction set.
 * Access to SUSE's internal VPN (as of this moment, our component images are not publicly available).
@@ -100,7 +101,7 @@ This section provides an example on how users can leverage the `elemental3` comm
 
 A consumer has created a release manfiest for their product that extends a specific `Core Platform` version with additional components, namely `Rancher` and `cert-manager`.
 
-A user wants their environment to be running an operating system, Kubernetes distribution and Rancher version that are supported by the aforementioned consumer product. 
+A user wants their environment to be running an operating system, Kubernetes distribution and Rancher version that are supported by the aforementioned consumer product.
 
 In addition, the user wants to extend their environment by deploying the `NeuVector` Helm chart along with a specific set of Kubernetes manifests that will enable access to the Rancher UI.
 
@@ -268,7 +269,7 @@ After booting the image and logging into it using the user specified under the `
       NAMESPACE        NAME             IPADDRESSPOOLS       IPADDRESSPOOL SELECTORS   INTERFACES
       metallb-system   ingress-l2-adv   ["ingress-ippool"]
       ```
-   
+
    * RKE2 NGINX Ingress controller service is available, of type `LoadBalancer` and running on the `192.168.76.15` IP:
 
       ```shell
