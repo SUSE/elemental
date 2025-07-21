@@ -15,7 +15,7 @@ require (
 	github.com/twpayne/go-vfs/v4 v4.3.0
 	github.com/urfave/cli/v2 v2.27.7
 	go.yaml.in/yaml/v3 v3.0.4
-	k8s.io/mount-utils v0.33.2
+	k8s.io/mount-utils v0.33.3
 )
 
 require (
