@@ -67,49 +67,21 @@ type ISO struct {
 	outputFile string
 }
 
+// WithBootloader allows to create an ISO object with the given bootloader interface instance
 func WithBootloader(bootloader bootloader.Bootloader) Option {
 	return func(i *ISO) {
 		i.bl = bootloader
 	}
 }
 
+// WithUnpackOpts allows to create an ISO object with the given unpack package options
 func WithUnpackOpts(opts ...unpack.Opt) Option {
 	return func(i *ISO) {
 		i.unpackOpts = opts
 	}
 }
 
-// sanitize checks the current public attributes of the ISO object
-// and checks they good enough to proceed with an ISO build.
-func (i *ISO) sanitize() error {
-	if i.SourceOS == nil || i.SourceOS.IsEmpty() {
-		return fmt.Errorf("undefined OS image to build the installer from")
-	}
-
-	if i.Label == "" {
-		return fmt.Errorf("undefined label for the installer filesystem")
-	}
-
-	if i.KernelCmdLine == "" {
-		i.KernelCmdLine = fmt.Sprintf("root=live:CDLABEL=%s rd.live.overlay.overlayfs=1", i.Label)
-	}
-
-	if i.OutputDir == "" {
-		return fmt.Errorf("undefined output directory")
-	}
-
-	if i.Name == "" {
-		return fmt.Errorf("undefined name of the installer media")
-	}
-
-	i.outputFile = filepath.Join(i.OutputDir, fmt.Sprintf("%s.iso", i.Name))
-	if ok, _ := vfs.Exists(i.s.FS(), i.outputFile); ok {
-		return fmt.Errorf("target output file %s is an already existing file", i.outputFile)
-	}
-
-	return nil
-}
-
+// NewISO returns a new ISO object
 func NewISO(ctx context.Context, s *sys.System, opts ...Option) *ISO {
 	iso := &ISO{
 		Name:       "installer",
@@ -127,6 +99,8 @@ func NewISO(ctx context.Context, s *sys.System, opts ...Option) *ISO {
 	return iso
 }
 
+// Build creates a new ISO installer image with the given installation or deployment
+// paramters
 func (i ISO) Build(d *deployment.Deployment) (err error) {
 	err = i.sanitize()
 	if err != nil {
@@ -194,7 +168,42 @@ func (i ISO) Build(d *deployment.Deployment) (err error) {
 	return nil
 }
 
+// sanitize checks the current public attributes of the ISO object
+// and checks they good enough to proceed with an ISO build.
+func (i *ISO) sanitize() error {
+	if i.SourceOS == nil || i.SourceOS.IsEmpty() {
+		return fmt.Errorf("undefined OS image to build the installer from")
+	}
+
+	if i.Label == "" {
+		return fmt.Errorf("undefined label for the installer filesystem")
+	}
+
+	if i.KernelCmdLine == "" {
+		i.KernelCmdLine = fmt.Sprintf("root=live:CDLABEL=%s rd.live.overlay.overlayfs=1", i.Label)
+	}
+
+	if i.OutputDir == "" {
+		return fmt.Errorf("undefined output directory")
+	}
+
+	if i.Name == "" {
+		return fmt.Errorf("undefined name of the installer media")
+	}
+
+	i.outputFile = filepath.Join(i.OutputDir, fmt.Sprintf("%s.iso", i.Name))
+	if ok, _ := vfs.Exists(i.s.FS(), i.outputFile); ok {
+		return fmt.Errorf("target output file %s is an already existing file", i.outputFile)
+	}
+
+	return nil
+}
+
+// prepareRoot arranges the root directory tree that will be used to build the ISO's
+// squashfs image. It essentially extracts OS OCI images to the given location.
 func (i ISO) prepareRoot(rootDir string) error {
+	i.s.Logger().Info("Extracting OS %s", i.SourceOS.String())
+
 	unpacker, err := unpack.NewUnpacker(i.s, i.SourceOS, i.unpackOpts...)
 	if err != nil {
 		return fmt.Errorf("could not initate OS unpacker: %w", err)
@@ -221,16 +230,25 @@ func (i ISO) prepareRoot(rootDir string) error {
 	return nil
 }
 
+// prepareEFI sets the root directory tree of the EFI partition
 func (i ISO) prepareEFI(isoDir, efiDir string) error {
+	i.s.Logger().Info("Preparing EFI partition at %s", efiDir)
+
 	err := vfs.MkdirAll(i.s.FS(), filepath.Join(efiDir, "EFI"), vfs.FilePerm)
 	if err != nil {
 		return fmt.Errorf("failed creating EFI directory tree: %w", err)
 	}
-	r := rsync.NewRsync(i.s, rsync.WithFlags("--archive", "--recursive", "--no-links"))
+	r := rsync.NewRsync(
+		i.s, rsync.WithFlags("--archive", "--recursive", "--no-links"),
+		rsync.WithContext(i.ctx),
+	)
 	return r.SyncData(filepath.Join(isoDir, "EFI"), filepath.Join(efiDir, "EFI"))
 }
 
+// prepareISO sets the root directory three of the ISO filesystem
 func (i ISO) prepareISO(rootDir, isoDir string, d *deployment.Deployment) error {
+	i.s.Logger().Info("Preparing ISO contents at %s", isoDir)
+
 	imgDir := filepath.Join(isoDir, liveDir)
 	err := vfs.MkdirAll(i.s.FS(), imgDir, vfs.DirPerm)
 	if err != nil {
@@ -255,12 +273,9 @@ func (i ISO) prepareISO(rootDir, isoDir string, d *deployment.Deployment) error 
 		return fmt.Errorf("failed preparing ISO, could not create %s: %w", bootPath, err)
 	}
 
-	if d.CfgScript != "" {
-		err = vfs.CopyFile(i.s.FS(), d.CfgScript, filepath.Join(installPath, filepath.Base(d.CfgScript)))
-		if err != nil {
-			return fmt.Errorf("failed copying %s to install directory: %w", d.CfgScript, err)
-		}
-		d.CfgScript = filepath.Join(isoMountPoint, installDir, filepath.Base(d.CfgScript))
+	err = i.bl.InstallLive(rootDir, isoDir, i.KernelCmdLine)
+	if err != nil {
+		return fmt.Errorf("failed installing bootloader in ISO directory tree: %w", err)
 	}
 
 	if i.CfgScript != "" {
@@ -270,8 +285,40 @@ func (i ISO) prepareISO(rootDir, isoDir string, d *deployment.Deployment) error 
 		}
 	}
 
+	if i.OverlayTree != nil {
+		unpacker, err := unpack.NewUnpacker(i.s, i.OverlayTree, i.unpackOpts...)
+		if err != nil {
+			return fmt.Errorf("could not initate overlay unpacker: %w", err)
+		}
+		_, err = unpacker.Unpack(i.ctx, isoDir)
+		if err != nil {
+			return fmt.Errorf("overlay unpack failed: %w", err)
+		}
+	}
+
+	err = i.addInstallationAssets(installPath, d)
+	if err != nil {
+		return fmt.Errorf("failed adding installation assets and configuration: %w", err)
+	}
+
+	return nil
+}
+
+// addInstallationAssets adds to the ISO directory three the configuration and files required for
+// the installation from the current media
+func (i ISO) addInstallationAssets(targetDir string, d *deployment.Deployment) error {
+	var err error
+
+	if d.CfgScript != "" {
+		err = vfs.CopyFile(i.s.FS(), d.CfgScript, filepath.Join(targetDir, filepath.Base(d.CfgScript)))
+		if err != nil {
+			return fmt.Errorf("failed copying %s to install directory: %w", d.CfgScript, err)
+		}
+		d.CfgScript = filepath.Join(isoMountPoint, installDir, filepath.Base(d.CfgScript))
+	}
+
 	if d.OverlayTree != nil {
-		overlayPath := filepath.Join(installPath, overlayDir)
+		overlayPath := filepath.Join(targetDir, overlayDir)
 		err = vfs.MkdirAll(i.s.FS(), overlayPath, vfs.DirPerm)
 		if err != nil {
 			return fmt.Errorf("failed preparing ISO, could not create %s: %w", overlayPath, err)
@@ -279,7 +326,7 @@ func (i ISO) prepareISO(rootDir, isoDir string, d *deployment.Deployment) error 
 
 		switch {
 		case d.OverlayTree.IsDir():
-			r := rsync.NewRsync(i.s, rsync.WithFlags(rsync.OverlayTreeSyncFlags()...))
+			r := rsync.NewRsync(i.s, rsync.WithFlags(rsync.OverlayTreeSyncFlags()...), rsync.WithContext(i.ctx))
 			err = r.SyncData(d.OverlayTree.URI(), overlayPath)
 			if err != nil {
 				return fmt.Errorf("failed adding overlay tree to ISO directory tree: %w", err)
@@ -301,23 +348,7 @@ func (i ISO) prepareISO(rootDir, isoDir string, d *deployment.Deployment) error 
 		}
 	}
 
-	if i.OverlayTree != nil {
-		unpacker, err := unpack.NewUnpacker(i.s, i.OverlayTree, i.unpackOpts...)
-		if err != nil {
-			return fmt.Errorf("could not initate overlay unpacker: %w", err)
-		}
-		_, err = unpacker.Unpack(i.ctx, isoDir)
-		if err != nil {
-			return fmt.Errorf("overlay unpack failed: %w", err)
-		}
-	}
-
-	err = i.bl.InstallLive(rootDir, isoDir, i.KernelCmdLine)
-	if err != nil {
-		return fmt.Errorf("failed installing bootloader in ISO directory tree: %w", err)
-	}
-
-	installFile := filepath.Join(installPath, "install.yaml")
+	installFile := filepath.Join(targetDir, "install.yaml")
 	dBytes, err := yaml.Marshal(d)
 	if err != nil {
 		return fmt.Errorf("marshalling deployment: %w", err)
@@ -327,18 +358,20 @@ func (i ISO) prepareISO(rootDir, isoDir string, d *deployment.Deployment) error 
 	if err != nil {
 		return fmt.Errorf("writing deployment file '%s': %w", installFile, err)
 	}
+
 	return nil
 }
 
+// burnISO creates the ISO image from the prepared data
 func (i ISO) burnISO(isoDir, output, efiImg string) error {
 	cmd := "xorriso"
 	args := []string{
 		"-volid", "LIVE", "-padding", "0",
 		"-outdev", output, "-map", isoDir, "/", "-chmod", "0755", "--",
 	}
-	args = append(args, xorrisoBooloaderArgs(efiImg)...)
+	args = append(args, xorrisoBootloaderArgs(efiImg)...)
 
-	_, err := i.s.Runner().Run(cmd, args...)
+	_, err := i.s.Runner().RunContext(i.ctx, cmd, args...)
 	if err != nil {
 		return fmt.Errorf("failed creating the installer ISO image: %w", err)
 	}
@@ -357,7 +390,8 @@ func (i ISO) burnISO(isoDir, output, efiImg string) error {
 	return nil
 }
 
-func xorrisoBooloaderArgs(efiImg string) []string {
+// xorrisoBootloaderArgs returns a slice of flags for xorriso to defined a common bootloader parameters
+func xorrisoBootloaderArgs(efiImg string) []string {
 	args := []string{
 		"-append_partition", "2", "0xef", efiImg,
 		"-boot_image", "any", fmt.Sprintf("cat_path=%s", isoBootCatalog),
