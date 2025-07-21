@@ -349,7 +349,7 @@ func (i ISO) burnISO(isoDir, output, efiImg string) error {
 	}
 
 	checksumFile := fmt.Sprintf("%s.sha256", output)
-	err = i.s.FS().WriteFile(checksumFile, fmt.Appendf(nil, "%s %s\n", checksum, output), vfs.FilePerm)
+	err = i.s.FS().WriteFile(checksumFile, fmt.Appendf(nil, "%s %s\n", checksum, filepath.Base(output)), vfs.FilePerm)
 	if err != nil {
 		return fmt.Errorf("failed writing ISO's checksum file %s: %w", checksumFile, err)
 	}
