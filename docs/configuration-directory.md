@@ -16,7 +16,7 @@ This document provides an overview of each configuration area, the rationale beh
 
 One of Elemental's key features is enabling users to base their image on a set of components that are aligned with a specific product release.
 
-Consumers can use the `release.yaml` file to configure the desired product that they wish to use as base. Furthermore, they can explicitly choose which components from this product to enable based on their specific use-case.
+Consumers can use the `release.yaml` file to configure the desired product that they wish to use as base. Furthermore, they can explicitly choose which components from this product to enable based on their specific use case.
 
 ### release.yaml
 

@@ -89,14 +89,14 @@ This section provides a high-level overview of the steps that Elemental's toolin
 
 ## Example
 
-This section provides an example on how users can leverage the `elemental3` command-line client to start an image build process and produce a ready to boot image that is customized and extended based on a specific use-case.
+This section provides an example on how users can leverage the `elemental3` command-line client to start an image build process and produce a ready to boot image that is customized and extended based on a specific use case.
 
 ### Prerequisites 
 
 * A server or virtual machine running Tumbleweed, Leap 16.0, SLES 16 or SUSE Linux Micro 6.2, with a minimum x86_64-v2 instruction set.
 * Access to SUSE's internal VPN (as of this moment, our component images are not publicly available).
 
-### Use-case
+### Use case
 
 A consumer has created a release manfiest for their product that extends a specific `Core Platform` version with additional components, namely `Rancher` and `cert-manager`.
 
@@ -112,7 +112,7 @@ The contents of this directory include:
 
 * [install.yaml](../examples/elemental/build/install.yaml) - specify which `bootloader` and `kernel command line` arguments to use during the OS installation process.
 * [os.yaml](../examples/elemental/build/os.yaml) - specify `users` that the OS should have and the `disk size` of the built image.
-* [kubernetes.yaml](../examples/elemental/build/kubernetes.yaml) - specify the Helm charts and Kubernetes manifests that the user wishes to deploy as part of their use-case.
+* [kubernetes.yaml](../examples/elemental/build/kubernetes.yaml) - specify the Helm charts and Kubernetes manifests that the user wishes to deploy as part of their use case.
 * [release.yaml](../examples/elemental/build/release.yaml) - specify the reference to the user desired product and enable the necessary Helm chart components.
 * [suse-product-manifest.yaml](../examples/elemental/build/suse-product-manifest.yaml) - the release manifest for the desired product that the user has referred in the `release.yaml` configuration file.
 * [rancher.yaml](../examples/elemental/build/kubernetes/helm/values/rancher.yaml) - custom values for the `Rancher` Helm chart that we enabled from the SUSE Product manifest.
