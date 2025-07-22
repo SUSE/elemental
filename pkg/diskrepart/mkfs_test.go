@@ -33,7 +33,7 @@ const validUUID = "236dacf0-b37e-4bca-a21a-59e4aef3ea4c"
 const invalidUUID = "236dacf0-b37e-a21a-59e4aef3ea4c"
 const vfatUUID = "236dacf0"
 
-var _ = Describe("Parted", Label("parted"), func() {
+var _ = Describe("mkfs", Label("mkfs"), func() {
 	var runner *sysmock.Runner
 	var s *sys.System
 	BeforeEach(func() {
