@@ -286,7 +286,10 @@ func (i ISO) prepareISO(rootDir, isoDir string, d *deployment.Deployment) error 
 	}
 
 	if i.OverlayTree != nil {
-		unpacker, err := unpack.NewUnpacker(i.s, i.OverlayTree, i.unpackOpts...)
+		unpacker, err := unpack.NewUnpacker(
+			i.s, i.OverlayTree,
+			append(i.unpackOpts, unpack.WithRsyncFlags(rsync.OverlayTreeSyncFlags()...))...,
+		)
 		if err != nil {
 			return fmt.Errorf("could not initate overlay unpacker: %w", err)
 		}
