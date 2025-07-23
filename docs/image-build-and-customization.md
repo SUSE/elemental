@@ -120,6 +120,8 @@ The contents of this directory include:
 * [ip-pool.yaml](../examples/elemental/build/kubernetes/manifests/ip-pool.yaml) - local manifest to apply to the cluster and have the enabled `MetalLB` component setup an `IPAddressPool`.
 * [l2-adv.yaml](../examples/elemental/build/kubernetes/manifests/l2-adv.yaml) - local manifest to apply to the cluster and have the enabled `MetalLB` component setup a `L2Advertisement`.
 * [rke2-ingress-config.yaml](../examples/elemental/build/kubernetes/manifests/rke2-ingress-config.yaml) - local manifest that will edit the existing `rke2-ingress-nginx` Helm chart and will enable its service to be of type `LoadBalancer`.
+* [node1.qemu.yaml](../examples/elemental/build/network/node1.qemu.yaml) - custom network configuration that will be used as part of the [QEMU image boot example](#qemu).
+* [node2.libvirt.yaml](../examples/elemental/build/network/node2.libvirt.yaml) - custom network configuration that will be used as part of the [Libvirt image boot example](#libvirt).
 
 ### Building the actual image
 
@@ -135,8 +137,9 @@ After execution, your `examples/elemental/build` directory should look similar t
 ├── _build <- created by build command
 ├── example.raw <- created by build command
 ├── install.yaml
-├── kubernetes
+├── kubernetes/
 ├── kubernetes.yaml
+├── network/
 ├── os.yaml
 ├── release.yaml
 └── suse-product-manifest.yaml
@@ -145,7 +148,7 @@ After execution, your `examples/elemental/build` directory should look similar t
 
 > **NOTE:** The below RAM and vCPU resources are just reference values, feel free to tweak them based on what your environment needs.
 
-*Using Libvirt:*
+#### Libvirt
 
 ```shell
 virt-install --name uc-demo \
@@ -155,13 +158,15 @@ virt-install --name uc-demo \
              --osinfo detect=on,name=sle-unknown \
              --graphics none \
              --console pty,target_type=serial \
-             --network default \
+             --network default,model=virtio,mac=FE:C4:05:42:8B:AB \
              --virt-type kvm \
              --import \
              --boot uefi,loader=/usr/share/qemu/ovmf-x86_64-ms-code.bin,nvram.template=/usr/share/qemu/ovmf-x86_64-ms-vars.bin
 ```
 
-*Using QEMU:*
+> **NOTE:** Based on the `FE:C4:05:42:8B:AB` MAC address, during first boot this will machine apply the network configuration defined in the [node2.libvirt.yaml](../examples/elemental/build/network/node2.libvirt.yaml) file.
+
+#### QEMU
 
 ```shell
 qemu-kvm -m 16000 \
@@ -169,10 +174,13 @@ qemu-kvm -m 16000 \
          -bios /usr/share/qemu/ovmf-x86_64.bin \
          -cpu host \
          -nographic \
-         -netdev user,id=net0,hostfwd=tcp::16443-:6443 \
-         -device virtio-net-pci,netdev=net0 \
+         -netdev user,id=net0,net=192.168.122.0/24,hostfwd=tcp::16443-:6443 \
+         -device virtio-net-pci,netdev=net0,mac=FE:C4:05:42:8B:AA \
          -hda "example.raw"
 ```
+
+> **NOTE:** Based on the `FE:C4:05:42:8B:AA` MAC address, during first boot this will machine apply the network configuration defined in the [node1.qemu.yaml](../examples/elemental/build/network/node1.qemu.yaml) file.
+
 ### Environment overview
 
 After booting the image and logging into it using the user specified under the `os.yaml` configuration file, let's view how the end environment looks like.
@@ -183,19 +191,39 @@ After booting the image and logging into it using the user specified under the `
    cat /etc/os-release
    ```
 
-2. Verify that the RKE2 distribution is running:
+1. Verify the custom network configuration service:
+
+   ```shell
+   journalctl -u first-boot-network.service
+   ```
+
+1. Verify the machine's hostname:
+
+   > **NOTE:** If you have defined a MAC address that matches one of the network configuration files defined under the [network/](../examples/elemental/build/network/) directory, the hostname will be set to the name of that file.
+
+   ```shell
+   cat /etc/hostname
+   ```
+
+1. Verify that the RKE2 distribution is running:
 
    ```shell
    systemctl status rke2-server.service
    ```
 
-3. Setup `kubectl`:
+1. Setup `kubectl`:
 
    ```shell
    alias kubectl='KUBECONFIG=/etc/rancher/rke2/rke2.yaml /var/lib/rancher/rke2/bin/kubectl'
    ```
 
-4. Verify that the Core Platform enabled `MetalLB` component is running:
+1. Verify cluster node:
+
+   ```shell
+   kubectl get nodes -o wide
+   ```
+
+1. Verify that the Core Platform enabled `MetalLB` component is running:
 
    ```shell
    kubectl get pods -n metallb-system
@@ -206,7 +234,7 @@ After booting the image and logging into it using the user specified under the `
    metallb-speaker-w9gtc                 4/4     Running   0          13m
    ```
 
-5. Verify product enabled Helm chart components:
+1. Verify product enabled Helm chart components:
 
    * *Neuvector*:
 
@@ -237,7 +265,7 @@ After booting the image and logging into it using the user specified under the `
       system-upgrade-controller-67f899b56-rzcqh   1/1     Running     0          21m
       ```
 
-6. Verify that the custom `Rancher` Helm chart values defined under `kubernetes/helm/values/rancher.yaml` have been propagated to the `rancher` HelmChart resource:
+1. Verify that the custom `Rancher` Helm chart values defined under `kubernetes/helm/values/rancher.yaml` have been propagated to the `rancher` HelmChart resource:
 
    ```shell
    kubectl get helmchart rancher -n kube-system -o jsonpath='{.spec.valuesContent}'
@@ -248,7 +276,7 @@ After booting the image and logging into it using the user specified under the `
    replicas: 1
    ```
 
-7. Verify that the manifests from the `kubernetes/manifests` directory have been applied:
+1. Verify that the manifests from the `kubernetes/manifests` directory have been applied:
 
    * MetalLB `IPAddressPool` resource:
 

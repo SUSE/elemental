@@ -7,6 +7,7 @@ Generally, the available configuration areas that this directory supports are th
 * [Product Release Reference](#product-release-reference)
 * [Operating System](#operating-system)
 * [Kubernetes](#kubernetes)
+* [Network](#network)
 
 This document provides an overview of each configuration area, the rationale behind it and its API.
 
@@ -79,7 +80,7 @@ users:
 
 ## Kubernetes
 
-Users can provide Kubernetes related configurations through the `kubernetes.yaml` file and/or the `kubernetes` directory.
+Users can provide Kubernetes related configurations through the `kubernetes.yaml` file and/or the `kubernetes/` directory.
 
 ### kubernetes.yaml
 
@@ -115,7 +116,7 @@ helm:
 
 ### Kubernetes Directory
 
-The `kubernetes` directory enables users to configure custom Helm chart values and/or further extend the Kubernetes cluster with locally defined manifests.
+The `kubernetes/` directory enables users to configure custom Helm chart values and/or further extend the Kubernetes cluster with locally defined manifests.
 
 The directory's structure is as follows:
 
@@ -132,3 +133,42 @@ The directory's structure is as follows:
 * `helm` - Optional; Contains locally provided Helm chart configurations
   * `values` - Optional; Contains [Helm values files](https://helm.sh/docs/chart_template_guide/values_files/). Helm charts that require specified values must have a values file included in this directory.
 * `manifests` - Optional; Contains locally provided Kubernetes manifests which will be applied to the cluster. Can be used separately or in combination with the manifests provided in the `kubernetes.yaml` file.
+
+## Network
+
+Users can declaratively configure their network through the `network/` directory in one of two ways:
+
+1. Via the [NetworkManager Configurator](#networkmanager-configurator).
+2. Via a [custom network script](#custom-network-script).
+
+> **NOTE:** If the `network/` directory is missing, the system will implicitly fallback to DHCP.
+
+### NetworkManager Configurator
+
+The NetworkManager Configurator, or `nmc` for short, is a CLI tool that leverages the functionality provided by the `nmstate` library and enables users to easily define the desired state of their network.
+
+Users are expected to place `nmstate` configuration files, in YAML format, within the `network/` directory. These files will be picked up by `nmc` and used to generate the respective NetworkManager configurations.
+
+Configurations for multiple hosts can be defined by creating files named after the hostname that would be set. This allows for multiple different nodes to be spawned from the same built image, with each node self-identifying during the first boot process based on MAC address matching of the network card(s). 
+
+Examples for this type of configurations can be viewed under the [examples](../examples/elemental/build/network/) directory.
+
+For more information on the `nmstate` library, refer to the [upstream documentation](https://nmstate.io).
+
+For more information on `nmc`, refer to the [upstream repository](https://github.com/suse-edge/nm-configurator).
+
+### Custom Network Script
+
+For use cases where modifying the default network configuration using the [nmc](#networkmanager-configurator) method is not applicable, users have the option to configure the network using a custom script.
+
+This script will be executed during first boot and needs to be provided under `network/configure-network.sh`:
+
+```shell
+.
+├── ..
+├── kubernetes/
+└── network/
+    └── configure-network.sh
+```
+
+> **IMPORTANT:** If a custom script is present, all other files in the `network/` directory will be ignored. It is **not** possible to configure the network using both static YAML configurations and a custom script simultaneously.
