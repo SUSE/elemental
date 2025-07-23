@@ -24,7 +24,8 @@ jobs:
           go-version-file: go.mod
       - name: Install dependencies
         run: |
-          sudo apt-get install rootlesskit
+          sudo apt update
+          sudo apt-get install -y rootlesskit
       - name: Run tests
         env:
           COV_THRESHOLD: "70"
