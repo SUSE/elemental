@@ -89,9 +89,14 @@ func NewBuildISOCommand(appName string, action func(*cli.Context) error) *cli.Co
 			},
 			&cli.StringFlag{
 				Name:        "output",
-				Usage:       "output directory is where is stored the resulting image",
+				Usage:       "Location for the temporary builtime files and the resulting image",
 				Destination: &InstallerArgs.OutputDir,
 				Required:    true,
+			},
+			&cli.StringFlag{
+				Name:        "name",
+				Usage:       "Name of the resulting image file",
+				Destination: &InstallerArgs.Name,
 			},
 			&cli.StringFlag{
 				Name:        "os-image",
