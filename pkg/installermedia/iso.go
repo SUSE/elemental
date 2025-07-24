@@ -169,7 +169,7 @@ func (i ISO) Build(d *deployment.Deployment) (err error) {
 }
 
 // sanitize checks the current public attributes of the ISO object
-// and checks they good enough to proceed with an ISO build.
+// and checks if they are good enough to proceed with an ISO build.
 func (i *ISO) sanitize() error {
 	if i.SourceOS == nil || i.SourceOS.IsEmpty() {
 		return fmt.Errorf("undefined OS image to build the installer from")
