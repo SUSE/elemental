@@ -62,7 +62,7 @@ func CreateEmptyFile(fs vfs.FS, filename string, size int64, noSparse bool) erro
 	return nil
 }
 
-// CreatePreloadedFileSystemImage create a new raw image with the given filesystem. The size of the image
+// CreatePreloadedFileSystemImage creates a new raw image with the given filesystem. The size of the image
 // is computed form the provided root tree size plus the given overhead. The resulting image size is aligned
 // with the given overhead and has a minimum of a full overhead of free space.
 func CreatePreloadedFileSystemImage(s *sys.System, root, filename, label string, overheadM int64, fs deployment.FileSystem) error {
