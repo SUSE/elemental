@@ -102,7 +102,7 @@ var _ = Describe("Install", Label("install"), func() {
 			{"xorriso", "-volid", "LIVE", "-padding", "0", "-outdev", "/some/dir/build/installer.iso"},
 		}))
 	})
-	It("fails to create an ISO without an output directory defines", func() {
+	It("fails to create an ISO without an output directory defined", func() {
 		iso := installermedia.NewISO(context.Background(), s, installermedia.WithBootloader(bootloader.NewNone(s)))
 		iso.SourceOS = deployment.NewDirSrc("/some/root")
 
