@@ -141,6 +141,20 @@ func DefaultFlags() []string {
 	}
 }
 
+// OverlayTreeSyncFlags provides the rsync flags that are used to sync directories or raw images
+// during the overlay tree extraction. It does not keep permissions on pre-existing files or
+// directories and it does not keep ownership of files and directories.
+func OverlayTreeSyncFlags() []string {
+	return []string{
+		"--recursive",
+		"--hard-links",
+		"--links",
+		"--info=progress2",
+		"--human-readable",
+		"--partial",
+	}
+}
+
 func parseProgress(log log.Logger) func(string) {
 	var progress int
 	re := regexp.MustCompile(`.* (\d+(.\d+)?)% .*`)

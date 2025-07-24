@@ -132,7 +132,7 @@ You have successfully prepared an archive containing a system extension image fo
 
 ### Configuring through a configuration script
 
-The OS installation supports configurations through a script that will be executed in a `chroot` on the unpacked operating system. 
+The OS installation supports configurations through a script that will be executed in a `chroot` on the unpacked operating system.
 
 > **NOTE:** The script is executed after any user provided overlays archive are expanded.
 
@@ -261,6 +261,149 @@ You should see the bootloader prompting you to start `openSUSE Tumbleweed`.
         ```shell
         elemental3-toolkit version
         ```
+
+## Create an Installer ISO
+
+In order to create a self installer ISO some configuration assets must be prepared in advance to include them into the ISO. The essential parts are:
+
+1. A configuration script
+2. A directory tree to include additional files into the ISO filesystem
+
+### Configure the Live Installer
+
+The ISO supports configurations through a script which will be executed in late initramfs just before switching root.
+The script is executed chrooting to the system root.
+
+#### Example Live Config Script
+
+In this example we are going to setup a configuration script that will set three aspects:
+
+1. Autologin, so the live ISO does not require a root password
+2. Add an elemental-autoinstaller service to run the installation at boot
+3. Ensure the extensions added in the ISO filesystem are linked to `/run/extesions` so they are loaded at boot
+
+*Steps:*
+
+1. Create configuration script:
+
+    ```shell
+    #!/bin/bash
+
+    # Set autologin for the Live ISO
+    mkdir -p /etc/systemd/system/serial-getty@ttyS0.service.d
+
+    cat > /etc/systemd/system/serial-getty@ttyS0.service.d/override.conf << EOF
+    [Service]
+    ExecStart=
+    ExecStart=-/sbin/agetty --autologin root --noclear %I $TERM
+    EOF
+
+    mkdir -p /etc/systemd/system/getty@tty1.service.d
+
+    cat > /etc/systemd/system/getty@tty1.service.d/override.conf << EOF
+    [Service]
+    ExecStart=
+    ExecStart=-/sbin/agetty --autologin root --noclear %I $TERM
+    EOF
+
+    # Ensure extensions included in ISO's /extensions folder are loaded at boot
+    # ISO filesystem is mounted at /run/initramfs/live folder
+    rm -rf /run/extensions
+    ln -s /run/initramfs/live/extensions /run/extensions
+
+
+    # Set the elemental-autoinstall.service
+    cat > /etc/systemd/system/elemental-autoinstall.service << EOF
+    [Unit]
+    Description=Elemental Autoinstall
+    Wants=network-online.target
+    After=network-online.target
+    ConditionPathExists=/run/initramfs/live/Install/install.yaml
+    ConditionFileIsExecutable=/usr/bin/elemental3-toolkit
+
+
+    [Service]
+    Type=oneshot
+    ExecStart=/usr/bin/elemental3-toolkit --debug install --description /run/initramfs/live/Install/install.yaml
+    ExecStartPost=reboot
+    Restart=on-failure
+    RestartSec=5
+
+    [Install]
+    WantedBy=multi-user.target
+    EOF
+
+    systemctl enable elemental-autoinstall.service
+    ```
+
+2. Make `config.sh` executable:
+
+    ```shell
+    chmod +x config.sh
+    ```
+
+#### Include Extensions in the Installer Media
+
+The provided OS does not include the `elemental3-toolkit` required to run the installation to the target disk. `elemental3-toolkit` is provided as
+a systemd extension so to make it available at ISO boot it has to be present in the ISO filesystem and copied or linked to `/run/extensions`.
+
+This example shows how to prepare the ISO overlay directory tree and the configuration script to ensure the `elemental3-toolkit` extensions are
+available and loaded at boot.
+
+1. Create an `iso-overlay/extensions` directory:
+
+    ```shell
+    mkdir -p iso-overlay/extensions
+    ```
+
+2. Move the `elemental3-toolkit-3.0.x86-64.raw` extension image to this directory:
+
+    ```shell
+    mv example-extension/mkosi.output/elemental3-toolkit-3.0.x86-64.raw iso-overlay/extensions
+    ```
+
+3. Make sure the live configuration script links the `extensions` folder at `/run/extensions`
+
+### Build the Installer ISO
+
+To create an installer live ISO image process is similar to the [install step](#install-os-on-target-device) described above. The command below
+will create an ISO image inside the `build` output folder using an `openSUSE Tumbleweed` image and it will be configured to automatically self
+install to the target device (e.g. `/dev/sda`) at boot.
+
+```shell
+sudo elemental3-toolkit --debug build-iso \
+    --output build \
+    --os-image registry.opensuse.org/devel/unifiedcore/tumbleweed/containers/uc-base-os-kernel-default:latest \
+    --overlay dir://iso-overlay \
+    --config config-live.sh \
+    --install-target /dev/sda \
+    --install-overlay tar://overlays.tar.gz \
+    --install-config config.sh
+```
+
+Note that:
+* The `overlays.tar.gz` tarball came from the system extension image [example configuration](#example-system-extension-image).
+* The `config.sh` script came from the [configuration script example](#example-config-script).
+* The `/dev/sda` is the target device you want the ISO to install to.
+* The `iso-overlay` is the directory tree [including extensions](#include-extensions-in-the-installer-media) that will be included in the ISO filesystem of the built image.
+* The `config-live.sh` script came from the live [configuration script example](#example-live-config-script).
+
+### Booting a Live Installer Image
+
+In order to boot the installer ISO and test the automatic install a simple QEMU virtual machine can be launched with the following command:
+
+```shell
+qemu-kvm -m 8190 \
+         -cpu host \
+         -hda disk.img \
+         -cdrom build/installer.iso \
+         -drive if=pflash,format=raw,readonly,file=/usr/share/qemu/ovmf-x86_64-code.bin \
+         -drive if=pflash,format=raw,file=ovmf-x86_64-vars.bin
+```
+
+Note that:
+* EFI devices are included to the command. There is a code device for the EFI firmware and a local copy of the EFI variable store to persist any new EFI entry included during the installation.
+* The `disk.img` can be an empty disk image file created with the `qemu-img create` command.
 
 ## Upgrading the OS of a Booted Image
 
