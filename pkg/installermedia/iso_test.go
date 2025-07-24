@@ -75,7 +75,7 @@ var _ = Describe("Install", Label("install"), func() {
 	AfterEach(func() {
 		cleanup()
 	})
-	It("Creates and installation ISO", func() {
+	It("Creates an installation ISO", func() {
 		sideEffects["xorriso"] = func(args ...string) ([]byte, error) {
 			Expect(fs.WriteFile("/some/dir/build/installer.iso", []byte("data"), vfs.FilePerm)).To(Succeed())
 			return []byte{}, nil
