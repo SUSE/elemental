@@ -324,7 +324,7 @@ In this example we are going to setup a configuration script that will set three
 
     [Service]
     Type=oneshot
-    ExecStart=/usr/bin/elemental3-toolkit --debug install --description /run/initramfs/live/Install/install.yaml
+    ExecStart=/usr/local/bin/elemental3-toolkit --debug install --description /run/initramfs/live/Install/install.yaml
     ExecStartPost=reboot
     Restart=on-failure
     RestartSec=5
