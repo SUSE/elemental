@@ -345,7 +345,7 @@ In this example we are going to setup a configuration script that will set three
 #### Include Extensions in the Installer Media
 
 The provided OS does not include the `elemental3-toolkit` required to run the installation to the target disk. `elemental3-toolkit` is provided as
-a systemd extension so to make it available at ISO boot it has to be present in the ISO filesystem and copied or linked to `/run/extensions`.
+`elemental3-toolkit` is delivered through a systemd extension image. To ensure it is available at ISO boot, it has to be included in the ISO filesystem and either copied or linked to `/run/extensions`.
 
 This example shows how to prepare the ISO overlay directory tree and the configuration script to ensure the `elemental3-toolkit` extensions are
 available and loaded at boot.
