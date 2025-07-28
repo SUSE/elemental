@@ -319,7 +319,7 @@ In this example we are going to setup a configuration script that will set three
     Wants=network-online.target
     After=network-online.target
     ConditionPathExists=/run/initramfs/live/Install/install.yaml
-    ConditionFileIsExecutable=/usr/bin/elemental3-toolkit
+    ConditionFileIsExecutable=/usr/local/bin/elemental3-toolkit
 
 
     [Service]
