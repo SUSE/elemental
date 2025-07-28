@@ -356,7 +356,7 @@ available and loaded at boot.
     mkdir -p iso-overlay/extensions
     ```
 
-2. Move the `elemental3-toolkit-3.0.x86-64.raw` extension image to this directory:
+2. Create the [elemental3-toolkit](#example-system-extension-image) extension image and move it to this directory:
 
     ```shell
     mv example-extension/mkosi.output/elemental3-toolkit-3.0.x86-64.raw iso-overlay/extensions
