@@ -267,7 +267,7 @@ You should see the bootloader prompting you to start `openSUSE Tumbleweed`.
 To create a self installer ISO, users must prepare and include a specific set of configuration assets. These include:
 
 1. A configuration script
-2. A directory tree to include additional files into the ISO filesystem
+2. Extensions to the installer media
 
 ### Configure the Live Installer
 
