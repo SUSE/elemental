@@ -280,13 +280,14 @@ In this example we are going to setup a configuration script that will set three
 
 1. Autologin, so the live ISO does not require a root password
 2. Add an elemental-autoinstaller service to run the installation at boot
-3. Ensure the extensions added in the ISO filesystem are linked to `/run/extesions` so they are loaded at boot
+3. Ensure the extensions added in the ISO filesystem are linked to `/run/extensions` so they are loaded at boot
 
 *Steps:*
 
 1. Create configuration script:
 
     ```shell
+    cat <<- END > config-live.sh
     #!/bin/bash
 
     # Set autologin for the Live ISO
@@ -334,12 +335,13 @@ In this example we are going to setup a configuration script that will set three
     EOF
 
     systemctl enable elemental-autoinstall.service
+    END
     ```
 
-2. Make `config.sh` executable:
+2. Make `config-live.sh` executable:
 
     ```shell
-    chmod +x config.sh
+    chmod +x config-live.sh
     ```
 
 #### Include Extensions in the Installer Media
@@ -366,19 +368,20 @@ available and loaded at boot.
 
 ### Build the Installer ISO
 
-To create an installer live ISO image process is similar to the [install step](#install-os-on-target-device) described above. The command below
-will create an ISO image inside the `build` output folder using an `openSUSE Tumbleweed` image and it will be configured to automatically self
-install to the target device (e.g. `/dev/sda`) at boot.
+The command below creates an ISO image inside the `build` output directory.
+It will be using an `openSUSE Tumbleweed` image and will be configured to automatically self install to the target device (e.g. `dev/sda`) at boot.
 
 ```shell
 sudo elemental3-toolkit --debug build-iso \
     --output build \
     --os-image registry.opensuse.org/devel/unifiedcore/tumbleweed/containers/uc-base-os-kernel-default:latest \
     --overlay dir://iso-overlay \
+    --cmdline "root=live:CDLABEL=LIVE rd.live.overlay.overlayfs=1 console=ttyS0" \
     --config config-live.sh \
     --install-target /dev/sda \
     --install-overlay tar://overlays.tar.gz \
     --install-config config.sh
+    --install-cmdline "root=LABEL=SYSTEM console=ttyS0"
 ```
 
 Note that:
@@ -398,7 +401,8 @@ qemu-kvm -m 8190 \
          -hda disk.img \
          -cdrom build/installer.iso \
          -drive if=pflash,format=raw,readonly,file=/usr/share/qemu/ovmf-x86_64-code.bin \
-         -drive if=pflash,format=raw,file=ovmf-x86_64-vars.bin
+         -drive if=pflash,format=raw,file=ovmf-x86_64-vars.bin \
+         -nographic
 ```
 
 Note that:
