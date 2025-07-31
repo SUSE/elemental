@@ -294,7 +294,7 @@ func (d *Deployment) Sanitize(s *sys.System) error {
 }
 
 // WriteDeploymentFile serialized the Deployment variable into a file. As part of the
-// serialization it omits runitme information such as device paths, overlay and config
+// serialization it omits runtime information such as device paths, overlay and config
 // script paths.
 func (d Deployment) WriteDeploymentFile(s *sys.System, root string) error {
 	path := filepath.Join(root, deploymentFile)
