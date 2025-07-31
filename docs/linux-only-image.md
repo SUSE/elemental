@@ -272,7 +272,7 @@ To create a self installer ISO, users must prepare and include a specific set of
 ### Configure the Live Installer
 
 The ISO supports configurations through a script which will be executed in late initramfs just before switching root.
-The script is executed chrooting to the system root.
+The script is executed in a writeable system root.
 
 #### Example Live Config Script
 
