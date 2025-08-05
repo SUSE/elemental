@@ -1,0 +1,27 @@
+---
+
+name: Reject GitHub signed commits
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  github-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Ensure no commits are signed by GitHub
+        shell: bash {0}
+        run: |
+          git rev-list --no-merges origin/${{ github.base_ref }}..${{ github.sha }} | while read -r commit; do
+              echo "checking $commit"
+              if (git verify-commit -v --raw $commit || true) 2>&1 | grep -q B5690EEEBB952194; then
+                echo "Please squash GitHub commit $commit into the respective change."; exit 1;
+              fi
+          done
