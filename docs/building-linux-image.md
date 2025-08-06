@@ -1,6 +1,6 @@
 # Building a Linux Virtual Machine Image with Elemental
 
-This section provides an overview of how users wishing to build a Linux image can leverage the `elemental3-toolkit` command-line client to install an operating system on a target device.
+This section provides an overview of how you build a Linux image that can include additional extensions using Elemental and the `elemental3-toolkit` command line client. The image can be used to boot a virtual machine and run a Linux operating system, such as `openSUSE Tumbleweed`, with custom configurations and extensions.
 
 ## Prerequisites
 
@@ -23,22 +23,28 @@ This section provides an overview of how users wishing to build a Linux image ca
 
 ## Prepare basic configuration
 
-To build a Linux image, users of the `elemental3-toolkit` can apply their basic configurations at installation time in the following ways:
+`elemental3-toolkit` can apply basic configuration and extensions at deployment time in the following ways:
 
 * Through a [system extension image](#configuring-through-a-systemd-extension-image)
 * Through a [configuration script](#configuring-through-a-configuration-script)
 
 ### Configuring through a systemd-extension image
 
-System extension images can be disk image files or simple folders that get loaded by the `systemd-sysext.service`. They allow users to dynamically extend the operating system's directory hierarchies with additional files. For more information, refer to the [man systemd-sysext](https://www.freedesktop.org/software/systemd/man/latest/systemd-sysext.html) documentation.
+System extension images can be disk image files or simple folders that get loaded by the `systemd-sysext.service`. They allow you to dynamically extend the operating system. For more information, refer to the [man systemd-sysext](https://www.freedesktop.org/software/systemd/man/latest/systemd-sysext.html) documentation.
 
-Using Elemental's toolset, users can wrap any number of these extension images inside a tarball and provide that tarball during [OS installation](#install-os-on-target-device).
+Using Elemental's toolset, you can wrap any number of these extension images inside a tarball and provide that tarball during [OS installation](#install-os-on-target-device).
 
 > **IMPORTANT:** To be compliant with Elemental's standards, system extension images should always be added under the `/var/lib/extensions` directory of the underlying operating system.
 
-#### Example systemd-extension image
+### Example system extension image
 
-This example demonstrates how users can create a system extension image and wrap it inside a tarball that will be later provided during OS installation.
+You have multiple options to create a system extension image. Below are some common methods, with the `mkosi` tool being the most prevalent. This tool allows you to build an image from a set of configuration files.
+
+You can create a systemd-extension from a binary or from a set of packages available in the distribution. The following example demonstrates how to create a systemd-extension from a binary.
+
+#### Embed a binary in a systemd-extension image
+
+This example demonstrates how you can create a system extension image and wrap it inside a tarball that will be later provided during OS installation.
 
 The following builds an extension image for the `elemental3-toolkit` command line client.
 
@@ -108,7 +114,46 @@ The following builds an extension image for the `elemental3-toolkit` command lin
         └── elemental3-toolkit-3.0.x86-64.raw
     ```
 
-*Prepare the `elemental3-toolkit-3.0.x86-64.raw` extension image as an overlay:*
+6. The `mkosi.output/elemental3-toolkit-3.0.x86-64.raw` file is the system extension image that can be used during the OS installation process following the steps in [Prepare the system extension image as an overlay](#prepare-the-system-extension-image-as-an-overlay).
+
+
+#### Install RPMs in a systemd-extension image
+
+There are 3 `mkosi.conf` configurations needed:
+
+* [mkosi.conf in the base directory](../examples/tools-sysext/mkosi.conf)
+* [base/mkosi.conf defining the base layer](../examples/tools-sysext/mkosi.images/base/mkosi.conf)
+* [tools/mkosi.conf defining the tools layer](../examples/tools-sysext/mkosi.images/tools/mkosi.conf)
+
+Creating the tools systemd extension requires "subtracting" the tools layer from the base layer. The base layer hence needs to include any of the files that are already available on the host operating system, and the tools definition defines the extensions over that. This is needed to ensure that no files on the operating system are overwritten by the tools layer.
+
+You can build the systemd-sysext by invoking `mkosi` in the `examples/tools-sysext` directory. This will create a base image and a tools image, and then assemble them into a systemd extension.
+
+```shell
+cd examples/tools-sysext
+mkosi --directory $PWD
+```
+
+This will produce the base and extension images and assemble it into a systemd extension:
+
+```shell
+Block level copying and synchronization of partition 0 complete in 4.776ms.
+Adding new partition 0 to partition table.
+Writing new partition table.
+All done.
+Running post-output script mkosi.images/tools/mkosi.postoutput…
+mkosi.postoutput tools-1.0
+tools-sysext/mkosi.output/tools-1.0.x86-64.raw size is 11.0M, consumes 1.6M.
+```
+
+The resulting systemd-sysext will be available in the `mkosi.output/` directory as `tools-1.0.x86-64.raw`.
+
+This systemd-sysext can be used as an overlay during the OS installation process, following the steps in [Prepare the system extension image as an overlay](#prepare-the-system-extension-image-as-an-overlay).
+
+
+### Prepare the system extension image as an overlay
+
+The following steps prepare the example `elemental3-toolkit-3.0.x86-64.raw` extension image as an overlay:
 
 1. On the same level as `example-extension/`, create an `overlays/var/lib/extensions` directory:
 
@@ -231,6 +276,7 @@ qemu-system-x86_64 -m 8G \
 
 You should see the bootloader prompting you to start `openSUSE Tumbleweed`.
 
+
 ### Explore virtual machine
 
 1. Login with the root user and password as configured in the [config.sh](#example-config-script) script.
@@ -276,10 +322,11 @@ To create a self installer ISO, you should prepare and include a specific set of
 1. A configuration script
 2. Extensions to the installer media
 
+
 ### Configure the Live Installer
 
-The ISO supports configurations through a script which will be executed in late initramfs just before switching root.
-The script is executed in a writeable system root.
+The ISO supports configurations through a script which will run in late initramfs in a writeable system root.
+
 
 #### Example Live Config Script
 
@@ -402,8 +449,12 @@ Note that:
 
 In order to boot the installer ISO and test the automatic install a simple QEMU virtual machine can be launched with the following command:
 
+> **NOTE:** Make sure you have `qemu` installed on your system. If not, you can install it using `zypper -n install qemu-x86`.
+> **NOTE:** If you are using a different architecture, make sure to adjust the `qemu-system-x86_64` command accordingly.
+
 ```shell
-qemu-kvm -m 8190 \
+qemu-system-x86_64 -m 8G \
+         -accel kvm \
          -cpu host \
          -hda disk.img \
          -cdrom build/installer.iso \
@@ -415,6 +466,7 @@ qemu-kvm -m 8190 \
 Note that:
 * EFI devices are included to the command. There is a code device for the EFI firmware and a local copy of the EFI variable store to persist any new EFI entry included during the installation.
 * The `disk.img` can be an empty disk image file created with the `qemu-img create` command.
+
 
 ## Upgrading the OS of a Booted Image
 

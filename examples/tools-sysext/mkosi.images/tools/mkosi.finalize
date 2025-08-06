@@ -1,0 +1,10 @@
+#!/bin/bash
+
+PACKAGE=tools-1.0
+PACKAGE_VERSION=${PACKAGE}.${ARCHITECTURE}
+echo "mkosi.finalize ${PACKAGE}" "$@"
+echo "extension-release version: $PACKAGE_VERSION"
+mv /buildroot/usr/lib/extension-release.d/extension-release.tools /buildroot/usr/lib/extension-release.d/extension-release.${PACKAGE_VERSION}
+
+echo "SELinux labeling"
+restorecon -vR /buildroot/usr
