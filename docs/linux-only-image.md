@@ -6,7 +6,7 @@ This section provides an overview of how users wishing to build a Linux-only ima
 
 * A server or virtual machine running Tumbleweed, Leap 16.0, SLES 16 or SUSE Linux Micro 6.2, with a minimum x86_64-v2 instruction set.
 
-## Prepare the installation virtual machine image
+## Prepare the installation target
 
 1. Create a `qcow2` disk with a size of `20GB`:
 
@@ -25,7 +25,7 @@ This section provides an overview of how users wishing to build a Linux-only ima
 
 To build a Linux-only image, users of the `elemental3-toolkit` can apply their basic configurations at installation time in the following ways:
 
-* Through a [system extension image](#configuring-through-a-system-extension-image)
+* Through a [system extension image](#configuring-through-a-systemd-extension-image)
 * Through a [configuration script](#configuring-through-a-configuration-script)
 
 ### Configuring through a systemd-extension image
