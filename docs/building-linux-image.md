@@ -1,6 +1,6 @@
 # Building a Linux Virtual Machine Image with Elemental
 
-This section provides an overview of how users wishing to build a Linux-only image can leverage the `elemental3-toolkit` command-line client to install an operating system on a target device.
+This section provides an overview of how users wishing to build a Linux image can leverage the `elemental3-toolkit` command-line client to install an operating system on a target device.
 
 ## Prerequisites
 
@@ -23,7 +23,7 @@ This section provides an overview of how users wishing to build a Linux-only ima
 
 ## Prepare basic configuration
 
-To build a Linux-only image, users of the `elemental3-toolkit` can apply their basic configurations at installation time in the following ways:
+To build a Linux image, users of the `elemental3-toolkit` can apply their basic configurations at installation time in the following ways:
 
 * Through a [system extension image](#configuring-through-a-systemd-extension-image)
 * Through a [configuration script](#configuring-through-a-configuration-script)

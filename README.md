@@ -19,7 +19,7 @@ Elemental is a tool for installing, configuring and updating operating system im
 
 ## Guides
 
-* [Building a Linux-only Image](./docs/linux-only-image.md) - for users and/or consumers interested in building Linux-only images.
+* [Building a Linux Image](./docs/building-linux-image.md) - for users and/or consumers interested in building Linux images.
 * [Image Build and Customization](./docs/image-build-and-customization.md) - for users and/or consumers interested in building images that are customized, extended and based on a specific product.
 * [Release Manifest Guide](./docs/release-manifest.md) - for consumers interested in creating a release manifest for their product.
 
