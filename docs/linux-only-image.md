@@ -10,7 +10,7 @@ This section provides an overview of how users wishing to build a Linux-only ima
 
 1. Create a `RAW` disk with a size of `10GB`:
 
-    ```bash
+    ```shell
     qemu-img create -f raw example.img 10G
     ```
 
@@ -18,7 +18,7 @@ This section provides an overview of how users wishing to build a Linux-only ima
 
     > **IMPORTANT:** Make sure to save the output of the below command, as it will be used later.
 
-    ```bash
+    ```shell
     losetup -f --show example.img
     ```
 
@@ -124,7 +124,7 @@ The following builds an extension image for the `elemental3-toolkit` command lin
 
 3. Create an archive from the overlay directory:
 
-    ```bash
+    ```shell
     tar cavf overlays.tar.gz -C overlays .
     ```
 
