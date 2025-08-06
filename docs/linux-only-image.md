@@ -1,6 +1,6 @@
 # Building a Linux-only Image
 
-This section provides an overview of how users wishing to build a Linux-only image can leverage the `elemental3-toolkit` command-line client to install an operating system on a target device. 
+This section provides an overview of how users wishing to build a Linux-only image can leverage the `elemental3-toolkit` command-line client to install an operating system on a target device.
 
 ## Prerequisites
 
@@ -8,18 +8,17 @@ This section provides an overview of how users wishing to build a Linux-only ima
 
 ## Prepare the Installation Target
 
-1. Create a `RAW` disk with a size of `10GB`:
+1. Create a `qcow2` disk with a size of `20GB`:
 
     ```shell
-    qemu-img create -f raw example.img 10G
+    qemu-img create -f qcow2 example.qcow2 20G
     ```
 
-2. Associate the created disk with a loop device:
-
-    > **IMPORTANT:** Make sure to save the output of the below command, as it will be used later.
+2. Associate the created virtual disk with a block device:
 
     ```shell
-    losetup -f --show example.img
+    sudo modprobe nbd
+    sudo qemu-nbd -c /dev/nbd0 example.qcow2
     ```
 
 ## Prepare Basic Configuration
@@ -39,7 +38,7 @@ Using Elemental's toolset, users can wrap any number of these extension images i
 
 #### Example System Extension Image
 
-This example demonstrates how users can create a system extension image and wrap it inside a tarball that will be later provided during OS installation.  
+This example demonstrates how users can create a system extension image and wrap it inside a tarball that will be later provided during OS installation.
 
 The following builds an extension image for the `elemental3-toolkit` command line client.
 
@@ -181,32 +180,33 @@ In this example we are going to setup a configuration script that will apply the
 
 ## Install OS on Target Device
 
-Once you run the below command, the RAW disk that was created as part of the [Prepare the Installation Target](#prepare-the-installation-target) section will now hold a ready to boot image that will run `openSUSE Tumbleweed` and will be configured as described in the [Prepare Basic Configuration](#prepare-basic-configuration) section.
+Once you run the below command, the virtual disk created as part of the [Prepare the Installation Target](#prepare-the-installation-target) section now holds a ready to boot image that will run `openSUSE Tumbleweed` and will be configured as described in the [Prepare Basic Configuration](#prepare-basic-configuration) section.
 
 ```shell
 sudo elemental3-toolkit install \
   --overlay tar://overlays.tar.gz \
   --config config.sh \
   --os-image registry.opensuse.org/devel/unifiedcore/tumbleweed/containers/uc-base-os-kernel-default:latest \
-  --target /dev/loop0 \
+  --target /dev/nbd0 \
   --cmdline "root=LABEL=SYSTEM console=ttyS0"
 ```
 
 Note that:
 * The `overlays.tar.gz` tarball came from the system extension image [example configuration](#example-system-extension-image).
 * The `config.sh` script came from the [configuration script example](#example-config-script).
-* The `/dev/loop0` came from the output of the `losetup` command in the [Prepare the Installation Target](#prepare-the-installation-target) section.
+* `/dev/nbd0` is the chosen block device from the `qemu-nbd -c` command in the [Prepare the Installation Target](#prepare-the-installation-target) section.
 
 > **NOTE:** `elemental3-toolkit` also supports a `--local` flag that can be used in combination with the `DOCKER_HOST=unix:///run/podman/podman.sock` environment variable to allow for referring to locally pulled OS images.
 
 In case you encounter issues with the process, make sure to enable the `--debug` flag for more information. If the issue persists and you are not aware of the problem, feel free to raise a GitHub Issue.
 
-## Cleanup
+## Mandatory cleanup before booting the image
 
-Since a loop device was attached to the RAW disk that was created as part of the [Prepare the Installation Target](#prepare-the-installation-target) section, you should deallocate the loop device:
+
+Since you attached a block device to the virtual disk created in the [Prepare the Installation Target](#prepare-the-installation-target) section, detach the block device before booting the image:
 
 ```shell
-losetup -d /dev/loop0
+sudo qemu-nbd -d /dev/nbd0
 ```
 
 ## Booting the Image
@@ -214,10 +214,17 @@ losetup -d /dev/loop0
 To boot the image in a virtual machine you can use either QEMU or libvirt utilities for creating the VM. Keep in mind that the emulated CPU (or vCPU) has to be at least `x86_64-v2` compliant.
 
 *Using QEMU:*
+> **NOTE:** Make sure you have `qemu` installed on your system. If not, you can install it using `zypper -n install qemu-x86`.
+
+> **NOTE:** If you are using a different architecture, make sure to adjust the `qemu-system-x86_64` command accordingly.
+
+> **NOTE:** If you haven't configured your user to be in the `kvm` group, you can run the command with `sudo` to allow QEMU to access the KVM acceleration.
+
 ```shell
-qemu-kvm -m 8190 \
+qemu-system-x86_64 -m 8G \
+         -accel kvm \
          -cpu host \
-         -hda example.img \
+         -hda example.qcow2 \
          -bios /usr/share/qemu/ovmf-x86_64.bin \
          -nographic
 ```
