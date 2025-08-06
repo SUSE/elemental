@@ -1,4 +1,4 @@
-# Building a Linux-only Image
+# Building a Linux Virtual Machine Image with Elemental
 
 This section provides an overview of how users wishing to build a Linux-only image can leverage the `elemental3-toolkit` command-line client to install an operating system on a target device.
 
@@ -6,7 +6,7 @@ This section provides an overview of how users wishing to build a Linux-only ima
 
 * A server or virtual machine running Tumbleweed, Leap 16.0, SLES 16 or SUSE Linux Micro 6.2, with a minimum x86_64-v2 instruction set.
 
-## Prepare the Installation Target
+## Prepare the installation virtual machine image
 
 1. Create a `qcow2` disk with a size of `20GB`:
 
@@ -21,14 +21,14 @@ This section provides an overview of how users wishing to build a Linux-only ima
     sudo qemu-nbd -c /dev/nbd0 example.qcow2
     ```
 
-## Prepare Basic Configuration
+## Prepare basic configuration
 
 To build a Linux-only image, users of the `elemental3-toolkit` can apply their basic configurations at installation time in the following ways:
 
 * Through a [system extension image](#configuring-through-a-system-extension-image)
 * Through a [configuration script](#configuring-through-a-configuration-script)
 
-### Configuring through a System Extension Image
+### Configuring through a systemd-extension image
 
 System extension images can be disk image files or simple folders that get loaded by the `systemd-sysext.service`. They allow users to dynamically extend the operating system's directory hierarchies with additional files. For more information, refer to the [man systemd-sysext](https://www.freedesktop.org/software/systemd/man/latest/systemd-sysext.html) documentation.
 
@@ -36,7 +36,7 @@ Using Elemental's toolset, users can wrap any number of these extension images i
 
 > **IMPORTANT:** To be compliant with Elemental's standards, system extension images should always be added under the `/var/lib/extensions` directory of the underlying operating system.
 
-#### Example System Extension Image
+#### Example systemd-extension image
 
 This example demonstrates how users can create a system extension image and wrap it inside a tarball that will be later provided during OS installation.
 
@@ -87,6 +87,7 @@ The following builds an extension image for the `elemental3-toolkit` command lin
         ```
 
 4. Create the extension image from the `example-extension` directory:
+   > **NOTE:** Make sure you have `mkosi` installed on your system. If not, you can install it using `zypper -n install mkosi`.
 
     ```shell
     mkosi -C example-extension
@@ -124,22 +125,20 @@ The following builds an extension image for the `elemental3-toolkit` command lin
 3. Create an archive from the overlay directory:
 
     ```shell
-    tar cavf overlays.tar.gz -C overlays .
+    tar -cavzf overlays.tar.gz -C overlays .
     ```
 
-You have successfully prepared an archive containing a system extension image for use during the installation process. This adds the `elemental3-toolkit` binary to the operating system after boot.
+You have now prepared an archive containing a systemd extension image for use during the installation process. This adds the `elemental3-toolkit` binary to the operating system after boot.
 
 ### Configuring through a configuration script
 
-The OS installation supports configurations through a script that will be executed in a `chroot` on the unpacked operating system.
+The OS installation supports configurations through a script that will run in a `chroot` on the unpacked operating system after the provided overlays archives are expanded.
 
-> **NOTE:** The script is executed after any user provided overlays archive are expanded.
+#### Example configuration script
 
-#### Example Config Script
+This configuration script applies the following set of configurations on the built image:
 
-In this example we are going to setup a configuration script that will apply the following set of configurations on the built image:
-
-1. Configure a password for the `root` user.
+1. Configures the password for the `root` user to `linux`.
 2. Setup a `oneshot` type `systemd.service` that will list the contents of the `/var/lib/extensions/` directory.
 
 *Steps:*
@@ -178,7 +177,7 @@ In this example we are going to setup a configuration script that will apply the
     chmod +x config.sh
     ```
 
-## Install OS on Target Device
+## Install operating system on target device
 
 Once you run the below command, the virtual disk created as part of the [Prepare the Installation Target](#prepare-the-installation-target) section now holds a ready to boot image that will run `openSUSE Tumbleweed` and will be configured as described in the [Prepare Basic Configuration](#prepare-basic-configuration) section.
 
@@ -192,6 +191,7 @@ sudo elemental3-toolkit install \
 ```
 
 Note that:
+
 * The `overlays.tar.gz` tarball came from the system extension image [example configuration](#example-system-extension-image).
 * The `config.sh` script came from the [configuration script example](#example-config-script).
 * `/dev/nbd0` is the chosen block device from the `qemu-nbd -c` command in the [Prepare the Installation Target](#prepare-the-installation-target) section.
@@ -209,9 +209,9 @@ Since you attached a block device to the virtual disk created in the [Prepare th
 sudo qemu-nbd -d /dev/nbd0
 ```
 
-## Booting the Image
+## Starting the virtual machine image
 
-To boot the image in a virtual machine you can use either QEMU or libvirt utilities for creating the VM. Keep in mind that the emulated CPU (or vCPU) has to be at least `x86_64-v2` compliant.
+To boot the image in a virtual machine you can use either QEMU or libvirt utilities for creating the VM.
 
 *Using QEMU:*
 > **NOTE:** Make sure you have `qemu` installed on your system. If not, you can install it using `zypper -n install qemu-x86`.
@@ -231,17 +231,17 @@ qemu-system-x86_64 -m 8G \
 
 You should see the bootloader prompting you to start `openSUSE Tumbleweed`.
 
-### Validate Booted Image
+### Explore virtual machine
 
 1. Login with the root user and password as configured in the [config.sh](#example-config-script) script.
 
-2. Validate you are running the expected operating system:
+2. Check you are running the expected operating system:
 
     ```shell
     cat /etc/os-release
     ```
 
-3. Validate that the configured `example-oneshot.service` is created:
+3. Check that `example-oneshot.service` has run successfully:
 
     * View service status:
 
@@ -255,7 +255,7 @@ You should see the bootloader prompting you to start `openSUSE Tumbleweed`.
         journalctl -u example-oneshot.service
         ```
 
-4. Validate that the `elemental3-toolkit` binary was successfully added to the system through an extension image:
+4. Check that `elemental3-toolkit` binary is available and working:
 
     * Check logs for the `systemd-sysext.service`:
 
