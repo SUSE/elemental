@@ -21,8 +21,8 @@ GIT_TAG?=$(shell git describe --candidates=50 --abbrev=0 --tags 2>/dev/null || e
 VERSION?=$(GIT_TAG)-g$(GIT_COMMIT_SHORT)
 
 LDFLAGS:=-w -s
-LDFLAGS+=-X "$(GO_MODULE)/internal/cli/version.version=$(GIT_TAG)"
-LDFLAGS+=-X "$(GO_MODULE)/internal/cli/version.gitCommit=$(GIT_COMMIT)"
+LDFLAGS+=-X "$(GO_MODULE)/internal/cli/cmd.version=$(GIT_TAG)"
+LDFLAGS+=-X "$(GO_MODULE)/internal/cli/cmd.gitCommit=$(GIT_COMMIT)"
 
 GO_BUILD_ARGS?=-ldflags '$(LDFLAGS)'
 

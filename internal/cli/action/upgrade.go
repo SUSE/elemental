@@ -23,36 +23,33 @@ import (
 	"syscall"
 
 	"github.com/urfave/cli/v2"
-	"go.yaml.in/yaml/v3"
 
-	"github.com/suse/elemental/v3/internal/cli/elemental-toolkit/cmd"
+	"github.com/suse/elemental/v3/internal/cli/cmd"
 	"github.com/suse/elemental/v3/pkg/bootloader"
 	"github.com/suse/elemental/v3/pkg/deployment"
 	"github.com/suse/elemental/v3/pkg/firmware"
-	"github.com/suse/elemental/v3/pkg/install"
 	"github.com/suse/elemental/v3/pkg/sys"
-	"github.com/suse/elemental/v3/pkg/sys/vfs"
 	"github.com/suse/elemental/v3/pkg/unpack"
 	"github.com/suse/elemental/v3/pkg/upgrade"
 )
 
-func Install(ctx *cli.Context) error { //nolint:dupl
+func Upgrade(ctx *cli.Context) error { //nolint:dupl
 	var s *sys.System
-	args := &cmd.InstallArgs
+	args := &cmd.UpgradeArgs
 	if ctx.App.Metadata == nil || ctx.App.Metadata["system"] == nil {
 		return fmt.Errorf("error setting up initial configuration")
 	}
 	s = ctx.App.Metadata["system"].(*sys.System)
 
-	s.Logger().Info("Starting install action with args: %+v", args)
+	s.Logger().Info("Starting upgrade action with args: %+v", args)
 
-	d, err := digestInstallSetup(s, args)
+	d, err := digestUpgradeSetup(s, args)
 	if err != nil {
-		s.Logger().Error("Failed to collect installation setup")
+		s.Logger().Error("Failed to collect upgrade setup")
 		return err
 	}
 
-	s.Logger().Info("Checked configuration, running installation process")
+	s.Logger().Info("Checked configuration, running upgrade process")
 
 	ctxCancel, stop := signal.NotifyContext(ctx.Context, syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
@@ -70,48 +67,34 @@ func Install(ctx *cli.Context) error { //nolint:dupl
 
 	manager := firmware.NewEfiBootManager(s)
 	upgrader := upgrade.New(
-		ctxCancel, s, upgrade.WithBootManager(manager), upgrade.WithBootloader(bootloader),
+		ctxCancel, s, upgrade.WithBootloader(bootloader), upgrade.WithBootManager(manager),
 		upgrade.WithUnpackOpts(unpack.WithVerify(args.Verify), unpack.WithLocal(args.Local)),
 	)
-	installer := install.New(ctxCancel, s, install.WithUpgrader(upgrader))
 
-	err = installer.Install(d)
+	err = upgrader.Upgrade(d)
 	if err != nil {
-		s.Logger().Error("Installation failed")
+		s.Logger().Error("Upgrade failed")
 		return err
 	}
 
-	s.Logger().Info("Installation complete")
+	s.Logger().Info("Upgrade completed")
 
 	return nil
 }
 
-func digestInstallSetup(s *sys.System, flags *cmd.InstallFlags) (*deployment.Deployment, error) {
-	d := deployment.DefaultDeployment()
-	if flags.Description != "" {
-		if ok, _ := vfs.Exists(s.FS(), flags.Description); !ok {
-			return nil, fmt.Errorf("config file '%s' not found", flags.Description)
-		}
-		data, err := s.FS().ReadFile(flags.Description)
-		if err != nil {
-			return nil, fmt.Errorf("could not read description file '%s': %w", flags.Description, err)
-		}
-		err = yaml.Unmarshal(data, d)
-		if err != nil {
-			return nil, fmt.Errorf("could not unmarshal config file: %w", err)
-		}
-	}
-	if flags.Target != "" && len(d.Disks) > 0 {
-		d.Disks[0].Device = flags.Target
+func digestUpgradeSetup(s *sys.System, flags *cmd.UpgradeFlags) (*deployment.Deployment, error) {
+	d, err := deployment.Parse(s, "/")
+	if err != nil {
+		return nil, fmt.Errorf("parsing deployment: %w", err)
+	} else if d == nil {
+		return nil, fmt.Errorf("deployment not found")
 	}
 
-	if flags.OperatingSystemImage != "" {
-		srcOS, err := deployment.NewSrcFromURI(flags.OperatingSystemImage)
-		if err != nil {
-			return nil, fmt.Errorf("failed parsing OS source URI ('%s'): %w", flags.OperatingSystemImage, err)
-		}
-		d.SourceOS = srcOS
+	srcOS, err := deployment.NewSrcFromURI(flags.OperatingSystemImage)
+	if err != nil {
+		return nil, fmt.Errorf("failed parsing OS source URI ('%s'): %w", flags.OperatingSystemImage, err)
 	}
+	d.SourceOS = srcOS
 
 	if flags.Overlay != "" {
 		overlay, err := deployment.NewSrcFromURI(flags.Overlay)
@@ -126,20 +109,15 @@ func digestInstallSetup(s *sys.System, flags *cmd.InstallFlags) (*deployment.Dep
 	}
 
 	if flags.CreateBootEntry {
+		if d.Firmware == nil {
+			d.Firmware = &deployment.FirmwareConfig{}
+		}
 		d.Firmware.BootEntries = []*firmware.EfiBootEntry{
 			firmware.DefaultBootEntry(s.Platform(), d.Disks[0].Device),
 		}
 	}
 
-	if flags.Bootloader != bootloader.BootNone {
-		d.BootConfig.Bootloader = flags.Bootloader
-	}
-
-	if flags.KernelCmdline != "" {
-		d.BootConfig.KernelCmdline = flags.KernelCmdline
-	}
-
-	err := d.Sanitize(s)
+	err = d.Sanitize(s)
 	if err != nil {
 		return nil, fmt.Errorf("inconsistent deployment setup found: %w", err)
 	}

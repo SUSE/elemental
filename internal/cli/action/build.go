@@ -31,7 +31,7 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"github.com/suse/elemental/v3/internal/build"
-	"github.com/suse/elemental/v3/internal/cli/elemental/cmd"
+	"github.com/suse/elemental/v3/internal/cli/cmd"
 	"github.com/suse/elemental/v3/internal/image"
 	"github.com/suse/elemental/v3/internal/image/kubernetes"
 	"github.com/suse/elemental/v3/pkg/helm"

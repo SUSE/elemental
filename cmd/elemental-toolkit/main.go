@@ -21,10 +21,9 @@ import (
 	"log"
 	"os"
 
+	"github.com/suse/elemental/v3/internal/cli/action"
 	"github.com/suse/elemental/v3/internal/cli/app"
-	"github.com/suse/elemental/v3/internal/cli/elemental-toolkit/action"
-	"github.com/suse/elemental/v3/internal/cli/elemental-toolkit/cmd"
-	"github.com/suse/elemental/v3/internal/cli/version"
+	"github.com/suse/elemental/v3/internal/cli/cmd"
 )
 
 func main() {
@@ -37,7 +36,7 @@ func main() {
 		cmd.NewUpgradeCommand(appName, action.Upgrade),
 		cmd.NewUnpackImageCommand(appName, action.Unpack),
 		cmd.NewBuildISOCommand(appName, action.BuildInstaller),
-		version.NewVersionCommand(appName))
+		cmd.NewVersionCommand(appName))
 
 	if err := application.Run(os.Args); err != nil {
 		log.Fatal(err)
