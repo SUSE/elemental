@@ -25,10 +25,10 @@ This section provides an overview of how you build a Linux image that can includ
 
 `elemental3-toolkit` can apply basic configuration and extensions at deployment time in the following ways:
 
-* Through a [system extension image](#configuring-through-a-systemd-extension-image)
+* Through a [system extension image](#configuring-through-a-system-extension-image)
 * Through a [configuration script](#configuring-through-a-configuration-script)
 
-### Configuring through a systemd-extension image
+### Configuring through a system extension image
 
 System extension images can be disk image files or simple folders that get loaded by the `systemd-sysext.service`. They allow you to dynamically extend the operating system. For more information, refer to the [man systemd-sysext](https://www.freedesktop.org/software/systemd/man/latest/systemd-sysext.html) documentation.
 
@@ -40,9 +40,9 @@ Using Elemental's toolset, you can wrap any number of these extension images ins
 
 You have multiple options to create a system extension image. Below are some common methods, with the `mkosi` tool being the most prevalent. This tool allows you to build an image from a set of configuration files.
 
-You can create a systemd-extension from a binary or from a set of packages available in the distribution. The following example demonstrates how to create a systemd-extension from a binary.
+You can create a system extension from a binary or from a set of packages available in the distribution. The following example demonstrates how to create a system extension from a binary.
 
-#### Embed a binary in a systemd-extension image
+#### Embed a binary in a system extension image
 
 This example demonstrates how you can create a system extension image and wrap it inside a tarball that will be later provided during OS installation.
 
@@ -117,7 +117,7 @@ The following builds an extension image for the `elemental3-toolkit` command lin
 6. The `mkosi.output/elemental3-toolkit-3.0.x86-64.raw` file is the system extension image that can be used during the OS installation process following the steps in [Prepare the system extension image as an overlay](#prepare-the-system-extension-image-as-an-overlay).
 
 
-#### Install RPMs in a systemd-extension image
+#### Install RPMs in a system extension image
 
 There are 3 `mkosi.conf` configurations needed:
 
@@ -125,16 +125,16 @@ There are 3 `mkosi.conf` configurations needed:
 * [base/mkosi.conf defining the base layer](../examples/tools-sysext/mkosi.images/base/mkosi.conf)
 * [tools/mkosi.conf defining the tools layer](../examples/tools-sysext/mkosi.images/tools/mkosi.conf)
 
-Creating the tools systemd extension requires "subtracting" the tools layer from the base layer. The base layer hence needs to include any of the files that are already available on the host operating system, and the tools definition defines the extensions over that. This is needed to ensure that no files on the operating system are overwritten by the tools layer.
+Creating the tools system extension requires "subtracting" the tools layer from the base layer. The base layer hence needs to include any of the files that are already available on the host operating system, and the tools definition defines the extensions over that. This approach ensures that the tools layer does not overwrite any files on the operating system.
 
-You can build the systemd-sysext by invoking `mkosi` in the `examples/tools-sysext` directory. This will create a base image and a tools image, and then assemble them into a systemd extension.
+You can build the system extension by invoking `mkosi` in the `examples/tools-sysext` directory. This will create a base image and a tools image, and then assemble them into a system extension.
 
 ```shell
 cd examples/tools-sysext
 mkosi --directory $PWD
 ```
 
-This will produce the base and extension images and assemble it into a systemd extension:
+This will produce the base and extension images and assemble it into a system extension:
 
 ```shell
 Block level copying and synchronization of partition 0 complete in 4.776ms.
@@ -146,9 +146,9 @@ mkosi.postoutput tools-1.0
 tools-sysext/mkosi.output/tools-1.0.x86-64.raw size is 11.0M, consumes 1.6M.
 ```
 
-The resulting systemd-sysext will be available in the `mkosi.output/` directory as `tools-1.0.x86-64.raw`.
+The resulting system extension will be available in the `mkosi.output/` directory as `tools-1.0.x86-64.raw`.
 
-This systemd-sysext can be used as an overlay during the OS installation process, following the steps in [Prepare the system extension image as an overlay](#prepare-the-system-extension-image-as-an-overlay).
+This system extension can be used as an overlay during the OS installation process, following the steps in [Prepare the system extension image as an overlay](#prepare-the-system-extension-image-as-an-overlay).
 
 
 ### Prepare the system extension image as an overlay
@@ -173,11 +173,11 @@ The following steps prepare the example `elemental3-toolkit-3.0.x86-64.raw` exte
     tar -cavzf overlays.tar.gz -C overlays .
     ```
 
-You have now prepared an archive containing a systemd extension image for use during the installation process. This adds the `elemental3-toolkit` binary to the operating system after boot.
+You have now prepared an archive containing a system extension image for use during the installation process. This adds the `elemental3-toolkit` binary to the operating system after boot.
 
 ### Configuring through a configuration script
 
-The OS installation supports configurations through a script that will run in a `chroot` on the unpacked operating system after the provided overlays archives are expanded.
+The OS installation supports configurations through a script that will run in a `chroot` on the unpacked operating system after expanding the provided overlays archives.
 
 #### Example configuration script
 
