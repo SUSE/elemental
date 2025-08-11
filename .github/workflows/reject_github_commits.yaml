@@ -19,9 +19,16 @@ jobs:
       - name: Ensure no commits are signed by GitHub
         shell: bash {0}
         run: |
+          dependabot=($(git rev-list --no-merges --author="dependabot" origin/${{ github.base_ref }}..${{ github.sha }}))
+
           git rev-list --no-merges origin/${{ github.base_ref }}..${{ github.sha }} | while read -r commit; do
               echo "checking $commit"
+              if printf "%s\n" "${dependabot[@]}"  | grep -qxF -- "$commit"; then
+                  echo "skipping dependabot commit"
+                  continue
+              fi
+
               if (git verify-commit -v --raw $commit || true) 2>&1 | grep -q B5690EEEBB952194; then
-                echo "Please squash GitHub commit $commit into the respective change."; exit 1;
+                  echo "Please squash GitHub commit $commit into the respective change."; exit 1;
               fi
           done
