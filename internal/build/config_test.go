@@ -121,10 +121,10 @@ var _ = Describe("Config tests", func() {
 
 		// Kubernetes
 		Expect(contents).To(ContainSubstring("/etc/systemd/system/k8s-resource-installer.service"))
-		Expect(contents).To(ContainSubstring("ExecStart=\"/var/lib/elemental/k8s-resources.sh\""))
+		Expect(contents).To(ContainSubstring("ExecStart=/bin/bash -c \"/var/lib/elemental/k8s-resources.sh\""))
 		Expect(contents).To(ContainSubstring("ExecStartPost=/bin/sh -c 'rm -rf \"/var/lib/elemental\""))
 
 		// Network
-		Expect(contents).To(ContainSubstring("ExecStart=/var/lib/elemental/configure-network.sh"))
+		Expect(contents).To(ContainSubstring("ExecStart=/bin/bash -c \"/var/lib/elemental/configure-network.sh\""))
 	})
 })
