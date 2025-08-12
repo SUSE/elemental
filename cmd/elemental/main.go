@@ -33,6 +33,7 @@ func main() {
 		cmd.GlobalFlags(),
 		cmd.Setup,
 		cmd.NewBuildCommand(appName, action.Build),
+		cmd.NewCustomizeCommand(appName, action.Customize),
 		cmd.NewVersionCommand(appName))
 
 	if err := application.Run(os.Args); err != nil {

@@ -45,6 +45,7 @@ const (
 	isoBootCatalog = "boot.catalog"
 	isoMountPoint  = "/run/initramfs/live"
 	installerCfg   = "setup.sh"
+	xorriso        = "xorriso"
 
 	SquashfsPath = isoMountPoint + "/" + liveDir + "/" + squashfsImg
 )
@@ -59,6 +60,7 @@ type ISO struct {
 	OutputDir     string
 	Label         string
 	KernelCmdLine string
+	InputFile     string
 
 	s          *sys.System
 	ctx        context.Context
@@ -168,6 +170,61 @@ func (i ISO) Build(d *deployment.Deployment) (err error) {
 	return nil
 }
 
+// Customize repacks an existing installer with more artifacts.
+func (i *ISO) Customize() (err error) {
+	err = i.sanitizeCustomize()
+	if err != nil {
+		return fmt.Errorf("cannot proceed with customize due to inconsistent setup: %w", err)
+	}
+
+	cleanup := cleanstack.NewCleanStack()
+	defer func() { err = cleanup.Cleanup(err) }()
+
+	tempDir, err := vfs.TempDir(i.s.FS(), "/tmp", "elemental-installer")
+	if err != nil {
+		return fmt.Errorf("could note create working directory for installer ISO build: %w", err)
+	}
+	cleanup.Push(func() error { return i.s.FS().RemoveAll(tempDir) })
+
+	ovDir := filepath.Join(tempDir, "overlay")
+	err = vfs.MkdirAll(i.s.FS(), ovDir, vfs.FilePerm)
+	if err != nil {
+		return fmt.Errorf("could note create working directory for installer ISO build: %w", err)
+	}
+
+	grubEnvPath := filepath.Join(tempDir, "grubenv")
+	err = i.writeGrubEnv(grubEnvPath, map[string]string{"extra_cmdline": i.KernelCmdLine})
+	if err != nil {
+		return fmt.Errorf("error writing %s: %s", grubEnvPath, err.Error())
+	}
+
+	m := map[string]string{
+		grubEnvPath: "/boot/grub2/grubenv",
+	}
+
+	if i.CfgScript != "" {
+		m[i.CfgScript] = filepath.Join("/LiveOS", installerCfg)
+	}
+
+	if i.OverlayTree != nil {
+		unpacker, err := unpack.NewUnpacker(
+			i.s, i.OverlayTree,
+			append(i.unpackOpts, unpack.WithRsyncFlags(rsync.OverlayTreeSyncFlags()...))...,
+		)
+		if err != nil {
+			return fmt.Errorf("could not initate overlay unpacker: %w", err)
+		}
+		_, err = unpacker.Unpack(i.ctx, ovDir)
+		if err != nil {
+			return fmt.Errorf("overlay unpack failed: %w", err)
+		}
+
+		m[ovDir] = "/"
+	}
+
+	return i.mapFiles(i.InputFile, i.outputFile, m)
+}
+
 // sanitize checks the current public attributes of the ISO object
 // and checks if they are good enough to proceed with an ISO build.
 func (i *ISO) sanitize() error {
@@ -199,6 +256,65 @@ func (i *ISO) sanitize() error {
 	return nil
 }
 
+// sanitizeCustomize checks the current public attributes of the ISO object
+// and checks if they are good enough to proceed with an ISO build.
+func (i *ISO) sanitizeCustomize() error {
+	if i.Label == "" {
+		return fmt.Errorf("undefined label for the installer filesystem")
+	}
+
+	if i.OutputDir == "" {
+		return fmt.Errorf("undefined output directory")
+	}
+
+	if i.Name == "" {
+		return fmt.Errorf("undefined name of the installer media")
+	}
+
+	if ok, _ := vfs.Exists(i.s.FS(), i.InputFile); !ok {
+		return fmt.Errorf("target input file %s does not exist", i.InputFile)
+	}
+
+	i.outputFile = filepath.Join(i.OutputDir, fmt.Sprintf("%s.iso", i.Name))
+	if ok, _ := vfs.Exists(i.s.FS(), i.outputFile); ok {
+		return fmt.Errorf("target output file %s is an already existing file", i.outputFile)
+	}
+
+	return nil
+}
+
+func (i ISO) mapFiles(inputFile, outputFile string, fileMap map[string]string) error {
+	args := []string{"-indev", inputFile, "-outdev", outputFile, "-boot_image", "any", "replay"}
+
+	for f, m := range fileMap {
+		args = append(args, "-map", f, m)
+	}
+
+	_, err := i.s.Runner().RunContext(i.ctx, xorriso, args...)
+	if err != nil {
+		return fmt.Errorf("failed creating the installer ISO image: %w", err)
+	}
+
+	return nil
+}
+
+func (i ISO) writeGrubEnv(file string, vars map[string]string) error {
+	arr := make([]string, len(vars)+2)
+
+	arr[0] = file
+	arr[1] = "set"
+
+	j := 2
+	for k, v := range vars {
+		arr[j] = fmt.Sprintf("%s=%s", k, v)
+
+		j++
+	}
+
+	_, err := i.s.Runner().Run("grub2-editenv", arr...)
+	return err
+}
+
 // prepareRoot arranges the root directory tree that will be used to build the ISO's
 // squashfs image. It essentially extracts OS OCI images to the given location.
 func (i ISO) prepareRoot(rootDir string) error {
@@ -225,7 +341,7 @@ func (i ISO) prepareRoot(rootDir string) error {
 
 	err = selinux.Relabel(i.ctx, i.s, rootDir)
 	if err != nil {
-		return fmt.Errorf("SELinux labelling failed: %w", err)
+		i.s.Logger().Warn("Error selinux relabelling: %s", err.Error())
 	}
 	return nil
 }
@@ -367,21 +483,20 @@ func (i ISO) addInstallationAssets(targetDir string, d *deployment.Deployment) e
 
 // burnISO creates the ISO image from the prepared data
 func (i ISO) burnISO(isoDir, output, efiImg string) error {
-	cmd := "xorriso"
 	args := []string{
 		"-volid", "LIVE", "-padding", "0",
 		"-outdev", output, "-map", isoDir, "/", "-chmod", "0755", "--",
 	}
 	args = append(args, xorrisoBootloaderArgs(efiImg)...)
 
-	_, err := i.s.Runner().RunContext(i.ctx, cmd, args...)
+	_, err := i.s.Runner().RunContext(i.ctx, xorriso, args...)
 	if err != nil {
 		return fmt.Errorf("failed creating the installer ISO image: %w", err)
 	}
 
 	checksum, err := calcFileChecksum(i.s.FS(), output)
 	if err != nil {
-		return fmt.Errorf("could not comput ISO's checksum: %w", err)
+		return fmt.Errorf("could not compute ISO's checksum: %w", err)
 	}
 
 	checksumFile := fmt.Sprintf("%s.sha256", output)

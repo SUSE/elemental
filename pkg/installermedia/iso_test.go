@@ -153,4 +153,63 @@ var _ = Describe("Install", Label("install"), func() {
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("xorriso command failed"))
 	})
+	It("customizes an ISO", func() {
+		Expect(vfs.MkdirAll(fs, "/some/dir/build", vfs.DirPerm)).To(Succeed())
+
+		// Create the file pointed out by -outdev when xorriso is called.
+		sideEffects["xorriso"] = func(args ...string) ([]byte, error) {
+			for i, arg := range args {
+				if arg != "-outdev" {
+					continue
+				}
+
+				file := args[i+1]
+				_, err := fs.Create(file)
+				Expect(err).To(Succeed())
+
+				break
+			}
+			return []byte{}, nil
+		}
+
+		_, err := fs.Create("/some/dir/installer.iso")
+		Expect(err).To(Succeed())
+
+		iso := installermedia.NewISO(context.Background(), s, installermedia.WithBootloader(bootloader.NewNone(s)))
+		iso.InputFile = "/some/dir/installer.iso"
+		iso.OutputDir = "/some/dir/build"
+		iso.Name = "installer2"
+
+		Expect(iso.Customize()).To(Succeed())
+
+		Expect(vfs.Exists(fs, "/some/dir/build/installer2.iso")).To(BeTrue())
+	})
+	It("fails to customize non-existent input file", func() {
+		iso := installermedia.NewISO(context.Background(), s)
+		iso.InputFile = "/non-existent/installer.iso"
+		iso.OutputDir = "/some/dir/build"
+		iso.Name = "installer2.iso"
+
+		err := iso.Customize()
+		Expect(err).ToNot(Succeed())
+		Expect(err.Error()).To(ContainSubstring("target input file /non-existent/installer.iso does not exist"))
+	})
+	It("fails to customize an ISO using xorriso", func() {
+		// Create the file pointed out by -outdev when xorriso is called.
+		sideEffects["xorriso"] = func(args ...string) ([]byte, error) {
+			return []byte{}, fmt.Errorf("failed to run xorriso")
+		}
+
+		_, err := fs.Create("/some/dir/installer.iso")
+		Expect(err).To(Succeed())
+
+		iso := installermedia.NewISO(context.Background(), s, installermedia.WithBootloader(bootloader.NewNone(s)))
+		iso.InputFile = "/some/dir/installer.iso"
+		iso.OutputDir = "/some/dir/build"
+		iso.Name = "installer2"
+
+		err = iso.Customize()
+		Expect(err).ToNot(Succeed())
+		Expect(err.Error()).To(ContainSubstring("failed to run xorriso"))
+	})
 })
