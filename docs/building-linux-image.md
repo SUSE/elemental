@@ -17,8 +17,13 @@ This section provides an overview of how you build a Linux image that can includ
 2. Associate the created virtual disk with a block device:
 
     ```shell
-    sudo modprobe nbd
-    sudo qemu-nbd -c /dev/nbd0 example.qcow2
+    sudo modprobe nbd && sudo qemu-nbd -c /dev/nbd0 example.qcow2
+    ```
+
+3. Check for the block device:
+
+    ```shell
+    sudo lsblk /dev/nbd0
     ```
 
 ## Prepare basic configuration
