@@ -400,7 +400,7 @@ func (sc snapperContext) createFstab(trans *Transaction) error {
 
 			opts := part.MountOpts
 			if part.Role == deployment.System {
-				opts = append([]string{"ro"}, opts...)
+				opts = append([]string{"ro=vfs"}, opts...)
 				line.FsckOrder = 1
 			} else {
 				line.FsckOrder = 2
