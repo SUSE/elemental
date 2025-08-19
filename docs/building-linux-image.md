@@ -1,6 +1,6 @@
 # Building a Linux Virtual Machine Image with Elemental
 
-This section provides an overview of how you build a Linux image that can include additional extensions using Elemental and the `elemental3-toolkit` command-line interface. The image can be used to boot a virtual machine and run a Linux operating system, such as `openSUSE Tumbleweed`, with custom configurations and extensions.
+This section provides an overview of how you build a Linux image that can include additional extensions using Elemental and the `elemental3ctl` command-line interface. The image can be used to boot a virtual machine and run a Linux operating system, such as `openSUSE Tumbleweed`, with custom configurations and extensions.
 
 ## Prerequisites
 
@@ -28,7 +28,7 @@ This section provides an overview of how you build a Linux image that can includ
 
 ## Prepare basic configuration
 
-`elemental3-toolkit` can apply basic configuration and extensions at deployment time in the following ways:
+`elemental3ctl` can apply basic configuration and extensions at deployment time in the following ways:
 
 * Through a [system extension image](#configuring-through-a-system-extension-image)
 * Through a [configuration script](#configuring-through-a-configuration-script)
@@ -51,11 +51,11 @@ You can create a system extension from a binary or from a set of packages availa
 
 This example demonstrates how you can create a system extension image and wrap it inside a tarball that will be later provided during OS installation.
 
-The following builds an extension image for the `elemental3-toolkit` command-line interface.
+The following builds an extension image for the `elemental3ctl` command-line interface.
 
 > **NOTE:** The below steps use the `mkosi` tool. For more information on the tool, refer to the [upstream repository](https://github.com/systemd/mkosi).
 
-*Prepare the `elemental3-toolkit` extension image:*
+*Prepare the `elemental3ctl` extension image:*
 
 1. Create the root extension directory:
 
@@ -77,24 +77,24 @@ The following builds an extension image for the `elemental3-toolkit` command-lin
     [Output]
     Format=sysext
     OutputDirectory=mkosi.output
-    Output=elemental3-toolkit-3.0.%a
+    Output=elemental3ctl-3.0.%a
     END
     ```
 
 3. Prepare the `mkosi.extra` directory inside the `example-extension`:
 
-    * Create the directory structure for `elemental3-toolkit`:
+    * Create the directory structure for `elemental3ctl`:
 
         ```shell
         mkdir -p example-extension/mkosi.extra/usr/local/bin
         ```
 
-    * Copy the `elemental3-toolkit` binary from the `build/` directory of the `SUSE/elemental` repository:
+    * Copy the `elemental3ctl` binary from the `build/` directory of the `SUSE/elemental` repository:
 
         > **NOTE:** If you have not yet built your binaries, run the `make all` command from the root of the `SUSE/elemental` repository.
 
         ```shell
-        cp <path_to_elemental_repo>/build/elemental3-toolkit <path_to_example_extension>/example-extension/mkosi.extra/usr/local/bin
+        cp <path_to_elemental_repo>/build/elemental3ctl <path_to_example_extension>/example-extension/mkosi.extra/usr/local/bin
         ```
 
 4. Create the extension image from the `example-extension` directory:
@@ -113,13 +113,13 @@ The following builds an extension image for the `elemental3-toolkit` command-lin
     │   └── usr
     │       └── local
     │           └── bin
-    │               └── elemental3-toolkit
+    │               └── elemental3ctl
     └── mkosi.output
-        ├── elemental3-toolkit-3.0.x86-64 -> elemental3-toolkit-3.0.x86-64.raw
-        └── elemental3-toolkit-3.0.x86-64.raw
+        ├── elemental3ctl-3.0.x86-64 -> elemental3ctl-3.0.x86-64.raw
+        └── elemental3ctl-3.0.x86-64.raw
     ```
 
-6. The `mkosi.output/elemental3-toolkit-3.0.x86-64.raw` file is the system extension image that can be used during the OS installation process following the steps in [Prepare the system extension image as an overlay](#prepare-the-system-extension-image-as-an-overlay).
+6. The `mkosi.output/elemental3ctl-3.0.x86-64.raw` file is the system extension image that can be used during the OS installation process following the steps in [Prepare the system extension image as an overlay](#prepare-the-system-extension-image-as-an-overlay).
 
 
 ##### Install RPMs in a system extension image
@@ -158,7 +158,7 @@ This system extension can be used as an overlay during the OS installation proce
 
 #### Prepare the system extension image as an overlay
 
-The following steps prepare the example `elemental3-toolkit-3.0.x86-64.raw` extension image as an overlay:
+The following steps prepare the example `elemental3ctl-3.0.x86-64.raw` extension image as an overlay:
 
 1. On the same level as `example-extension/`, create an `overlays/var/lib/extensions` directory:
 
@@ -166,10 +166,10 @@ The following steps prepare the example `elemental3-toolkit-3.0.x86-64.raw` exte
     mkdir -p overlays/var/lib/extensions
     ```
 
-2. Move the `elemental3-toolkit-3.0.x86-64.raw` extension image to this directory:
+2. Move the `elemental3ctl-3.0.x86-64.raw` extension image to this directory:
 
     ```shell
-    mv example-extension/mkosi.output/elemental3-toolkit-3.0.x86-64.raw overlays/var/lib/extensions
+    mv example-extension/mkosi.output/elemental3ctl-3.0.x86-64.raw overlays/var/lib/extensions
     ```
 
 3. Create an archive from the overlay directory:
@@ -178,7 +178,7 @@ The following steps prepare the example `elemental3-toolkit-3.0.x86-64.raw` exte
     tar -cavzf overlays.tar.gz -C overlays .
     ```
 
-You have now prepared an archive containing a system extension image for use during the installation process. This adds the `elemental3-toolkit` binary to the operating system after boot.
+You have now prepared an archive containing a system extension image for use during the installation process. This adds the `elemental3ctl` binary to the operating system after boot.
 
 ### Configuring through a configuration script
 
@@ -232,7 +232,7 @@ This configuration script applies the following set of configurations on the bui
 Once you run the below command, the virtual disk created as part of the [Prepare the Installation Target](#prepare-the-installation-target) section now holds a ready to boot image that will run `openSUSE Tumbleweed` and will be configured as described in the [Prepare Basic Configuration](#prepare-basic-configuration) section.
 
 ```shell
-sudo elemental3-toolkit install \
+sudo elemental3ctl install \
   --overlay tar://overlays.tar.gz \
   --config config.sh \
   --os-image registry.opensuse.org/devel/unifiedcore/tumbleweed/containers/uc-base-os-kernel-default:latest \
@@ -246,7 +246,7 @@ Note that:
 * The `config.sh` script came from the [configuration script example](#example-configuration-script).
 * `/dev/nbd0` is the chosen block device from the `qemu-nbd -c` command in the [Prepare the Installation Target](#prepare-the-installation-target) section.
 
-> **NOTE:** `elemental3-toolkit` also supports a `--local` flag that can be used in combination with the `DOCKER_HOST=unix:///run/podman/podman.sock` environment variable to allow for referring to locally pulled OS images.
+> **NOTE:** `elemental3ctl` also supports a `--local` flag that can be used in combination with the `DOCKER_HOST=unix:///run/podman/podman.sock` environment variable to allow for referring to locally pulled OS images.
 
 In case you encounter issues with the process, make sure to enable the `--debug` flag for more information. If the issue persists and you are not aware of the problem, feel free to raise a GitHub Issue.
 
@@ -305,7 +305,7 @@ You should see the bootloader prompting you to start `openSUSE Tumbleweed`.
         journalctl -u example-oneshot.service
         ```
 
-4. Check that `elemental3-toolkit` binary is available and working:
+4. Check that `elemental3ctl` binary is available and working:
 
     * Check logs for the `systemd-sysext.service`:
 
@@ -316,7 +316,7 @@ You should see the bootloader prompting you to start `openSUSE Tumbleweed`.
     * Try calling the command:
 
         ```shell
-        elemental3-toolkit version
+        elemental3ctl version
         ```
 
 ## Create an Installer ISO
@@ -379,7 +379,7 @@ ConditionFileIsExecutable=/usr/local/bin/elemental3-toolkit
 
 [Service]
 Type=oneshot
-ExecStart=/usr/local/bin/elemental3-toolkit --debug install --description /run/initramfs/live/Install/install.yaml
+ExecStart=/usr/local/bin/elemental3ctl --debug install --description /run/initramfs/live/Install/install.yaml
 ExecStartPost=reboot
 Restart=on-failure
 RestartSec=5
@@ -396,10 +396,10 @@ chmod +x config-live.sh
 
 #### Include Extensions in the Installer Media
 
-The provided OS does not include the `elemental3-toolkit` required to run the installation to the target disk. The `elemental3-toolkit` is delivered through a systemd extension image.
+The provided OS does not include the `elemental3-toolkit` required to run the installation to the target disk. The `elemental3ctl` is delivered through a systemd extension image.
 To ensure it is available at ISO boot, it has to be included in the ISO filesystem and either copied or linked to `/run/extensions`.
 
-This example shows how to prepare the ISO overlay directory tree and the configuration script to ensure the `elemental3-toolkit` extensions are
+This example shows how to prepare the ISO overlay directory tree and the configuration script to ensure the `elemental3ctl` extensions are
 available and loaded at boot.
 
 1. Create an `iso-overlay/extensions` directory:
@@ -408,10 +408,10 @@ available and loaded at boot.
     mkdir -p iso-overlay/extensions
     ```
 
-2. Create the [elemental3-toolkit](#example-system-extension-image) extension image and move it to this directory:
+2. Create the [elemental3ctl](#example-system-extension-image) extension image and move it to this directory:
 
     ```shell
-    mv example-extension/mkosi.output/elemental3-toolkit-3.0.x86-64.raw iso-overlay/extensions
+    mv example-extension/mkosi.output/elemental3ctl-3.0.x86-64.raw iso-overlay/extensions
     ```
 
 3. Make sure the live configuration script links the `extensions` folder at `/run/extensions`
@@ -422,7 +422,7 @@ The command below creates an ISO image inside the `build` output directory.
 It will be using an `openSUSE Tumbleweed` image and will be configured to automatically self install to the target device (e.g. `dev/sda`) at boot.
 
 ```shell
-sudo elemental3-toolkit --debug build-iso \
+sudo elemental3ctl --debug build-iso \
     --output build \
     --os-image registry.opensuse.org/devel/unifiedcore/tumbleweed/containers/uc-base-os-kernel-default:latest \
     --overlay dir://iso-overlay \
@@ -468,10 +468,10 @@ Note that:
 
 Suppose the image that you created as part of the previous sections has been running for a while and now you want to upgrade its operating system to include the latest available package versions.
 
-You can do this through the `elemental3-toolkit` command line tool, by executing the following command:
+You can do this through the `elemental3ctl` command line tool, by executing the following command:
 
 ```shell
-elemental3-toolkit upgrade --os-image registry.opensuse.org/devel/unifiedcore/tumbleweed/containers/uc-base-os-kernel-default:latest
+elemental3ctl upgrade --os-image registry.opensuse.org/devel/unifiedcore/tumbleweed/containers/uc-base-os-kernel-default:latest
 ```
 
 After command completion, a new snapshot will be created:
