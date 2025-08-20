@@ -42,7 +42,7 @@ RUN ARCH=$(uname -m); \
         lvm2 && \
     zypper cc -a
 
-COPY --from=builder /work/build/elemental3-toolkit /usr/bin/elemental3-toolkit
+COPY --from=builder /work/build/elemental3ctl /usr/bin/elemental3ctl
 COPY --from=builder /work/build/elemental3 /usr/bin/elemental3
 
-ENTRYPOINT ["/usr/bin/elemental3-toolkit"]
+ENTRYPOINT ["/usr/bin/elemental3ctl"]
