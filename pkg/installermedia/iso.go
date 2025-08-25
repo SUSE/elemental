@@ -59,6 +59,7 @@ type ISO struct {
 	OutputDir     string
 	Label         string
 	KernelCmdLine string
+	InputFile     string
 
 	s          *sys.System
 	ctx        context.Context
@@ -168,6 +169,79 @@ func (i ISO) Build(d *deployment.Deployment) (err error) {
 	return nil
 }
 
+// Customize repacks an existing installer with more artifacts.
+func (i *ISO) Customize() (err error) {
+	err = i.sanitizeCustomize()
+	if err != nil {
+		return fmt.Errorf("cannot proceed with customize due to inconsistent setup: %w", err)
+	}
+
+	cleanup := cleanstack.NewCleanStack()
+	defer func() { err = cleanup.Cleanup(err) }()
+
+	err = vfs.MkdirAll(i.s.FS(), i.OutputDir, vfs.DirPerm)
+	if err != nil {
+		return fmt.Errorf("failed creating output directory: %w", err)
+	}
+
+	tempDir, err := vfs.TempDir(i.s.FS(), i.OutputDir, "elemental-installer")
+	if err != nil {
+		return fmt.Errorf("could note create working directory for installer ISO build: %w", err)
+	}
+	cleanup.Push(func() error { return i.s.FS().RemoveAll(tempDir) })
+
+	rootDir := filepath.Join(tempDir, "rootfs")
+	err = vfs.MkdirAll(i.s.FS(), rootDir, vfs.DirPerm)
+	if err != nil {
+		return fmt.Errorf("failed creating rootfs directory: %w", err)
+	}
+
+	efiDir := filepath.Join(tempDir, "efi")
+	err = vfs.MkdirAll(i.s.FS(), efiDir, vfs.DirPerm)
+	if err != nil {
+		return fmt.Errorf("failed creating EFI directory: %w", err)
+	}
+
+	isoDir := filepath.Join(tempDir, "iso")
+	err = vfs.MkdirAll(i.s.FS(), isoDir, vfs.DirPerm)
+	if err != nil {
+		return fmt.Errorf("failed creating ISO directory: %w", err)
+	}
+
+	err = i.extractISO(isoDir)
+	if err != nil {
+		return fmt.Errorf("failed extracting ISO fs: %w", err)
+	}
+
+	err = i.extractSquashRootfs(isoDir, rootDir)
+	if err != nil {
+		return fmt.Errorf("failed extracting squashed rootfs: %w", err)
+	}
+
+	err = i.prepareISO(rootDir, isoDir, nil)
+	if err != nil {
+		return fmt.Errorf("failed preparing iso directory tree: %w", err)
+	}
+
+	err = i.prepareEFI(isoDir, efiDir)
+	if err != nil {
+		return fmt.Errorf("failed preparing efi partition: %w", err)
+	}
+
+	efiImg := filepath.Join(tempDir, filepath.Base(efiDir)+".img")
+	err = diskrepart.CreatePreloadedFileSystemImage(i.s, efiDir, efiImg, "EFI", 1, deployment.VFat)
+	if err != nil {
+		return fmt.Errorf("failed creating EFI image for the installer image: %w", err)
+	}
+
+	err = i.burnISO(isoDir, i.outputFile, efiImg)
+	if err != nil {
+		return fmt.Errorf("failed creating live iso image: %w", err)
+	}
+
+	return nil
+}
+
 // sanitize checks the current public attributes of the ISO object
 // and checks if they are good enough to proceed with an ISO build.
 func (i *ISO) sanitize() error {
@@ -189,6 +263,37 @@ func (i *ISO) sanitize() error {
 
 	if i.Name == "" {
 		return fmt.Errorf("undefined name of the installer media")
+	}
+
+	i.outputFile = filepath.Join(i.OutputDir, fmt.Sprintf("%s.iso", i.Name))
+	if ok, _ := vfs.Exists(i.s.FS(), i.outputFile); ok {
+		return fmt.Errorf("target output file %s is an already existing file", i.outputFile)
+	}
+
+	return nil
+}
+
+// sanitizeCustomize checks the current public attributes of the ISO object
+// and checks if they are good enough to proceed with an ISO build.
+func (i *ISO) sanitizeCustomize() error {
+	if i.Label == "" {
+		return fmt.Errorf("undefined label for the installer filesystem")
+	}
+
+	if i.KernelCmdLine == "" {
+		i.KernelCmdLine = fmt.Sprintf("root=live:CDLABEL=%s rd.live.overlay.overlayfs=1", i.Label)
+	}
+
+	if i.OutputDir == "" {
+		return fmt.Errorf("undefined output directory")
+	}
+
+	if i.Name == "" {
+		return fmt.Errorf("undefined name of the installer media")
+	}
+
+	if ok, _ := vfs.Exists(i.s.FS(), i.InputFile); !ok {
+		return fmt.Errorf("target input file %s does not exist", i.InputFile)
 	}
 
 	i.outputFile = filepath.Join(i.OutputDir, fmt.Sprintf("%s.iso", i.Name))
@@ -299,9 +404,39 @@ func (i ISO) prepareISO(rootDir, isoDir string, d *deployment.Deployment) error 
 		}
 	}
 
-	err = i.addInstallationAssets(installPath, d)
+	if d != nil {
+		err = i.addInstallationAssets(installPath, d)
+		if err != nil {
+			return fmt.Errorf("failed adding installation assets and configuration: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func (i ISO) extractISO(isoDir string) error {
+	cmd := "xorriso"
+	args := []string{
+		"-osirrox", "on", "-indev", i.InputFile, "-extract", "/", isoDir,
+	}
+
+	_, err := i.s.Runner().RunContext(i.ctx, cmd, args...)
 	if err != nil {
-		return fmt.Errorf("failed adding installation assets and configuration: %w", err)
+		return fmt.Errorf("failed creating the installer ISO image: %w", err)
+	}
+
+	return nil
+}
+
+func (i ISO) extractSquashRootfs(isoDir, rootDir string) error {
+	cmd := "unsquashfs"
+	args := []string{
+		"-f", "-d", rootDir, filepath.Join(isoDir, liveDir, squashfsImg),
+	}
+
+	_, err := i.s.Runner().RunContext(i.ctx, cmd, args...)
+	if err != nil {
+		return fmt.Errorf("failed creating the installer ISO image: %w", err)
 	}
 
 	return nil
