@@ -1,6 +1,6 @@
 # Building a Linux Virtual Machine Image with Elemental
 
-This section provides an overview of how you build a Linux image that can include additional extensions using Elemental and the `elemental3-toolkit` command line client. The image can be used to boot a virtual machine and run a Linux operating system, such as `openSUSE Tumbleweed`, with custom configurations and extensions.
+This section provides an overview of how you build a Linux image that can include additional extensions using Elemental and the `elemental3-toolkit` command-line interface. The image can be used to boot a virtual machine and run a Linux operating system, such as `openSUSE Tumbleweed`, with custom configurations and extensions.
 
 ## Prerequisites
 
@@ -51,7 +51,7 @@ You can create a system extension from a binary or from a set of packages availa
 
 This example demonstrates how you can create a system extension image and wrap it inside a tarball that will be later provided during OS installation.
 
-The following builds an extension image for the `elemental3-toolkit` command line client.
+The following builds an extension image for the `elemental3-toolkit` command-line interface.
 
 > **NOTE:** The below steps use the `mkosi` tool. For more information on the tool, refer to the [upstream repository](https://github.com/systemd/mkosi).
 

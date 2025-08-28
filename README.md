@@ -29,7 +29,7 @@ Elemental is a tool for installing, configuring and updating operating system im
 make all
 ```
 
-This will produce a `build/` directory containing the `elemental3` and `elemental3-toolkit` command-line clients.
+This will produce a `build/` directory containing the `elemental3` and `elemental3-toolkit` command-line interfaces.
 
 ## Contribution
 

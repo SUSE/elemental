@@ -1,6 +1,6 @@
 # Image Build and Customization
 
-This section provides an overview of how the `elemental3` command-line client enables users to build ready to boot images that are customized, extended and based on a specific set of components defined in a [release manifest](release-manifest.md).
+This section provides an overview of how the `elemental3` command-line interface enables users to build ready to boot images that are customized, extended and based on a specific set of components defined in a [release manifest](release-manifest.md).
 
 ## elemental3 build
 
@@ -90,7 +90,7 @@ This section provides a high-level overview of the steps that Elemental's toolin
 
 ## Example
 
-This section provides an example on how users can leverage the `elemental3` command-line client to start an image build process and produce a ready to boot image that is customized and extended based on a specific use case.
+This section provides an example on how users can leverage the `elemental3` command-line interface to start an image build process and produce a ready to boot image that is customized and extended based on a specific use case.
 
 ### Prerequisites
 
