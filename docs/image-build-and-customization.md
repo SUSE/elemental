@@ -15,14 +15,13 @@ We recommend you familiarize yourself with both points before attempting to buil
 
 ### Limitations
 
-Currently the image build and customization process has the following limitations:
+Currently, the image build and customization process has the following limitations:
 
 1. Supports building images only for `x86_64` platforms.
 2. Supports building only `RAW` type images.
-3. Supports building images for non air-gapped environments only.
-3. Does not support building Linux-only images. Users looking to build Linux-only images should refer to the [Linux-only Image](linux-only-image.md) guide.
+3. Supports building images for connected (non air-gapped) environments only.
 
-Elemental is in active development and much of these limitations are on our roadmap and **will** be fixed.
+Elemental is in active development, and these limitations **will** be addressed as part of the product roadmap.
 
 ### Usage
 
@@ -50,9 +49,9 @@ The expanded build directory contains the following files and subdirectories:
 ```shell
 _build/
 ├── build-<timestamp>
-│   ├── config.sh
-│   ├── overlays/
-│   └── release-manifests/
+│   ├── config.sh
+│   ├── overlays/
+│   └── release-manifests/
 └── image-<timestamp>.raw
 ```
 
@@ -66,6 +65,8 @@ _build/
 
 ## Build and Customization Process Overview
 
+> **NOTE**: The user is able to build Linux-only images by **excluding** Kubernetes resources and deployments from the configuration directory (regardless of whether this is under `kubernetes/manifests`, `kubernetes.yaml` or `release.yaml`). This is currently an implicit process, but it is possible that an explicit option for it (e.g. a flag) is added at a later stage.
+
 This section provides a high-level overview of the steps that Elemental's tooling goes through in order to produce a built, customized and extended image.
 
 *Steps:*
@@ -76,7 +77,7 @@ This section provides a high-level overview of the steps that Elemental's toolin
 5. Prepare for Kubernetes cluster creation and resource deployment:
    1. Prepare Helm charts and Kubernetes manifests
    2. Download the RKE2 extension image, as specified in the parsed core platform release manifest.
-6. Begin OS installation process:
+6. Begin the OS installation process:
    1. Create a new disk image with size as defined in `os.yaml` and type as specified by the user.
    2. Attach a loop device to the newly created image.
    3. Partition loop device and start a btrfs snapshotter transaction.
@@ -99,7 +100,7 @@ This section provides an example on how users can leverage the `elemental3` comm
 
 ### Use case
 
-A consumer has created a release manfiest for their product that extends a specific `Core Platform` version with additional components, namely `Rancher` and `cert-manager`.
+A consumer has created a release manifest for their product that extends a specific `Core Platform` version with additional components, namely `Rancher` and `cert-manager`.
 
 A user wants their environment to be running an operating system, Kubernetes distribution and Rancher version that are supported by the aforementioned consumer product.
 
@@ -183,7 +184,7 @@ qemu-kvm -m 16000 \
 
 ### Environment overview
 
-After booting the image and logging into it using the user specified under the `os.yaml` configuration file, let's view how the end environment looks like.
+After booting the image and logging into it using the user specified under the `os.yaml` configuration file, let's view what the end environment looks like.
 
 1. Verify that the expected operating system is running:
 
@@ -236,7 +237,7 @@ After booting the image and logging into it using the user specified under the `
 
 1. Verify product enabled Helm chart components:
 
-   * *Neuvector*:
+   * *NeuVector*:
 
       ```shell
       kubectl get pods -n neuvector-system

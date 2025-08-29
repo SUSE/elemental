@@ -33,8 +33,16 @@ import (
 //go:embed templates/k8s_res_deploy.sh.tpl
 var k8sResDeployScriptTpl string
 
-func needsManifestsSetup(k *kubernetes.Kubernetes) bool {
-	return len(k.RemoteManifests) > 0 || len(k.LocalManifests) > 0
+func needsManifestsSetup(def *image.Definition) bool {
+	return len(def.Kubernetes.RemoteManifests) > 0 || len(def.Kubernetes.LocalManifests) > 0
+}
+
+func needsHelmChartsSetup(def *image.Definition) bool {
+	return (len(def.Release.Components.Helm) > 0) || def.Kubernetes.Helm != nil
+}
+
+func isKubernetesEnabled(def *image.Definition) bool {
+	return needsHelmChartsSetup(def) || needsManifestsSetup(def)
 }
 
 func (b *Builder) configureKubernetes(
@@ -43,6 +51,12 @@ func (b *Builder) configureKubernetes(
 	manifest *resolver.ResolvedManifest,
 	buildDir image.BuildDir,
 ) (k8sResourceScript string, err error) {
+	if !isKubernetesEnabled(def) {
+		b.System.Logger().Info("Kubernetes is not enabled, skipping configuration")
+
+		return "", nil
+	}
+
 	if err = b.downloadRKE2(ctx, manifest, buildDir); err != nil {
 		return "", fmt.Errorf("downloading RKE2 extension: %w", err)
 	}
@@ -58,7 +72,7 @@ func (b *Builder) configureKubernetes(
 	}
 
 	var runtimeManifestsDir string
-	if needsManifestsSetup(&def.Kubernetes) {
+	if needsManifestsSetup(def) {
 		b.System.Logger().Info("Configuring Kubernetes manifests")
 
 		runtimeManifestsDir, err = b.setupManifests(ctx, &def.Kubernetes, buildDir)

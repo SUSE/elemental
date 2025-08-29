@@ -63,27 +63,14 @@ func NewHelm(fs vfs.FS, valuesResolver helmValuesResolver, logger log.Logger, de
 	}
 }
 
-func needsHelmChartsSetup(def *image.Definition) bool {
-	return len(def.Release.Core.Helm) > 0 || len(def.Release.Product.Helm) > 0 || def.Kubernetes.Helm != nil
-}
-
 func (h *Helm) Configure(def *image.Definition, rm *resolver.ResolvedManifest) ([]string, error) {
-	if len(def.Release.Core.Helm) > 0 {
+	if len(def.Release.Components.Helm) > 0 {
 		var charts []string
-		for _, c := range def.Release.Core.Helm {
+		for _, c := range def.Release.Components.Helm {
 			charts = append(charts, c.Name)
 		}
 
-		h.Logger.Info("Enabling the following core components: %s", strings.Join(charts, ", "))
-	}
-
-	if len(def.Release.Product.Helm) > 0 {
-		var charts []string
-		for _, c := range def.Release.Product.Helm {
-			charts = append(charts, c.Name)
-		}
-
-		h.Logger.Info("Enabling the following product extensions: %s", strings.Join(charts, ", "))
+		h.Logger.Info("Enabling the following Helm components: %s", strings.Join(charts, ", "))
 	}
 
 	charts, err := h.retrieveHelmCharts(rm, def)
@@ -128,26 +115,13 @@ func (h *Helm) writeHelmCharts(crds []*helm.CRD) ([]string, error) {
 func (h *Helm) retrieveHelmCharts(rm *resolver.ResolvedManifest, def *image.Definition) ([]*helm.CRD, error) {
 	var crds []*helm.CRD
 
-	if rm.CorePlatform != nil && rm.CorePlatform.Components.Helm != nil && len(def.Release.Core.Helm) > 0 {
-		charts, err := enabledHelmCharts(rm.CorePlatform.Components.Helm, &def.Release.Core)
-		if err != nil {
-			return nil, fmt.Errorf("filtering enabled core helm charts: %w", err)
-		}
-
-		if err = h.collectHelmCharts(charts, rm.CorePlatform.Components.Helm.ChartRepositories(), def.Release.Core.HelmValueFiles(), &crds); err != nil {
-			return nil, fmt.Errorf("collecting core helm charts: %w", err)
-		}
+	charts, repositories, err := h.enabledHelmCharts(rm, def.Release.Components.Helm)
+	if err != nil {
+		return nil, fmt.Errorf("filtering enabled helm charts: %w", err)
 	}
 
-	if rm.ProductExtension != nil && rm.ProductExtension.Components.Helm != nil && len(def.Release.Product.Helm) > 0 {
-		charts, err := enabledHelmCharts(rm.ProductExtension.Components.Helm, &def.Release.Product)
-		if err != nil {
-			return nil, fmt.Errorf("filtering enabled product helm charts: %w", err)
-		}
-
-		if err = h.collectHelmCharts(charts, rm.ProductExtension.Components.Helm.ChartRepositories(), def.Release.Product.HelmValueFiles(), &crds); err != nil {
-			return nil, fmt.Errorf("collecting product helm charts: %w", err)
-		}
+	if err = h.collectHelmCharts(charts, repositories, def.Release.Components.HelmValueFiles(), &crds); err != nil {
+		return nil, fmt.Errorf("collecting helm charts: %w", err)
 	}
 
 	if def.Kubernetes.Helm != nil {
@@ -185,21 +159,48 @@ func (h *Helm) collectHelmCharts(charts []helmChart, repositories, valueFiles ma
 	return nil
 }
 
-func enabledHelmCharts(helm *api.Helm, enabled *release.Components) ([]helmChart, error) {
+func (h *Helm) enabledHelmCharts(rm *resolver.ResolvedManifest, enabled []release.HelmChart) ([]helmChart, map[string]string, error) {
 	var charts []helmChart
 
-	allCharts := map[string]*api.HelmChart{}
-	for _, c := range helm.Charts {
-		allCharts[c.Chart] = c
+	coreCharts := map[string]*api.HelmChart{}
+	productCharts := map[string]*api.HelmChart{}
+	repositories := map[string]string{}
+
+	if rm.CorePlatform.Components.Helm != nil {
+		for _, c := range rm.CorePlatform.Components.Helm.Charts {
+			coreCharts[c.Chart] = c
+		}
+
+		for _, repository := range rm.CorePlatform.Components.Helm.Repositories {
+			repositories[repository.Name] = repository.URL
+		}
+	}
+
+	if rm.ProductExtension != nil && rm.ProductExtension.Components.Helm != nil {
+		for _, c := range rm.ProductExtension.Components.Helm.Charts {
+			productCharts[c.Chart] = c
+		}
+
+		for _, repository := range rm.ProductExtension.Components.Helm.Repositories {
+			repositories[repository.Name] = repository.URL
+		}
 	}
 
 	var addChart func(name string) error
 
 	// Add a chart and its direct dependencies, avoiding duplicates.
+	// Prioritise charts from product releases over core ones.
 	addChart = func(name string) error {
-		chart, ok := allCharts[name]
+		chart, ok := productCharts[name]
 		if !ok {
-			return fmt.Errorf("helm chart does not exist")
+			chart, ok = coreCharts[name]
+			if !ok {
+				return fmt.Errorf("helm chart does not exist")
+			}
+
+			h.Logger.Info("Using Helm chart %s from core release", name)
+		} else {
+			h.Logger.Info("Using Helm chart %s from product release", name)
 		}
 
 		if slices.ContainsFunc(charts, func(c helmChart) bool {
@@ -221,11 +222,11 @@ func enabledHelmCharts(helm *api.Helm, enabled *release.Components) ([]helmChart
 		return nil
 	}
 
-	for _, e := range enabled.Helm {
+	for _, e := range enabled {
 		if err := addChart(e.Name); err != nil {
-			return nil, fmt.Errorf("adding helm chart '%s': %w", e.Name, err)
+			return nil, nil, fmt.Errorf("adding helm chart '%s': %w", e.Name, err)
 		}
 	}
 
-	return charts, nil
+	return charts, repositories, nil
 }

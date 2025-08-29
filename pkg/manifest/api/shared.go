@@ -33,15 +33,6 @@ type Helm struct {
 	Repositories []Repository `yaml:"repositories"`
 }
 
-func (h *Helm) ChartRepositories() map[string]string {
-	m := map[string]string{}
-	for _, repo := range h.Repositories {
-		m[repo.Name] = repo.URL
-	}
-
-	return m
-}
-
 type HelmChart struct {
 	Name       string         `yaml:"name,omitempty"`
 	Chart      string         `yaml:"chart"`

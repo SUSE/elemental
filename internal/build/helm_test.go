@@ -120,10 +120,10 @@ var _ = Describe("Helm tests", Label("helm"), func() {
 			resolver := &valuesResolverMock{Err: fmt.Errorf("resolving failed")}
 			definition := &image.Definition{
 				Release: release.Release{
-					Core: release.Components{
+					Components: release.Components{
 						Helm: []release.HelmChart{
 							{
-								Name: "metallb",
+								Name: "metallb", // chart in core release
 							},
 						},
 					},
@@ -134,25 +134,18 @@ var _ = Describe("Helm tests", Label("helm"), func() {
 
 			charts, err := h.Configure(definition, rm)
 			Expect(err).To(HaveOccurred())
-			Expect(err).To(MatchError("retrieving helm charts: collecting core helm charts: resolving values for chart metallb: resolving failed"))
+			Expect(err).To(MatchError("retrieving helm charts: collecting helm charts: resolving values for chart metallb: resolving failed"))
 			Expect(charts).To(BeNil())
 		})
 
 		It("Fails resolving values of product Helm chart", func() {
-			resolver := &valuesResolverMock{Err: fmt.Errorf("resolving failed"), SuccessCount: 1}
+			resolver := &valuesResolverMock{Err: fmt.Errorf("resolving failed")}
 			definition := &image.Definition{
 				Release: release.Release{
-					Core: release.Components{
+					Components: release.Components{
 						Helm: []release.HelmChart{
 							{
-								Name: "metallb",
-							},
-						},
-					},
-					Product: release.Components{
-						Helm: []release.HelmChart{
-							{
-								Name: "neuvector",
+								Name: "neuvector", // chart in product release
 							},
 						},
 					},
@@ -163,7 +156,7 @@ var _ = Describe("Helm tests", Label("helm"), func() {
 
 			charts, err := h.Configure(definition, rm)
 			Expect(err).To(HaveOccurred())
-			Expect(err).To(MatchError("retrieving helm charts: collecting product helm charts: resolving values for chart neuvector-crd: resolving failed"))
+			Expect(err).To(MatchError("retrieving helm charts: collecting helm charts: resolving values for chart neuvector-crd: resolving failed"))
 			Expect(charts).To(BeNil())
 		})
 
@@ -224,11 +217,11 @@ var _ = Describe("Helm tests", Label("helm"), func() {
 			Expect(charts).To(BeNil())
 		})
 
-		It("Fails enabling a missing core chart", func() {
+		It("Fails enabling a missing release chart", func() {
 			resolver := &valuesResolverMock{}
 			definition := &image.Definition{
 				Release: release.Release{
-					Core: release.Components{
+					Components: release.Components{
 						Helm: []release.HelmChart{
 							{
 								Name: "rancher",
@@ -242,29 +235,7 @@ var _ = Describe("Helm tests", Label("helm"), func() {
 
 			charts, err := h.Configure(definition, rm)
 			Expect(err).To(HaveOccurred())
-			Expect(err).To(MatchError("retrieving helm charts: filtering enabled core helm charts: adding helm chart 'rancher': helm chart does not exist"))
-			Expect(charts).To(BeNil())
-		})
-
-		It("Fails enabling a missing product chart", func() {
-			resolver := &valuesResolverMock{}
-			definition := &image.Definition{
-				Release: release.Release{
-					Product: release.Components{
-						Helm: []release.HelmChart{
-							{
-								Name: "rancher",
-							},
-						},
-					},
-				},
-			}
-
-			h := &Helm{ValuesResolver: resolver, Logger: logger}
-
-			charts, err := h.Configure(definition, rm)
-			Expect(err).To(HaveOccurred())
-			Expect(err).To(MatchError("retrieving helm charts: filtering enabled product helm charts: adding helm chart 'rancher': helm chart does not exist"))
+			Expect(err).To(MatchError("retrieving helm charts: filtering enabled helm charts: adding helm chart 'rancher': helm chart does not exist"))
 			Expect(charts).To(BeNil())
 		})
 
@@ -306,11 +277,11 @@ var _ = Describe("Helm tests", Label("helm"), func() {
 
 			definition := &image.Definition{
 				Release: release.Release{
-					Core: release.Components{
-						Helm: []release.HelmChart{{Name: "metallb", ValuesFile: "metallb-values.yaml"}},
-					},
-					Product: release.Components{
-						Helm: []release.HelmChart{{Name: "neuvector"}},
+					Components: release.Components{
+						Helm: []release.HelmChart{
+							{Name: "metallb", ValuesFile: "metallb-values.yaml"},
+							{Name: "neuvector"},
+						},
 					},
 				},
 				Kubernetes: kubernetes.Kubernetes{
@@ -431,88 +402,120 @@ spec:
 	})
 
 	Describe("Filtering", func() {
-		h := &api.Helm{
-			Charts: []*api.HelmChart{
-				{
-					Name:       "Longhorn",
-					Chart:      "longhorn",
-					Version:    "106.2.0+up1.8.1",
-					Namespace:  "longhorn",
-					Repository: "rancher-charts",
-					// Dependency intentionally missing from the charts list
-					DependsOn: []string{"longhorn-crd"},
-				},
-				{
-					Name:       "NeuVector",
-					Chart:      "neuvector",
-					Version:    "106.0.0+up2.8.5",
-					Namespace:  "neuvector-system",
-					Repository: "rancher-charts",
-					DependsOn:  []string{"neuvector-crd"},
-				},
-				{
-					Name:       "NeuVector CRD",
-					Chart:      "neuvector-crd",
-					Version:    "106.0.0+up2.8.5",
-					Namespace:  "neuvector-system",
-					Repository: "rancher-charts",
+		h := &Helm{Logger: logger}
+
+		rm := &resolver.ResolvedManifest{
+			CorePlatform: &core.ReleaseManifest{
+				Components: core.Components{
+					Helm: &api.Helm{
+						Charts: []*api.HelmChart{
+							{
+								Name:       "Longhorn",
+								Chart:      "longhorn",
+								Version:    "106.2.0+up1.8.1",
+								Namespace:  "longhorn",
+								Repository: "suse-core",
+								// Dependency intentionally missing from the charts list
+								DependsOn: []string{"longhorn-crd"},
+							},
+						},
+						Repositories: []api.Repository{
+							{
+								Name: "suse-core",
+								URL:  "https://example.com/suse-core",
+							},
+						},
+					},
 				},
 			},
-			Repositories: []api.Repository{
-				{
-					Name: "rancher-charts",
-					URL:  "https://charts.rancher.io/",
+			ProductExtension: &product.ReleaseManifest{
+				Components: product.Components{
+					Helm: &api.Helm{
+						Charts: []*api.HelmChart{
+							{
+								Name:       "NeuVector",
+								Chart:      "neuvector",
+								Version:    "106.0.0+up2.8.5",
+								Namespace:  "neuvector-system",
+								Repository: "rancher-charts",
+								DependsOn:  []string{"neuvector-crd"},
+							},
+							{
+								Name:       "NeuVector CRD",
+								Chart:      "neuvector-crd",
+								Version:    "106.0.0+up2.8.5",
+								Namespace:  "neuvector-system",
+								Repository: "rancher-charts",
+							},
+						},
+						Repositories: []api.Repository{
+							{
+								Name: "rancher-charts",
+								URL:  "https://charts.rancher.io/",
+							},
+						},
+					},
 				},
 			},
 		}
 
 		It("Successfully filters enabled Helm charts with dependency", func() {
-			e, err := enabledHelmCharts(h, &release.Components{Helm: []release.HelmChart{{Name: "neuvector"}}})
+			charts, repositories, err := h.enabledHelmCharts(rm, []release.HelmChart{{Name: "neuvector"}})
 			Expect(err).NotTo(HaveOccurred())
-			Expect(e).To(HaveLen(2))
+			Expect(charts).To(HaveLen(2))
+			Expect(repositories).To(HaveLen(2))
 
-			chart := e[0].(*api.HelmChart)
+			chart := charts[0].(*api.HelmChart)
 			Expect(chart.Name).To(Equal("NeuVector CRD"))
 			Expect(chart.Chart).To(Equal("neuvector-crd"))
 			Expect(chart.Version).To(Equal("106.0.0+up2.8.5"))
 			Expect(chart.Namespace).To(Equal("neuvector-system"))
 			Expect(chart.Repository).To(Equal("rancher-charts"))
 
-			chart = e[1].(*api.HelmChart)
+			chart = charts[1].(*api.HelmChart)
 			Expect(chart.Name).To(Equal("NeuVector"))
 			Expect(chart.Chart).To(Equal("neuvector"))
 			Expect(chart.Version).To(Equal("106.0.0+up2.8.5"))
 			Expect(chart.Namespace).To(Equal("neuvector-system"))
 			Expect(chart.Repository).To(Equal("rancher-charts"))
 			Expect(chart.DependsOn).To(ConsistOf("neuvector-crd"))
+
+			Expect(repositories["suse-core"]).To(Equal("https://example.com/suse-core"))
+			Expect(repositories["rancher-charts"]).To(Equal("https://charts.rancher.io/"))
 		})
 
 		It("Successfully filters enabled Helm chart", func() {
-			e, err := enabledHelmCharts(h, &release.Components{Helm: []release.HelmChart{{Name: "neuvector-crd"}}})
+			charts, repositories, err := h.enabledHelmCharts(rm, []release.HelmChart{{Name: "neuvector-crd"}})
 			Expect(err).NotTo(HaveOccurred())
-			Expect(e).To(HaveLen(1))
+			Expect(charts).To(HaveLen(1))
+			Expect(repositories).To(HaveLen(2))
 
-			chart := e[0].(*api.HelmChart)
+			chart := charts[0].(*api.HelmChart)
 			Expect(chart.Name).To(Equal("NeuVector CRD"))
 			Expect(chart.Chart).To(Equal("neuvector-crd"))
 			Expect(chart.Version).To(Equal("106.0.0+up2.8.5"))
 			Expect(chart.Namespace).To(Equal("neuvector-system"))
 			Expect(chart.Repository).To(Equal("rancher-charts"))
 			Expect(chart.DependsOn).To(BeEmpty())
+
+			Expect(repositories["suse-core"]).To(Equal("https://example.com/suse-core"))
+			Expect(repositories["rancher-charts"]).To(Equal("https://charts.rancher.io/"))
 		})
 
 		It("Fails to find non-existing enabled Helm chart", func() {
-			e, err := enabledHelmCharts(h, &release.Components{Helm: []release.HelmChart{{Name: "rancher"}}})
+			charts, repositories, err := h.enabledHelmCharts(rm, []release.HelmChart{{Name: "rancher"}})
 			Expect(err).To(HaveOccurred())
 			Expect(err).To(MatchError("adding helm chart 'rancher': helm chart does not exist"))
-			Expect(e).To(BeNil())
+			Expect(charts).To(BeNil())
+			Expect(repositories).To(BeNil())
 		})
 
 		It("Fails to find non-existing dependency Helm chart", func() {
-			e, err := enabledHelmCharts(h, &release.Components{Helm: []release.HelmChart{{Name: "longhorn"}}})
+			charts, repositories, err := h.enabledHelmCharts(rm, []release.HelmChart{{Name: "longhorn"}})
 			Expect(err).To(HaveOccurred())
 			Expect(err).To(MatchError("adding helm chart 'longhorn': adding dependent helm chart 'longhorn-crd': helm chart does not exist"))
-			Expect(e).To(BeNil())
+			Expect(charts).To(BeNil())
+			Expect(repositories).To(BeNil())
 		})
 	})
 })

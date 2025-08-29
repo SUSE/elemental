@@ -20,8 +20,7 @@ package release
 type Release struct {
 	Name        string     `yaml:"name,omitempty"`
 	ManifestURI string     `yaml:"manifestURI"`
-	Core        Components `yaml:"core,omitempty"`
-	Product     Components `yaml:"product,omitempty"`
+	Components  Components `yaml:"components,omitempty"`
 }
 type Components struct {
 	Helm []HelmChart `yaml:"helm"`

@@ -2,10 +2,8 @@ name: suse-product
 manifestURI: file://./suse-product-manifest.yaml
 # Alternatively, the product release manifest can be specified from an OCI image.
 # manifestURI: oci://registry.suse.com/suse-product/release-manifest:0.0.1
-core:
+components:
   helm:
-    - chart: metallb
-product:
-  helm:
-    - chart: rancher
+    - chart: metallb # from core release
+    - chart: rancher # from product release
       valuesFile: rancher.yaml

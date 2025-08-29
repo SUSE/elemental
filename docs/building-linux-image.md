@@ -37,17 +37,17 @@ This section provides an overview of how you build a Linux image that can includ
 
 System extension images can be disk image files or simple folders that get loaded by the `systemd-sysext.service`. They allow you to dynamically extend the operating system. For more information, refer to the [man systemd-sysext](https://www.freedesktop.org/software/systemd/man/latest/systemd-sysext.html) documentation.
 
-Using Elemental's toolset, you can wrap any number of these extension images inside a tarball and provide that tarball during [OS installation](#install-os-on-target-device).
+Using Elemental's toolset, you can wrap any number of these extension images inside a tarball and provide that tarball during [OS installation](#install-operating-system-on-a-target-device).
 
 > **IMPORTANT:** To be compliant with Elemental's standards, system extension images should always be added under the `/var/lib/extensions` directory of the underlying operating system.
 
-### Example system extension image
+#### Example system extension image
 
 You have multiple options to create a system extension image. Below are some common methods, with the `mkosi` tool being the most prevalent. This tool allows you to build an image from a set of configuration files.
 
 You can create a system extension from a binary or from a set of packages available in the distribution. The following example demonstrates how to create a system extension from a binary.
 
-#### Embed a binary in a system extension image
+##### Embed a binary in a system extension image
 
 This example demonstrates how you can create a system extension image and wrap it inside a tarball that will be later provided during OS installation.
 
@@ -110,10 +110,10 @@ The following builds an extension image for the `elemental3-toolkit` command lin
     example-extension/
     ├── mkosi.conf
     ├── mkosi.extra
-    │   └── usr
-    │       └── local
-    │           └── bin
-    │               └── elemental3-toolkit
+    │   └── usr
+    │       └── local
+    │           └── bin
+    │               └── elemental3-toolkit
     └── mkosi.output
         ├── elemental3-toolkit-3.0.x86-64 -> elemental3-toolkit-3.0.x86-64.raw
         └── elemental3-toolkit-3.0.x86-64.raw
@@ -122,7 +122,7 @@ The following builds an extension image for the `elemental3-toolkit` command lin
 6. The `mkosi.output/elemental3-toolkit-3.0.x86-64.raw` file is the system extension image that can be used during the OS installation process following the steps in [Prepare the system extension image as an overlay](#prepare-the-system-extension-image-as-an-overlay).
 
 
-#### Install RPMs in a system extension image
+##### Install RPMs in a system extension image
 
 There are 3 `mkosi.conf` configurations needed:
 
@@ -141,7 +141,7 @@ mkosi --directory $PWD
 
 This will produce the base and extension images and assemble it into a system extension:
 
-```shell
+```text
 Block level copying and synchronization of partition 0 complete in 4.776ms.
 Adding new partition 0 to partition table.
 Writing new partition table.
@@ -153,10 +153,10 @@ tools-sysext/mkosi.output/tools-1.0.x86-64.raw size is 11.0M, consumes 1.6M.
 
 The resulting system extension will be available in the `mkosi.output/` directory as `tools-1.0.x86-64.raw`.
 
-This system extension can be used as an overlay during the OS installation process, following the steps in [Prepare the system extension image as an overlay](#prepare-the-system-extension-image-as-an-overlay).
+This system extension can be used as an overlay during the OS installation process, following the steps in the next section.
 
 
-### Prepare the system extension image as an overlay
+#### Prepare the system extension image as an overlay
 
 The following steps prepare the example `elemental3-toolkit-3.0.x86-64.raw` extension image as an overlay:
 
@@ -189,7 +189,7 @@ The OS installation supports configurations through a script that will run in a 
 This configuration script applies the following set of configurations on the built image:
 
 1. Configures the password for the `root` user to `linux`.
-2. Setup a `oneshot` type `systemd.service` that will list the contents of the `/var/lib/extensions/` directory.
+2. Sets up a `oneshot` type `systemd.service` that will list the contents of the `/var/lib/extensions/` directory.
 
 *Steps:*
 
@@ -227,7 +227,7 @@ This configuration script applies the following set of configurations on the bui
     chmod +x config.sh
     ```
 
-## Install operating system on target device
+## Install operating system on a target device
 
 Once you run the below command, the virtual disk created as part of the [Prepare the Installation Target](#prepare-the-installation-target) section now holds a ready to boot image that will run `openSUSE Tumbleweed` and will be configured as described in the [Prepare Basic Configuration](#prepare-basic-configuration) section.
 
@@ -243,7 +243,7 @@ sudo elemental3-toolkit install \
 Note that:
 
 * The `overlays.tar.gz` tarball came from the system extension image [example configuration](#example-system-extension-image).
-* The `config.sh` script came from the [configuration script example](#example-config-script).
+* The `config.sh` script came from the [configuration script example](#example-configuration-script).
 * `/dev/nbd0` is the chosen block device from the `qemu-nbd -c` command in the [Prepare the Installation Target](#prepare-the-installation-target) section.
 
 > **NOTE:** `elemental3-toolkit` also supports a `--local` flag that can be used in combination with the `DOCKER_HOST=unix:///run/podman/podman.sock` environment variable to allow for referring to locally pulled OS images.
@@ -251,7 +251,6 @@ Note that:
 In case you encounter issues with the process, make sure to enable the `--debug` flag for more information. If the issue persists and you are not aware of the problem, feel free to raise a GitHub Issue.
 
 ## Mandatory cleanup before booting the image
-
 
 Since you attached a block device to the virtual disk created in the [Prepare the Installation Target](#prepare-the-installation-target) section, detach the block device before booting the image:
 
@@ -261,7 +260,7 @@ sudo qemu-nbd -d /dev/nbd0
 
 ## Starting the virtual machine image
 
-To boot the image in a virtual machine you can use either QEMU or libvirt utilities for creating the VM.
+To boot the image in a virtual machine, you can use either QEMU or libvirt utilities for creating the VM.
 
 *Using QEMU:*
 > **NOTE:** Make sure you have `qemu` installed on your system. If not, you can install it using `zypper -n install qemu-x86`.
@@ -284,7 +283,7 @@ You should see the bootloader prompting you to start `openSUSE Tumbleweed`.
 
 ### Explore virtual machine
 
-1. Login with the root user and password as configured in the [config.sh](#example-config-script) script.
+1. Login with the root user and password as configured in the [config.sh](#example-configuration-script) script.
 
 2. Check you are running the expected operating system:
 
@@ -333,80 +332,72 @@ To create a self installer ISO, you should prepare and include a specific set of
 The ISO supports configurations through a script which will run in late initramfs in a writeable system root.
 
 
-#### Example Live Config Script
+#### Example live configuration script
 
-In this example we are going to setup a configuration script that will set three aspects:
+In this example, we are going to prepare a configuration script that will set three aspects:
 
-1. Autologin, so the live ISO does not require a root password
-2. Add an elemental-autoinstaller service to run the installation at boot
-3. Ensure the extensions added in the ISO filesystem are linked to `/run/extensions` so they are loaded at boot
+* Autologin so the live ISO does not require a root password
+* An elemental-autoinstaller service to run the installation at boot 
+* A link between the extensions in the ISO filesystem and `/run/extensions` so that they are loaded at boot
 
-*Steps:*
+Create the script and make it executable:
+    
+```shell
+cat <<- END > config-live.sh
+#!/bin/bash
 
-1. Create configuration script:
+# Set autologin for the Live ISO
+mkdir -p /etc/systemd/system/serial-getty@ttyS0.service.d
 
-    ```shell
-    cat <<- END > config-live.sh
-    #!/bin/bash
+cat > /etc/systemd/system/serial-getty@ttyS0.service.d/override.conf << EOF
+[Service]
+ExecStart=
+ExecStart=-/sbin/agetty --autologin root --noclear %I $TERM
+EOF
 
-    # Set autologin for the Live ISO
-    mkdir -p /etc/systemd/system/serial-getty@ttyS0.service.d
+mkdir -p /etc/systemd/system/getty@tty1.service.d
 
-    cat > /etc/systemd/system/serial-getty@ttyS0.service.d/override.conf << EOF
-    [Service]
-    ExecStart=
-    ExecStart=-/sbin/agetty --autologin root --noclear %I $TERM
-    EOF
+cat > /etc/systemd/system/getty@tty1.service.d/override.conf << EOF
+[Service]
+ExecStart=
+ExecStart=-/sbin/agetty --autologin root --noclear %I $TERM
+EOF
 
-    mkdir -p /etc/systemd/system/getty@tty1.service.d
+# Ensure extensions included in ISO's /extensions folder are loaded at boot
+# ISO filesystem is mounted at /run/initramfs/live folder
+rm -rf /run/extensions
+ln -s /run/initramfs/live/extensions /run/extensions
 
-    cat > /etc/systemd/system/getty@tty1.service.d/override.conf << EOF
-    [Service]
-    ExecStart=
-    ExecStart=-/sbin/agetty --autologin root --noclear %I $TERM
-    EOF
+# Set the elemental-autoinstall.service
+cat > /etc/systemd/system/elemental-autoinstall.service << EOF
+[Unit]
+Description=Elemental Autoinstall
+Wants=network-online.target
+After=network-online.target
+ConditionPathExists=/run/initramfs/live/Install/install.yaml
+ConditionFileIsExecutable=/usr/local/bin/elemental3-toolkit
 
-    # Ensure extensions included in ISO's /extensions folder are loaded at boot
-    # ISO filesystem is mounted at /run/initramfs/live folder
-    rm -rf /run/extensions
-    ln -s /run/initramfs/live/extensions /run/extensions
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/elemental3-toolkit --debug install --description /run/initramfs/live/Install/install.yaml
+ExecStartPost=reboot
+Restart=on-failure
+RestartSec=5
 
+[Install]
+WantedBy=multi-user.target
+EOF
 
-    # Set the elemental-autoinstall.service
-    cat > /etc/systemd/system/elemental-autoinstall.service << EOF
-    [Unit]
-    Description=Elemental Autoinstall
-    Wants=network-online.target
-    After=network-online.target
-    ConditionPathExists=/run/initramfs/live/Install/install.yaml
-    ConditionFileIsExecutable=/usr/local/bin/elemental3-toolkit
+systemctl enable elemental-autoinstall.service
+END
 
-
-    [Service]
-    Type=oneshot
-    ExecStart=/usr/local/bin/elemental3-toolkit --debug install --description /run/initramfs/live/Install/install.yaml
-    ExecStartPost=reboot
-    Restart=on-failure
-    RestartSec=5
-
-    [Install]
-    WantedBy=multi-user.target
-    EOF
-
-    systemctl enable elemental-autoinstall.service
-    END
-    ```
-
-2. Make `config-live.sh` executable:
-
-    ```shell
-    chmod +x config-live.sh
-    ```
+chmod +x config-live.sh
+```
 
 #### Include Extensions in the Installer Media
 
-The provided OS does not include the `elemental3-toolkit` required to run the installation to the target disk. `elemental3-toolkit` is provided as
-`elemental3-toolkit` is delivered through a systemd extension image. To ensure it is available at ISO boot, it has to be included in the ISO filesystem and either copied or linked to `/run/extensions`.
+The provided OS does not include the `elemental3-toolkit` required to run the installation to the target disk. The `elemental3-toolkit` is delivered through a systemd extension image.
+To ensure it is available at ISO boot, it has to be included in the ISO filesystem and either copied or linked to `/run/extensions`.
 
 This example shows how to prepare the ISO overlay directory tree and the configuration script to ensure the `elemental3-toolkit` extensions are
 available and loaded at boot.
@@ -439,23 +430,23 @@ sudo elemental3-toolkit --debug build-iso \
     --config config-live.sh \
     --install-target /dev/sda \
     --install-overlay tar://overlays.tar.gz \
-    --install-config config.sh
+    --install-config config.sh \
     --install-cmdline "root=LABEL=SYSTEM console=ttyS0"
 ```
 
 Note that:
 * The `overlays.tar.gz` tarball came from the system extension image [example configuration](#example-system-extension-image).
-* The `config.sh` script came from the [configuration script example](#example-config-script).
+* The `config.sh` script came from the [configuration script example](#example-configuration-script).
 * The `/dev/sda` is the target device you want the ISO to install to.
 * The `iso-overlay` is the directory tree [including extensions](#include-extensions-in-the-installer-media) that will be included in the ISO filesystem of the built image.
-* The `config-live.sh` script came from the live [configuration script example](#example-live-config-script).
+* The `config-live.sh` script came from the live [configuration script example](#example-live-configuration-script).
 
 ### Booting a Live Installer Image
 
-In order to boot the installer ISO and test the automatic install a simple QEMU virtual machine can be launched with the following command:
-
 > **NOTE:** Make sure you have `qemu` installed on your system. If not, you can install it using `zypper -n install qemu-x86`.
-> **NOTE:** If you are using a different architecture, make sure to adjust the `qemu-system-x86_64` command accordingly.
+> If you are using a different architecture, ensure the package name and respective command below are adjusted accordingly.
+
+Launch a virtual machine to boot the installer ISO and verify the automated installation:
 
 ```shell
 qemu-system-x86_64 -m 8G \
@@ -469,7 +460,7 @@ qemu-system-x86_64 -m 8G \
 ```
 
 Note that:
-* EFI devices are included to the command. There is a code device for the EFI firmware and a local copy of the EFI variable store to persist any new EFI entry included during the installation.
+* EFI devices are included in the command. There is a code device for the EFI firmware and a local copy of the EFI variable store to persist any new EFI entry included during the installation.
 * The `disk.img` can be an empty disk image file created with the `qemu-img create` command.
 
 
@@ -483,7 +474,7 @@ You can do this through the `elemental3-toolkit` command line tool, by executing
 elemental3-toolkit upgrade --os-image registry.opensuse.org/devel/unifiedcore/tumbleweed/containers/uc-base-os-kernel-default:latest
 ```
 
-After command completion a new snapshot will be created:
+After command completion, a new snapshot will be created:
 
 ```shell
 localhost:~ # snapper list

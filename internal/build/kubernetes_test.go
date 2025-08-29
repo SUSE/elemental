@@ -51,22 +51,26 @@ func (h *helmConfiguratorMock) Configure(def *image.Definition, manifest *resolv
 var _ = Describe("Kubernetes", func() {
 	Describe("Resources trigger", func() {
 		It("Skips manifests setup if manifests are not provided", func() {
-			k := &kubernetes.Kubernetes{}
-			Expect(needsManifestsSetup(k)).To(BeFalse())
+			def := &image.Definition{}
+			Expect(needsManifestsSetup(def)).To(BeFalse())
 		})
 
 		It("Requires manifests setup if local manifests are provided", func() {
-			k := &kubernetes.Kubernetes{
-				LocalManifests: []string{"/apache.yaml"},
+			def := &image.Definition{
+				Kubernetes: kubernetes.Kubernetes{
+					LocalManifests: []string{"/apache.yaml"},
+				},
 			}
-			Expect(needsManifestsSetup(k)).To(BeTrue())
+			Expect(needsManifestsSetup(def)).To(BeTrue())
 		})
 
 		It("Requires manifests setup if remote manifests are provided", func() {
-			k := &kubernetes.Kubernetes{
-				RemoteManifests: []string{"https://raw.githubusercontent.com/rancher/local-path-provisioner/v0.0.31/deploy/local-path-storage.yaml"},
+			def := &image.Definition{
+				Kubernetes: kubernetes.Kubernetes{
+					RemoteManifests: []string{"https://raw.githubusercontent.com/rancher/local-path-provisioner/v0.0.31/deploy/local-path-storage.yaml"},
+				},
 			}
-			Expect(needsManifestsSetup(k)).To(BeTrue())
+			Expect(needsManifestsSetup(def)).To(BeTrue())
 		})
 
 		It("Skips Helm setup if charts are not provided", func() {
@@ -90,7 +94,7 @@ var _ = Describe("Kubernetes", func() {
 		It("Requires Helm setup if core charts are provided", func() {
 			def := &image.Definition{
 				Release: release.Release{
-					Core: release.Components{
+					Components: release.Components{
 						Helm: []release.HelmChart{
 							{
 								Name: "metallb",
@@ -106,7 +110,7 @@ var _ = Describe("Kubernetes", func() {
 		It("Requires Helm setup if product charts are provided", func() {
 			def := &image.Definition{
 				Release: release.Release{
-					Product: release.Components{
+					Components: release.Components{
 						Helm: []release.HelmChart{
 							{
 								Name: "rancher",
@@ -165,7 +169,13 @@ var _ = Describe("Kubernetes", func() {
 				},
 			}
 
-			script, err := builder.configureKubernetes(context.Background(), nil, manifest, buildDir)
+			def := &image.Definition{
+				Kubernetes: kubernetes.Kubernetes{
+					RemoteManifests: []string{"some-url"},
+				},
+			}
+
+			script, err := builder.configureKubernetes(context.Background(), def, manifest, buildDir)
 			Expect(err).To(HaveOccurred())
 			Expect(err).To(MatchError("downloading RKE2 extension: download failed"))
 			Expect(script).To(BeEmpty())
@@ -198,7 +208,7 @@ var _ = Describe("Kubernetes", func() {
 
 			def := &image.Definition{
 				Release: release.Release{
-					Product: release.Components{
+					Components: release.Components{
 						Helm: []release.HelmChart{
 							{
 								Name: "rancher",
@@ -244,7 +254,7 @@ var _ = Describe("Kubernetes", func() {
 					RemoteManifests: []string{"some-url"},
 				},
 				Release: release.Release{
-					Product: release.Components{
+					Components: release.Components{
 						Helm: []release.HelmChart{
 							{
 								Name: "rancher",
