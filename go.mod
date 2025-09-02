@@ -17,7 +17,7 @@ require (
 	github.com/urfave/cli/v2 v2.27.7
 	go.yaml.in/yaml/v3 v3.0.4
 	golang.org/x/crypto v0.41.0
-	k8s.io/mount-utils v0.33.4
+	k8s.io/mount-utils v0.34.0
 )
 
 require (
@@ -74,5 +74,5 @@ require (
 	google.golang.org/grpc v1.72.2 // indirect
 	google.golang.org/protobuf v1.36.7 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
-	k8s.io/utils v0.0.0-20241104100929-3ea5e8cea738 // indirect
+	k8s.io/utils v0.0.0-20250604170112-4c0f3b243397 // indirect
 )
