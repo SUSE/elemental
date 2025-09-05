@@ -192,6 +192,7 @@ type Partition struct {
 	MountOpts   []string   `yaml:"mountOpts,omitempty"`
 	RWVolumes   RWVolumes  `yaml:"rwVolumes,omitempty"`
 	UUID        string     `yaml:"uuid,omitempty"`
+	Hidden      bool       `yaml:"hidden,omitempty"`
 }
 
 type Partitions []*Partition
