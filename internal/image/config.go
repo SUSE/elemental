@@ -72,6 +72,10 @@ func ExtensionsPath() string {
 	return filepath.Join("var", "lib", "extensions")
 }
 
+func IgnitionFilePath() string {
+	return filepath.Join("run", "elemental", "firstboot", "ignition", "config.ign")
+}
+
 func ElementalPath() string {
 	return filepath.Join("var", "lib", "elemental")
 }

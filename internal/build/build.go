@@ -74,8 +74,14 @@ func (b *Builder) Run(ctx context.Context, d *image.Definition, buildDir image.B
 		return err
 	}
 
+	err = b.configureIgnition(d, buildDir)
+	if err != nil {
+		logger.Error("Configuring Ignition failed")
+		return err
+	}
+
 	logger.Info("Preparing configuration script")
-	configScript, err := writeConfigScript(fs, d, string(buildDir), networkScript, k8sScript)
+	configScript, err := writeConfigScript(fs, string(buildDir), networkScript, k8sScript)
 	if err != nil {
 		logger.Error("Preparing configuration script failed")
 		return err
