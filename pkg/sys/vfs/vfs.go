@@ -658,3 +658,15 @@ func FindKernel(fs FS, rootDir string) (string, string, error) {
 	}
 	return kernel, version, nil
 }
+
+// FindKernelHmac returns the path to an existing kernel .hmac file
+func FindKernelHmac(fs FS, kernel string) (string, error) {
+	filename := fmt.Sprintf(".%s.hmac", filepath.Base(kernel))
+	hmac := filepath.Join(filepath.Dir(kernel), filename)
+
+	if exists, _ := Exists(fs, hmac); exists {
+		return hmac, nil
+	}
+
+	return "", fmt.Errorf("%w: %s", os.ErrNotExist, hmac)
+}

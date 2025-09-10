@@ -125,6 +125,7 @@ var _ = Describe("Grub tests", Label("bootloader", "grub"), func() {
 		// Setup kernel dirs
 		Expect(vfs.MkdirAll(tfs, "/target/dir/usr/lib/modules/6.14.4-1-default", vfs.DirPerm)).To(Succeed())
 		Expect(tfs.WriteFile("/target/dir/usr/lib/modules/6.14.4-1-default/vmlinuz", []byte("6.14.4-1-default vmlinux"), vfs.FilePerm)).To(Succeed())
+		Expect(tfs.WriteFile("/target/dir/usr/lib/modules/6.14.4-1-default/.vmlinuz.hmac", []byte("6.14.4-1-default .vmlinux.hmac"), vfs.FilePerm)).To(Succeed())
 		Expect(tfs.WriteFile("/target/dir/usr/lib/modules/6.14.4-1-default/initrd", []byte("6.14.4-1-default initrd"), vfs.FilePerm)).To(Succeed())
 	})
 	AfterEach(func() {
@@ -154,6 +155,7 @@ var _ = Describe("Grub tests", Label("bootloader", "grub"), func() {
 
 		// Kernel and initrd exist
 		Expect(vfs.Exists(tfs, "/target/dir/boot/opensuse-tumbleweed/6.14.4-1-default/vmlinuz")).To(BeTrue())
+		Expect(vfs.Exists(tfs, "/target/dir/boot/opensuse-tumbleweed/6.14.4-1-default/.vmlinuz.hmac")).To(BeTrue())
 		Expect(vfs.Exists(tfs, "/target/dir/boot/opensuse-tumbleweed/6.14.4-1-default/initrd")).To(BeTrue())
 
 		// Grub env and loader entries files exist
@@ -171,6 +173,7 @@ var _ = Describe("Grub tests", Label("bootloader", "grub"), func() {
 
 		// Kernel and initrd exist
 		Expect(vfs.Exists(tfs, "/iso/dir/boot/opensuse-tumbleweed/6.14.4-1-default/vmlinuz")).To(BeTrue())
+		Expect(vfs.Exists(tfs, "/iso/dir/boot/opensuse-tumbleweed/6.14.4-1-default/.vmlinuz.hmac")).To(BeTrue())
 		Expect(vfs.Exists(tfs, "/iso/dir/boot/opensuse-tumbleweed/6.14.4-1-default/initrd")).To(BeTrue())
 
 		// Grub config is written
