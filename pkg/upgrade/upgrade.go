@@ -26,6 +26,7 @@ import (
 	"github.com/suse/elemental/v3/pkg/chroot"
 	"github.com/suse/elemental/v3/pkg/cleanstack"
 	"github.com/suse/elemental/v3/pkg/deployment"
+	"github.com/suse/elemental/v3/pkg/fips"
 	"github.com/suse/elemental/v3/pkg/firmware"
 	"github.com/suse/elemental/v3/pkg/rsync"
 	"github.com/suse/elemental/v3/pkg/selinux"
@@ -122,6 +123,13 @@ func (u Upgrader) Upgrade(d *deployment.Deployment) (err error) {
 	err = uh.UpdateFstab(trans)
 	if err != nil {
 		return fmt.Errorf("updating fstab: %w", err)
+	}
+
+	if d.IsFipsEnabled() {
+		err = fips.ChrootedEnable(u.ctx, u.s, trans.Path)
+		if err != nil {
+			return fmt.Errorf("enabling FIPS: %w", err)
+		}
 	}
 
 	err = selinux.ChrootedRelabel(u.ctx, u.s, trans.Path, nil)

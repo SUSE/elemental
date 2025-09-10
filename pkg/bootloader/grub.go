@@ -328,6 +328,15 @@ func (g *Grub) installKernelInitrd(rootPath, espDir, subfolder, snapshotID, kern
 		return nil, fmt.Errorf("copying kernel '%s': %w", kernel, err)
 	}
 
+	// Copy kernel .hmac in order to enable FIPS.
+	kernelHmac := filepath.Join(filepath.Dir(kernel), ".vmlinuz.hmac")
+	if exists, _ := vfs.Exists(g.s.FS(), kernelHmac); exists {
+		err = vfs.CopyFile(g.s.FS(), kernelHmac, targetDir)
+		if err != nil {
+			return nil, fmt.Errorf("copying kernel hmac '%s': %w", kernelHmac, err)
+		}
+	}
+
 	initrdPath := filepath.Join(filepath.Dir(kernel), Initrd)
 	if exists, _ := vfs.Exists(g.s.FS(), initrdPath); !exists {
 		return nil, fmt.Errorf("initrd not found")

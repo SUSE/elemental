@@ -93,7 +93,7 @@ build-disk: $(BUILD_DIR) elemental-image
 		--volume /run/udev:/run/udev:ro \
 		--privileged \
 		$(ELEMENTAL_IMAGE_REPO):$(VERSION) \
-		--debug install --os-image $(OS_REPO):$(OS_VERSION) --target $${TARGET} --cmdline "root=LABEL=SYSTEM console=ttyS0,115200" --config /build/config.sh
+		--debug install --os-image $(OS_REPO):$(OS_VERSION) --target $${TARGET} --cmdline "console=ttyS0,115200" --config /build/config.sh
 	BUILD_ERR=$$?
 	test $${BUILD_ERR} -eq 0 && qemu-img convert -c -p -O qcow2 $(IMG).raw $(IMG).qcow2
 	sudo losetup -d $${TARGET}

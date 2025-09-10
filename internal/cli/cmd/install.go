@@ -34,6 +34,7 @@ type InstallFlags struct {
 	KernelCmdline        string
 	Verify               bool
 	Local                bool
+	EnableFips           bool
 }
 
 var InstallArgs InstallFlags
@@ -100,6 +101,11 @@ func NewInstallCommand(appName string, action func(*cli.Context) error) *cli.Com
 				Name:        "local",
 				Usage:       "Load OCI images from the local container storage instead of a remote registry",
 				Destination: &InstallArgs.Local,
+			},
+			&cli.BoolFlag{
+				Name:        "enable-fips",
+				Usage:       "Enable FIPS",
+				Destination: &InstallArgs.EnableFips,
 			},
 		},
 	}

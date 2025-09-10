@@ -136,7 +136,16 @@ func digestInstallSetup(s *sys.System, flags *cmd.InstallFlags) (*deployment.Dep
 	}
 
 	if flags.KernelCmdline != "" {
-		d.BootConfig.KernelCmdline = flags.KernelCmdline
+		d.BootConfig.KernelCmdline = fmt.Sprintf("%s %s", d.BootConfig.KernelCmdline, flags.KernelCmdline)
+	}
+
+	if flags.EnableFips {
+		d.Fips = &deployment.FipsConfig{
+			Enabled: true,
+		}
+
+		bootFlag := fmt.Sprintf("boot=LABEL=%s", deployment.EfiLabel)
+		d.BootConfig.KernelCmdline = fmt.Sprintf("%s %s %s", d.BootConfig.KernelCmdline, "fips=1", bootFlag)
 	}
 
 	err := d.Sanitize(s)

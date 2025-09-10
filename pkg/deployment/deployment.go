@@ -211,11 +211,16 @@ type FirmwareConfig struct {
 	BootEntries []*firmware.EfiBootEntry `yaml:"entries"`
 }
 
+type FipsConfig struct {
+	Enabled bool `yaml:"enabled"`
+}
+
 type Deployment struct {
 	SourceOS   *ImageSource    `yaml:"sourceOS"`
 	Disks      []*Disk         `yaml:"disks"`
 	Firmware   *FirmwareConfig `yaml:"firmware"`
 	BootConfig *BootConfig     `yaml:"bootloader"`
+	Fips       *FipsConfig     `yaml:"fips"`
 	// Consider adding a systemd-sysext list here
 	// All of them would extracted in the RO context, so only
 	// additions to the RWVolumes would succeed.
@@ -291,6 +296,11 @@ func (d *Deployment) Sanitize(s *sys.System) error {
 		}
 	}
 	return nil
+}
+
+// IsFipsEnabled returns true if FIPS is enabled for the deployment, otherwise false.
+func (d *Deployment) IsFipsEnabled() bool {
+	return d.Fips != nil && d.Fips.Enabled == true
 }
 
 // WriteDeploymentFile serialized the Deployment variable into a file. As part of the
