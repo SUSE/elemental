@@ -337,11 +337,11 @@ The ISO supports configurations through a script which will run in late initramf
 In this example, we are going to prepare a configuration script that will set three aspects:
 
 * Autologin so the live ISO does not require a root password
-* An elemental-autoinstaller service to run the installation at boot 
+* An elemental-autoinstaller service to run the installation at boot
 * A link between the extensions in the ISO filesystem and `/run/extensions` so that they are loaded at boot
 
 Create the script and make it executable:
-    
+
 ```shell
 cat <<- END > config-live.sh
 #!/bin/bash
@@ -375,7 +375,7 @@ Description=Elemental Autoinstall
 Wants=network-online.target
 After=network-online.target
 ConditionPathExists=/run/initramfs/live/Install/install.yaml
-ConditionFileIsExecutable=/usr/local/bin/elemental3-toolkit
+ConditionFileIsExecutable=/usr/local/bin/elemental3ctl
 
 [Service]
 Type=oneshot
@@ -396,7 +396,7 @@ chmod +x config-live.sh
 
 #### Include Extensions in the Installer Media
 
-The provided OS does not include the `elemental3-toolkit` required to run the installation to the target disk. The `elemental3ctl` is delivered through a systemd extension image.
+The provided OS does not include the `elemental3ctl` required to run the installation to the target disk. The `elemental3ctl` is delivered through a systemd extension image.
 To ensure it is available at ISO boot, it has to be included in the ISO filesystem and either copied or linked to `/run/extensions`.
 
 This example shows how to prepare the ISO overlay directory tree and the configuration script to ensure the `elemental3ctl` extensions are
