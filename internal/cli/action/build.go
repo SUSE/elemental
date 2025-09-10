@@ -181,6 +181,15 @@ func parseImageDefinition(args *cmd.BuildFlags) (*image.Definition, error) {
 		return nil, fmt.Errorf("parsing network directory: %w", err)
 	}
 
+	data, err = os.ReadFile(configDir.ButaneFilepath())
+	if err == nil {
+		if err = image.ParseConfig(data, &definition.ButaneConfig); err != nil {
+			return nil, fmt.Errorf("parsing config file %q: %w", configDir.ButaneFilepath(), err)
+		}
+	} else if !errors.Is(err, fs.ErrNotExist) {
+		return nil, fmt.Errorf("reading config file: %w", err)
+	}
+
 	return definition, nil
 }
 

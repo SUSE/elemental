@@ -43,3 +43,20 @@ func (b *Builder) generatePreparePartition(d *image.Definition) *deployment.Part
 		Hidden:     true,
 	}
 }
+
+func (b *Builder) generateIgnitionPartition() *deployment.Partition {
+	const (
+		IgnitionLabel = "ignition"
+		IngitionMnt   = "/run/elemental/firstboot"
+		IgnitionSize  = deployment.MiB(128)
+	)
+
+	return &deployment.Partition{
+		Label:      IgnitionLabel,
+		Role:       deployment.Data,
+		MountPoint: IngitionMnt,
+		FileSystem: deployment.Btrfs,
+		Size:       IgnitionSize,
+		Hidden:     true,
+	}
+}

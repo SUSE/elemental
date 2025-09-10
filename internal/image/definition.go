@@ -37,6 +37,7 @@ type Definition struct {
 	Release         release.Release
 	Kubernetes      kubernetes.Kubernetes
 	Network         Network
+	ButaneConfig    map[string]any
 }
 
 type Image struct {

@@ -76,15 +76,17 @@ func (b *Builder) Run(ctx context.Context, d *image.Definition, buildDir image.B
 		return err
 	}
 
-	if err = b.downloadSystemExtensions(ctx, d, m, buildDir); err != nil {
-		logger.Error("Downloading system extensions failed")
-		return err
+	var ignitionPart *deployment.Partition
+	if k8sScript != "" || len(d.ButaneConfig) > 0 {
+		ignitionPart = b.generateIgnitionPartition()
+		if err = b.configureIgnition(d, buildDir, k8sScript); err != nil {
+			logger.Error("Configuring Ignition failed")
+			return err
+		}
 	}
 
-	logger.Info("Preparing configuration script")
-	configScript, err := writeConfigScript(fs, d, string(buildDir), k8sScript)
-	if err != nil {
-		logger.Error("Preparing configuration script failed")
+	if err = b.downloadSystemExtensions(ctx, d, m, buildDir); err != nil {
+		logger.Error("Downloading system extensions failed")
 		return err
 	}
 
@@ -106,6 +108,12 @@ func (b *Builder) Run(ctx context.Context, d *image.Definition, buildDir image.B
 		}
 	}()
 
+	err = vfs.MkdirAll(b.System.FS(), buildDir.OverlaysDir(), vfs.DirPerm)
+	if err != nil {
+		logger.Error("Failed creating overlay dir")
+		return err
+	}
+
 	logger.Info("Preparing installation setup")
 	dep, err := newDeployment(
 		b.System,
@@ -113,9 +121,9 @@ func (b *Builder) Run(ctx context.Context, d *image.Definition, buildDir image.B
 		d.Installation.Bootloader,
 		d.Installation.KernelCmdLine,
 		m.CorePlatform.Components.OperatingSystem.Image,
-		configScript,
 		buildDir.OverlaysDir(),
 		preparePart,
+		ignitionPart,
 	)
 	if err != nil {
 		logger.Error("Preparing installation setup failed")
@@ -146,12 +154,11 @@ func (b *Builder) Run(ctx context.Context, d *image.Definition, buildDir image.B
 	return nil
 }
 
-func newDeployment(system *sys.System, installationDevice, bootloader, kernelCmdLine, osImage, configScript, overlaysPath string, customPartitions ...*deployment.Partition) (*deployment.Deployment, error) {
+func newDeployment(system *sys.System, installationDevice, bootloader, kernelCmdLine, osImage, overlaysPath string, customPartitions ...*deployment.Partition) (*deployment.Deployment, error) {
 	d := deployment.DefaultDeployment()
 	d.Disks[0].Device = installationDevice
 	d.BootConfig.Bootloader = bootloader
 	d.BootConfig.KernelCmdline = kernelCmdLine
-	d.CfgScript = configScript
 
 	if len(customPartitions) > 0 {
 		partitionLen := len(d.Disks[0].Partitions)

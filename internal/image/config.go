@@ -42,6 +42,10 @@ func (dir ConfigDir) KubernetesFilepath() string {
 	return filepath.Join(string(dir), "kubernetes.yaml")
 }
 
+func (dir ConfigDir) ButaneFilepath() string {
+	return filepath.Join(string(dir), "butane.yaml")
+}
+
 func (dir ConfigDir) kubernetesDir() string {
 	return filepath.Join(string(dir), "kubernetes")
 }
@@ -70,6 +74,10 @@ func (dir BuildDir) ReleaseManifestsDir() string {
 
 func ExtensionsPath() string {
 	return filepath.Join("var", "lib", "extensions")
+}
+
+func IgnitionFilePath() string {
+	return filepath.Join("run", "elemental", "firstboot", "ignition", "config.ign")
 }
 
 func ElementalPath() string {
