@@ -300,7 +300,7 @@ func (d *Deployment) Sanitize(s *sys.System) error {
 
 // IsFipsEnabled returns true if FIPS is enabled for the deployment, otherwise false.
 func (d *Deployment) IsFipsEnabled() bool {
-	return d.Fips != nil && d.Fips.Enabled == true
+	return d.Fips != nil && d.Fips.Enabled
 }
 
 // WriteDeploymentFile serialized the Deployment variable into a file. As part of the

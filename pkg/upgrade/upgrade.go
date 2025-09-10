@@ -93,6 +93,7 @@ func New(ctx context.Context, s *sys.System, opts ...Option) *Upgrader {
 	return up
 }
 
+//nolint:gocyclo
 func (u Upgrader) Upgrade(d *deployment.Deployment) (err error) {
 	cleanup := cleanstack.NewCleanStack()
 	defer func() { err = cleanup.Cleanup(err) }()
