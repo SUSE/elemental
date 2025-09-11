@@ -121,6 +121,9 @@ var _ = Describe("SnapperUpgradeHelper", Label("transaction"), func() {
 			Expect(upgradeH.UpdateFstab(trans)).To(Succeed())
 			ok, _ = vfs.Exists(tfs, fstab)
 			Expect(ok).To(BeTrue())
+			data, err := tfs.ReadFile(fstab)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(string(data)).To(Not(ContainSubstring("UUID=d7dd841f-aeaa-4fe3-a383-8913f4e8d4de")))
 		})
 		It("it fails to create fstab file if the path does not exist", func() {
 			err := upgradeH.UpdateFstab(trans)
@@ -197,6 +200,7 @@ var _ = Describe("SnapperUpgradeHelper", Label("transaction"), func() {
 			data, err := tfs.ReadFile(fstab)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(string(data)).To(ContainSubstring("subvol=@/.snapshots/5/snapshot/etc"))
+			Expect(string(data)).To(Not(ContainSubstring("UUID=d7dd841f-aeaa-4fe3-a383-8913f4e8d4de")))
 		})
 	})
 })

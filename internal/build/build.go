@@ -62,10 +62,12 @@ func (b *Builder) Run(ctx context.Context, d *image.Definition, buildDir image.B
 		return err
 	}
 
-	networkScript, err := b.configureNetwork(d, buildDir)
-	if err != nil {
-		logger.Error("Configuring network failed")
-		return err
+	preparePart := b.generatePreparePartition(d)
+	if preparePart != nil {
+		if err := b.configureNetworkOnPartition(d, buildDir, preparePart); err != nil {
+			logger.Error("Configuring network failed")
+			return err
+		}
 	}
 
 	k8sScript, err := b.configureKubernetes(ctx, d, m, buildDir)
@@ -75,7 +77,7 @@ func (b *Builder) Run(ctx context.Context, d *image.Definition, buildDir image.B
 	}
 
 	logger.Info("Preparing configuration script")
-	configScript, err := writeConfigScript(fs, d, string(buildDir), networkScript, k8sScript)
+	configScript, err := writeConfigScript(fs, d, string(buildDir), k8sScript)
 	if err != nil {
 		logger.Error("Preparing configuration script failed")
 		return err
@@ -108,6 +110,7 @@ func (b *Builder) Run(ctx context.Context, d *image.Definition, buildDir image.B
 		m.CorePlatform.Components.OperatingSystem.Image,
 		configScript,
 		buildDir.OverlaysDir(),
+		preparePart,
 	)
 	if err != nil {
 		logger.Error("Preparing installation setup failed")
@@ -138,12 +141,26 @@ func (b *Builder) Run(ctx context.Context, d *image.Definition, buildDir image.B
 	return nil
 }
 
-func newDeployment(system *sys.System, installationDevice, bootloader, kernelCmdLine, osImage, configScript, overlaysPath string) (*deployment.Deployment, error) {
+func newDeployment(system *sys.System, installationDevice, bootloader, kernelCmdLine, osImage, configScript, overlaysPath string, customPartitions ...*deployment.Partition) (*deployment.Deployment, error) {
 	d := deployment.DefaultDeployment()
 	d.Disks[0].Device = installationDevice
 	d.BootConfig.Bootloader = bootloader
 	d.BootConfig.KernelCmdline = kernelCmdLine
 	d.CfgScript = configScript
+
+	if len(customPartitions) > 0 {
+		partitionLen := len(d.Disks[0].Partitions)
+		systemPart := d.Disks[0].Partitions[partitionLen-1]
+		partitionsWithoutSystem := d.Disks[0].Partitions[:partitionLen-1]
+
+		for _, part := range customPartitions {
+			if part != nil {
+				partitionsWithoutSystem = append(partitionsWithoutSystem, part)
+			}
+		}
+		d.Disks[0].Partitions = partitionsWithoutSystem
+		d.Disks[0].Partitions = append(d.Disks[0].Partitions, systemPart)
+	}
 
 	osURI := fmt.Sprintf("%s://%s", deployment.OCI, osImage)
 	osSource, err := deployment.NewSrcFromURI(osURI)
