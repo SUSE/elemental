@@ -372,6 +372,9 @@ func rootFromMerge(volPath string, merge *Merge) (string, error) {
 func (sc snapperContext) updateFstab(trans *Transaction) error {
 	var oldLines, newLines []fstab.Line
 	for _, part := range sc.partitions {
+		if part.Hidden {
+			continue
+		}
 		for _, rwVol := range part.RWVolumes {
 			if !rwVol.Snapshotted {
 				continue
@@ -395,6 +398,9 @@ func (sc snapperContext) updateFstab(trans *Transaction) error {
 func (sc snapperContext) createFstab(trans *Transaction) error {
 	var fstabLines []fstab.Line
 	for _, part := range sc.partitions {
+		if part.Hidden {
+			continue
+		}
 		if part.MountPoint != "" {
 			var line fstab.Line
 

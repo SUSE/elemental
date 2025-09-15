@@ -76,6 +76,18 @@ const lsblkJson = `{
 		  "path": "/dev/sda2",
 		  "pkname": "/dev/sda",
 		  "type": "part"
+	   },{
+		  "label": "HIDDEN",
+		  "partlabel": "",
+		  "uuid": "d7dd841f-aeaa-4fe3-a383-8913f4e8d4de",
+		  "size": 2726297600,
+		  "fstype": "btrfs",
+		  "mountpoints": [
+			  "/run/hidden"
+		  ],
+		  "path": "/dev/sda2",
+		  "pkname": "/dev/sda",
+		  "type": "part"
 	   }
 	]
  }`
@@ -214,6 +226,13 @@ func snapperContextMock() {
 			Path:        "/home",
 			Snapshotted: true,
 		}},
+	}, &deployment.Partition{
+		Label:      "HIDDEN",
+		FileSystem: deployment.Btrfs,
+		Role:       deployment.Data,
+		UUID:       "d7dd841f-aeaa-4fe3-a383-8913f4e8d4de",
+		MountPoint: "/run/hidden",
+		Hidden:     true,
 	})
 	runner.SideEffect = func(cmd string, args ...string) ([]byte, error) {
 		if f := sideEffects[cmd]; f != nil {
