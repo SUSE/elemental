@@ -34,16 +34,16 @@ const globPattern = "release_manifest*.yaml"
 type OCIUnpacker interface {
 	// Unpack unpacks the file system of a given OCI image to the specified destination
 	// and returns its digest
-	Unpack(ctx context.Context, uri, dest string) (digest string, err error)
+	Unpack(ctx context.Context, uri, dest string, local bool) (digest string, err error)
 }
 
 type ociUnpacker struct {
 	system *sys.System
 }
 
-func (o *ociUnpacker) Unpack(ctx context.Context, uri, dest string) (digest string, err error) {
-	remoteUnpacker := unpack.NewOCIUnpacker(o.system, uri)
-	return remoteUnpacker.Unpack(ctx, dest)
+func (o *ociUnpacker) Unpack(ctx context.Context, uri, dest string, local bool) (digest string, err error) {
+	unpacker := unpack.NewOCIUnpacker(o.system, uri, unpack.WithLocalOCI(local))
+	return unpacker.Unpack(ctx, dest)
 }
 
 type OCIReleaseManifestExtractor struct {
@@ -142,7 +142,7 @@ func New(opts ...Opts) (*OCIReleaseManifestExtractor, error) {
 // The first located release manifest will be extracted to the configured store directory
 // and its path will be returned, or an error if the manifest was not found.
 // The underlying OCI image is not retained.
-func (o *OCIReleaseManifestExtractor) ExtractFrom(uri string) (path string, err error) {
+func (o *OCIReleaseManifestExtractor) ExtractFrom(uri string, local bool) (path string, err error) {
 	unpackDir, err := vfs.TempDir(o.fs, "", "release-manifest-unpack-")
 	if err != nil {
 		return "", fmt.Errorf("creating oci image unpack directory: %w", err)
@@ -151,7 +151,7 @@ func (o *OCIReleaseManifestExtractor) ExtractFrom(uri string) (path string, err 
 		_ = o.fs.RemoveAll(unpackDir)
 	}()
 
-	digest, err := o.unpacker.Unpack(o.ctx, uri, unpackDir)
+	digest, err := o.unpacker.Unpack(o.ctx, uri, unpackDir, local)
 	if err != nil {
 		return "", fmt.Errorf("unpacking oci image: %w", err)
 	}

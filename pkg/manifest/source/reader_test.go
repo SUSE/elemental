@@ -46,7 +46,7 @@ var _ = Describe("ReleaseManifestReader", Ordered, Label("release-manifest"), fu
 		Expect(os.WriteFile(testFilePath, []byte(dummyContent), 0644)).To(Succeed())
 
 		fileExtr = &OCIFileExtractorMock{manifestPath: testFilePath}
-		reader = source.NewReader(fileExtr)
+		reader = source.NewReader(fileExtr, false)
 	})
 
 	AfterAll(func() {
@@ -73,7 +73,7 @@ var _ = Describe("ReleaseManifestReader", Ordered, Label("release-manifest"), fu
 	})
 	It("fails to read from an oci manifest source", func() {
 		failingExtr := &OCIFileExtractorMock{fail: true}
-		failingReader := source.NewReader(failingExtr)
+		failingReader := source.NewReader(failingExtr, false)
 		data, err := failingReader.Read(getSource(source.OCI, "registry.com/foo/bar/test:0.0.1"))
 		Expect(err).To(HaveOccurred())
 		Expect(err).To(MatchError("extracting file from OCI image 'registry.com/foo/bar/test:0.0.1': failed extract"))
@@ -94,7 +94,7 @@ type OCIFileExtractorMock struct {
 	fail         bool
 }
 
-func (o OCIFileExtractorMock) ExtractFrom(uri string) (path string, err error) {
+func (o OCIFileExtractorMock) ExtractFrom(uri string, local bool) (path string, err error) {
 	if o.fail {
 		return "", fmt.Errorf("failed extract")
 	}

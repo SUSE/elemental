@@ -25,15 +25,19 @@ import (
 type OCIFileExtractor interface {
 	// ExtractFrom extracts a file from a given OCI image and
 	// returns the path to the extracted file.
-	ExtractFrom(uri string) (path string, err error)
+	ExtractFrom(uri string, local bool) (path string, err error)
 }
 
 type ReleaseManifestReader struct {
-	rmExtractor OCIFileExtractor
+	extractor OCIFileExtractor
+	local     bool
 }
 
-func NewReader(ociFileExtractor OCIFileExtractor) *ReleaseManifestReader {
-	return &ReleaseManifestReader{rmExtractor: ociFileExtractor}
+func NewReader(ociFileExtractor OCIFileExtractor, local bool) *ReleaseManifestReader {
+	return &ReleaseManifestReader{
+		extractor: ociFileExtractor,
+		local:     local,
+	}
 }
 
 func (r *ReleaseManifestReader) Read(src *ReleaseManifestSource) ([]byte, error) {
@@ -41,7 +45,7 @@ func (r *ReleaseManifestReader) Read(src *ReleaseManifestSource) ([]byte, error)
 	case File:
 		return r.readLocal(src.URI())
 	case OCI:
-		filepath, err := r.rmExtractor.ExtractFrom(src.URI())
+		filepath, err := r.extractor.ExtractFrom(src.URI(), r.local)
 		if err != nil {
 			return nil, fmt.Errorf("extracting file from OCI image '%s': %w", src.URI(), err)
 		}

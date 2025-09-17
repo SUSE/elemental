@@ -81,7 +81,7 @@ var _ = Describe("OCIReleaseManifestExtractor", Label("release-manifest"), func(
 		defaultStoreExtr, err := extractor.New(extrOpts...)
 		Expect(err).ToNot(HaveOccurred())
 
-		extractedManifest, err := defaultStoreExtr.ExtractFrom(dummyOCI)
+		extractedManifest, err := defaultStoreExtr.ExtractFrom(dummyOCI, false)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(filepath.Dir(extractedManifest)).To(Equal(expectedStorePath))
 		validateExtractedManifestContent(tfs, extractedManifest)
@@ -101,7 +101,7 @@ var _ = Describe("OCIReleaseManifestExtractor", Label("release-manifest"), func(
 		customStoreExtr, err := extractor.New(extrOpts...)
 		Expect(err).ToNot(HaveOccurred())
 
-		extractedManifest, err := customStoreExtr.ExtractFrom(dummyOCI)
+		extractedManifest, err := customStoreExtr.ExtractFrom(dummyOCI, false)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(strings.HasPrefix(extractedManifest, customStoreRoot)).To(BeTrue())
 		Expect(filepath.Dir(extractedManifest)).To(Equal(expectedManifestStore))
@@ -117,7 +117,7 @@ var _ = Describe("OCIReleaseManifestExtractor", Label("release-manifest"), func(
 		customSearchPathExtr, err := extractor.New(extrOpts...)
 		Expect(err).ToNot(HaveOccurred())
 
-		extractedManifest, err := customSearchPathExtr.ExtractFrom(dummyOCI)
+		extractedManifest, err := customSearchPathExtr.ExtractFrom(dummyOCI, false)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(filepath.Base(extractedManifest)).To(Equal(customManifestName))
 		validateExtractedManifestContent(tfs, extractedManifest)
@@ -130,7 +130,7 @@ var _ = Describe("OCIReleaseManifestExtractor", Label("release-manifest"), func(
 		defaultExtr, err := extractor.New(extrOpts...)
 		Expect(err).ToNot(HaveOccurred())
 
-		manifest, err := defaultExtr.ExtractFrom(dummyOCI)
+		manifest, err := defaultExtr.ExtractFrom(dummyOCI, false)
 		Expect(err).To(HaveOccurred())
 		Expect(err).To(MatchError(expErr))
 		Expect(manifest).To(BeEmpty())
@@ -144,7 +144,7 @@ var _ = Describe("OCIReleaseManifestExtractor", Label("release-manifest"), func(
 		extr, err := extractor.New(extrOpts...)
 		Expect(err).ToNot(HaveOccurred())
 
-		manifest, err := extr.ExtractFrom(dummyOCI)
+		manifest, err := extr.ExtractFrom(dummyOCI, false)
 		Expect(err).To(HaveOccurred())
 		Expect(err).To(MatchError(expErr))
 		Expect(manifest).To(BeEmpty())
@@ -157,7 +157,7 @@ var _ = Describe("OCIReleaseManifestExtractor", Label("release-manifest"), func(
 		extr, err := extractor.New(extrOpts...)
 		Expect(err).ToNot(HaveOccurred())
 
-		manifest, err := extr.ExtractFrom(dummyOCI)
+		manifest, err := extr.ExtractFrom(dummyOCI, false)
 		Expect(err).To(HaveOccurred())
 		Expect(err).To(MatchError(expErr))
 		Expect(manifest).To(BeEmpty())
@@ -188,7 +188,7 @@ type unpackerMock struct {
 	tfs              vfs.FS
 }
 
-func (u unpackerMock) Unpack(ctx context.Context, uri, dest string) (digest string, err error) {
+func (u unpackerMock) Unpack(ctx context.Context, uri, dest string, local bool) (digest string, err error) {
 	if u.fail {
 		return "", fmt.Errorf("unpack failure")
 	}

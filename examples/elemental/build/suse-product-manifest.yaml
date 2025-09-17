@@ -3,7 +3,7 @@ metadata:
   name: "suse-product"
   version: "4.2.0"
   upgradePathsFrom:
-  - "4.1.9"
+    - "4.1.9"
   creationDate: "2025-07-10"
 corePlatform:
   # Registry path to the release manifest OCI image of the Core Platform that this SUSE Product extends
@@ -11,25 +11,45 @@ corePlatform:
   # Release manifest version to use
   version: "0.0.1"
 components:
+  systemd:
+    extensions:
+      - name: "longhorn"
+        image: "https://download.suse.de/ibs/Devel:/UnifiedCore:/Main:/ToTest/sysexts/longhorn_2.7_x86-64.raw"
   helm:
     charts:
-    - chart: "cert-manager"
-      version: "v1.17.2"
-      namespace: "cert-manager"
-      repository: "jetstack"
-      values:
-        crds:
-          enabled: true
-    - chart: "rancher"
-      version: "2.11.1"
-      namespace: "cattle-system"
-      repository: "rancher"
-      values:
-        replicas: 1
-      dependsOn:
-      - "cert-manager"
+      - chart: "cert-manager"
+        version: "v1.17.2"
+        namespace: "cert-manager"
+        repository: "jetstack"
+        values:
+          crds:
+            enabled: true
+      - chart: "rancher"
+        version: "2.11.1"
+        namespace: "cattle-system"
+        repository: "rancher"
+        values:
+          replicas: 1
+        dependsOn:
+          - name: "cert-manager"
+            type: "helm"
+      - chart: "longhorn-crd"
+        version: "107.0.0+up1.9.1"
+        namespace: "longhorn-system"
+        repository: "rancher-charts"
+      - chart: "longhorn"
+        version: "107.0.0+up1.9.1"
+        namespace: "longhorn-system"
+        repository: "rancher-charts"
+        dependsOn:
+          - name: "longhorn-crd"
+            type: "helm"
+          - name: "longhorn"
+            type: "sysext"
     repositories:
-    - name: "rancher"
-      url: "https://releases.rancher.com/server-charts/stable"
-    - name: "jetstack"
-      url: "https://charts.jetstack.io"
+      - name: "jetstack"
+        url: "https://charts.jetstack.io"
+      - name: "rancher"
+        url: "https://releases.rancher.com/server-charts/stable"
+      - name: "rancher-charts"
+        url: "https://charts.rancher.io"

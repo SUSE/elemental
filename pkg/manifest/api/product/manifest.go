@@ -27,7 +27,7 @@ import (
 )
 
 type ReleaseManifest struct {
-	MetaData     *api.MetaData `yaml:"metadata,omitempty"`
+	Metadata     *api.Metadata `yaml:"metadata,omitempty"`
 	CorePlatform *CorePlatform `yaml:"corePlatform"`
 	Components   Components    `yaml:"components,omitempty"`
 }
@@ -38,7 +38,8 @@ type CorePlatform struct {
 }
 
 type Components struct {
-	Helm *api.Helm `yaml:"helm,omitempty"`
+	Systemd api.Systemd `yaml:"systemd,omitempty"`
+	Helm    *api.Helm   `yaml:"helm,omitempty"`
 }
 
 func Parse(data []byte) (*ReleaseManifest, error) {

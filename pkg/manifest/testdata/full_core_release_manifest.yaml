@@ -16,32 +16,36 @@
 metadata:
   name: "suse-core"
   version: "1.0"
-  upgradePathsFrom: 
-  - "0.0.1"
+  upgradePathsFrom:
+    - "0.0.1"
   creationDate: "2000-01-01"
 components:
   operatingSystem:
     version: "6.2"
     image: "registry.com/foo/bar/sl-micro:6.2"
-  kubernetes:
-    rke2:
-      version: "1.32"
-      image: "registry.com/foo/bar/rke2:1.32"
+  systemd:
+    extensions:
+      - name: "elemental3ctl"
+        image: "https://example.com/elemental3ctl_0.0.raw"
+        required: true
+      - name: "rke2"
+        image: "https://example.com/rke2-1.32_0.0.raw"
   helm:
     charts:
-    - name: "Foo"
-      chart: "foo"
-      version: "0.0.0"
-      namespace: "foo-system"
-      repository: "foo-charts"
-      values:
-        image:
-          tag: latest
-      dependsOn:
-      - "baz"
-      images:
-      - name: "foo"
-        image: "registry.com/foo/foo:0.0.0"
+      - name: "Foo"
+        chart: "foo"
+        version: "0.0.0"
+        namespace: "foo-system"
+        repository: "foo-charts"
+        values:
+          image:
+            tag: latest
+        dependsOn:
+          - name: "baz"
+            type: "helm"
+        images:
+          - name: "foo"
+            image: "registry.com/foo/foo:0.0.0"
     repositories:
-    - name: "foo-charts"
-      url: "https://foo.github.io/charts"
+      - name: "foo-charts"
+        url: "https://foo.github.io/charts"

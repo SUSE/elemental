@@ -23,16 +23,21 @@ type Release struct {
 	Components  Components `yaml:"components,omitempty"`
 }
 type Components struct {
-	Helm []HelmChart `yaml:"helm"`
+	SystemdExtensions []SystemdExtension `yaml:"systemd,omitempty"`
+	HelmCharts        []HelmChart        `yaml:"helm,omitempty"`
 }
 
 func (c *Components) HelmValueFiles() map[string]string {
 	m := map[string]string{}
-	for _, chart := range c.Helm {
+	for _, chart := range c.HelmCharts {
 		m[chart.Name] = chart.ValuesFile
 	}
 
 	return m
+}
+
+type SystemdExtension struct {
+	Name string `yaml:"extension"`
 }
 
 type HelmChart struct {

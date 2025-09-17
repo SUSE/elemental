@@ -56,7 +56,7 @@ func (b *Builder) Run(ctx context.Context, d *image.Definition, buildDir image.B
 	fs := b.System.FS()
 
 	logger.Info("Resolving release manifest: %s", d.Release.ManifestURI)
-	m, err := resolveManifest(fs, d.Release.ManifestURI, buildDir)
+	m, err := resolveManifest(fs, d.Release.ManifestURI, buildDir, b.Local)
 	if err != nil {
 		logger.Error("Resolving release manifest failed")
 		return err
@@ -71,6 +71,11 @@ func (b *Builder) Run(ctx context.Context, d *image.Definition, buildDir image.B
 	k8sScript, err := b.configureKubernetes(ctx, d, m, buildDir)
 	if err != nil {
 		logger.Error("Configuring Kubernetes failed")
+		return err
+	}
+
+	if err = b.downloadSystemExtensions(ctx, d, m, buildDir); err != nil {
+		logger.Error("Downloading system extensions failed")
 		return err
 	}
 
@@ -166,7 +171,7 @@ func newDeployment(system *sys.System, installationDevice, bootloader, kernelCmd
 	return d, nil
 }
 
-func resolveManifest(fs vfs.FS, manifestURI string, buildDir image.BuildDir) (*resolver.ResolvedManifest, error) {
+func resolveManifest(fs vfs.FS, manifestURI string, buildDir image.BuildDir, local bool) (*resolver.ResolvedManifest, error) {
 	manifestsDir := buildDir.ReleaseManifestsDir()
 	if err := vfs.MkdirAll(fs, manifestsDir, 0700); err != nil {
 		return nil, fmt.Errorf("creating release manifest store '%s': %w", manifestsDir, err)
@@ -177,7 +182,7 @@ func resolveManifest(fs vfs.FS, manifestURI string, buildDir image.BuildDir) (*r
 		return nil, fmt.Errorf("initialising OCI release manifest extractor: %w", err)
 	}
 
-	res := resolver.New(source.NewReader(extr))
+	res := resolver.New(source.NewReader(extr, local))
 	m, err := res.Resolve(manifestURI)
 	if err != nil {
 		return nil, fmt.Errorf("resolving manifest at uri '%s': %w", manifestURI, err)

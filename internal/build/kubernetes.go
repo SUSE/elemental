@@ -30,6 +30,8 @@ import (
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
 
+const k8sExtension = "rke2"
+
 //go:embed templates/k8s_res_deploy.sh.tpl
 var k8sResDeployScriptTpl string
 
@@ -38,11 +40,11 @@ func needsManifestsSetup(def *image.Definition) bool {
 }
 
 func needsHelmChartsSetup(def *image.Definition) bool {
-	return (len(def.Release.Components.Helm) > 0) || def.Kubernetes.Helm != nil
+	return (len(def.Release.Components.HelmCharts) > 0) || def.Kubernetes.Helm != nil
 }
 
 func isKubernetesEnabled(def *image.Definition) bool {
-	return needsHelmChartsSetup(def) || needsManifestsSetup(def)
+	return isExtensionExplicitlyEnabled(k8sExtension, def) || needsHelmChartsSetup(def) || needsManifestsSetup(def)
 }
 
 func (b *Builder) configureKubernetes(
@@ -55,10 +57,6 @@ func (b *Builder) configureKubernetes(
 		b.System.Logger().Info("Kubernetes is not enabled, skipping configuration")
 
 		return "", nil
-	}
-
-	if err = b.downloadRKE2(ctx, manifest, buildDir); err != nil {
-		return "", fmt.Errorf("downloading RKE2 extension: %w", err)
 	}
 
 	var runtimeHelmCharts []string
@@ -89,20 +87,6 @@ func (b *Builder) configureKubernetes(
 	}
 
 	return k8sResourceScript, nil
-}
-
-func (b *Builder) downloadRKE2(ctx context.Context, manifest *resolver.ResolvedManifest, buildDir image.BuildDir) error {
-	extensionsDir := filepath.Join(buildDir.OverlaysDir(), image.ExtensionsPath())
-	if err := vfs.MkdirAll(b.System.FS(), extensionsDir, 0o700); err != nil {
-		return fmt.Errorf("creating extensions directory: %w", err)
-	}
-
-	rke2URL := manifest.CorePlatform.Components.Kubernetes.RKE2.Image
-	rke2ExtensionPath := filepath.Join(extensionsDir, filepath.Base(rke2URL))
-
-	b.System.Logger().Info("Downloading RKE2 extension %q...", rke2URL)
-
-	return b.DownloadFile(ctx, b.System.FS(), rke2URL, rke2ExtensionPath)
 }
 
 func (b *Builder) setupManifests(ctx context.Context, k *kubernetes.Kubernetes, buildDir image.BuildDir) (string, error) {

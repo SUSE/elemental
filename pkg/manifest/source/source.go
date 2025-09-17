@@ -59,7 +59,7 @@ type ReleaseManifestSource struct {
 	srcType ReleaseManifestSourceType
 }
 
-// ParseFromURI validates the given URI and parses it to a release manfiest source
+// ParseFromURI validates the given URI and parses it to a release manifest source
 func ParseFromURI(uri string) (*ReleaseManifestSource, error) {
 	u, err := url.Parse(uri)
 	if err != nil {

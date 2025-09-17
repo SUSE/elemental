@@ -29,7 +29,6 @@ import (
 	"github.com/suse/elemental/v3/internal/image/kubernetes"
 	"github.com/suse/elemental/v3/internal/image/release"
 	"github.com/suse/elemental/v3/pkg/log"
-	"github.com/suse/elemental/v3/pkg/manifest/api/core"
 	"github.com/suse/elemental/v3/pkg/manifest/resolver"
 	"github.com/suse/elemental/v3/pkg/sys"
 	sysmock "github.com/suse/elemental/v3/pkg/sys/mock"
@@ -95,7 +94,7 @@ var _ = Describe("Kubernetes", func() {
 			def := &image.Definition{
 				Release: release.Release{
 					Components: release.Components{
-						Helm: []release.HelmChart{
+						HelmCharts: []release.HelmChart{
 							{
 								Name: "metallb",
 							},
@@ -111,7 +110,7 @@ var _ = Describe("Kubernetes", func() {
 			def := &image.Definition{
 				Release: release.Release{
 					Components: release.Components{
-						Helm: []release.HelmChart{
+						HelmCharts: []release.HelmChart{
 							{
 								Name: "rancher",
 							},
@@ -149,38 +148,6 @@ var _ = Describe("Kubernetes", func() {
 			cleanup()
 		})
 
-		It("Fails to download RKE2 extension", func() {
-			builder := &Builder{
-				System: system,
-				DownloadFile: func(ctx context.Context, fs vfs.FS, url, path string) error {
-					return fmt.Errorf("download failed")
-				},
-			}
-
-			manifest := &resolver.ResolvedManifest{
-				CorePlatform: &core.ReleaseManifest{
-					Components: core.Components{
-						Kubernetes: core.Kubernetes{
-							RKE2: &core.RKE2{
-								Image: "some-url",
-							},
-						},
-					},
-				},
-			}
-
-			def := &image.Definition{
-				Kubernetes: kubernetes.Kubernetes{
-					RemoteManifests: []string{"some-url"},
-				},
-			}
-
-			script, err := builder.configureKubernetes(context.Background(), def, manifest, buildDir)
-			Expect(err).To(HaveOccurred())
-			Expect(err).To(MatchError("downloading RKE2 extension: download failed"))
-			Expect(script).To(BeEmpty())
-		})
-
 		It("Fails to configure Helm charts", func() {
 			builder := &Builder{
 				System: system,
@@ -194,22 +161,11 @@ var _ = Describe("Kubernetes", func() {
 				},
 			}
 
-			manifest := &resolver.ResolvedManifest{
-				CorePlatform: &core.ReleaseManifest{
-					Components: core.Components{
-						Kubernetes: core.Kubernetes{
-							RKE2: &core.RKE2{
-								Image: "some-url",
-							},
-						},
-					},
-				},
-			}
-
+			manifest := &resolver.ResolvedManifest{}
 			def := &image.Definition{
 				Release: release.Release{
 					Components: release.Components{
-						Helm: []release.HelmChart{
+						HelmCharts: []release.HelmChart{
 							{
 								Name: "rancher",
 							},
@@ -237,25 +193,14 @@ var _ = Describe("Kubernetes", func() {
 				},
 			}
 
-			manifest := &resolver.ResolvedManifest{
-				CorePlatform: &core.ReleaseManifest{
-					Components: core.Components{
-						Kubernetes: core.Kubernetes{
-							RKE2: &core.RKE2{
-								Image: "some-url",
-							},
-						},
-					},
-				},
-			}
-
+			manifest := &resolver.ResolvedManifest{}
 			def := &image.Definition{
 				Kubernetes: kubernetes.Kubernetes{
 					RemoteManifests: []string{"some-url"},
 				},
 				Release: release.Release{
 					Components: release.Components{
-						Helm: []release.HelmChart{
+						HelmCharts: []release.HelmChart{
 							{
 								Name: "rancher",
 							},
@@ -284,24 +229,22 @@ var _ = Describe("Kubernetes", func() {
 				},
 			}
 
-			manifest := &resolver.ResolvedManifest{
-				CorePlatform: &core.ReleaseManifest{
-					Components: core.Components{
-						Kubernetes: core.Kubernetes{
-							RKE2: &core.RKE2{
-								Image: "some-url",
+			manifest := &resolver.ResolvedManifest{}
+			def := &image.Definition{
+				Release: release.Release{
+					Components: release.Components{
+						SystemdExtensions: []release.SystemdExtension{
+							{
+								Name: "rke2",
 							},
 						},
 					},
 				},
 			}
 
-			def := &image.Definition{}
-
 			script, err := builder.configureKubernetes(context.Background(), def, manifest, buildDir)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(script).To(BeEmpty())
 		})
-
 	})
 })

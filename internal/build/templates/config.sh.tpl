@@ -32,10 +32,9 @@ WantedBy=multi-user.target
 EOF
 
 systemctl enable first-boot-network.service
-
 {{- end }}
 
-{{- if and .KubernetesDir .ManifestDeployScript }}
+# Enabling systemd extensions
 cat <<- END > /etc/systemd/system/ensure-sysext.service
 [Unit]
 BindsTo=systemd-sysext.service
@@ -56,6 +55,9 @@ ExecStart=/usr/bin/systemctl restart --no-block sockets.target timers.target mul
 WantedBy=sysinit.target
 END
 
+systemctl enable ensure-sysext.service
+
+{{- if and .KubernetesDir .ManifestDeployScript }}
 # Deploying Kubernetes resources
 
 cat << EOF > /etc/systemd/system/k8s-resource-installer.service
@@ -81,6 +83,5 @@ ExecStartPost=/bin/sh -c "rm -rf /etc/systemd/system/k8s-resource-installer.serv
 ExecStartPost=/bin/sh -c 'rm -rf "{{ .KubernetesDir }}"'
 EOF
 
-systemctl enable ensure-sysext.service
 systemctl enable k8s-resource-installer.service
 {{- end }}

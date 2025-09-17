@@ -16,28 +16,35 @@
 metadata:
   name: "suse-edge"
   version: "3.2.0"
-  upgradePathsFrom: 
-  - "3.1.2"
+  upgradePathsFrom:
+    - "3.1.2"
   creationDate: "2025-01-20"
 corePlatform:
   image: "foo.example.com/bar/release-manifest"
   version: "1.0"
 components:
+  systemd:
+    extensions:
+      - name: "foo-ext"
+        image: "https://example.com/foo-ext_0.0.raw"
   helm:
     charts:
-    - name: "Bar"
-      chart: "bar"
-      version: "0.0.0"
-      namespace: "bar-system"
-      repository: "bar-charts"
-      values:
-        image:
-          tag: latest
-      dependsOn:
-      - "foo"
-      images:
-      - name: "bar"
-        image: "registry.com/bar/bar:0.0.0"
+      - name: "Bar"
+        chart: "bar"
+        version: "0.0.0"
+        namespace: "bar-system"
+        repository: "bar-charts"
+        values:
+          image:
+            tag: latest
+        dependsOn:
+          - name: "foo"
+            type: "helm"
+          - name: "bar"
+            type: "sysext"
+        images:
+          - name: "bar"
+            image: "registry.com/bar/bar:0.0.0"
     repositories:
-    - name: "bar-charts"
-      url: "https://bar.github.io/charts"
+      - name: "bar-charts"
+        url: "https://bar.github.io/charts"

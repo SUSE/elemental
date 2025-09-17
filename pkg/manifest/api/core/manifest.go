@@ -27,26 +27,17 @@ import (
 )
 
 type ReleaseManifest struct {
-	MetaData   *api.MetaData `yaml:"metadata"`
+	Metadata   *api.Metadata `yaml:"metadata"`
 	Components Components    `yaml:"components"`
 }
 
 type Components struct {
 	OperatingSystem *OperatingSystem `yaml:"operatingSystem"`
-	Kubernetes      Kubernetes       `yaml:"kubernetes"`
+	Systemd         api.Systemd      `yaml:"systemd,omitempty"`
 	Helm            *api.Helm        `yaml:"helm,omitempty"`
 }
 
 type OperatingSystem struct {
-	Version string `yaml:"version"`
-	Image   string `yaml:"image"`
-}
-
-type Kubernetes struct {
-	RKE2 *RKE2 `yaml:"rke2"`
-}
-
-type RKE2 struct {
 	Version string `yaml:"version"`
 	Image   string `yaml:"image"`
 }
