@@ -22,8 +22,6 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/suse/elemental/v3/internal/image"
-	"github.com/suse/elemental/v3/internal/image/os"
 	"github.com/suse/elemental/v3/internal/template"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
@@ -31,16 +29,14 @@ import (
 //go:embed templates/config.sh.tpl
 var configScriptTpl string
 
-func writeConfigScript(fs vfs.FS, def *image.Definition, destDir, networkScript, k8sResourceDeployScript string) (string, error) {
+func writeConfigScript(fs vfs.FS, destDir, networkScript, k8sResourceDeployScript string) (string, error) {
 	const configScriptName = "config.sh"
 
 	values := struct {
-		Users                []os.User
 		KubernetesDir        string
 		ManifestDeployScript string
 		NetworkScript        string
 	}{
-		Users:         def.OperatingSystem.Users,
 		NetworkScript: networkScript,
 	}
 

@@ -21,8 +21,6 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/suse/elemental/v3/internal/image"
-	"github.com/suse/elemental/v3/internal/image/os"
 	"github.com/suse/elemental/v3/pkg/sys/mock"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
@@ -49,25 +47,14 @@ var _ = Describe("Config tests", func() {
 		fs, err = mock.ReadOnlyTestFS(fs)
 		Expect(err).NotTo(HaveOccurred())
 
-		definition := &image.Definition{}
-
-		script, err := writeConfigScript(fs, definition, buildDir, "", "")
+		script, err := writeConfigScript(fs, buildDir, "", "")
 		Expect(err).To(HaveOccurred())
 		Expect(err).To(MatchError("writing config script: WriteFile /_build/config.sh: operation not permitted"))
 		Expect(script).To(BeEmpty())
 	})
 
 	It("Succeeds writing config script to the filesystem without Kubernetes manifests", func() {
-		definition := &image.Definition{
-			OperatingSystem: os.OperatingSystem{
-				Users: []os.User{
-					{Username: "root", Password: "linux"},
-					{Username: "suse", Password: "suse"},
-				},
-			},
-		}
-
-		script, err := writeConfigScript(fs, definition, buildDir, "", "")
+		script, err := writeConfigScript(fs, buildDir, "", "")
 		Expect(err).NotTo(HaveOccurred())
 		Expect(script).To(Equal("/_build/config.sh"))
 
@@ -79,28 +66,13 @@ var _ = Describe("Config tests", func() {
 		Expect(err).NotTo(HaveOccurred(), "Reading contents")
 
 		contents := string(b)
-
-		// Users
-		Expect(contents).To(ContainSubstring("useradd -m root || true"))
-		Expect(contents).To(ContainSubstring("echo 'root:linux' | chpasswd"))
-		Expect(contents).To(ContainSubstring("useradd -m suse || true"))
-		Expect(contents).To(ContainSubstring("echo 'suse:suse' | chpasswd"))
 
 		// Kubernetes
 		Expect(contents).NotTo(ContainSubstring("/etc/systemd/system/k8s-resource-installer.service"))
 	})
 
 	It("Succeeds writing config script to the filesystem with Kubernetes manifests", func() {
-		definition := &image.Definition{
-			OperatingSystem: os.OperatingSystem{
-				Users: []os.User{
-					{Username: "root", Password: "linux"},
-					{Username: "suse", Password: "suse"},
-				},
-			},
-		}
-
-		script, err := writeConfigScript(fs, definition, buildDir, "/var/lib/elemental/configure-network.sh", "/var/lib/elemental/k8s-resources.sh")
+		script, err := writeConfigScript(fs, buildDir, "/var/lib/elemental/configure-network.sh", "/var/lib/elemental/k8s-resources.sh")
 		Expect(err).NotTo(HaveOccurred())
 		Expect(script).To(Equal("/_build/config.sh"))
 
@@ -112,12 +84,6 @@ var _ = Describe("Config tests", func() {
 		Expect(err).NotTo(HaveOccurred(), "Reading contents")
 
 		contents := string(b)
-
-		// Users
-		Expect(contents).To(ContainSubstring("useradd -m root || true"))
-		Expect(contents).To(ContainSubstring("echo 'root:linux' | chpasswd"))
-		Expect(contents).To(ContainSubstring("useradd -m suse || true"))
-		Expect(contents).To(ContainSubstring("echo 'suse:suse' | chpasswd"))
 
 		// Kubernetes
 		Expect(contents).To(ContainSubstring("/etc/systemd/system/k8s-resource-installer.service"))

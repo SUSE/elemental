@@ -15,21 +15,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package os
+package v0m1
 
 import (
-	"regexp"
-
-	"go.yaml.in/yaml/v3"
+	base "github.com/coreos/butane/base/v0_6"
 )
 
-type OperatingSystem struct {
-	DiskSize     DiskSize  `yaml:"diskSize"`
-	ButaneConfig yaml.Node `yaml:"butaneConfig"`
-}
+const Variant = "unifiedcore"
+const Version = "0.1.0"
 
-type DiskSize string
-
-func (d DiskSize) IsValid() bool {
-	return regexp.MustCompile(`^[1-9]\d*[KMGT]$`).MatchString(string(d))
+type Config struct {
+	base.Config `yaml:",inline"`
 }
