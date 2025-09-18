@@ -180,7 +180,7 @@ var _ = Describe("Install", Label("install"), func() {
 		iso.OutputDir = "/some/dir/build"
 		iso.Name = "installer2"
 
-		Expect(iso.Customize()).To(Succeed())
+		Expect(iso.Customize(d)).To(Succeed())
 
 		Expect(vfs.Exists(fs, "/some/dir/build/installer2.iso")).To(BeTrue())
 	})
@@ -190,7 +190,7 @@ var _ = Describe("Install", Label("install"), func() {
 		iso.OutputDir = "/some/dir/build"
 		iso.Name = "installer2.iso"
 
-		err := iso.Customize()
+		err := iso.Customize(d)
 		Expect(err).ToNot(Succeed())
 		Expect(err.Error()).To(ContainSubstring("target input file /non-existent/installer.iso does not exist"))
 	})
@@ -208,7 +208,7 @@ var _ = Describe("Install", Label("install"), func() {
 		iso.OutputDir = "/some/dir/build"
 		iso.Name = "installer2"
 
-		err = iso.Customize()
+		err = iso.Customize(d)
 		Expect(err).ToNot(Succeed())
 		Expect(err.Error()).To(ContainSubstring("failed to run xorriso"))
 	})
