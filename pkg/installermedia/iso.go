@@ -171,7 +171,7 @@ func (i ISO) Build(d *deployment.Deployment) (err error) {
 }
 
 // Customize repacks an existing installer with more artifacts.
-func (i *ISO) Customize() (err error) {
+func (i *ISO) Customize(d *deployment.Deployment) (err error) {
 	err = i.sanitizeCustomize()
 	if err != nil {
 		return fmt.Errorf("cannot proceed with customize due to inconsistent setup: %w", err)
@@ -221,6 +221,20 @@ func (i *ISO) Customize() (err error) {
 
 		m[ovDir] = "/"
 	}
+
+	assetsPath := filepath.Join(tempDir, "assets")
+
+	err = vfs.MkdirAll(i.s.FS(), assetsPath, vfs.DirPerm)
+	if err != nil {
+		return fmt.Errorf("failed creating assets dir '%s': %w", assetsPath, err)
+	}
+
+	err = i.addInstallationAssets(assetsPath, d)
+	if err != nil {
+		return fmt.Errorf("failed adding installation assets and configuration: %w", err)
+	}
+
+	m[assetsPath] = "/Install"
 
 	return i.mapFiles(i.InputFile, i.outputFile, m)
 }

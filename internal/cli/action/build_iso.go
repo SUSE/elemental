@@ -45,7 +45,7 @@ func BuildInstaller(ctx *cli.Context) error { //nolint:dupl
 
 	s.Logger().Info("Starting build ISO action with args: %+v", args)
 
-	d, err := digestInstallerDeploymentSetup(s, args)
+	d, err := digestDeploymentSetup(s, args.InstallSpec)
 	if err != nil {
 		s.Logger().Error("Failed to collect build setup")
 		return err
@@ -115,23 +115,23 @@ func digestInstallerSetup(flags *cmd.InstallerFlags, media *installermedia.ISO) 
 	return nil
 }
 
-func digestInstallerDeploymentSetup(s *sys.System, flags *cmd.InstallerFlags) (*deployment.Deployment, error) {
+func digestDeploymentSetup(s *sys.System, flags cmd.InstallFlags) (*deployment.Deployment, error) {
 	d := deployment.DefaultDeployment()
-	if flags.InstallSpec.Description != "" {
-		if ok, _ := vfs.Exists(s.FS(), flags.InstallSpec.Description); !ok {
-			return nil, fmt.Errorf("config file '%s' not found", flags.InstallSpec.Description)
+	if flags.Description != "" {
+		if ok, _ := vfs.Exists(s.FS(), flags.Description); !ok {
+			return nil, fmt.Errorf("config file '%s' not found", flags.Description)
 		}
-		data, err := s.FS().ReadFile(flags.InstallSpec.Description)
+		data, err := s.FS().ReadFile(flags.Description)
 		if err != nil {
-			return nil, fmt.Errorf("could not read description file '%s': %w", flags.InstallSpec.Description, err)
+			return nil, fmt.Errorf("could not read description file '%s': %w", flags.Description, err)
 		}
 		err = yaml.Unmarshal(data, d)
 		if err != nil {
 			return nil, fmt.Errorf("could not unmarshal config file: %w", err)
 		}
 	}
-	if flags.InstallSpec.Target != "" && len(d.Disks) > 0 {
-		d.Disks[0].Device = flags.InstallSpec.Target
+	if flags.Target != "" && len(d.Disks) > 0 {
+		d.Disks[0].Device = flags.Target
 	}
 
 	// Only overwrite OS source to installer OS if undefined
@@ -140,16 +140,16 @@ func digestInstallerDeploymentSetup(s *sys.System, flags *cmd.InstallerFlags) (*
 		d.SourceOS = srcOS
 	}
 
-	if flags.InstallSpec.Overlay != "" {
-		overlay, err := deployment.NewSrcFromURI(flags.InstallSpec.Overlay)
+	if flags.Overlay != "" {
+		overlay, err := deployment.NewSrcFromURI(flags.Overlay)
 		if err != nil {
-			return nil, fmt.Errorf("failed parsing overlay source URI ('%s'): %w", flags.InstallSpec.Overlay, err)
+			return nil, fmt.Errorf("failed parsing overlay source URI ('%s'): %w", flags.Overlay, err)
 		}
 		d.OverlayTree = overlay
 	}
 
-	if flags.InstallSpec.ConfigScript != "" {
-		d.CfgScript = flags.InstallSpec.ConfigScript
+	if flags.ConfigScript != "" {
+		d.CfgScript = flags.ConfigScript
 	}
 
 	// Always add the default boot entry
@@ -162,8 +162,8 @@ func digestInstallerDeploymentSetup(s *sys.System, flags *cmd.InstallerFlags) (*
 		d.BootConfig.Bootloader = bootloader.BootGrub
 	}
 
-	if flags.InstallSpec.KernelCmdline != "" {
-		d.BootConfig.KernelCmdline = flags.InstallSpec.KernelCmdline
+	if flags.KernelCmdline != "" {
+		d.BootConfig.KernelCmdline = fmt.Sprintf("%s %s", d.BootConfig.KernelCmdline, flags.KernelCmdline)
 	}
 
 	err := d.Sanitize(s)
