@@ -136,18 +136,20 @@ The directory's structure is as follows:
 
 ## Network
 
-Users can declaratively configure their network through the `network/` directory in one of two ways:
+Network configuration can be declaratively applied through the `network/` directory in one of two ways:
 
-1. Via the [NetworkManager Configurator](#networkmanager-configurator).
-2. Via a [custom network script](#custom-network-script).
+1. Via [nmstate configuration files](#configuring-the-network-via-nmstate-files).
+1. Via a [user-defined network script](#configuring-the-network-via-a-user-defined-script).
 
 > **NOTE:** If the `network/` directory is missing, the system will implicitly fallback to DHCP.
 
-### NetworkManager Configurator
+> **IMPORTANT:** Elemental does not support mixing `nmstate` configuration files and a `user-defined` script within the same `network/` directory.
 
-The NetworkManager Configurator, or `nmc` for short, is a CLI tool that leverages the functionality provided by the `nmstate` library and enables users to easily define the desired state of their network.
+### Configuring the network via nmstate files 
 
-Users are expected to place `nmstate` configuration files, in YAML format, within the `network/` directory. These files will be picked up by `nmc` and used to generate the respective NetworkManager configurations.
+You can define your desired network state by providing `nmstate` configuration files, in YAML format, within the `network/` directory. 
+
+These files will be processed by the NetworkManager Configurator (`nmc`), a CLI tool that leverages the functionality provided by the `nmstate` library and enables users to easily define the desired state of their network.
 
 Configurations for multiple hosts can be defined by creating files named after the hostname that would be set. This allows for multiple different nodes to be spawned from the same built image, with each node self-identifying during the first boot process based on MAC address matching of the network card(s). 
 
@@ -157,11 +159,11 @@ For more information on the `nmstate` library, refer to the [upstream documentat
 
 For more information on `nmc`, refer to the [upstream repository](https://github.com/suse-edge/nm-configurator).
 
-### Custom Network Script
+### Configuring the network via a user-defined script
 
-For use cases where modifying the default network configuration using the [nmc](#networkmanager-configurator) method is not applicable, users have the option to configure the network using a custom script.
+For use cases where configuring the network through `nmstate` files is not applicable, you have the option to define a custom script that will do the actual network configuration.
 
-This script will be executed during first boot and needs to be provided under `network/configure-network.sh`:
+This script will be executed on first boot during the `initrd` phase and needs to be provided under `network/configure-network.sh`:
 
 ```shell
 .
@@ -171,4 +173,113 @@ This script will be executed during first boot and needs to be provided under `n
     └── configure-network.sh
 ```
 
-> **IMPORTANT:** If a custom script is present, all other files in the `network/` directory will be ignored. It is **not** possible to configure the network using both static YAML configurations and a custom script simultaneously.
+> **NOTE:** If available, the default network is setup before the `configure-network.sh` runs. This ensures that the script is able to retrieve relevant configurations over the network if needed.
+
+> **IMPORTANT:** The `configure-network.sh` script will run in a restricted environment. To apply the desired network state, you **must** provide your configurations through a set of helper tools available to the `configure-network.sh` script during execution. For a complete list of the avaiable tools, see the [Helper tools](#helper-tools) section. 
+
+#### Helper tools
+
+This section lists the tools that are available to the `configure-network.sh` script during its execution.
+
+##### NetworkManager Configurator
+
+The NetworkManager Configurator (`nmc`) is made available to the `configure-network.sh` script. You can retrieve your `nmstate` configuration files in whatever way best suits your use case, and then use `nmc` to generate and apply the desired network state.
+
+*`configure-network.sh` example:*
+
+```bash
+#!/bin/bash
+...
+mkdir desired-states
+curl -L -o desired-states/my.host.yaml https://foo.bar.com/my.host.yaml
+
+mkdir generated
+nmc generate --config-dir desired-states --output-dir generated
+nmc apply --config-dir generated
+```
+
+##### set_conf_d
+
+`set_conf_d` is a shell function that can be called through the `configure-network.sh` script to automatically set configuration snippets in the NetworkManager's `conf.d` directory. As arguments, the function accepts either multiple files or a single directory.
+
+*`configure-network.sh` example:*
+
+```bash
+#!/bin/bash
+...
+mkdir configs
+curl -L -o configs/foo.conf https://foo.bar.com/foo.conf
+curl -L -o configs/bar.conf https://foo.bar.com/bar.conf
+
+# example: passing a directory
+set_conf_d "configs/"
+
+# example: passing multiple files
+set_conf_d "configs/foo.conf" "configs/bar.conf"
+```
+
+##### set_dispatcher_d
+
+`set_dispatcher_d` is a shell function that can be called through the `configure-network.sh` script to automatically set dispatcher scripts in the NetworkManager's `dispatcher.d` directory. As arguments, the function accepts either multiple files or a single directory.
+
+*`configure-network.sh` example:*
+
+```bash
+#!/bin/bash
+...
+mkdir dispatchers
+curl -L -o dispatchers/foo.sh https://foo.bar.com/foo.sh
+curl -L -o dispatchers/bar.sh https://foo.bar.com/bar.sh
+
+# example: passing a directory
+set_dispatcher_d "dispatchers/"
+
+# example: passing multiple files
+set_dispatcher_d "dispatchers/foo.sh" "dispatchers/bar.sh"
+```
+
+##### set_sys_conn
+
+`set_sys_conn` is a shell function that can be called through the `configure-network.sh` script to automatically set network connection profiles in the NetworkManager's `system-connections` directory. As arguments, the function accepts either multiple files or a single directory.
+
+> **IMPORTANT:** Using both `set_sys_conn` and `nmc` to configure the network connection profiles may result in unexpected behaviour. Consider using one or the other depending on your use case.
+
+*`configure-network.sh` example:*
+
+```bash
+#!/bin/bash
+...
+mkdir sys-conns
+curl -L -o sys-conns/foo.nmconnection https://foo.bar.com/foo.nmconnection
+curl -L -o sys-conns/bar.nmconnection https://foo.bar.com/bar.nmconnection
+
+# example: passing a directory
+set_sys_conn "sys-conns/"
+
+# example: passing multiple files
+set_sys_conn "sys-conns/foo.nmconnection" "sys-conns/bar.nmconnection"
+```
+
+##### set_hostname
+
+`set_hostname` is a shell function that can be called through the `configure-network.sh` script to automatically set the node's hostname. As arguments, the function accepts a single string literal.
+
+*`configure-network.sh` example:*
+
+```bash
+#!/bin/bash
+...
+set_hostname "foo"
+```
+
+##### disable_wired_conn
+
+`disable_wired_conn` is a shell function that can be called through the `configure-network.sh` script. It removes any existing wired connections and configures `no-auto-default=*` in the NetworkManager's `conf.d` directory.
+
+*`configure-network.sh` example:*
+
+```bash
+#!/bin/bash
+...
+disable_wired_conn
+```
