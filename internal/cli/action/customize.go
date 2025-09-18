@@ -50,7 +50,13 @@ func Customize(ctx *cli.Context) error {
 		return fmt.Errorf("invalid customize setup: %w", err)
 	}
 
-	err = media.Customize()
+	d, err := digestDeploymentSetup(s, args.InstallSpec)
+	if err != nil {
+		s.Logger().Error("Failed to collect deployment setup")
+		return err
+	}
+
+	err = media.Customize(d)
 	if err != nil {
 		return fmt.Errorf("failed customizing installer media: %w", err)
 	}
