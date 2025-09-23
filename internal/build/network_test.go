@@ -18,7 +18,6 @@ limitations under the License.
 package build
 
 import (
-	"fmt"
 	"path/filepath"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -43,8 +42,13 @@ var _ = Describe("Network", func() {
 	BeforeEach(func() {
 		fs, cleanup, err = sysmock.TestFS(map[string]any{
 			"/etc/configure-network.sh": "./some-command", // custom script
+			"/etc/nmstate/libvirt.yaml": "libvirt: true",  // nmstate config
+			"/etc/nmstate/qemu.yaml":    "qemu: true",     // nmstate config
 		})
 		Expect(err).ToNot(HaveOccurred())
+
+		// Nested network directory
+		Expect(vfs.MkdirAll(fs, "/etc/network/nested", vfs.DirPerm)).To(Succeed())
 
 		runner = sysmock.NewRunner()
 
@@ -65,9 +69,8 @@ var _ = Describe("Network", func() {
 			System: system,
 		}
 
-		script, err := b.configureNetwork(&image.Definition{}, "")
+		err := b.configureNetworkOnPartition(&image.Definition{}, "", nil)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(script).To(BeEmpty())
 	})
 
 	It("Fails to copy custom script", func() {
@@ -81,12 +84,13 @@ var _ = Describe("Network", func() {
 			},
 		}
 
-		script, err := b.configureNetwork(def, buildDir)
+		part := b.generatePreparePartition(def)
+		Expect(part).ToNot(BeNil())
+
+		err := b.configureNetworkOnPartition(def, buildDir, part)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("copying custom network script: stat"))
 		Expect(err.Error()).To(ContainSubstring("/etc/custom.sh: no such file or directory"))
-
-		Expect(script).To(BeEmpty())
 	})
 
 	It("Successfully copies custom script", func() {
@@ -100,56 +104,72 @@ var _ = Describe("Network", func() {
 			},
 		}
 
-		script, err := b.configureNetwork(def, buildDir)
+		part := b.generatePreparePartition(def)
+		Expect(part).ToNot(BeNil())
+
+		err := b.configureNetworkOnPartition(def, buildDir, part)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(script).To(Equal("/var/lib/elemental/configure-network.sh"))
 
 		// Verify script contents
-		contents, err := fs.ReadFile(filepath.Join(buildDir.OverlaysDir(), script))
+		netDir := filepath.Join(buildDir.OverlaysDir(), part.MountPoint, "network")
+		scriptPath := filepath.Join(netDir, "configure-network.sh")
+		contents, err := fs.ReadFile(scriptPath)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(string(contents)).To(Equal("./some-command"))
 	})
 
-	It("Fails to generate configuration from static definitions", func() {
+	It("Fails to copy network directory content", func() {
 		b := &Builder{
 			System: system,
 		}
 
 		def := &image.Definition{
 			Network: image.Network{
-				ConfigDir: "/etc/network",
+				ConfigDir: "/etc/missing",
 			},
 		}
 
-		runner.SideEffect = func(command string, args ...string) ([]byte, error) {
-			return []byte(""), fmt.Errorf("generate error")
-		}
+		part := b.generatePreparePartition(def)
+		Expect(part).ToNot(BeNil())
 
-		script, err := b.configureNetwork(def, buildDir)
+		err := b.configureNetworkOnPartition(def, buildDir, part)
 		Expect(err).To(HaveOccurred())
-		Expect(err).To(MatchError("generating network config: generate error"))
-		Expect(script).To(BeEmpty())
+		Expect(err.Error()).To(ContainSubstring("reading network directory: open"))
+		Expect(err.Error()).To(ContainSubstring("/etc/missing: no such file or directory"))
+
+		def.Network.ConfigDir = "/etc/network"
+		err = b.configureNetworkOnPartition(def, buildDir, part)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(Equal("directories under /etc/network are not supported"))
 	})
 
-	It("Successfully generates configuration from static definitions", func() {
+	It("Successfully copies network directory nmstate files", func() {
 		b := &Builder{
 			System: system,
 		}
 
 		def := &image.Definition{
 			Network: image.Network{
-				ConfigDir: "/etc/network",
+				ConfigDir: "/etc/nmstate",
 			},
 		}
 
-		script, err := b.configureNetwork(def, buildDir)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(script).To(Equal("/var/lib/elemental/configure-network.sh"))
+		part := b.generatePreparePartition(def)
+		Expect(part).ToNot(BeNil())
 
-		// Verify script contents
-		contents, err := fs.ReadFile(filepath.Join(buildDir.OverlaysDir(), script))
+		err := b.configureNetworkOnPartition(def, buildDir, part)
+		Expect(err).ToNot(HaveOccurred())
+
+		netDir := filepath.Join(buildDir.OverlaysDir(), part.MountPoint, "network")
+
+		libvirt := filepath.Join(netDir, "libvirt.yaml")
+		contents, err := fs.ReadFile(libvirt)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(string(contents)).To(ContainSubstring("/usr/bin/nmc apply --config-dir /var/lib/elemental/network"))
-		Expect(string(contents)).To(ContainSubstring("nmcli connection reload"))
+		Expect(string(contents)).To(Equal("libvirt: true"))
+
+		qemu := filepath.Join(netDir, "qemu.yaml")
+		contents, err = fs.ReadFile(qemu)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(string(contents)).To(Equal("qemu: true"))
 	})
 })

@@ -18,102 +18,45 @@ limitations under the License.
 package build
 
 import (
-	_ "embed"
 	"fmt"
 	"path/filepath"
 
 	"github.com/suse/elemental/v3/internal/image"
-	"github.com/suse/elemental/v3/internal/template"
+	"github.com/suse/elemental/v3/pkg/deployment"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
 
-//go:embed templates/network.sh.tpl
-var configureNetworkScript string
-
-const networkConfigScriptName = "configure-network.sh"
-
-// configureNetwork configures the network component if enabled.
-//
-// If a custom network configuration script is provided, it will be copied over.
-// Otherwise, network configurations will be generated from static definitions
-// alongside a configuration script that enables these on first boot.
-//
-// Example result file layout:
-//
-//	overlays
-//	└── var
-//	    └── lib
-//	        └── elemental
-//	            ├── configure-network.sh
-//	            └── network
-//	                ├── node1.example.com
-//	                │   ├── eth0.nmconnection
-//	                │   └── eth1.nmconnection
-//	                ├── node2.example.com
-//	                │   └── eth0.nmconnection
-//	                ├── node3.example.com
-//	                │   ├── bond0.nmconnection
-//	                │   └── eth1.nmconnection
-//	                └── host_config.yaml
-func (b *Builder) configureNetwork(def *image.Definition, buildDir image.BuildDir) (string, error) {
+func (b *Builder) configureNetworkOnPartition(def *image.Definition, buildDir image.BuildDir, p *deployment.Partition) error {
 	if def.Network.CustomScript == "" && def.Network.ConfigDir == "" {
 		b.System.Logger().Info("Network configuration not provided, skipping.")
-		return "", nil
+		return nil
 	}
 
-	if err := vfs.MkdirAll(b.System.FS(), filepath.Join(buildDir.OverlaysDir(), image.ElementalPath()), vfs.DirPerm); err != nil {
-		return "", fmt.Errorf("creating elemental directory in overlays: %w", err)
+	netDir := filepath.Join(buildDir.OverlaysDir(), p.MountPoint, "network")
+	if err := vfs.MkdirAll(b.System.FS(), netDir, vfs.DirPerm); err != nil {
+		return fmt.Errorf("creating network directory in overlays: %w", err)
 	}
-
-	relativeScriptPath := filepath.Join("/", image.ElementalPath(), networkConfigScriptName)
-	fullScriptPath := filepath.Join(buildDir.OverlaysDir(), relativeScriptPath)
 
 	if def.Network.CustomScript != "" {
-		if err := vfs.CopyFile(b.System.FS(), def.Network.CustomScript, fullScriptPath); err != nil {
-			return "", fmt.Errorf("copying custom network script: %w", err)
+		if err := vfs.CopyFile(b.System.FS(), def.Network.CustomScript, netDir); err != nil {
+			return fmt.Errorf("copying custom network script: %w", err)
+		}
+	} else {
+		entries, err := b.System.FS().ReadDir(def.Network.ConfigDir)
+		if err != nil {
+			return fmt.Errorf("reading network directory: %w", err)
 		}
 
-		return relativeScriptPath, nil
+		for _, entry := range entries {
+			if entry.IsDir() {
+				return fmt.Errorf("directories under %s are not supported", def.Network.ConfigDir)
+			}
+
+			fileInConfigDir := filepath.Join(def.Network.ConfigDir, entry.Name())
+			if err := vfs.CopyFile(b.System.FS(), fileInConfigDir, netDir); err != nil {
+				return fmt.Errorf("copying network config file '%s' to '%s': %w ", fileInConfigDir, netDir, err)
+			}
+		}
 	}
-
-	relativeConfigDir := filepath.Join("/", image.NetworkPath())
-	fullConfigDir := filepath.Join(buildDir.OverlaysDir(), relativeConfigDir)
-
-	if err := b.generateNetworkConfig(def.Network.ConfigDir, fullConfigDir); err != nil {
-		return "", fmt.Errorf("generating network config: %w", err)
-	}
-
-	if err := b.writeNetworkConfigurationScript(fullScriptPath, relativeConfigDir); err != nil {
-		return "", fmt.Errorf("writing network configuration script: %w", err)
-	}
-
-	return relativeScriptPath, nil
-}
-
-func (b *Builder) generateNetworkConfig(configDir, outputDir string) error {
-	_, err := b.System.Runner().Run("nmc", "generate",
-		"--config-dir", configDir,
-		"--output-dir", outputDir)
-
-	return err
-}
-
-// TODO: Add cleanup mechanism in the script
-func (b *Builder) writeNetworkConfigurationScript(scriptPath, configDir string) error {
-	values := struct {
-		ConfigDir string
-	}{
-		ConfigDir: configDir,
-	}
-
-	data, err := template.Parse("network", configureNetworkScript, &values)
-	if err != nil {
-		return fmt.Errorf("parsing network template: %w", err)
-	}
-
-	if err = b.System.FS().WriteFile(scriptPath, []byte(data), 0o744); err != nil {
-		return fmt.Errorf("writing network script: %w", err)
-	}
-
 	return nil
 }

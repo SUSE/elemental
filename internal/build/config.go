@@ -31,17 +31,15 @@ import (
 //go:embed templates/config.sh.tpl
 var configScriptTpl string
 
-func writeConfigScript(fs vfs.FS, def *image.Definition, destDir, networkScript, k8sResourceDeployScript string) (string, error) {
+func writeConfigScript(fs vfs.FS, def *image.Definition, destDir, k8sResourceDeployScript string) (string, error) {
 	const configScriptName = "config.sh"
 
 	values := struct {
 		Users                []os.User
 		KubernetesDir        string
 		ManifestDeployScript string
-		NetworkScript        string
 	}{
-		Users:         def.OperatingSystem.Users,
-		NetworkScript: networkScript,
+		Users: def.OperatingSystem.Users,
 	}
 
 	if k8sResourceDeployScript != "" {

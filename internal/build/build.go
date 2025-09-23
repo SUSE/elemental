@@ -62,10 +62,12 @@ func (b *Builder) Run(ctx context.Context, d *image.Definition, buildDir image.B
 		return err
 	}
 
-	networkScript, err := b.configureNetwork(d, buildDir)
-	if err != nil {
-		logger.Error("Configuring network failed")
-		return err
+	preparePart := b.generatePreparePartition(d)
+	if preparePart != nil {
+		if err := b.configureNetworkOnPartition(d, buildDir, preparePart); err != nil {
+			logger.Error("Configuring network failed")
+			return err
+		}
 	}
 
 	k8sScript, err := b.configureKubernetes(ctx, d, m, buildDir)
@@ -80,7 +82,7 @@ func (b *Builder) Run(ctx context.Context, d *image.Definition, buildDir image.B
 	}
 
 	logger.Info("Preparing configuration script")
-	configScript, err := writeConfigScript(fs, d, string(buildDir), networkScript, k8sScript)
+	configScript, err := writeConfigScript(fs, d, string(buildDir), k8sScript)
 	if err != nil {
 		logger.Error("Preparing configuration script failed")
 		return err
@@ -113,6 +115,7 @@ func (b *Builder) Run(ctx context.Context, d *image.Definition, buildDir image.B
 		m.CorePlatform.Components.OperatingSystem.Image,
 		configScript,
 		buildDir.OverlaysDir(),
+		preparePart,
 	)
 	if err != nil {
 		logger.Error("Preparing installation setup failed")

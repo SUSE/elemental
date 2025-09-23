@@ -8,32 +8,6 @@ useradd -m {{ .Username }} || true
 echo '{{ .Username }}:{{ .Password }}' | chpasswd
 {{ end }}
 
-{{- if .NetworkScript }}
-# Configuring network
-
-cat <<- EOF > /etc/systemd/system/first-boot-network.service
-[Unit]
-Description=Configure network on first boot
-Before=first-boot-complete.target
-Wants=first-boot-complete.target
-
-Before=rke2-server.service rke2-agent.service
-
-ConditionPathExists=!/var/lib/elemental/.network-configuration-attempted
-After=network.target NetworkManager.service
-
-[Service]
-Type=oneshot
-TimeoutStartSec=30
-ExecStart=/bin/bash "{{ .NetworkScript }}"
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-systemctl enable first-boot-network.service
-{{- end }}
-
 # Enabling systemd extensions
 cat <<- END > /etc/systemd/system/ensure-sysext.service
 [Unit]
