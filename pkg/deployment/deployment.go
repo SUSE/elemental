@@ -244,9 +244,19 @@ func (p Partitions) GetSnapshottedVolumes() RWVolumes {
 
 type SanitizeDeployment func(*sys.System, *Deployment) error
 
+// checkDiskDevice ensures that the disk device is not empty
+func checkDiskDevice(_ *sys.System, d *Deployment) error {
+	for _, disk := range d.Disks {
+		if disk.Device == "" {
+			return fmt.Errorf("disk device cannot be empty")
+		}
+	}
+	return nil
+}
+
 var sanitizers = []SanitizeDeployment{
 	checkSystemPart, checkEFIPart, checkRecoveryPart,
-	checkAllAvailableSize, checkPartitionsFS, checkRWVolumes,
+	checkAllAvailableSize, checkPartitionsFS, checkRWVolumes, checkDiskDevice,
 }
 
 // GetSystemPartition gets the data of the system partition.

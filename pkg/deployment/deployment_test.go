@@ -62,6 +62,13 @@ var _ = Describe("Deployment", Label("deployment"), func() {
 			cleanup()
 		})
 
+		It("fails if disk device is empty", func() {
+			d := deployment.DefaultDeployment()
+			d.Disks[0].Device = ""
+			err = d.Sanitize(s)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("disk device cannot be empty"))
+		})
 		It("creates a default deployment", func() {
 			d := deployment.DefaultDeployment()
 			d.Disks[0].Device = "/dev/device"
@@ -126,7 +133,7 @@ var _ = Describe("Deployment", Label("deployment"), func() {
 		It("feeds default values even if some where undefined", func() {
 			d := &deployment.Deployment{
 				Disks: []*deployment.Disk{
-					{Partitions: []*deployment.Partition{
+					{Device: "/dev/device", Partitions: []*deployment.Partition{
 						{Role: deployment.System, Size: 1024},
 						{Role: deployment.EFI, RWVolumes: []deployment.RWVolume{{Path: "/some/path"}}},
 						{Role: deployment.Data, Size: deployment.AllAvailableSize},
@@ -150,6 +157,8 @@ var _ = Describe("Deployment", Label("deployment"), func() {
 			Expect(len(rD.Disks)).To(Equal(1))
 			Expect(rD.Disks[0].Device).To(BeEmpty())
 			Expect(len(rD.Disks[0].Partitions)).To(Equal(2))
+			// Set a device for the sanitized deployment, as it's not persisted in the deployment file
+			rD.Disks[0].Device = "/dev/device"
 			Expect(rD.Sanitize(s)).To(Succeed())
 		})
 		It("unmarshals Disk.Device", func() {
