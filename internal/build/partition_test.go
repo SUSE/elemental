@@ -39,7 +39,7 @@ var _ = Describe("Partition", func() {
 		It("is generated when dependency configurations are defined", func() {
 			label := "ELEMENTAL-PREPARE"
 			mountPoint := "/run/elemental/prepare"
-			size := deployment.MiB(2048)
+			size := deployment.MiB(128)
 			role := deployment.Data
 			fs := deployment.Btrfs
 			def := &image.Definition{

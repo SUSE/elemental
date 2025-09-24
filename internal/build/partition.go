@@ -26,7 +26,7 @@ func (b *Builder) generatePreparePartition(d *image.Definition) *deployment.Part
 	const (
 		PrepareLabel = "ELEMENTAL-PREPARE"
 		PrepareMnt   = "/run/elemental/prepare"
-		PrepareSize  = deployment.MiB(2048)
+		PrepareSize  = deployment.MiB(128)
 	)
 
 	if d.Network.ConfigDir == "" && d.Network.CustomScript == "" {
