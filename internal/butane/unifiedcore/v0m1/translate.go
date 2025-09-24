@@ -29,7 +29,8 @@ import (
 // setting those causes an error during translation.
 var (
 	fieldFilters = cutil.NewFilters(types.Config{}, cutil.FilterMap{
-		"storage.luks": common.ErrLuksSupport,
+		"storage.luks":    common.ErrLuksSupport,
+		"kernelArguments": common.ErrKernelArgumentSupport,
 	})
 )
 
