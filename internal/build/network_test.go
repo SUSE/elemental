@@ -47,9 +47,6 @@ var _ = Describe("Network", func() {
 		})
 		Expect(err).ToNot(HaveOccurred())
 
-		// Nested network directory
-		Expect(vfs.MkdirAll(fs, "/etc/network/nested", vfs.DirPerm)).To(Succeed())
-
 		runner = sysmock.NewRunner()
 
 		system, err = sys.NewSystem(
@@ -119,6 +116,9 @@ var _ = Describe("Network", func() {
 	})
 
 	It("Fails to copy network directory content", func() {
+		nestedDir := "/etc/network/nested"
+		Expect(vfs.MkdirAll(fs, nestedDir, vfs.DirPerm)).To(Succeed())
+
 		b := &Builder{
 			System: system,
 		}
