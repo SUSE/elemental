@@ -18,7 +18,12 @@ limitations under the License.
 package transaction
 
 import (
+	"context"
+	"fmt"
+
+	"github.com/suse/elemental/v3/pkg/block/lsblk"
 	"github.com/suse/elemental/v3/pkg/deployment"
+	"github.com/suse/elemental/v3/pkg/sys"
 	"github.com/suse/elemental/v3/pkg/unpack"
 )
 
@@ -31,6 +36,17 @@ const (
 	committed
 	failed
 )
+
+func New(ctx context.Context, s *sys.System, d *deployment.Deployment, name string) (Interface, error) {
+	switch name {
+	case "snapper":
+		return NewSnapper(ctx, s), nil
+	case "overwrite":
+		return NewOverwrite(ctx, s, d, lsblk.NewLsDevice(s)), nil
+	}
+
+	return nil, fmt.Errorf("unknown snapshotter '%s'", name)
+}
 
 type Merge struct {
 	Old      string // old unmodified tree
