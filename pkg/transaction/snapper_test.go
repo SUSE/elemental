@@ -182,7 +182,7 @@ var _ = Describe("SnapperTransaction", Label("transaction"), func() {
 		sideEffects["lsblk"] = func(args ...string) ([]byte, error) {
 			return []byte(lsblkJson), nil
 		}
-		sn = transaction.NewSnapperTransaction(ctx, s)
+		sn = transaction.NewSnapper(ctx, s)
 		_, err = sn.Init(*d)
 		Expect(err).To(HaveOccurred())
 		Expect(err).To(MatchError("determining snapshots state: listing snapshots: " +
@@ -193,7 +193,7 @@ var _ = Describe("SnapperTransaction", Label("transaction"), func() {
 		})).To(Succeed())
 	})
 	It("fails to init snapper transactioner if it does not detect partitions", func() {
-		sn = transaction.NewSnapperTransaction(ctx, s)
+		sn = transaction.NewSnapper(ctx, s)
 		_, err = sn.Init(*d)
 		Expect(err).To(HaveOccurred())
 		Expect(err).To(MatchError("determining snapshots state: probing host partitions: unexpected end of JSON input"))
@@ -206,7 +206,7 @@ var _ = Describe("SnapperTransaction", Label("transaction"), func() {
 		sideEffects["lsblk"] = func(args ...string) ([]byte, error) {
 			return []byte(lsblkJson), nil
 		}
-		sn = transaction.NewSnapperTransaction(ctx, s)
+		sn = transaction.NewSnapper(ctx, s)
 		cancel()
 		_, err = sn.Init(*d)
 		Expect(err).To(HaveOccurred())

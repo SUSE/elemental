@@ -32,6 +32,7 @@ import (
 	"github.com/suse/elemental/v3/pkg/install"
 	"github.com/suse/elemental/v3/pkg/sys"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
+	"github.com/suse/elemental/v3/pkg/transaction"
 	"github.com/suse/elemental/v3/pkg/unpack"
 	"github.com/suse/elemental/v3/pkg/upgrade"
 )
@@ -68,9 +69,16 @@ func Install(ctx *cli.Context) error { //nolint:dupl
 		return err
 	}
 
+	snapshotter, err := transaction.New(ctxCancel, s, d, d.Snapshotter.Name)
+	if err != nil {
+		s.Logger().Error("Parsing snapshotter config failed")
+		return err
+	}
+
 	manager := firmware.NewEfiBootManager(s)
 	upgrader := upgrade.New(
 		ctxCancel, s, upgrade.WithBootManager(manager), upgrade.WithBootloader(bootloader),
+		upgrade.WithSnapshotter(snapshotter),
 		upgrade.WithUnpackOpts(unpack.WithVerify(args.Verify), unpack.WithLocal(args.Local)),
 	)
 	installer := install.New(ctxCancel, s, install.WithUpgrader(upgrader))
@@ -148,9 +156,24 @@ func digestInstallSetup(s *sys.System, flags *cmd.InstallFlags) (*deployment.Dep
 		d.BootConfig.KernelCmdline = fmt.Sprintf("%s %s %s", d.BootConfig.KernelCmdline, "fips=1", bootFlag)
 	}
 
+	if flags.Snapshotter != "" {
+		d.Snapshotter.Name = flags.Snapshotter
+
+		if d.Snapshotter.Name == "overwrite" {
+			s.Logger().Warn("'overwrite' snapshotter is a debugging tool and should not be used for production installation")
+
+			sysPart := d.GetSystemPartition()
+			if sysPart != nil {
+				sysPart.FileSystem = deployment.Ext4
+				sysPart.RWVolumes = nil
+			}
+		}
+	}
+
 	err := d.Sanitize(s)
 	if err != nil {
 		return nil, fmt.Errorf("inconsistent deployment setup found: %w", err)
 	}
+
 	return d, nil
 }

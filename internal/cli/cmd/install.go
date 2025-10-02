@@ -35,6 +35,7 @@ type InstallFlags struct {
 	Verify               bool
 	Local                bool
 	EnableFips           bool
+	Snapshotter          string
 }
 
 var InstallArgs InstallFlags
@@ -106,6 +107,12 @@ func NewInstallCommand(appName string, action func(*cli.Context) error) *cli.Com
 				Name:        "enable-fips",
 				Usage:       "Enable FIPS",
 				Destination: &InstallArgs.EnableFips,
+			},
+			&cli.StringFlag{
+				Name:        "snapshotter",
+				Usage:       "Snapshotter [snapper, overwrite]",
+				Value:       "snapper",
+				Destination: &InstallArgs.Snapshotter,
 			},
 		},
 	}

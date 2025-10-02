@@ -69,6 +69,7 @@ func (i Installer) Install(d *deployment.Deployment) (err error) {
 			return fmt.Errorf("partitioning disk '%s': %w", disk.Device, err)
 		}
 		for _, part := range disk.Partitions {
+			i.s.Logger().Debug("creating partition volumes: ", part)
 			err = createPartitionVolumes(i.s, cleanup, part)
 			if err != nil {
 				return fmt.Errorf("creating partition volumes: %w", err)
@@ -105,20 +106,24 @@ func createPartitionVolumes(s *sys.System, cleanStack *cleanstack.CleanStack, pa
 		}
 		cleanStack.Push(func() error { return s.Mounter().Unmount(mountPoint) })
 
-		err = btrfs.SetBtrfsPartition(s, mountPoint)
-		if err != nil {
-			return fmt.Errorf("setting btrfs partition volumes: %w", err)
+		if part.FileSystem == deployment.Btrfs {
+			err = btrfs.SetBtrfsPartition(s, mountPoint)
+			if err != nil {
+				return fmt.Errorf("setting btrfs partition volumes: %w", err)
+			}
 		}
 	}
 
-	for _, rwVol := range part.RWVolumes {
-		if rwVol.Snapshotted {
-			continue
-		}
-		subvolume := filepath.Join(mountPoint, btrfs.TopSubVol, rwVol.Path)
-		err = btrfs.CreateSubvolume(s, subvolume, true)
-		if err != nil {
-			return fmt.Errorf("creating subvolume '%s': %w", subvolume, err)
+	if part.FileSystem == deployment.Btrfs {
+		for _, rwVol := range part.RWVolumes {
+			if rwVol.Snapshotted {
+				continue
+			}
+			subvolume := filepath.Join(mountPoint, btrfs.TopSubVol, rwVol.Path)
+			err = btrfs.CreateSubvolume(s, subvolume, true)
+			if err != nil {
+				return fmt.Errorf("creating subvolume '%s': %w", subvolume, err)
+			}
 		}
 	}
 

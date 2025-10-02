@@ -82,7 +82,7 @@ var _ = Describe("Fstab", Label("fstab"), func() {
 		cleanup()
 	})
 	It("creates an fstab file with the given lines", func() {
-		Expect(fstab.WriteFstab(s, fstab.File, lines)).To(Succeed())
+		Expect(fstab.Write(s, fstab.File, lines)).To(Succeed())
 		data, err := tfs.ReadFile(fstab.File)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(string(data)).To(Equal(fstabFile))
@@ -93,13 +93,13 @@ var _ = Describe("Fstab", Label("fstab"), func() {
 		s, err = sys.NewSystem(sys.WithFS(tfs), sys.WithLogger(log.New(log.WithDiscardAll())))
 		Expect(err).NotTo(HaveOccurred())
 
-		err = fstab.WriteFstab(s, fstab.File, lines)
+		err = fstab.Write(s, fstab.File, lines)
 		Expect(err).To(HaveOccurred())
 		Expect(err).To(MatchError("creating file: Create /etc/fstab: operation not permitted"))
 	})
 	It("updates the fstab file with a new line", func() {
-		Expect(fstab.WriteFstab(s, fstab.File, lines)).To(Succeed())
-		Expect(fstab.UpdateFstab(
+		Expect(fstab.Write(s, fstab.File, lines)).To(Succeed())
+		Expect(fstab.Update(
 			s, fstab.File, []fstab.Line{
 				{MountPoint: "/etc"}, {MountPoint: "/data"},
 			}, []fstab.Line{
@@ -122,13 +122,13 @@ var _ = Describe("Fstab", Label("fstab"), func() {
 		Expect(string(data)).To(Equal(updatedFstab))
 	})
 	It("fails to update fstab file on a read-only filesystem", func() {
-		Expect(fstab.WriteFstab(s, fstab.File, lines)).To(Succeed())
+		Expect(fstab.Write(s, fstab.File, lines)).To(Succeed())
 		tfs, err := sysmock.ReadOnlyTestFS(tfs)
 		Expect(err).NotTo(HaveOccurred())
 		s, err = sys.NewSystem(sys.WithFS(tfs), sys.WithLogger(log.New(log.WithDiscardAll())))
 		Expect(err).NotTo(HaveOccurred())
 
-		err = fstab.UpdateFstab(s, fstab.File, lines, lines)
+		err = fstab.Update(s, fstab.File, lines, lines)
 		Expect(err).To(HaveOccurred())
 		Expect(err).To(MatchError("opening file: OpenFile /etc/fstab: operation not permitted"))
 	})

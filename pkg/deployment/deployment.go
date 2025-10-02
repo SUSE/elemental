@@ -220,12 +220,17 @@ type FipsConfig struct {
 	Enabled bool `yaml:"enabled"`
 }
 
+type SnapshotterConfig struct {
+	Name string `yaml:"name"`
+}
+
 type Deployment struct {
-	SourceOS   *ImageSource    `yaml:"sourceOS"`
-	Disks      []*Disk         `yaml:"disks"`
-	Firmware   *FirmwareConfig `yaml:"firmware"`
-	BootConfig *BootConfig     `yaml:"bootloader"`
-	Fips       *FipsConfig     `yaml:"fips"`
+	SourceOS    *ImageSource       `yaml:"sourceOS"`
+	Disks       []*Disk            `yaml:"disks"`
+	Firmware    *FirmwareConfig    `yaml:"firmware"`
+	BootConfig  *BootConfig        `yaml:"bootloader"`
+	Fips        *FipsConfig        `yaml:"fips"`
+	Snapshotter *SnapshotterConfig `yaml:"snapshotter"`
 	// Consider adding a systemd-sysext list here
 	// All of them would extracted in the RO context, so only
 	// additions to the RWVolumes would succeed.
@@ -415,6 +420,9 @@ func DefaultDeployment() *Deployment {
 			Bootloader:    "none",
 			KernelCmdline: fmt.Sprintf("root=LABEL=%s", SystemLabel),
 		},
+		Snapshotter: &SnapshotterConfig{
+			Name: "snapper",
+		},
 	}
 }
 
@@ -464,11 +472,6 @@ func checkSystemPart(s *sys.System, d *Deployment) error {
 		for _, part := range disk.Partitions {
 			if part.Role == System && !found {
 				found = true
-				if part.FileSystem != Btrfs {
-					s.Logger().Warn("filesystem types different to btrfs are not supported for the system partition")
-					s.Logger().Info("system partition set to be formatted with btrfs")
-					part.FileSystem = Btrfs
-				}
 				if part.MountPoint != SystemMnt {
 					s.Logger().Warn("custom mountpoints for the system partition are not supported")
 					s.Logger().Info("system partition mountpoint set to default '%s'", SystemMnt)
