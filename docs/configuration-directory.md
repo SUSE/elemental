@@ -191,7 +191,7 @@ The NetworkManager Configurator (`nmc`) is made available to the `configure-netw
 #!/bin/bash
 ...
 mkdir desired-states
-curl -L -o desired-states/my.host.yaml https://foo.bar.com/my.host.yaml
+curl -L -o desired-states/my.host.yaml https://example.com/my.host.yaml
 
 mkdir generated
 nmc generate --config-dir desired-states --output-dir generated
@@ -208,8 +208,8 @@ nmc apply --config-dir generated
 #!/bin/bash
 ...
 mkdir configs
-curl -L -o configs/foo.conf https://foo.bar.com/foo.conf
-curl -L -o configs/bar.conf https://foo.bar.com/bar.conf
+curl -L -o configs/foo.conf https://example.com/foo.conf
+curl -L -o configs/bar.conf https://example.com/bar.conf
 
 # example: passing a directory
 set_conf_d "configs/"
@@ -228,8 +228,8 @@ set_conf_d "configs/foo.conf" "configs/bar.conf"
 #!/bin/bash
 ...
 mkdir dispatchers
-curl -L -o dispatchers/foo.sh https://foo.bar.com/foo.sh
-curl -L -o dispatchers/bar.sh https://foo.bar.com/bar.sh
+curl -L -o dispatchers/foo.sh https://example.com/foo.sh
+curl -L -o dispatchers/bar.sh https://example.com/bar.sh
 
 # example: passing a directory
 set_dispatcher_d "dispatchers/"
@@ -250,8 +250,8 @@ set_dispatcher_d "dispatchers/foo.sh" "dispatchers/bar.sh"
 #!/bin/bash
 ...
 mkdir sys-conns
-curl -L -o sys-conns/foo.nmconnection https://foo.bar.com/foo.nmconnection
-curl -L -o sys-conns/bar.nmconnection https://foo.bar.com/bar.nmconnection
+curl -L -o sys-conns/foo.nmconnection https://example.com/foo.nmconnection
+curl -L -o sys-conns/bar.nmconnection https://example.com/bar.nmconnection
 
 # example: passing a directory
 set_sys_conn "sys-conns/"
