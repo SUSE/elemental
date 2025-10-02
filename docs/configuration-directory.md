@@ -145,13 +145,13 @@ Network configuration can be declaratively applied through the `network/` direct
 
 > **IMPORTANT:** Elemental does not support mixing `nmstate` configuration files and a `user-defined` script within the same `network/` directory.
 
-### Configuring the network via nmstate files 
+### Configuring the network via nmstate files
 
-You can define your desired network state by providing `nmstate` configuration files, in YAML format, within the `network/` directory. 
+You can define your desired network state by providing `nmstate` configuration files, in YAML format, within the `network/` directory.
 
 These files will be processed by the NetworkManager Configurator (`nmc`), a CLI tool that leverages the functionality provided by the `nmstate` library and enables users to easily define the desired state of their network.
 
-Configurations for multiple hosts can be defined by creating files named after the hostname that would be set. This allows for multiple different nodes to be spawned from the same built image, with each node self-identifying during the first boot process based on MAC address matching of the network card(s). 
+You can define the configurations for multiple hosts by creating files named after the hostname that would be set. Thereby allowing multiple different nodes to be spawned from the same built image, with each node self-identifying during the first boot process based on MAC address matching of the network card(s).
 
 Examples for this type of configurations can be viewed under the [examples](../examples/elemental/build/network/) directory.
 
@@ -161,9 +161,9 @@ For more information on `nmc`, refer to the [upstream repository](https://github
 
 ### Configuring the network via a user-defined script
 
-For use cases where configuring the network through `nmstate` files is not applicable, you have the option to define a custom script that will do the actual network configuration.
+For use cases where configuring the network through `nmstate` files is not sufficient, you can define a custom script for the actual network configuration.
 
-This script will be executed on first boot during the `initrd` phase and needs to be provided under `network/configure-network.sh`:
+A script named `configure-network.sh` will be executed on first boot during the `initrd` phase:
 
 ```shell
 .
@@ -173,9 +173,9 @@ This script will be executed on first boot during the `initrd` phase and needs t
     └── configure-network.sh
 ```
 
-> **NOTE:** If available, the default network is setup before the `configure-network.sh` runs. This ensures that the script is able to retrieve relevant configurations over the network if needed.
+> **NOTE:** If available, the default network is setup before the `configure-network.sh` runs. This ensures that the script is able to retrieve relevant configurations also from remote locations.
 
-> **IMPORTANT:** The `configure-network.sh` script will run in a restricted environment. To apply the desired network state, you **must** provide your configurations through a set of helper tools available to the `configure-network.sh` script during execution. For a complete list of the avaiable tools, see the [Helper tools](#helper-tools) section. 
+> **IMPORTANT:** The `configure-network.sh` script will run in a restricted environment. To apply the desired network state, you **must** provide your configurations through a set of helper tools available to the `configure-network.sh` script during execution. For a complete list of the avaiable tools, see the [Helper tools](#helper-tools) section.
 
 #### Helper tools
 
@@ -183,7 +183,7 @@ This section lists the tools that are available to the `configure-network.sh` sc
 
 ##### NetworkManager Configurator
 
-The NetworkManager Configurator (`nmc`) is made available to the `configure-network.sh` script. You can retrieve your `nmstate` configuration files in whatever way best suits your use case, and then use `nmc` to generate and apply the desired network state.
+The NetworkManager Configurator (`nmc`) is available for the `configure-network.sh` script. You can retrieve your `nmstate` configuration files in whatever way best suits your use case, and then use `nmc` to generate and apply the desired network state.
 
 *`configure-network.sh` example:*
 
@@ -200,7 +200,7 @@ nmc apply --config-dir generated
 
 ##### set_conf_d
 
-`set_conf_d` is a shell function that can be called through the `configure-network.sh` script to automatically set configuration snippets in the NetworkManager's `conf.d` directory. As arguments, the function accepts either multiple files or a single directory.
+You can call the `set_conf_d`  shell function to apply configuration snippets into NetworkManager's `conf.d` directory. It accepts either multiple files or a single directory as arguments.
 
 *`configure-network.sh` example:*
 
@@ -220,7 +220,7 @@ set_conf_d "configs/foo.conf" "configs/bar.conf"
 
 ##### set_dispatcher_d
 
-`set_dispatcher_d` is a shell function that can be called through the `configure-network.sh` script to automatically set dispatcher scripts in the NetworkManager's `dispatcher.d` directory. As arguments, the function accepts either multiple files or a single directory.
+You can call the `set_dispatcher_d` shell function to set dispatcher scripts in the NetworkManager's `dispatcher.d` directory. It accepts either multiple files or a single directory as arguments.
 
 *`configure-network.sh` example:*
 
@@ -240,7 +240,7 @@ set_dispatcher_d "dispatchers/foo.sh" "dispatchers/bar.sh"
 
 ##### set_sys_conn
 
-`set_sys_conn` is a shell function that can be called through the `configure-network.sh` script to automatically set network connection profiles in the NetworkManager's `system-connections` directory. As arguments, the function accepts either multiple files or a single directory.
+You can call the `set_sys_conn` shell function to set network connection profiles in the NetworkManager's `system-connections` directory. It accepts either multiple files or a single directory as arguments.
 
 > **IMPORTANT:** Using both `set_sys_conn` and `nmc` to configure the network connection profiles may result in unexpected behaviour. Consider using one or the other depending on your use case.
 
@@ -262,19 +262,19 @@ set_sys_conn "sys-conns/foo.nmconnection" "sys-conns/bar.nmconnection"
 
 ##### set_hostname
 
-`set_hostname` is a shell function that can be called through the `configure-network.sh` script to automatically set the node's hostname. As arguments, the function accepts a single string literal.
+You can call the `set_hostname` shell function to set the node's hostname. It accepts a single string literal as an argument.
 
 *`configure-network.sh` example:*
 
 ```bash
 #!/bin/bash
 ...
-set_hostname "foo"
+set_hostname "myhostname"
 ```
 
 ##### disable_wired_conn
 
-`disable_wired_conn` is a shell function that can be called through the `configure-network.sh` script. It removes any existing wired connections and configures `no-auto-default=*` in the NetworkManager's `conf.d` directory.
+You can call the `disable_wired_conn` shell function to remove any existing wired connections and configure `no-auto-default=*` in the NetworkManager's `conf.d` directory.
 
 *`configure-network.sh` example:*
 
@@ -282,4 +282,3 @@ set_hostname "foo"
 #!/bin/bash
 ...
 disable_wired_conn
-```
