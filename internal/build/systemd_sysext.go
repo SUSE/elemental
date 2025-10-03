@@ -20,6 +20,7 @@ package build
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"path/filepath"
 	"slices"
 
@@ -28,6 +29,7 @@ import (
 	"github.com/suse/elemental/v3/pkg/manifest/api"
 	"github.com/suse/elemental/v3/pkg/manifest/resolver"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
+	"github.com/suse/elemental/v3/pkg/unpack"
 )
 
 func (b *Builder) downloadSystemExtensions(ctx context.Context, def *image.Definition, rm *resolver.ResolvedManifest, buildDir image.BuildDir) error {
@@ -46,17 +48,34 @@ func (b *Builder) downloadSystemExtensions(ctx context.Context, def *image.Defin
 	}
 
 	for _, extension := range extensions {
-		b.System.Logger().Info("Downloading extension %s from %s...",
+		b.System.Logger().Info("Pulling extension %s from %s...",
 			extension.Name, extension.Image)
 
-		extensionPath := filepath.Join(extensionsDir, filepath.Base(extension.Image))
+		if isRemoteURL(extension.Image) {
+			extensionPath := filepath.Join(extensionsDir, filepath.Base(extension.Image))
+			if err = b.DownloadFile(ctx, fs, extension.Image, extensionPath); err != nil {
+				return fmt.Errorf("downloading systemd extension %s: %w", extension.Name, err)
+			}
 
-		if err = b.DownloadFile(ctx, fs, extension.Image, extensionPath); err != nil {
-			return fmt.Errorf("downloading systemd extension %s: %w", extension.Name, err)
+			continue
+		}
+
+		unpacker := unpack.NewOCIUnpacker(b.System, extension.Image, unpack.WithLocalOCI(b.Local))
+		if _, err = unpacker.Unpack(ctx, extensionsDir); err != nil {
+			return fmt.Errorf("unpacking systemd extension %s: %w", extension.Name, err)
 		}
 	}
 
 	return nil
+}
+
+func isRemoteURL(s string) bool {
+	u, err := url.Parse(s)
+	if err != nil {
+		return false
+	}
+
+	return u.Scheme == "http" || u.Scheme == "https"
 }
 
 func isExtensionExplicitlyEnabled(name string, def *image.Definition) bool {
