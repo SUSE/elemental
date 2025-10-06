@@ -221,4 +221,61 @@ var _ = Describe("Grub tests", Label("bootloader", "grub"), func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(string(entries)).To(Equal("entries=active 2 1"))
 	})
+	It("Prunes old snapshots", func() {
+		// "Install" older (6.6.99) kernel
+		Expect(vfs.MkdirAll(tfs, "/target/dir/boot/opensuse-tumbleweed/6.6.99-1-default", vfs.DirPerm)).To(Succeed())
+		Expect(tfs.WriteFile("/target/dir/boot/opensuse-tumbleweed/6.6.99-1-default/vmlinuz", []byte("6.6.99-1-default vmlinux"), vfs.FilePerm)).To(Succeed())
+		Expect(tfs.WriteFile("/target/dir/boot/opensuse-tumbleweed/6.6.99-1-default/.vmlinuz.hmac", []byte("6.6.99-1-default vmlinux"), vfs.FilePerm)).To(Succeed())
+		Expect(tfs.WriteFile("/target/dir/boot/opensuse-tumbleweed/6.6.99-1-default/initrd", []byte("6.6.99-1-default vmlinux"), vfs.FilePerm)).To(Succeed())
+
+		err := grub.Install("/target/dir", "1", "snapshot1", d)
+		Expect(err).ToNot(HaveOccurred())
+
+		err = grub.Install("/target/dir", "2", "snapshot2", d)
+		Expect(err).ToNot(HaveOccurred())
+
+		// Entries 1, 2 and 'active' should exist
+		Expect(vfs.Exists(tfs, "/target/dir/boot/loader/entries/1")).To(BeTrue())
+		Expect(vfs.Exists(tfs, "/target/dir/boot/loader/entries/2")).To(BeTrue())
+		Expect(vfs.Exists(tfs, "/target/dir/boot/loader/entries/active")).To(BeTrue())
+
+		// 'active' entry should point to snapshot 2
+		activeEntry, err := tfs.ReadFile("/target/dir/boot/loader/entries/active")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(strings.SplitSeq(string(activeEntry), "\n")).To(ContainElement("cmdline=snapshot2"))
+
+		// entry 1 should point to snapshot 1
+		entry1, err := tfs.ReadFile("/target/dir/boot/loader/entries/1")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(strings.SplitSeq(string(entry1), "\n")).To(ContainElement("cmdline=snapshot1"))
+
+		// entry 2 should point to snapshot 1
+		entry2, err := tfs.ReadFile("/target/dir/boot/loader/entries/2")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(strings.SplitSeq(string(entry2), "\n")).To(ContainElement("cmdline=snapshot2"))
+
+		// entries should read "active 2 1"
+		entries, err := tfs.ReadFile("/target/dir/boot/grubenv")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(string(entries)).To(Equal("entries=active 2 1"))
+
+		// Prune snapshot 1 (keep 2)
+		err = grub.Prune("/target/dir", []int{2}, d)
+		Expect(err).ToNot(HaveOccurred())
+
+		entries, err = tfs.ReadFile("/target/dir/boot/grubenv")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(entries).To(Equal([]byte("entries=active 2")))
+
+		// Old boot entries and kernel/initrd are removed
+		Expect(vfs.Exists(tfs, "/target/dir/boot/loader/entries/1")).To(BeFalse())
+		Expect(vfs.Exists(tfs, "/target/dir/boot/opensuse-tumbleweed/6.6.99-1-default/vmlinuz")).To(BeFalse())
+		Expect(vfs.Exists(tfs, "/target/dir/boot/opensuse-tumbleweed/6.6.99-1-default/.vmlinuz.hmac")).To(BeFalse())
+		Expect(vfs.Exists(tfs, "/target/dir/boot/opensuse-tumbleweed/6.6.99-1-default/initrd")).To(BeFalse())
+
+		// Kernel and initrd exist
+		Expect(vfs.Exists(tfs, "/target/dir/boot/opensuse-tumbleweed/6.14.4-1-default/vmlinuz")).To(BeTrue())
+		Expect(vfs.Exists(tfs, "/target/dir/boot/opensuse-tumbleweed/6.14.4-1-default/.vmlinuz.hmac")).To(BeTrue())
+		Expect(vfs.Exists(tfs, "/target/dir/boot/opensuse-tumbleweed/6.14.4-1-default/initrd")).To(BeTrue())
+	})
 })

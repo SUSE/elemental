@@ -24,14 +24,15 @@ import (
 )
 
 type Transactioner struct {
-	InitErr        error
-	StartErr       error
-	CommitErr      error
-	RollbackErr    error
-	Trans          *transaction.Transaction
-	UpgradeHelper  UpgradeHelper
-	SrcDigest      string
-	rollbackCalled bool
+	InitErr           error
+	StartErr          error
+	CommitErr         error
+	RollbackErr       error
+	Trans             *transaction.Transaction
+	UpgradeHelper     UpgradeHelper
+	SrcDigest         string
+	rollbackCalled    bool
+	activeSnapshotIDs []int
 }
 
 type UpgradeHelper struct {
@@ -88,4 +89,8 @@ func (t *Transactioner) Rollback(_ *transaction.Transaction, _ error) error {
 
 func (t Transactioner) RollbackCalled() bool {
 	return t.rollbackCalled
+}
+
+func (t Transactioner) GetActiveSnapshotIDs() ([]int, error) {
+	return t.activeSnapshotIDs, nil
 }

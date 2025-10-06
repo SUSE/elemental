@@ -25,9 +25,13 @@ import (
 	"fmt"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"text/template"
 
+	"github.com/joho/godotenv"
+
+	"github.com/suse/elemental/v3/pkg/cleanstack"
 	"github.com/suse/elemental/v3/pkg/deployment"
 	"github.com/suse/elemental/v3/pkg/rsync"
 	"github.com/suse/elemental/v3/pkg/sys"
@@ -36,7 +40,8 @@ import (
 )
 
 type Grub struct {
-	s *sys.System
+	s     *sys.System
+	clean *cleanstack.CleanStack
 }
 
 type grubBootEntry struct {
@@ -48,7 +53,7 @@ type grubBootEntry struct {
 }
 
 func NewGrub(s *sys.System) *Grub {
-	return &Grub{s}
+	return &Grub{s, cleanstack.NewCleanStack()}
 }
 
 const (
@@ -133,6 +138,139 @@ func (g *Grub) Install(rootPath, snapshotID, kernelCmdline string, d *deployment
 	err = g.updateBootEntries(rootPath, esp, entries...)
 	if err != nil {
 		return fmt.Errorf("updating boot entries: %w", err)
+	}
+
+	return nil
+}
+
+// Prune prunes old boot entries and artifacts not in the passed in keepSnapshotIDs.
+func (g Grub) Prune(rootPath string, keepSnapshotIDs []int, d *deployment.Deployment) (err error) {
+	esp := d.GetEfiSystemPartition()
+	if esp == nil {
+		return fmt.Errorf("ESP not found")
+	}
+
+	g.s.Logger().Info("Pruning old boot artifacts in %s", esp.Label)
+
+	bootDir := filepath.Join(rootPath, esp.MountPoint)
+	err = vfs.MkdirAll(g.s.FS(), bootDir, vfs.DirPerm)
+	if err != nil {
+		return fmt.Errorf("failed creating target directory %s: %w", bootDir, err)
+	}
+
+	err = g.s.Mounter().Mount(filepath.Join("/dev/disk/by-label/", esp.Label), bootDir, esp.FileSystem.String(), esp.MountOpts)
+	if err != nil {
+		return fmt.Errorf("failed mounting ESP to %s: %w", bootDir, err)
+	}
+	g.clean.Push(func() error { return g.s.Mounter().Unmount(bootDir) })
+
+	defer func() {
+		err = g.clean.Cleanup(err)
+		if err != nil {
+			g.s.Logger().Error("Failed cleaning up after bootloader pruning: %s", err.Error())
+		}
+	}()
+
+	grubEnvPath := filepath.Join(bootDir, "grubenv")
+	grubEnv, err := g.readGrubEnv(grubEnvPath)
+	if err != nil {
+		return fmt.Errorf("reading grubenv: %w", err)
+	}
+
+	toDelete := []string{}
+	activeEntries := []string{}
+
+	for _, entry := range strings.Fields(grubEnv["entries"]) {
+		if entry == DefaultBootID {
+			continue
+		}
+
+		snapshotID, err := strconv.Atoi(entry)
+		if err != nil {
+			g.s.Logger().Warn("Failed parsing snapshot ID '%s': %s", entry, err.Error())
+			continue
+		}
+
+		if slices.Contains(keepSnapshotIDs, snapshotID) {
+			activeEntries = append(activeEntries, entry)
+			continue
+		}
+
+		toDelete = append(toDelete, entry)
+	}
+
+	entriesDir := filepath.Join(rootPath, esp.MountPoint, "loader", "entries")
+	for _, entry := range toDelete {
+		err = g.s.FS().Remove(filepath.Join(entriesDir, entry))
+		if err != nil {
+			g.s.Logger().Warn("failed removing '%s'", entry)
+			return err
+		}
+	}
+
+	slices.Reverse(activeEntries)
+	activeEntries = append([]string{DefaultBootID}, activeEntries...)
+
+	// update entries variable in /boot/grubenv
+	stdOut, err := g.s.Runner().Run("grub2-editenv", grubEnvPath, "set", fmt.Sprintf("entries=%s", strings.Join(activeEntries, " ")))
+	g.s.Logger().Debug("grub2-editenv stdout: %s", string(stdOut))
+
+	if err != nil {
+		return fmt.Errorf("failed saving %s: %w", grubEnvPath, err)
+	}
+
+	return g.pruneOldKernels(rootPath, esp, activeEntries)
+}
+
+func (g Grub) pruneOldKernels(rootPath string, esp *deployment.Partition, activeEntries []string) error {
+	activeKernels := map[string]bool{}
+
+	for _, entry := range activeEntries {
+		grubEnv := filepath.Join(rootPath, esp.MountPoint, "loader", "entries", entry)
+		vars, err := g.readGrubEnv(grubEnv)
+		if err != nil {
+			return fmt.Errorf("failed reading grubenv '%s': %w", grubEnv, err)
+		}
+
+		linux := vars["linux"]
+		linuxDir, _ := filepath.Split(linux)
+		version := filepath.Base(linuxDir)
+
+		activeKernels[version] = true
+	}
+
+	osVars, err := vfs.LoadEnvFile(g.s.FS(), filepath.Join(rootPath, OsReleasePath))
+	if err != nil {
+		return fmt.Errorf("loading %s vars: %w", OsReleasePath, err)
+	}
+
+	var (
+		ok   bool
+		osID string
+	)
+	if osID, ok = osVars["ID"]; !ok {
+		return fmt.Errorf("%s ID not set", OsReleasePath)
+	}
+
+	// look for older kernels
+	kernelDir := filepath.Join(rootPath, esp.MountPoint, osID)
+	kernelDirs, err := g.s.FS().ReadDir(kernelDir)
+	if err != nil {
+		return fmt.Errorf("reading sub-directories: %w", err)
+	}
+
+	for _, dirEntry := range kernelDirs {
+		if !dirEntry.IsDir() {
+			continue
+		}
+
+		if _, ok := activeKernels[dirEntry.Name()]; !ok {
+			path := filepath.Join(kernelDir, dirEntry.Name())
+			err := g.s.FS().RemoveAll(path)
+			if err != nil {
+				return fmt.Errorf("failed removing old kernel '%s': %w", path, err)
+			}
+		}
 	}
 
 	return nil
@@ -369,22 +507,37 @@ func (g *Grub) installKernelInitrd(rootPath, espDir, subfolder, snapshotID, kern
 	}, nil
 }
 
+func (g *Grub) readGrubEnv(path string) (map[string]string, error) {
+	stdOut, err := g.s.Runner().Run("grub2-editenv", path, "list")
+	if err != nil {
+		return nil, fmt.Errorf("reading grubenv '%s': %w", path, err)
+	}
+
+	val, err := godotenv.UnmarshalBytes(stdOut)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshalling '%s': %w", path, err)
+	}
+
+	return val, nil
+}
+
 func (g *Grub) updateBootEntries(rootPath string, esp *deployment.Partition, newEntries ...grubBootEntry) error {
 	grubEnvPath := filepath.Join(rootPath, esp.MountPoint, "grubenv")
 	activeEntries := []string{}
 
 	// Read current entries
 	if ok, _ := vfs.Exists(g.s.FS(), grubEnvPath); ok {
-		stdOut, err := g.s.Runner().Run("grub2-editenv", grubEnvPath, "list")
+		grubEnv, err := g.readGrubEnv(grubEnvPath)
 		if err != nil {
-			return fmt.Errorf("reading current boot entries: %w", err)
+			return fmt.Errorf("loading grubenv '%s': %w", grubEnvPath, err)
 		}
 
-		g.s.Logger().Debug("grub2-editenv stdout: %s", string(stdOut))
-		for line := range strings.SplitSeq(string(stdOut), "\n") {
-			if after, found := strings.CutPrefix(line, "entries="+DefaultBootID); found {
-				activeEntries = append(activeEntries, strings.Fields(after)...)
+		for _, entry := range strings.Fields(grubEnv["entries"]) {
+			if entry == DefaultBootID {
+				continue
 			}
+
+			activeEntries = append(activeEntries, entry)
 		}
 	}
 

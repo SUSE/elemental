@@ -127,6 +127,10 @@ func (n Overwrite) Rollback(*Transaction, error) error {
 	return fmt.Errorf("cannot rollback transactions using 'overwrite' snapshotter")
 }
 
+func (n Overwrite) GetActiveSnapshotIDs() ([]int, error) {
+	return []int{0}, nil
+}
+
 func (n Overwrite) SyncImageContent(imgSrc *deployment.ImageSource, trans *Transaction, opts ...unpack.Opt) (err error) {
 	if trans.status != started {
 		return fmt.Errorf("given transaction '%d' is not started", trans.ID)
