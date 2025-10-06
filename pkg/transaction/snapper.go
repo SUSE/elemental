@@ -238,6 +238,21 @@ func (sn *snapperT) probe(d deployment.Deployment) (err error) {
 	return nil
 }
 
+func (sn snapperT) GetActiveSnapshotIDs() ([]int, error) {
+	snaps, err := sn.snap.ListSnapshots(sn.rootDir, "root")
+	if err != nil {
+		return nil, fmt.Errorf("listing snapshots: %w", err)
+	}
+
+	snapIDs := make([]int, len(snaps))
+
+	for i := range snaps {
+		snapIDs[i] = snaps[i].Number
+	}
+
+	return snapIDs, nil
+}
+
 // mountPartition mounts the given partition to the given mount point. In addition it also
 // sets the umount cleanup task.
 func (sn snapperT) mountPartition(part *deployment.Partition, mountPoint string) error {
