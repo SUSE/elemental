@@ -1,0 +1,6 @@
+# integration test files
+vmstdout
+*.log
+*.pid
+*.qcow2
+
