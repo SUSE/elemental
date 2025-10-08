@@ -76,9 +76,7 @@ func (b *Builder) Run(ctx context.Context, d *image.Definition, buildDir image.B
 		return err
 	}
 
-	var ignitionPart *deployment.Partition
 	if k8sScript != "" || len(d.ButaneConfig) > 0 {
-		ignitionPart = b.generateIgnitionPartition()
 		if err = b.configureIgnition(d, buildDir, k8sScript); err != nil {
 			logger.Error("Configuring Ignition failed")
 			return err
@@ -121,9 +119,8 @@ func (b *Builder) Run(ctx context.Context, d *image.Definition, buildDir image.B
 		d.Installation.Bootloader,
 		d.Installation.KernelCmdLine,
 		m.CorePlatform.Components.OperatingSystem.Image,
-		buildDir.OverlaysDir(),
+		buildDir,
 		preparePart,
-		ignitionPart,
 	)
 	if err != nil {
 		logger.Error("Preparing installation setup failed")
@@ -154,25 +151,26 @@ func (b *Builder) Run(ctx context.Context, d *image.Definition, buildDir image.B
 	return nil
 }
 
-func newDeployment(system *sys.System, installationDevice, bootloader, kernelCmdLine, osImage, overlaysPath string, customPartitions ...*deployment.Partition) (*deployment.Deployment, error) {
-	d := deployment.DefaultDeployment()
+func newDeployment(system *sys.System, installationDevice, bootloader, kernelCmdLine, osImage string, buildDir image.BuildDir, customPartitions ...*deployment.Partition) (*deployment.Deployment, error) {
+	var d *deployment.Deployment
+	if ok, _ := vfs.Exists(system.FS(), buildDir.FirstbootConfigDir()); ok {
+		configSize, err := vfs.DirSizeMB(system.FS(), buildDir.FirstbootConfigDir())
+		if err != nil {
+			return nil, fmt.Errorf("failed to compute configuration partition size: %w", err)
+		}
+		d = deployment.New(
+			deployment.WithPartitions(1, customPartitions...),
+			deployment.WithConfigPartition(deployment.MiB(configSize)),
+		)
+	} else {
+		d = deployment.New(
+			deployment.WithPartitions(1, customPartitions...),
+		)
+	}
+
 	d.Disks[0].Device = installationDevice
 	d.BootConfig.Bootloader = bootloader
 	d.BootConfig.KernelCmdline = kernelCmdLine
-
-	if len(customPartitions) > 0 {
-		partitionLen := len(d.Disks[0].Partitions)
-		systemPart := d.Disks[0].Partitions[partitionLen-1]
-		partitionsWithoutSystem := d.Disks[0].Partitions[:partitionLen-1]
-
-		for _, part := range customPartitions {
-			if part != nil {
-				partitionsWithoutSystem = append(partitionsWithoutSystem, part)
-			}
-		}
-		d.Disks[0].Partitions = partitionsWithoutSystem
-		d.Disks[0].Partitions = append(d.Disks[0].Partitions, systemPart)
-	}
 
 	osURI := fmt.Sprintf("%s://%s", deployment.OCI, osImage)
 	osSource, err := deployment.NewSrcFromURI(osURI)
@@ -181,7 +179,7 @@ func newDeployment(system *sys.System, installationDevice, bootloader, kernelCmd
 	}
 	d.SourceOS = osSource
 
-	overlaysURI := fmt.Sprintf("%s://%s", deployment.Dir, overlaysPath)
+	overlaysURI := fmt.Sprintf("%s://%s", deployment.Dir, buildDir.OverlaysDir())
 	overlaySource, err := deployment.NewSrcFromURI(overlaysURI)
 	if err != nil {
 		return nil, fmt.Errorf("parsing overlay source URI %q: %w", overlaysURI, err)

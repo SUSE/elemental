@@ -77,7 +77,7 @@ func (b *Builder) configureIgnition(def *image.Definition, buildDir image.BuildD
 		config.AddSystemdUnit(k8sResourcesUnitName, k8sResourcesUnit, true)
 	}
 
-	ignitionFile := filepath.Join(buildDir.OverlaysDir(), image.IgnitionFilePath())
+	ignitionFile := filepath.Join(buildDir.FirstbootConfigDir(), image.IgnitionFilePath())
 	return butane.WriteIngitionFile(b.System, config, ignitionFile)
 }
 

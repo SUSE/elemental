@@ -64,41 +64,49 @@ var _ = Describe("Deployment", Label("deployment"), func() {
 
 		It("creates a default deployment", func() {
 			d := deployment.DefaultDeployment()
-			d.Disks[0].Device = "/dev/device"
 			Expect(d.Sanitize(s)).To(Succeed())
 		})
+		It("creates a default deployment with a configuration partition", func() {
+			d := deployment.New(deployment.WithConfigPartition(127))
+			Expect(d.Sanitize(s)).To(Succeed())
+			Expect(d.Disks[0].Partitions[1].Label).To(Equal(deployment.ConfigLabel))
+			Expect(d.Disks[0].Partitions[1].Size).To(Equal(deployment.MiB(256)))
+		})
+		It("does not create a deployment including out of range partitions", func() {
+			d := deployment.New(deployment.WithPartitions(
+				5, &deployment.Partition{Role: deployment.Data},
+			))
+			Expect(d.Sanitize(s)).To(Succeed())
+			Expect(len(d.Disks[0].Partitions)).To(Equal(2))
+		})
 		It("fails if multiple efi partitions are set", func() {
-			d := deployment.DefaultDeployment()
-			d.Disks[0].Partitions = append(d.Disks[0].Partitions, &deployment.Partition{
-				Role: deployment.EFI,
-			})
+			d := deployment.New(deployment.WithPartitions(
+				2, &deployment.Partition{Role: deployment.EFI},
+			))
 			err = d.Sanitize(s)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("multiple 'efi'"))
 		})
 		It("fails if multiple system partitions are set", func() {
-			d := deployment.DefaultDeployment()
-			d.Disks[0].Partitions = append(d.Disks[0].Partitions, &deployment.Partition{
-				Role: deployment.System,
-			})
+			d := deployment.New(
+				deployment.WithPartitions(2, &deployment.Partition{Role: deployment.System}),
+			)
 			err = d.Sanitize(s)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("multiple 'system'"))
 		})
 		It("fails if multiple recovery partitions are set", func() {
-			d := deployment.DefaultDeployment()
-			d.Disks[0].Partitions = append(d.Disks[0].Partitions, []*deployment.Partition{
-				{Role: deployment.Recovery}, {Role: deployment.Recovery},
-			}...)
+			d := deployment.New(deployment.WithPartitions(
+				1, &deployment.Partition{Role: deployment.Recovery}, &deployment.Partition{Role: deployment.Recovery},
+			))
 			err = d.Sanitize(s)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("multiple 'recovery'"))
 		})
 		It("fails if non last partition is set to use all space available", func() {
-			d := deployment.DefaultDeployment()
-			d.Disks[0].Partitions = append(d.Disks[0].Partitions, &deployment.Partition{
-				Role: deployment.Recovery,
-			})
+			d := deployment.New(deployment.WithPartitions(
+				0, &deployment.Partition{Role: deployment.Data, Size: deployment.AllAvailableSize},
+			))
 			err = d.Sanitize(s)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("only last partition"))

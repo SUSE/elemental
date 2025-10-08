@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"path/filepath"
 
+	"github.com/suse/elemental/v3/pkg/deployment"
 	"go.yaml.in/yaml/v3"
 )
 
@@ -68,6 +69,10 @@ func (dir BuildDir) OverlaysDir() string {
 	return filepath.Join(string(dir), "overlays")
 }
 
+func (dir BuildDir) FirstbootConfigDir() string {
+	return filepath.Join(dir.OverlaysDir(), deployment.ConfigMnt)
+}
+
 func (dir BuildDir) ReleaseManifestsDir() string {
 	return filepath.Join(string(dir), "release-manifests")
 }
@@ -77,7 +82,7 @@ func ExtensionsPath() string {
 }
 
 func IgnitionFilePath() string {
-	return filepath.Join("run", "elemental", "firstboot", "ignition", "config.ign")
+	return filepath.Join("ignition", "config.ign")
 }
 
 func ElementalPath() string {

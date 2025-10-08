@@ -20,6 +20,7 @@ package deployment
 import (
 	"fmt"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -44,6 +45,9 @@ const (
 	SystemLabel          = "SYSTEM"
 	SystemMnt            = "/"
 	AllAvailableSize MiB = 0
+
+	ConfigLabel = "IGNITION"
+	ConfigMnt   = "/run/elemental/firstboot"
 
 	deploymentFile = "/etc/elemental/deployment.yaml"
 
@@ -229,6 +233,8 @@ type Deployment struct {
 	CfgScript   string       `yaml:"configScript,omitempty"`
 }
 
+type Opt func(d *Deployment)
+
 // GetSnapshottedVolumes returns a list of snapshotted rw volumes defined in the
 // given partitions list.
 func (p Partitions) GetSnapshottedVolumes() RWVolumes {
@@ -355,6 +361,8 @@ func (d Deployment) WriteDeploymentFile(s *sys.System, root string) error {
 	return nil
 }
 
+// Parse reads a deployment yaml file from the given root and returns a
+// Deployment object
 func Parse(s *sys.System, root string) (*Deployment, error) {
 	path := filepath.Join(root, deploymentFile)
 	if ok, err := vfs.Exists(s.FS(), path); !ok {
@@ -407,6 +415,45 @@ func DefaultDeployment() *Deployment {
 			KernelCmdline: fmt.Sprintf("root=LABEL=%s", SystemLabel),
 		},
 	}
+}
+
+// New returns a new deployment based on the default setup with the given
+// options applied on top.
+func New(opts ...Opt) *Deployment {
+	d := DefaultDeployment()
+
+	for _, opt := range opts {
+		opt(d)
+	}
+	return d
+}
+
+// WithPartitions inserts the given partitions to the system disk at the given
+// position, where 0 is the frist partition. Ignores out of range positions.
+func WithPartitions(num int, parts ...*Partition) Opt {
+	return func(d *Deployment) {
+		disk := d.GetSystemDisk()
+		if num >= 0 && num <= len(disk.Partitions) {
+			disk.Partitions = slices.Insert(disk.Partitions, num, parts...)
+		}
+	}
+}
+
+// WithConfigParition inserts a configuration partition as the second partition
+// to the systemd disk. The given size is the amount of data expected to store in
+// the partition, then the partition is sized to be alined with 128MiB and to ensure
+// at least 128MiB of free space is available.
+func WithConfigPartition(size MiB) Opt {
+	size = (size/128)*128 + 256
+	part := &Partition{
+		Label:      ConfigLabel,
+		MountPoint: ConfigMnt,
+		Role:       Data,
+		FileSystem: Btrfs,
+		Size:       size,
+		Hidden:     true,
+	}
+	return WithPartitions(1, part)
 }
 
 // checkSystemPart verifies the system partition is properly defined and forces mandatory values

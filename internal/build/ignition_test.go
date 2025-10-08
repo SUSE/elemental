@@ -65,7 +65,7 @@ var _ = Describe("Ignition configuration", func() {
 	It("Does no ignition configuration if no ButaneConfig or Kubernetes setup is provided", func() {
 		def := &image.Definition{}
 
-		ignitionFile := filepath.Join(buildDir.OverlaysDir(), image.IgnitionFilePath())
+		ignitionFile := filepath.Join(buildDir.FirstbootConfigDir(), image.IgnitionFilePath())
 
 		Expect(builder.configureIgnition(def, buildDir, "")).To(Succeed())
 		ok, err := vfs.Exists(system.FS(), ignitionFile)
@@ -93,7 +93,7 @@ passwd:
 
 		Expect(err).NotTo(HaveOccurred())
 
-		ignitionFile := filepath.Join(buildDir.OverlaysDir(), image.IgnitionFilePath())
+		ignitionFile := filepath.Join(buildDir.FirstbootConfigDir(), image.IgnitionFilePath())
 
 		Expect(builder.configureIgnition(def, buildDir, "")).To(Succeed())
 		ok, err := vfs.Exists(system.FS(), ignitionFile)
@@ -106,7 +106,7 @@ passwd:
 
 	It("Configures kubernetes via ignition with the given k8s script", func() {
 		def := &image.Definition{}
-		ignitionFile := filepath.Join(buildDir.OverlaysDir(), image.IgnitionFilePath())
+		ignitionFile := filepath.Join(buildDir.FirstbootConfigDir(), image.IgnitionFilePath())
 
 		k8sScript := filepath.Join(buildDir.OverlaysDir(), "path/to/k8s/script.sh")
 
@@ -139,7 +139,7 @@ passwd:
 			ButaneConfig: butane,
 		}
 
-		ignitionFile := filepath.Join(buildDir.OverlaysDir(), image.IgnitionFilePath())
+		ignitionFile := filepath.Join(buildDir.FirstbootConfigDir(), image.IgnitionFilePath())
 
 		Expect(builder.configureIgnition(def, buildDir, k8sScript)).To(MatchError(
 			ContainSubstring("No translator exists for variant unknown with version"),
@@ -165,7 +165,7 @@ passwd:
 			ButaneConfig: butane,
 		}
 
-		ignitionFile := filepath.Join(buildDir.OverlaysDir(), image.IgnitionFilePath())
+		ignitionFile := filepath.Join(buildDir.FirstbootConfigDir(), image.IgnitionFilePath())
 		Expect(builder.configureIgnition(def, buildDir, "")).To(Succeed())
 		ok, err := vfs.Exists(system.FS(), ignitionFile)
 		Expect(err).NotTo(HaveOccurred())
