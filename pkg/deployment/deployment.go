@@ -46,7 +46,7 @@ const (
 	SystemMnt            = "/"
 	AllAvailableSize MiB = 0
 
-	ConfigLabel = "IGNITION"
+	ConfigLabel = "ignition"
 	ConfigMnt   = "/run/elemental/firstboot"
 
 	deploymentFile = "/etc/elemental/deployment.yaml"
