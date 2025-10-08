@@ -75,9 +75,9 @@ var _ = Describe("Ignition configuration", func() {
 		}}
 
 		conf.AddSystemdUnit("test.service", "[Unit]\nDescription=Test unit\n[Install]\nWantedBy=test.target", true)
-		conf.MergeInlineIngition("{\"ignition\": {\"version\": \"3.4.0\"}}")
+		conf.MergeInlineIgnition("{\"ignition\": {\"version\": \"3.4.0\"}}")
 
-		Expect(butane.WriteIngitionFile(system, conf, "/ignition.ign")).To(Succeed())
+		Expect(butane.WriteIgnitionFile(system, conf, "/ignition.ign")).To(Succeed())
 		ignBytes, err := system.FS().ReadFile("/ignition.ign")
 		Expect(err).ToNot(HaveOccurred())
 

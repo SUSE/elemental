@@ -38,7 +38,7 @@ var ensureSysextUnit string
 //go:embed templates/k8s-resource-installer.service.tpl
 var k8sResourceUnitTpl string
 
-// configureIngition writes the ignition configuration file based on the provided butane configuartion
+// configureIngition writes the ignition configuration file based on the provided butane configuration
 // and the given kubernetes configuration
 func (b *Builder) configureIgnition(def *image.Definition, buildDir image.BuildDir, k8sScript string) error {
 	if len(def.ButaneConfig) == 0 && k8sScript == "" {
@@ -62,7 +62,7 @@ func (b *Builder) configureIgnition(def *image.Definition, buildDir image.BuildD
 		if err != nil {
 			return fmt.Errorf("failed translating butane configuration: %w", err)
 		}
-		config.MergeInlineIngition(string(ignitionBytes))
+		config.MergeInlineIgnition(string(ignitionBytes))
 	} else {
 		b.System.Logger().Info("No butane configuration to translate into Ignition syntax")
 	}
@@ -78,7 +78,7 @@ func (b *Builder) configureIgnition(def *image.Definition, buildDir image.BuildD
 	}
 
 	ignitionFile := filepath.Join(buildDir.FirstbootConfigDir(), image.IgnitionFilePath())
-	return butane.WriteIngitionFile(b.System, config, ignitionFile)
+	return butane.WriteIgnitionFile(b.System, config, ignitionFile)
 }
 
 func generateK8sResourcesUnit(deployScript string) (string, error) {

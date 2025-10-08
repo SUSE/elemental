@@ -41,7 +41,7 @@ type Config struct {
 }
 
 // MegerInlineIgnition adds the given in line ignition configuration as a new merge in butane
-func (c *Config) MergeInlineIngition(ignitionConf string) {
+func (c *Config) MergeInlineIgnition(ignitionConf string) {
 	var merge base.Resource
 
 	merge.Inline = &ignitionConf
@@ -61,7 +61,7 @@ func (c *Config) AddSystemdUnit(name, contents string, enabled bool) {
 }
 
 // WriteIngitionFile writes an ingition file for the current butane configuration to the given path
-func WriteIngitionFile(s *sys.System, butane any, ignitionFile string) error {
+func WriteIgnitionFile(s *sys.System, butane any, ignitionFile string) error {
 	ignitionBytes, err := TranslateBytes(s, butane)
 	if err != nil {
 		return err

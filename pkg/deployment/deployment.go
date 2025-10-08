@@ -428,8 +428,8 @@ func New(opts ...Opt) *Deployment {
 	return d
 }
 
-// WithPartitions inserts the given partitions to the system disk at the given
-// position, where 0 is the frist partition. Ignores out of range positions.
+// WithPartitions inserts the given partitions to the default disk at the given
+// position, where 0 is the first partition. Ignores out of range positions.
 func WithPartitions(num int, parts ...*Partition) Opt {
 	return func(d *Deployment) {
 		disk := d.GetSystemDisk()
