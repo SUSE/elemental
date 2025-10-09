@@ -20,7 +20,6 @@ package image
 import (
 	"github.com/suse/elemental/v3/internal/image/install"
 	"github.com/suse/elemental/v3/internal/image/kubernetes"
-	"github.com/suse/elemental/v3/internal/image/os"
 	"github.com/suse/elemental/v3/internal/image/release"
 
 	"github.com/suse/elemental/v3/pkg/sys/platform"
@@ -31,13 +30,12 @@ const (
 )
 
 type Definition struct {
-	Image           Image
-	Installation    install.Installation
-	OperatingSystem os.OperatingSystem
-	Release         release.Release
-	Kubernetes      kubernetes.Kubernetes
-	Network         Network
-	ButaneConfig    map[string]any
+	Image        Image
+	Installation install.Installation
+	Release      release.Release
+	Kubernetes   kubernetes.Kubernetes
+	Network      Network
+	ButaneConfig map[string]any
 }
 
 type Image struct {

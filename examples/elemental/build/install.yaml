@@ -1,2 +1,3 @@
 bootloader: grub
 kernelCmdLine: "root=LABEL=SYSTEM console=ttyS0 quiet loglevel=3"
+diskSize: 35G

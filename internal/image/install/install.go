@@ -17,7 +17,16 @@ limitations under the License.
 
 package install
 
+import "regexp"
+
+type DiskSize string
+
+func (d DiskSize) IsValid() bool {
+	return regexp.MustCompile(`^[1-9]\d*[KMGT]$`).MatchString(string(d))
+}
+
 type Installation struct {
-	Bootloader    string `yaml:"bootloader"`
-	KernelCmdLine string `yaml:"kernelCmdLine"`
+	Bootloader    string   `yaml:"bootloader"`
+	KernelCmdLine string   `yaml:"kernelCmdLine"`
+	DiskSize      DiskSize `yaml:"diskSize"`
 }

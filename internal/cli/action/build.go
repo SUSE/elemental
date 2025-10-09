@@ -137,16 +137,7 @@ func parseImageDefinition(args *cmd.BuildFlags) (*image.Definition, error) {
 
 	configDir := image.ConfigDir(args.ConfigDir)
 
-	data, err := os.ReadFile(configDir.OSFilepath())
-	if err != nil {
-		return nil, fmt.Errorf("reading config file: %w", err)
-	}
-
-	if err = image.ParseConfig(data, &definition.OperatingSystem); err != nil {
-		return nil, fmt.Errorf("parsing config file %q: %w", configDir.OSFilepath(), err)
-	}
-
-	data, err = os.ReadFile(configDir.InstallFilepath())
+	data, err := os.ReadFile(configDir.InstallFilepath())
 	if err != nil {
 		return nil, fmt.Errorf("reading config file: %w", err)
 	}

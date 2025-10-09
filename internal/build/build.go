@@ -23,7 +23,7 @@ import (
 	"strings"
 
 	"github.com/suse/elemental/v3/internal/image"
-	"github.com/suse/elemental/v3/internal/image/os"
+	imginstall "github.com/suse/elemental/v3/internal/image/install"
 	"github.com/suse/elemental/v3/internal/manifest/extractor"
 	"github.com/suse/elemental/v3/pkg/bootloader"
 	"github.com/suse/elemental/v3/pkg/deployment"
@@ -89,7 +89,7 @@ func (b *Builder) Run(ctx context.Context, d *image.Definition, buildDir image.B
 	}
 
 	logger.Info("Creating RAW disk image")
-	if err = createDisk(runner, d.Image, d.OperatingSystem.DiskSize); err != nil {
+	if err = createDisk(runner, d.Image, d.Installation.DiskSize); err != nil {
 		logger.Error("Creating RAW disk image failed")
 		return err
 	}
@@ -213,7 +213,7 @@ func resolveManifest(fs vfs.FS, manifestURI string, buildDir image.BuildDir, loc
 	return m, nil
 }
 
-func createDisk(runner sys.Runner, img image.Image, diskSize os.DiskSize) error {
+func createDisk(runner sys.Runner, img image.Image, diskSize imginstall.DiskSize) error {
 	const defaultSize = "10G"
 
 	if diskSize == "" {
