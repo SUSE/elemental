@@ -400,6 +400,7 @@ func DefaultDeployment() *Deployment {
 					MountPoint: SystemMnt,
 					FileSystem: Btrfs,
 					Size:       AllAvailableSize,
+					MountOpts:  []string{"ro=vfs"},
 					RWVolumes: []RWVolume{
 						{Path: "/var", NoCopyOnWrite: true, MountOpts: []string{"x-initrd.mount"}},
 						{Path: "/root", MountOpts: []string{"x-initrd.mount"}},
