@@ -174,10 +174,11 @@ var _ = Describe("Kubernetes", func() {
 				},
 			}
 
-			script, err := builder.configureKubernetes(context.Background(), def, manifest, buildDir)
+			script, confScript, err := builder.configureKubernetes(context.Background(), def, manifest, buildDir)
 			Expect(err).To(HaveOccurred())
 			Expect(err).To(MatchError("configuring helm charts: helm error"))
 			Expect(script).To(BeEmpty())
+			Expect(confScript).To(BeEmpty())
 		})
 
 		It("Succeeds to configure RKE2 with additional resources", func() {
@@ -197,6 +198,9 @@ var _ = Describe("Kubernetes", func() {
 			def := &image.Definition{
 				Kubernetes: kubernetes.Kubernetes{
 					RemoteManifests: []string{"some-url"},
+					Nodes: kubernetes.Nodes{
+						{Hostname: "node1", Type: "server"},
+					},
 				},
 				Release: release.Release{
 					Components: release.Components{
@@ -209,7 +213,7 @@ var _ = Describe("Kubernetes", func() {
 				},
 			}
 
-			script, err := builder.configureKubernetes(context.Background(), def, manifest, buildDir)
+			script, confScript, err := builder.configureKubernetes(context.Background(), def, manifest, buildDir)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(script).To(Equal("/var/lib/elemental/kubernetes/k8s_res_deploy.sh"))
 
@@ -219,6 +223,9 @@ var _ = Describe("Kubernetes", func() {
 			Expect(string(b)).To(ContainSubstring("deployHelmCharts"))
 			Expect(string(b)).To(ContainSubstring("rancher.yaml"))
 			Expect(string(b)).To(ContainSubstring("deployManifests"))
+
+			_, err = fs.ReadFile(filepath.Join(buildDir.OverlaysDir(), confScript))
+			Expect(err).NotTo(HaveOccurred())
 		})
 
 		It("Succeeds to configure RKE2 without additional resources", func() {
@@ -242,9 +249,10 @@ var _ = Describe("Kubernetes", func() {
 				},
 			}
 
-			script, err := builder.configureKubernetes(context.Background(), def, manifest, buildDir)
+			script, confScript, err := builder.configureKubernetes(context.Background(), def, manifest, buildDir)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(script).To(BeEmpty())
+			Expect(confScript).ToNot(BeEmpty())
 		})
 	})
 })

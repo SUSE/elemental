@@ -30,10 +30,17 @@ import (
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
 
-const k8sExtension = "rke2"
+const (
+	k8sExtension            = "rke2"
+	k8sResDeployScriptName  = "k8s_res_deploy.sh"
+	k8sConfDeployScriptName = "k8s_conf_deploy.sh"
+)
 
 //go:embed templates/k8s_res_deploy.sh.tpl
 var k8sResDeployScriptTpl string
+
+//go:embed templates/k8s_conf_deploy.sh.tpl
+var k8sConfDeployScriptTpl string
 
 func needsManifestsSetup(def *image.Definition) bool {
 	return len(def.Kubernetes.RemoteManifests) > 0 || len(def.Kubernetes.LocalManifests) > 0
@@ -52,11 +59,11 @@ func (b *Builder) configureKubernetes(
 	def *image.Definition,
 	manifest *resolver.ResolvedManifest,
 	buildDir image.BuildDir,
-) (k8sResourceScript string, err error) {
+) (k8sResourceScript, k8sConfScript string, err error) {
 	if !isKubernetesEnabled(def) {
 		b.System.Logger().Info("Kubernetes is not enabled, skipping configuration")
 
-		return "", nil
+		return "", "", nil
 	}
 
 	var runtimeHelmCharts []string
@@ -65,7 +72,7 @@ func (b *Builder) configureKubernetes(
 
 		runtimeHelmCharts, err = b.Helm.Configure(def, manifest)
 		if err != nil {
-			return "", fmt.Errorf("configuring helm charts: %w", err)
+			return "", "", fmt.Errorf("configuring helm charts: %w", err)
 		}
 	}
 
@@ -75,18 +82,23 @@ func (b *Builder) configureKubernetes(
 
 		runtimeManifestsDir, err = b.setupManifests(ctx, &def.Kubernetes, buildDir)
 		if err != nil {
-			return "", fmt.Errorf("configuring kubernetes manifests: %w", err)
+			return "", "", fmt.Errorf("configuring kubernetes manifests: %w", err)
 		}
 	}
 
 	if len(runtimeHelmCharts) > 0 || runtimeManifestsDir != "" {
 		k8sResourceScript, err = writeK8sResDeployScript(b.System.FS(), buildDir, runtimeManifestsDir, runtimeHelmCharts)
 		if err != nil {
-			return "", fmt.Errorf("writing kubernetes resource deployment script: %w", err)
+			return "", "", fmt.Errorf("writing kubernetes resource deployment script: %w", err)
 		}
 	}
 
-	return k8sResourceScript, nil
+	k8sConfScript, err = writeK8sConfigDeployScript(b.System.FS(), buildDir, def.Kubernetes)
+	if err != nil {
+		return "", "", fmt.Errorf("writing kubernetes resource deployment script: %w", err)
+	}
+
+	return k8sResourceScript, k8sConfScript, nil
 }
 
 func (b *Builder) setupManifests(ctx context.Context, k *kubernetes.Kubernetes, buildDir image.BuildDir) (string, error) {
@@ -118,7 +130,6 @@ func (b *Builder) setupManifests(ctx context.Context, k *kubernetes.Kubernetes, 
 }
 
 func writeK8sResDeployScript(fs vfs.FS, buildDir image.BuildDir, runtimeManifestsDir string, runtimeHelmCharts []string) (string, error) {
-	const k8sResDeployScriptName = "k8s_res_deploy.sh"
 
 	values := struct {
 		HelmCharts   []string
@@ -142,6 +153,44 @@ func writeK8sResDeployScript(fs vfs.FS, buildDir image.BuildDir, runtimeManifest
 
 	fullPath := filepath.Join(destDir, k8sResDeployScriptName)
 	relativePath := filepath.Join(relativeK8sPath, k8sResDeployScriptName)
+
+	if err = fs.WriteFile(fullPath, []byte(data), 0o744); err != nil {
+		return "", fmt.Errorf("writing deployment script %q: %w", fullPath, err)
+	}
+
+	return relativePath, nil
+}
+
+func writeK8sConfigDeployScript(fs vfs.FS, buildDir image.BuildDir, k kubernetes.Kubernetes) (string, error) {
+	relativeK8sPath := filepath.Join("/", image.KubernetesPath())
+
+	values := struct {
+		Nodes         kubernetes.Nodes
+		APIVIP4       string
+		APIVIP6       string
+		APIHost       string
+		KubernetesDir string
+	}{
+		Nodes:         k.Nodes,
+		APIVIP4:       k.Network.APIVIP4,
+		APIVIP6:       k.Network.APIVIP6,
+		APIHost:       k.Network.APIHost,
+		KubernetesDir: relativeK8sPath,
+	}
+
+	data, err := template.Parse(k8sConfDeployScriptName, k8sConfDeployScriptTpl, &values)
+	if err != nil {
+		return "", fmt.Errorf("parsing deployment template: %w", err)
+	}
+
+	destDir := filepath.Join(buildDir.OverlaysDir(), relativeK8sPath)
+
+	if err = vfs.MkdirAll(fs, destDir, vfs.DirPerm); err != nil {
+		return "", fmt.Errorf("creating destination directory: %w", err)
+	}
+
+	fullPath := filepath.Join(destDir, k8sConfDeployScriptName)
+	relativePath := filepath.Join(relativeK8sPath, k8sConfDeployScriptName)
 
 	if err = fs.WriteFile(fullPath, []byte(data), 0o744); err != nil {
 		return "", fmt.Errorf("writing deployment script %q: %w", fullPath, err)

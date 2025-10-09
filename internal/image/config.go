@@ -21,8 +21,9 @@ import (
 	"bytes"
 	"path/filepath"
 
-	"github.com/suse/elemental/v3/pkg/deployment"
 	"go.yaml.in/yaml/v3"
+
+	"github.com/suse/elemental/v3/pkg/deployment"
 )
 
 type ConfigDir string
@@ -45,6 +46,10 @@ func (dir ConfigDir) ButaneFilepath() string {
 
 func (dir ConfigDir) kubernetesDir() string {
 	return filepath.Join(string(dir), "kubernetes")
+}
+
+func (dir ConfigDir) KubernetesConfigDir() string {
+	return filepath.Join(dir.kubernetesDir(), "config")
 }
 
 func (dir ConfigDir) KubernetesManifestsDir() string {

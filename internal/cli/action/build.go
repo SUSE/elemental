@@ -38,6 +38,7 @@ import (
 	"github.com/suse/elemental/v3/pkg/http"
 	"github.com/suse/elemental/v3/pkg/sys"
 	"github.com/suse/elemental/v3/pkg/sys/platform"
+	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
 
 func Build(ctx *cli.Context) error {
@@ -53,13 +54,13 @@ func Build(ctx *cli.Context) error {
 	defer cancelFunc()
 
 	logger.Info("Validating input args")
-	if err := validateArgs(args); err != nil {
+	if err := validateArgs(system.FS(), args); err != nil {
 		logger.Error("Input args are invalid")
 		return err
 	}
 
 	logger.Info("Reading image configuration")
-	definition, err := parseImageDefinition(args)
+	definition, err := parseImageDefinition(system.FS(), args)
 	if err != nil {
 		logger.Error("Parsing image configuration failed")
 		return err
@@ -67,7 +68,7 @@ func Build(ctx *cli.Context) error {
 
 	logger.Info("Validated image configuration")
 
-	buildDir, err := createBuildDir(args.BuildDir)
+	buildDir, err := createBuildDir(system.FS(), args.BuildDir)
 	if err != nil {
 		logger.Error("Creating build directory failed")
 		return err
@@ -97,8 +98,8 @@ func Build(ctx *cli.Context) error {
 	return nil
 }
 
-func validateArgs(args *cmd.BuildFlags) error {
-	_, err := os.Stat(args.ConfigDir)
+func validateArgs(fs vfs.FS, args *cmd.BuildFlags) error {
+	_, err := fs.Stat(args.ConfigDir)
 	if err != nil {
 		return fmt.Errorf("reading config directory: %w", err)
 	}
@@ -115,7 +116,7 @@ func validateArgs(args *cmd.BuildFlags) error {
 	return nil
 }
 
-func parseImageDefinition(args *cmd.BuildFlags) (*image.Definition, error) {
+func parseImageDefinition(f vfs.FS, args *cmd.BuildFlags) (*image.Definition, error) {
 	outputPath := args.OutputPath
 	if outputPath == "" {
 		imageName := fmt.Sprintf("image-%s.%s", time.Now().UTC().Format("2006-01-02T15-04-05"), args.ImageType)
@@ -137,7 +138,7 @@ func parseImageDefinition(args *cmd.BuildFlags) (*image.Definition, error) {
 
 	configDir := image.ConfigDir(args.ConfigDir)
 
-	data, err := os.ReadFile(configDir.InstallFilepath())
+	data, err := f.ReadFile(configDir.InstallFilepath())
 	if err != nil {
 		return nil, fmt.Errorf("reading config file: %w", err)
 	}
@@ -146,7 +147,7 @@ func parseImageDefinition(args *cmd.BuildFlags) (*image.Definition, error) {
 		return nil, fmt.Errorf("parsing config file %q: %w", configDir.InstallFilepath(), err)
 	}
 
-	data, err = os.ReadFile(configDir.ReleaseFilepath())
+	data, err = f.ReadFile(configDir.ReleaseFilepath())
 	if err != nil {
 		return nil, fmt.Errorf("reading config file: %w", err)
 	}
@@ -155,7 +156,7 @@ func parseImageDefinition(args *cmd.BuildFlags) (*image.Definition, error) {
 		return nil, fmt.Errorf("parsing config file %q: %w", configDir.ReleaseFilepath(), err)
 	}
 
-	data, err = os.ReadFile(configDir.KubernetesFilepath())
+	data, err = f.ReadFile(configDir.KubernetesFilepath())
 	if err == nil {
 		if err = image.ParseConfig(data, &definition.Kubernetes); err != nil {
 			return nil, fmt.Errorf("parsing config file %q: %w", configDir.KubernetesFilepath(), err)
@@ -164,7 +165,7 @@ func parseImageDefinition(args *cmd.BuildFlags) (*image.Definition, error) {
 		return nil, fmt.Errorf("reading config file: %w", err)
 	}
 
-	if err = parseKubernetesDir(configDir, &definition.Kubernetes); err != nil {
+	if err = parseKubernetesDir(f, configDir, &definition.Kubernetes); err != nil {
 		return nil, fmt.Errorf("parsing local kubernetes directory: %w", err)
 	}
 
@@ -172,7 +173,7 @@ func parseImageDefinition(args *cmd.BuildFlags) (*image.Definition, error) {
 		return nil, fmt.Errorf("parsing network directory: %w", err)
 	}
 
-	data, err = os.ReadFile(configDir.ButaneFilepath())
+	data, err = f.ReadFile(configDir.ButaneFilepath())
 	if err == nil {
 		if err = image.ParseConfig(data, &definition.ButaneConfig); err != nil {
 			return nil, fmt.Errorf("parsing config file %q: %w", configDir.ButaneFilepath(), err)
@@ -184,14 +185,14 @@ func parseImageDefinition(args *cmd.BuildFlags) (*image.Definition, error) {
 	return definition, nil
 }
 
-func createBuildDir(rootBuildDir string) (image.BuildDir, error) {
+func createBuildDir(fs vfs.FS, rootBuildDir string) (image.BuildDir, error) {
 	buildDirName := fmt.Sprintf("build-%s", time.Now().UTC().Format("2006-01-02T15-04-05"))
 	buildDirPath := filepath.Join(rootBuildDir, buildDirName)
-	return image.BuildDir(buildDirPath), os.MkdirAll(buildDirPath, 0700)
+	return image.BuildDir(buildDirPath), vfs.MkdirAll(fs, buildDirPath, 0700)
 }
 
-func parseKubernetesDir(configDir image.ConfigDir, k *kubernetes.Kubernetes) error {
-	entries, err := os.ReadDir(configDir.KubernetesManifestsDir())
+func parseKubernetesDir(f vfs.FS, configDir image.ConfigDir, k *kubernetes.Kubernetes) error {
+	entries, err := f.ReadDir(configDir.KubernetesManifestsDir())
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return nil
@@ -202,6 +203,18 @@ func parseKubernetesDir(configDir image.ConfigDir, k *kubernetes.Kubernetes) err
 	for _, entry := range entries {
 		localManifestPath := filepath.Join(configDir.KubernetesManifestsDir(), entry.Name())
 		k.LocalManifests = append(k.LocalManifests, localManifestPath)
+	}
+
+	k.Config = kubernetes.Config{}
+
+	serverYamlPath := filepath.Join(configDir.KubernetesConfigDir(), "server.yaml")
+	if exists, _ := vfs.Exists(f, serverYamlPath); exists {
+		k.Config.ServerFilePath = serverYamlPath
+	}
+
+	agentYamlPath := filepath.Join(configDir.KubernetesConfigDir(), "agent.yaml")
+	if exists, _ := vfs.Exists(f, agentYamlPath); exists {
+		k.Config.AgentFilePath = agentYamlPath
 	}
 
 	return nil

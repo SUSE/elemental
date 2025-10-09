@@ -22,14 +22,21 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/coreos/butane/base/v0_6"
+	"github.com/coreos/ignition/v2/config/util"
+	"go.yaml.in/yaml/v3"
+
 	"github.com/suse/elemental/v3/internal/butane"
 	"github.com/suse/elemental/v3/internal/image"
+	"github.com/suse/elemental/v3/internal/image/kubernetes"
 	"github.com/suse/elemental/v3/internal/template"
+	"github.com/suse/elemental/v3/pkg/sys"
 )
 
 const (
 	ensureSysextUnitName = "ensure-sysext.service"
 	k8sResourcesUnitName = "k8s-resource-installer.service"
+	k8sConfigUnitName    = "k8s-config-installer.service"
 )
 
 //go:embed templates/ensure-sysext.service
@@ -38,10 +45,13 @@ var ensureSysextUnit string
 //go:embed templates/k8s-resource-installer.service.tpl
 var k8sResourceUnitTpl string
 
+//go:embed templates/k8s-config-installer.service.tpl
+var k8sConfigUnitTpl string
+
 // configureIngition writes the ignition configuration file based on the provided butane configuration
 // and the given kubernetes configuration
-func (b *Builder) configureIgnition(def *image.Definition, buildDir image.BuildDir, k8sScript string) error {
-	if len(def.ButaneConfig) == 0 && k8sScript == "" {
+func (b *Builder) configureIgnition(def *image.Definition, buildDir image.BuildDir, k8sScript, k8sConfScript string) error {
+	if len(def.ButaneConfig) == 0 && k8sScript == "" && k8sConfScript == "" {
 		b.System.Logger().Info("No ignition configuration required")
 		return nil
 	}
@@ -77,6 +87,13 @@ func (b *Builder) configureIgnition(def *image.Definition, buildDir image.BuildD
 		config.AddSystemdUnit(k8sResourcesUnitName, k8sResourcesUnit, true)
 	}
 
+	if k8sConfScript != "" {
+		err := appendRke2Configuration(b.System, &config, &def.Kubernetes, k8sConfScript)
+		if err != nil {
+			return fmt.Errorf("failed appending rke2 configuration: %w", err)
+		}
+	}
+
 	ignitionFile := filepath.Join(buildDir.FirstbootConfigDir(), image.IgnitionFilePath())
 	return butane.WriteIgnitionFile(b.System, config, ignitionFile)
 }
@@ -94,5 +111,66 @@ func generateK8sResourcesUnit(deployScript string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("parsing config script template: %w", err)
 	}
+	return data, nil
+}
+
+func generateK8sConfigUnit(deployScript string) (string, error) {
+	values := struct {
+		ConfigDeployScript string
+	}{
+		ConfigDeployScript: deployScript,
+	}
+
+	data, err := template.Parse(k8sConfigUnitName, k8sConfigUnitTpl, &values)
+	if err != nil {
+		return "", fmt.Errorf("parsing config script template: %w", err)
+	}
+	return data, nil
+}
+
+func appendRke2Configuration(s *sys.System, config *butane.Config, k *kubernetes.Kubernetes, configScript string) error {
+	c, err := kubernetes.NewCluster(s, k)
+	if err != nil {
+		return fmt.Errorf("failed parsing cluster: %w", err)
+	}
+
+	k8sConfigUnit, err := generateK8sConfigUnit(configScript)
+	if err != nil {
+		return fmt.Errorf("failed generating k8s config unit: %w", err)
+	}
+
+	config.AddSystemdUnit(k8sConfigUnitName, k8sConfigUnit, true)
+
+	k8sPath := filepath.Join("/", image.KubernetesPath())
+
+	serverBytes, err := marshalConfig(c.ServerConfig)
+	if err != nil {
+		return fmt.Errorf("failed marshaling server config: %w", err)
+	}
+
+	config.Storage.Files = append(config.Storage.Files, v0_6.File{
+		Path:     filepath.Join(k8sPath, "server.yaml"),
+		Contents: v0_6.Resource{Inline: util.StrToPtr(string(serverBytes))},
+	})
+
+	agentBytes, err := marshalConfig(c.AgentConfig)
+	if err != nil {
+		return fmt.Errorf("failed marshaling agent config: %w", err)
+	}
+
+	config.Storage.Files = append(config.Storage.Files, v0_6.File{
+		Path:     filepath.Join(k8sPath, "agent.yaml"),
+		Contents: v0_6.Resource{Inline: util.StrToPtr(string(agentBytes))},
+	})
+
+	return nil
+}
+
+func marshalConfig(config map[string]any) ([]byte, error) {
+	data, err := yaml.Marshal(config)
+	if err != nil {
+		return nil, fmt.Errorf("serializing kubernetes config: %w", err)
+	}
+
 	return data, nil
 }
