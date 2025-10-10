@@ -1,10 +1,18 @@
 #!/bin/bash
 
-PACKAGE=tools-1.0
-PACKAGE_VERSION=${PACKAGE}.${ARCHITECTURE}
-echo "mkosi.finalize ${PACKAGE}" "$@"
+PACKAGE_VERSION="${IMAGE_VERSION}_${ARCHITECTURE}"
+EXTENSION="$(echo /buildroot/usr/lib/extension-release.d/extension-release.*_${PACKAGE_VERSION})"
+
 echo "extension-release version: $PACKAGE_VERSION"
-mv /buildroot/usr/lib/extension-release.d/extension-release.tools /buildroot/usr/lib/extension-release.d/extension-release.${PACKAGE_VERSION}
+echo "mkosi.finalize on: $EXTENSION"
+
+test -f "$EXTENSION" || { echo "cannot determine extension-release file"; exit 1; }
+
+cat - >> "$EXTENSION" <<EOF
+ID=_any
+VERSION_ID=_any
+EXTENSION_RELOAD_MANAGER=1
+EOF
 
 echo "SELinux labeling"
 restorecon -vR /buildroot/usr
