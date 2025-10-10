@@ -174,7 +174,7 @@ var _ = Describe("Upgrade", Label("upgrade"), func() {
 		t.CommitErr = fmt.Errorf("commit failed")
 		err := u.Upgrade(d)
 		Expect(err).To(HaveOccurred())
-		Expect(err).To(MatchError("commit failed"))
+		Expect(err).To(MatchError("committing transaction: commit failed"))
 		Expect(t.RollbackCalled()).To(BeTrue())
 	})
 	It("creates an efi boot entry", func() {

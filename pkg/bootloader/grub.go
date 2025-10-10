@@ -148,9 +148,20 @@ func (g Grub) Prune(rootPath string, keepSnapshotIDs []int, d *deployment.Deploy
 		return fmt.Errorf("ESP not found")
 	}
 
-	g.s.Logger().Info("Pruning old boot artifacts in ", esp.Label)
+	g.s.Logger().Info("Pruning old boot artifacts in %s", esp.Label)
 
-	grubEnvPath := filepath.Join(rootPath, esp.MountPoint, "grubenv")
+	bootDir := filepath.Join(rootPath, esp.MountPoint)
+	err := vfs.MkdirAll(g.s.FS(), bootDir, vfs.DirPerm)
+	if err != nil {
+		return fmt.Errorf("failed creating target directory %s: %w", bootDir, err)
+	}
+
+	err = g.s.Mounter().Mount(filepath.Join("/dev/disk/by-label/", esp.Label), bootDir, esp.FileSystem.String(), esp.MountOpts)
+	if err != nil {
+		return fmt.Errorf("failed mounting ESP to %s: %w", bootDir, err)
+	}
+
+	grubEnvPath := filepath.Join(bootDir, "grubenv")
 	grubEnv, err := g.readGrubEnv(grubEnvPath)
 	if err != nil {
 		return fmt.Errorf("reading grubenv: %w", err)

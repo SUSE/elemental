@@ -187,17 +187,17 @@ func (u Upgrader) Upgrade(d *deployment.Deployment) (err error) {
 		}
 	}
 
+	err = u.t.Commit(trans)
+	if err != nil {
+		return fmt.Errorf("committing transaction: %w", err)
+	}
+
 	snapshots, err := u.t.GetActiveSnapshotIDs()
 	if err != nil {
 		return fmt.Errorf("get active snapshots: %w", err)
 	}
 
-	err = u.b.Prune(trans.Path, snapshots, d)
-	if err != nil {
-		return fmt.Errorf("pruning bootloader artifacts: %w", err)
-	}
-
-	return u.t.Commit(trans)
+	return u.b.Prune(trans.Path, snapshots, d)
 }
 
 func (u Upgrader) configHook(config string, root string) error {
