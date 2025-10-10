@@ -31,6 +31,7 @@ import (
 
 	"github.com/joho/godotenv"
 
+	"github.com/suse/elemental/v3/pkg/cleanstack"
 	"github.com/suse/elemental/v3/pkg/deployment"
 	"github.com/suse/elemental/v3/pkg/rsync"
 	"github.com/suse/elemental/v3/pkg/sys"
@@ -39,7 +40,8 @@ import (
 )
 
 type Grub struct {
-	s *sys.System
+	s     *sys.System
+	clean *cleanstack.CleanStack
 }
 
 type grubBootEntry struct {
@@ -51,7 +53,7 @@ type grubBootEntry struct {
 }
 
 func NewGrub(s *sys.System) *Grub {
-	return &Grub{s}
+	return &Grub{s, cleanstack.NewCleanStack()}
 }
 
 const (
@@ -142,7 +144,7 @@ func (g *Grub) Install(rootPath, snapshotID, kernelCmdline string, d *deployment
 }
 
 // Prune prunes old boot entries and artifacts not in the passed in keepSnapshotIDs.
-func (g Grub) Prune(rootPath string, keepSnapshotIDs []int, d *deployment.Deployment) error {
+func (g Grub) Prune(rootPath string, keepSnapshotIDs []int, d *deployment.Deployment) (err error) {
 	esp := d.GetEfiSystemPartition()
 	if esp == nil {
 		return fmt.Errorf("ESP not found")
@@ -151,7 +153,7 @@ func (g Grub) Prune(rootPath string, keepSnapshotIDs []int, d *deployment.Deploy
 	g.s.Logger().Info("Pruning old boot artifacts in %s", esp.Label)
 
 	bootDir := filepath.Join(rootPath, esp.MountPoint)
-	err := vfs.MkdirAll(g.s.FS(), bootDir, vfs.DirPerm)
+	err = vfs.MkdirAll(g.s.FS(), bootDir, vfs.DirPerm)
 	if err != nil {
 		return fmt.Errorf("failed creating target directory %s: %w", bootDir, err)
 	}
@@ -160,6 +162,9 @@ func (g Grub) Prune(rootPath string, keepSnapshotIDs []int, d *deployment.Deploy
 	if err != nil {
 		return fmt.Errorf("failed mounting ESP to %s: %w", bootDir, err)
 	}
+	g.clean.Push(func() error { return g.s.Mounter().Unmount(bootDir) })
+
+	defer func() { _ = g.clean.Cleanup(err) }()
 
 	grubEnvPath := filepath.Join(bootDir, "grubenv")
 	grubEnv, err := g.readGrubEnv(grubEnvPath)
