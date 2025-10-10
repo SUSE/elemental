@@ -65,7 +65,7 @@ type snapperT struct {
 	hwPartitions block.PartitionList
 }
 
-func NewSnapperTransaction(ctx context.Context, s *sys.System) Interface {
+func NewSnapper(ctx context.Context, s *sys.System) Interface {
 	sc := snapperContext{
 		ctx:          ctx,
 		s:            s,

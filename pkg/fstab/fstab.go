@@ -43,8 +43,8 @@ type Line struct {
 	FsckOrder  int
 }
 
-// WriteFstab writes an fstab file at the given location including the given fstab lines
-func WriteFstab(s *sys.System, fstabFile string, fstabLines []Line) (err error) {
+// Write writes an fstab file at the given location including the given fstab lines
+func Write(s *sys.System, fstabFile string, fstabLines []Line) (err error) {
 	fstab, err := s.FS().Create(fstabFile)
 	if err != nil {
 		return fmt.Errorf("creating file: %w", err)
@@ -64,8 +64,8 @@ func WriteFstab(s *sys.System, fstabFile string, fstabLines []Line) (err error) 
 	return nil
 }
 
-// UpdateFstab updates the given fstab file by replacing each oldLine with its newLine.
-func UpdateFstab(s *sys.System, fstabFile string, oldLines, newLines []Line) (err error) {
+// Update updates the given fstab file by replacing each oldLine with its newLine.
+func Update(s *sys.System, fstabFile string, oldLines, newLines []Line) (err error) {
 	if len(oldLines) != len(newLines) {
 		return fmt.Errorf("length of new and old lines must match")
 	}

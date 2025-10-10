@@ -391,7 +391,7 @@ func (sc snapperContext) updateFstab(trans *Transaction) error {
 		}
 	}
 	fstabFile := filepath.Join(trans.Path, fstab.File)
-	return fstab.UpdateFstab(sc.s, fstabFile, oldLines, newLines)
+	return fstab.Update(sc.s, fstabFile, oldLines, newLines)
 }
 
 // createFstab creates the fstab file with the given transaction data
@@ -447,5 +447,5 @@ func (sc snapperContext) createFstab(trans *Transaction) error {
 		}
 	}
 
-	return fstab.WriteFstab(sc.s, filepath.Join(trans.Path, fstab.File), fstabLines)
+	return fstab.Write(sc.s, filepath.Join(trans.Path, fstab.File), fstabLines)
 }

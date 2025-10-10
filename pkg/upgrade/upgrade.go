@@ -70,6 +70,12 @@ func WithBootloader(b bootloader.Bootloader) Option {
 	}
 }
 
+func WithSnapshotter(s transaction.Interface) Option {
+	return func(u *Upgrader) {
+		u.t = s
+	}
+}
+
 func WithUnpackOpts(opts ...unpack.Opt) Option {
 	return func(u *Upgrader) {
 		u.unpackOpts = opts
@@ -85,7 +91,7 @@ func New(ctx context.Context, s *sys.System, opts ...Option) *Upgrader {
 		o(up)
 	}
 	if up.t == nil {
-		up.t = transaction.NewSnapperTransaction(ctx, s)
+		up.t = transaction.NewSnapper(ctx, s)
 	}
 	if up.b == nil {
 		up.b = bootloader.NewNone(s)
