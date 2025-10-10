@@ -51,6 +51,8 @@ type Interface interface {
 	Start() (*Transaction, error)
 	Commit(*Transaction) error
 	Rollback(*Transaction, error) error
+
+	GetActiveSnapshotIDs() ([]int, error)
 }
 
 type UpgradeHelper interface {
