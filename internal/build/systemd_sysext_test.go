@@ -30,6 +30,12 @@ import (
 )
 
 var _ = Describe("Systemd extensions", func() {
+	It("Detects remote sources", func() {
+		Expect(isRemoteURL("http://example.com/extension.raw")).To(BeTrue(), "http")
+		Expect(isRemoteURL("https://example.com/extension.raw")).To(BeTrue(), "https")
+		Expect(isRemoteURL("registry.example.com/extension:0.0.1")).To(BeFalse(), "oci")
+		Expect(isRemoteURL("raw:///etc/extension.raw")).To(BeFalse(), "custom")
+	})
 
 	Describe("Filtering", func() {
 		It("Fails to list enabled Helm charts", func() {

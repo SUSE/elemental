@@ -20,6 +20,8 @@ package build
 import (
 	"context"
 	"fmt"
+	iofs "io/fs"
+	"net/url"
 	"path/filepath"
 	"slices"
 
@@ -27,7 +29,9 @@ import (
 	"github.com/suse/elemental/v3/internal/image/release"
 	"github.com/suse/elemental/v3/pkg/manifest/api"
 	"github.com/suse/elemental/v3/pkg/manifest/resolver"
+	"github.com/suse/elemental/v3/pkg/rsync"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
+	"github.com/suse/elemental/v3/pkg/unpack"
 )
 
 func (b *Builder) downloadSystemExtensions(ctx context.Context, def *image.Definition, rm *resolver.ResolvedManifest, buildDir image.BuildDir) error {
@@ -46,17 +50,98 @@ func (b *Builder) downloadSystemExtensions(ctx context.Context, def *image.Defin
 	}
 
 	for _, extension := range extensions {
-		b.System.Logger().Info("Downloading extension %s from %s...",
+		b.System.Logger().Info("Pulling extension %s from %s...",
 			extension.Name, extension.Image)
 
-		extensionPath := filepath.Join(extensionsDir, filepath.Base(extension.Image))
+		if isRemoteURL(extension.Image) {
+			extensionPath := filepath.Join(extensionsDir, filepath.Base(extension.Image))
+			if err = b.DownloadFile(ctx, fs, extension.Image, extensionPath); err != nil {
+				return fmt.Errorf("downloading systemd extension %s: %w", extension.Name, err)
+			}
 
-		if err = b.DownloadFile(ctx, fs, extension.Image, extensionPath); err != nil {
-			return fmt.Errorf("downloading systemd extension %s: %w", extension.Name, err)
+			continue
+		}
+
+		if err = b.unpackExtension(ctx, extension, extensionsDir); err != nil {
+			return fmt.Errorf("unpacking systemd extension %s: %w", extension.Name, err)
 		}
 	}
 
 	return nil
+}
+
+func isRemoteURL(s string) bool {
+	u, err := url.Parse(s)
+	if err != nil {
+		return false
+	}
+
+	return u.Scheme == "http" || u.Scheme == "https"
+}
+
+func (b *Builder) unpackExtension(ctx context.Context, extension api.SystemdExtension, extensionsDir string) error {
+	fs := b.System.FS()
+
+	tempDir, err := vfs.TempDir(fs, "", fmt.Sprintf("%s-", extension.Name))
+	if err != nil {
+		return fmt.Errorf("creating temp directory: %w", err)
+	}
+	defer func() {
+		_ = fs.RemoveAll(tempDir)
+	}()
+
+	unpacker := unpack.NewOCIUnpacker(b.System, extension.Image, unpack.WithLocalOCI(b.Local))
+	if _, err = unpacker.Unpack(ctx, tempDir); err != nil {
+		return fmt.Errorf("unpacking extension: %w", err)
+	}
+
+	entries, err := fs.ReadDir(tempDir)
+	if err != nil {
+		return fmt.Errorf("reading unpacked directory: %w", err)
+	}
+
+	if len(entries) == 1 {
+		entry := entries[0]
+		if !entry.IsDir() {
+			file := filepath.Join(tempDir, entry.Name())
+			if err = vfs.CopyFile(fs, file, extensionsDir); err != nil {
+				return fmt.Errorf("copying extension file %s: %w", file, err)
+			}
+
+			return nil
+		}
+	}
+
+	if !slices.ContainsFunc(entries, func(entry iofs.DirEntry) bool {
+		return entry.Name() == "usr" && entry.IsDir()
+	}) {
+		return fmt.Errorf("invalid extension: either a single image file or a /usr directory is required")
+	}
+
+	sync := rsync.NewRsync(b.System, rsync.WithContext(ctx))
+	syncDirectory := func(dirName string) error {
+		sourcePath := filepath.Join(tempDir, dirName)
+		if exists, _ := vfs.Exists(fs, sourcePath); !exists {
+			return nil
+		}
+
+		targetPath := filepath.Join(extensionsDir, extension.Name, dirName)
+		if err = vfs.MkdirAll(fs, targetPath, 0755); err != nil {
+			return fmt.Errorf("creating extension directory /%s: %w", dirName, err)
+		}
+
+		if err = sync.SyncData(sourcePath, targetPath); err != nil {
+			return fmt.Errorf("syncing extension directory /%s: %w", dirName, err)
+		}
+
+		return nil
+	}
+
+	if err = syncDirectory("usr"); err != nil {
+		return err
+	}
+
+	return syncDirectory("opt")
 }
 
 func isExtensionExplicitlyEnabled(name string, def *image.Definition) bool {
