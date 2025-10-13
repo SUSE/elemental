@@ -198,7 +198,12 @@ func (u Upgrader) Upgrade(d *deployment.Deployment) (err error) {
 		return fmt.Errorf("committing transaction: %w", err)
 	}
 
-	return nil
+	snapshots, err := u.t.GetActiveSnapshotIDs()
+	if err != nil {
+		return fmt.Errorf("get active snapshots: %w", err)
+	}
+
+	return u.b.Prune(trans.Path, snapshots, d)
 }
 
 func (u Upgrader) configHook(config string, root string) error {
