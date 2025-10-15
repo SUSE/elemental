@@ -189,24 +189,22 @@ type RWVolume struct {
 type RWVolumes []RWVolume
 
 type Partition struct {
-	Label       string     `yaml:"label,omitempty"`
-	FileSystem  FileSystem `yaml:"fileSystem,omitempty"`
-	Size        MiB        `yaml:"size,omitempty"`
-	Role        PartRole   `yaml:"role"`
-	StartSector uint       `yaml:"startSector,omitempty"`
-	MountPoint  string     `yaml:"mountPoint,omitempty"`
-	MountOpts   []string   `yaml:"mountOpts,omitempty"`
-	RWVolumes   RWVolumes  `yaml:"rwVolumes,omitempty"`
-	UUID        string     `yaml:"uuid,omitempty"`
-	Hidden      bool       `yaml:"hidden,omitempty"`
+	Label      string     `yaml:"label,omitempty"`
+	FileSystem FileSystem `yaml:"fileSystem,omitempty"`
+	Size       MiB        `yaml:"size,omitempty"`
+	Role       PartRole   `yaml:"role"`
+	MountPoint string     `yaml:"mountPoint,omitempty"`
+	MountOpts  []string   `yaml:"mountOpts,omitempty"`
+	RWVolumes  RWVolumes  `yaml:"rwVolumes,omitempty"`
+	UUID       string     `yaml:"uuid,omitempty"`
+	Hidden     bool       `yaml:"hidden,omitempty"`
 }
 
 type Partitions []*Partition
 
 type Disk struct {
-	Device      string     `yaml:"target,omitempty"`
-	Partitions  Partitions `yaml:"partitions"`
-	StartSector uint       `yaml:"startSector,omitempty"`
+	Device     string     `yaml:"target,omitempty"`
+	Partitions Partitions `yaml:"partitions"`
 }
 
 type BootConfig struct {
@@ -291,8 +289,19 @@ var sanitizers = []SanitizeDeployment{
 	checkKernelCmdline, CheckSourceOS, CheckDiskDevice,
 }
 
-// GetSystemPartition gets the data of the system partition.
-// returns nil if not found
+// GetSystemPartition returns the system partition from the disk.
+// returns nil if not found.
+func (d Disk) GetSystemPartition() *Partition {
+	for _, part := range d.Partitions {
+		if part.Role == System {
+			return part
+		}
+	}
+	return nil
+}
+
+// GetSystemPartition returns the system partition from the disk.
+// returns nil if not found.
 func (d Deployment) GetSystemPartition() *Partition {
 	for _, disk := range d.Disks {
 		for _, part := range disk.Partitions {

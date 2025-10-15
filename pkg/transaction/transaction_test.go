@@ -43,7 +43,7 @@ const lsblkJson = `{
 	   {
 		  "label": "EFI",
 		  "partlabel": "efi",
-		  "uuid": "34A8-ABB8",
+		  "partuuid": "c60d1845-7b04-4fc4-8639-8c49eb7277d5",
 		  "size": 272629760,
 		  "fstype": "vfat",
 		  "mountpoints": [
@@ -55,7 +55,7 @@ const lsblkJson = `{
 	   },{
 		  "label": "SYSTEM",
 		  "partlabel": "system",
-		  "uuid": "34a8abb8-ddb3-48a2-8ecc-2443e92c7510",
+		  "partuuid": "34a8abb8-ddb3-48a2-8ecc-2443e92c7510",
 		  "size": 2726297600,
 		  "fstype": "btrfs",
 		  "mountpoints": [
@@ -67,7 +67,7 @@ const lsblkJson = `{
 	   },{
 		  "label": "DATA",
 		  "partlabel": "",
-		  "uuid": "2443e92c-ddb3-48a2-8ecc-34a8abb87510",
+		  "partuuid": "2443e92c-ddb3-48a2-8ecc-34a8abb87510",
 		  "size": 2726297600,
 		  "fstype": "btrfs",
 		  "mountpoints": [
@@ -79,7 +79,7 @@ const lsblkJson = `{
 	   },{
 		  "label": "HIDDEN",
 		  "partlabel": "",
-		  "uuid": "d7dd841f-aeaa-4fe3-a383-8913f4e8d4de",
+		  "partuuid": "d7dd841f-aeaa-4fe3-a383-8913f4e8d4de",
 		  "size": 2726297600,
 		  "fstype": "btrfs",
 		  "mountpoints": [
@@ -214,7 +214,7 @@ func snapperContextMock() {
 	Expect(vfs.MkdirAll(tfs, "/etc", vfs.DirPerm)).To(Succeed())
 	ctx, cancel = context.WithCancel(context.Background())
 	d = deployment.DefaultDeployment()
-	d.Disks[0].Partitions[0].UUID = "34A8-ABB8"
+	d.Disks[0].Partitions[0].UUID = "c60d1845-7b04-4fc4-8639-8c49eb7277d5"
 	d.Disks[0].Partitions[1].UUID = "34a8abb8-ddb3-48a2-8ecc-2443e92c7510"
 	d.Disks[0].Partitions[1].Size = 4096
 	d.Disks[0].Partitions = append(d.Disks[0].Partitions, &deployment.Partition{

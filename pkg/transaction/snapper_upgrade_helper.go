@@ -383,7 +383,7 @@ func (sc snapperContext) updateFstab(trans *Transaction) error {
 			opts := rwVol.MountOpts
 			oldLines = append(oldLines, fstab.Line{MountPoint: rwVol.Path})
 			newLines = append(newLines, fstab.Line{
-				Device:     fmt.Sprintf("UUID=%s", part.UUID),
+				Device:     fmt.Sprintf("PARTUUID=%s", part.UUID),
 				MountPoint: rwVol.Path,
 				Options:    append(opts, fmt.Sprintf("subvol=%s", subVol)),
 				FileSystem: part.FileSystem.String(),
@@ -413,7 +413,7 @@ func (sc snapperContext) createFstab(trans *Transaction) error {
 			if len(opts) == 0 {
 				opts = []string{"defaults"}
 			}
-			line.Device = fmt.Sprintf("UUID=%s", part.UUID)
+			line.Device = fmt.Sprintf("PARTUUID=%s", part.UUID)
 			line.MountPoint = part.MountPoint
 			line.Options = opts
 			line.FileSystem = part.FileSystem.String()
@@ -430,7 +430,7 @@ func (sc snapperContext) createFstab(trans *Transaction) error {
 			}
 			opts := rwVol.MountOpts
 			opts = append(opts, fmt.Sprintf("subvol=%s", subVol))
-			line.Device = fmt.Sprintf("UUID=%s", part.UUID)
+			line.Device = fmt.Sprintf("PARTUUID=%s", part.UUID)
 			line.MountPoint = rwVol.Path
 			line.Options = opts
 			line.FileSystem = part.FileSystem.String()
@@ -439,7 +439,7 @@ func (sc snapperContext) createFstab(trans *Transaction) error {
 		if part.Role == deployment.System {
 			var line fstab.Line
 			subVol := filepath.Join(btrfs.TopSubVol, snapper.SnapshotsPath)
-			line.Device = fmt.Sprintf("UUID=%s", part.UUID)
+			line.Device = fmt.Sprintf("PARTUUID=%s", part.UUID)
 			line.MountPoint = filepath.Join("/", snapper.SnapshotsPath)
 			line.Options = []string{fmt.Sprintf("subvol=%s", subVol)}
 			line.FileSystem = part.FileSystem.String()

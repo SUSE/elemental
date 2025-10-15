@@ -39,7 +39,7 @@ func TestSELinuxSuite(t *testing.T) {
 	RunSpecs(t, "SELinux test suite")
 }
 
-var _ = Describe("DiskRepart", Label("diskrepart"), func() {
+var _ = Describe("Selinux", Label("selinux"), func() {
 	var runner *sysmock.Runner
 	var mounter *sysmock.Mounter
 	var syscall *sysmock.Syscall

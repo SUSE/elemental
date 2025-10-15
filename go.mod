@@ -8,7 +8,6 @@ require (
 	github.com/coreos/butane v0.25.1
 	github.com/distribution/reference v0.6.0
 	github.com/google/go-containerregistry v0.20.6
-	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
 	github.com/onsi/ginkgo/v2 v2.27.1
 	github.com/onsi/gomega v1.38.2

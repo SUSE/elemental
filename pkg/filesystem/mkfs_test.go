@@ -15,7 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package diskrepart_test
+package filesystem_test
 
 import (
 	"fmt"
@@ -23,7 +23,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/suse/elemental/v3/pkg/diskrepart"
+	"github.com/suse/elemental/v3/pkg/filesystem"
 	"github.com/suse/elemental/v3/pkg/log"
 	"github.com/suse/elemental/v3/pkg/sys"
 	sysmock "github.com/suse/elemental/v3/pkg/sys/mock"
@@ -44,29 +44,25 @@ var _ = Describe("mkfs", Label("mkfs"), func() {
 		Expect(err).ToNot(HaveOccurred())
 	})
 	It("Successfully formats a partition with xfs", func() {
-		mkfs := diskrepart.NewMkfsCall(s, "/dev/device", "xfs", "OEM", validUUID)
+		mkfs := filesystem.NewMkfsCall(s, "/dev/device", "xfs", "OEM", validUUID)
 		Expect(mkfs.Apply()).To(Succeed())
 		cmds := [][]string{{"mkfs.xfs", "-L", "OEM", "-m", fmt.Sprintf("uuid=%s", validUUID), "-f", "/dev/device"}}
 		Expect(runner.CmdsMatch(cmds)).To(BeNil())
 	})
 	It("Successfully formats a partition with btrfs", func() {
-		mkfs := diskrepart.NewMkfsCall(s, "/dev/device", "btrfs", "", validUUID, "--customopt")
+		mkfs := filesystem.NewMkfsCall(s, "/dev/device", "btrfs", "", validUUID, "--customopt")
 		Expect(mkfs.Apply()).To(Succeed())
 		cmds := [][]string{{"mkfs.btrfs", "-U", validUUID, "-f", "--customopt", "/dev/device"}}
 		Expect(runner.CmdsMatch(cmds)).To(BeNil())
 	})
 	It("Successfully formats a partition with vfat", func() {
-		mkfs := diskrepart.NewMkfsCall(s, "/dev/device", "vfat", "EFI", strings.Split(validUUID, "-")[0])
+		mkfs := filesystem.NewMkfsCall(s, "/dev/device", "vfat", "EFI", strings.Split(validUUID, "-")[0])
 		Expect(mkfs.Apply()).To(Succeed())
 		cmds := [][]string{{"mkfs.vfat", "-n", "EFI", "-i", vfatUUID, "/dev/device"}}
 		Expect(runner.CmdsMatch(cmds)).To(BeNil())
 	})
-	It("Fails with invalid UUIDs", func() {
-		mkfs := diskrepart.NewMkfsCall(s, "/dev/device", "ext4", "OEM", invalidUUID)
-		Expect(mkfs.Apply()).ToNot(Succeed())
-	})
 	It("Fails for unsupported filesystem", func() {
-		mkfs := diskrepart.NewMkfsCall(s, "/dev/device", "zfs", "OEM", validUUID)
+		mkfs := filesystem.NewMkfsCall(s, "/dev/device", "zfs", "OEM", validUUID)
 		Expect(mkfs.Apply()).ToNot(Succeed())
 	})
 })

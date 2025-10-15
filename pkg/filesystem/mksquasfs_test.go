@@ -15,7 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package diskrepart_test
+package filesystem_test
 
 import (
 	"context"
@@ -23,7 +23,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/suse/elemental/v3/pkg/diskrepart"
+	"github.com/suse/elemental/v3/pkg/filesystem"
 	"github.com/suse/elemental/v3/pkg/log"
 	"github.com/suse/elemental/v3/pkg/sys"
 	sysmock "github.com/suse/elemental/v3/pkg/sys/mock"
@@ -54,27 +54,27 @@ var _ = Describe("Mksquashfs", Label("mksquashfs"), func() {
 		cleanup()
 	})
 	It("Creates a squashfs image form the given root without compression", func() {
-		Expect(diskrepart.CreateSquashFS(
+		Expect(filesystem.CreateSquashFS(
 			context.Background(), s, "/some/root", "/some/rootfs.squashfs",
-			diskrepart.SquashfsNoCompressionOptions(),
+			filesystem.SquashfsNoCompressionOptions(),
 		)).To(Succeed())
 		Expect(runner.CmdsMatch([][]string{
 			{"mksquashfs", "/some/root", "/some/rootfs.squashfs", "-no-compression"},
 		})).To(Succeed())
 	})
 	It("Creates a squashfs image form the given root excluding a folder", func() {
-		Expect(diskrepart.CreateSquashFS(
+		Expect(filesystem.CreateSquashFS(
 			context.Background(), s, "/some/root", "/some/rootfs.squashfs",
-			diskrepart.SquashfsExcludeOptions("subdir*"),
+			filesystem.SquashfsExcludeOptions("subdir*"),
 		)).To(Succeed())
 		Expect(runner.CmdsMatch([][]string{
 			{"mksquashfs", "/some/root", "/some/rootfs.squashfs", "-wildcards", "-e", "subdir*"},
 		})).To(Succeed())
 	})
 	It("Creates a squashfs image with default parameters", func() {
-		Expect(diskrepart.CreateSquashFS(
+		Expect(filesystem.CreateSquashFS(
 			context.Background(), s, "/some/root", "/some/rootfs.squashfs",
-			diskrepart.DefaultSquashfsCompressionOptions(),
+			filesystem.DefaultSquashfsCompressionOptions(),
 		)).To(Succeed())
 		Expect(runner.CmdsMatch([][]string{
 			{"mksquashfs", "/some/root", "/some/rootfs.squashfs", "-b", "1024k"},
