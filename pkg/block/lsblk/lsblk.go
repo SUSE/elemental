@@ -39,7 +39,7 @@ var _ block.Device = (*lsDevice)(nil)
 type jPart struct {
 	Label       string   `json:"label,omitempty"`
 	Name        string   `json:"partlabel,omitempty"`
-	UUID        string   `json:"uuid,omitempty"`
+	UUID        string   `json:"partuuid,omitempty"`
 	Size        uint64   `json:"size,omitempty"`
 	FS          string   `json:"fstype,omitempty"`
 	MountPoints []string `json:"mountpoints,omitempty"`
@@ -103,10 +103,35 @@ func unmarshalLsblk(lsblkOut []byte) ([]*block.Partition, error) {
 	return parts, nil
 }
 
+func unmarshalSectorSize(lsblkOut []byte) (uint, error) {
+	var objmap map[string]*json.RawMessage
+	err := json.Unmarshal(lsblkOut, &objmap)
+	if err != nil {
+		return 0, err
+	}
+
+	if _, ok := objmap["blockdevices"]; !ok {
+		return 0, errors.New("invalid json object, no 'blockdevices' key found")
+	}
+
+	devices := []struct {
+		Name       string `json:"name,omitempty"`
+		SectorSize uint   `json:"phy-sec,omitempty"`
+	}{}
+	err = json.Unmarshal(*objmap["blockdevices"], &devices)
+	if err != nil {
+		return 0, err
+	}
+	if len(devices) == 0 {
+		return 0, fmt.Errorf("no devices reported by lsblk")
+	}
+	return devices[0].SectorSize, nil
+}
+
 // GetAllPartitions gets a slice of all partition devices found in the host
 // mapped into a v1.PartitionList object.
 func (l lsDevice) GetAllPartitions() (block.PartitionList, error) {
-	out, err := l.runner.Run("lsblk", "-p", "-b", "-n", "-J", "--output", "LABEL,PARTLABEL,UUID,SIZE,FSTYPE,MOUNTPOINTS,PATH,PKNAME,TYPE")
+	out, err := l.runner.Run("lsblk", "-p", "-b", "-n", "-J", "--output", "LABEL,PARTLABEL,PARTUUID,SIZE,FSTYPE,MOUNTPOINTS,PATH,PKNAME,TYPE")
 	if err != nil {
 		return nil, err
 	}
@@ -118,12 +143,31 @@ func (l lsDevice) GetAllPartitions() (block.PartitionList, error) {
 // into a v1.PartitionList object. If the device is a disk it will list all disk
 // partitions, if the device is already a partition it will simply list a single partition.
 func (l lsDevice) GetDevicePartitions(device string) (block.PartitionList, error) {
-	out, err := l.runner.Run("lsblk", "-p", "-b", "-n", "-J", "--output", "LABEL,PARTLABEL,UUID,SIZE,FSTYPE,MOUNTPOINTS,PATH,PKNAME,TYPE", device)
+	out, err := l.runner.Run("lsblk", "-p", "-b", "-n", "-J", "--output", "LABEL,PARTLABEL,PARTUUID,SIZE,FSTYPE,MOUNTPOINTS,PATH,PKNAME,TYPE", device)
 	if err != nil {
 		return nil, err
 	}
 
 	return unmarshalLsblk(out)
+}
+
+// GetDeviceSectorSize returns the physical sector size for the given block device
+func (l lsDevice) GetDeviceSectorSize(device string) (uint, error) {
+	out, err := l.runner.Run("lsblk", "-J", "-d", "-o", "NAME,PHY-SEC", device)
+	if err != nil {
+		return 0, err
+	}
+
+	size, err := unmarshalSectorSize(out)
+	if err != nil {
+		return 0, err
+	}
+
+	if size == 0 {
+		return 0, fmt.Errorf("no sector size reported by lsblk %v", device)
+	}
+
+	return unmarshalSectorSize(out)
 }
 
 // GetPartitionFS gets the filesystem type for the given partition device. If the given device

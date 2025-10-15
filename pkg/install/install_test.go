@@ -20,7 +20,7 @@ package install_test
 import (
 	"context"
 	"fmt"
-	"strings"
+	"slices"
 	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -39,27 +39,26 @@ func TestInstallSuite(t *testing.T) {
 	RunSpecs(t, "Install test suite")
 }
 
-const sgdiskEmpty = `Disk /dev/sda: 500118192 sectors, 238.5 GiB
-Logical sector size: 512 bytes
-Disk identifier (GUID): CE4AA9A2-59DF-4DCC-B55A-A27A80676B33
-Partition table holds up to 128 entries
-First usable sector is 34, last usable sector is 500118158
-Partitions will be aligned on 2048-sector boundaries
-`
+const systemdRepartJson = `[
+	{"uuid" : "c60d1845-7b04-4fc4-8639-8c49eb7277d5", "partno" : 0},
+	{"uuid" : "34a8abb8-ddb3-48a2-8ecc-2443e92c7510", "partno" : 1}
+]`
 
-const firstPart = `
-Number  Start (sector)    End (sector)  Size       Code  Name
-   1            2048          2099199  1024 MiB    EF00  
-`
-
-const secondPart = `2099200        500118158  237.5 GiB   8300  `
+const sectorSizeJson = `{
+   "blockdevices": [
+      {
+         "name": "device",
+         "phy-sec": 512
+      }
+   ]
+}`
 
 const lsblkJson = `{
 	"blockdevices": [
 	   {
 		  "label": "EFI",
 		  "partlabel": "efi",
-		  "uuid": "34A8-ABB8",
+		  "partuuid": "c60d1845-7b04-4fc4-8639-8c49eb7277d5",
 		  "size": 272629760,
 		  "fstype": "vfat",
 		  "mountpoints": [
@@ -71,7 +70,7 @@ const lsblkJson = `{
 	   },{
 		  "label": "SYSTEM",
 		  "partlabel": "system",
-		  "uuid": "34a8abb8-ddb3-48a2-8ecc-2443e92c7510",
+		  "partuuid": "34a8abb8-ddb3-48a2-8ecc-2443e92c7510",
 		  "size": 2726297600,
 		  "fstype": "btrfs",
 		  "mountpoints": [
@@ -101,7 +100,6 @@ var _ = Describe("Install", Label("install"), func() {
 	var d *deployment.Deployment
 	var i *install.Installer
 	var upgrader *upgraderMock
-	var table string
 	var sideEffects map[string]func(...string) ([]byte, error)
 	BeforeEach(func() {
 		var err error
@@ -123,12 +121,11 @@ var _ = Describe("Install", Label("install"), func() {
 		Expect(err).NotTo(HaveOccurred())
 		d = deployment.DefaultDeployment()
 		d.Disks[0].Device = "/dev/device"
-		d.Disks[0].Partitions[0].UUID = "34A8-ABB8"
+		d.Disks[0].Partitions[0].UUID = "c60d1845-7b04-4fc4-8639-8c49eb7277d5"
 		d.Disks[0].Partitions[1].UUID = "34a8abb8-ddb3-48a2-8ecc-2443e92c7510"
 		d.SourceOS = deployment.NewDirSrc("/some/dir")
 		Expect(d.Sanitize(s)).To(Succeed())
 		i = install.New(context.Background(), s, install.WithUpgrader(upgrader))
-		table = sgdiskEmpty
 
 		runner.SideEffect = func(cmd string, args ...string) ([]byte, error) {
 			if f := sideEffects[cmd]; f != nil {
@@ -136,19 +133,13 @@ var _ = Describe("Install", Label("install"), func() {
 			}
 			return runner.ReturnValue, runner.ReturnError
 		}
-		sideEffects["sgdisk"] = func(args ...string) ([]byte, error) {
-			if args[0] == "-p" {
-				return []byte(table), nil
-			}
-			if strings.HasPrefix(args[0], "-n=1") {
-				table += firstPart
-			}
-			if strings.HasPrefix(args[0], "-n=2") {
-				table += secondPart
-			}
-			return runner.ReturnValue, runner.ReturnError
+		sideEffects["systemd-repart"] = func(args ...string) ([]byte, error) {
+			return []byte(systemdRepartJson), runner.ReturnError
 		}
 		sideEffects["lsblk"] = func(args ...string) ([]byte, error) {
+			if slices.Contains(args, "NAME,PHY-SEC") {
+				return []byte(sectorSizeJson), runner.ReturnError
+			}
 			return []byte(lsblkJson), runner.ReturnError
 		}
 	})
@@ -158,9 +149,7 @@ var _ = Describe("Install", Label("install"), func() {
 	It("installs the given deployment", func() {
 		Expect(i.Install(d)).To(Succeed())
 		Expect(runner.MatchMilestones([][]string{
-			{"sgdisk", "--zap-all", "/dev/device"},
-			{"mkfs.vfat", "-n", "EFI"},
-			{"mkfs.btrfs", "-L", "SYSTEM"},
+			{"systemd-repart"},
 			{"btrfs", "subvolume", "create"},
 		}))
 	})
@@ -170,9 +159,7 @@ var _ = Describe("Install", Label("install"), func() {
 		Expect(err).To(HaveOccurred())
 		Expect(err).To(MatchError("executing transaction: transaction failed"))
 		Expect(runner.MatchMilestones([][]string{
-			{"sgdisk", "--zap-all", "/dev/device"},
-			{"mkfs.vfat", "-n", "EFI"},
-			{"mkfs.btrfs", "-L", "SYSTEM"},
+			{"systemd-repart"},
 			{"btrfs", "subvolume", "create"},
 		}))
 	})
