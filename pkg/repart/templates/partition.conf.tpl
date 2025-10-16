@@ -16,3 +16,6 @@ UUID={{ .UUID }}
 {{- if .CopyFiles }}
 CopyFiles={{ .CopyFiles }}
 {{- end }}
+{{- if .ReadOnly }}
+ReadOnly={{ .ReadOnly }}
+{{- end }}
