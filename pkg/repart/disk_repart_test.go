@@ -40,23 +40,26 @@ var _ = Describe("Systemd-repart tests", Label("systemd-repart"), func() {
 			Role:  deployment.System,
 		}
 
-		Expect(repart.CreatePartitionConf(&buffer, part, "")).To(Succeed())
+		Expect(repart.CreatePartitionConf(&buffer, &part, "")).To(Succeed())
 		Expect(buffer.String()).To(ContainSubstring("Type=root"))
 		Expect(buffer.String()).ToNot(ContainSubstring("Format"))
 		Expect(buffer.String()).ToNot(ContainSubstring("CopyFiles"))
 		Expect(buffer.String()).ToNot(ContainSubstring("SizeMinBytes"))
 		Expect(buffer.String()).ToNot(ContainSubstring("UUID"))
+		Expect(buffer.String()).ToNot(ContainSubstring("ReadOnly"))
 
 		buffer.Reset()
 		part.Size = 1024
 		part.FileSystem = deployment.Btrfs
+		part.MountOpts = []string{"ro=vfs"}
 
-		Expect(repart.CreatePartitionConf(&buffer, part, "/some/root:/")).To(Succeed())
+		Expect(repart.CreatePartitionConf(&buffer, &part, "/some/root:/")).To(Succeed())
 		Expect(buffer.String()).To(ContainSubstring("Type=root"))
 		Expect(buffer.String()).To(ContainSubstring("SizeMinBytes=1024M"))
 		Expect(buffer.String()).To(ContainSubstring("SizeMaxBytes=1024M"))
 		Expect(buffer.String()).To(ContainSubstring("Format=btrfs"))
 		Expect(buffer.String()).To(ContainSubstring("CopyFiles=/some/root:/"))
+		Expect(buffer.String()).To(ContainSubstring("ReadOnly=on"))
 		Expect(buffer.String()).ToNot(ContainSubstring("UUID"))
 	})
 
@@ -65,12 +68,12 @@ var _ = Describe("Systemd-repart tests", Label("systemd-repart"), func() {
 		part := deployment.Partition{
 			Label: "SYSTEM",
 		}
-		Expect(repart.CreatePartitionConf(&buffer, part, "")).To(
+		Expect(repart.CreatePartitionConf(&buffer, &part, "")).To(
 			MatchError(ContainSubstring("invalid partition role")),
 		)
 
 		part.Role = deployment.Data
-		Expect(repart.CreatePartitionConf(&buffer, part, "relative/path:/")).To(
+		Expect(repart.CreatePartitionConf(&buffer, &part, "relative/path:/")).To(
 			MatchError(ContainSubstring("requires an absolute path")),
 		)
 	})

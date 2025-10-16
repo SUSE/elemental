@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"strings"
 	"text/template"
 
 	"github.com/suse/elemental/v3/pkg/block/lsblk"
@@ -69,7 +70,7 @@ func PartitionAndFormatDevice(s *sys.System, d *deployment.Disk) (err error) {
 		if err != nil {
 			return fmt.Errorf("failed creating systemd-repart configuration file '%s': %w", partConf, err)
 		}
-		err = CreatePartitionConf(file, *part, "")
+		err = CreatePartitionConf(file, part, "")
 		if err != nil {
 			return fmt.Errorf("failed generation of '%s' systemd-repart configuration file: %w", partConf, err)
 		}
@@ -110,7 +111,7 @@ func PartitionAndFormatDevice(s *sys.System, d *deployment.Disk) (err error) {
 }
 
 // CreatePartitionConf writes a partition configuration for systemd-repart for the given partition
-func CreatePartitionConf(wr io.Writer, part deployment.Partition, copyFiles string) error {
+func CreatePartitionConf(wr io.Writer, part *deployment.Partition, copyFiles string) error {
 	pType := roleToType(part.Role)
 	if pType == deployment.Unknown {
 		return fmt.Errorf("invalid partition role: %s", part.Role.String())
@@ -127,6 +128,7 @@ func CreatePartitionConf(wr io.Writer, part deployment.Partition, copyFiles stri
 		Label     string
 		UUID      string
 		CopyFiles string
+		ReadOnly  string
 	}{
 		Type:      pType,
 		Format:    fileSystemToFormat(part.FileSystem),
@@ -134,6 +136,7 @@ func CreatePartitionConf(wr io.Writer, part deployment.Partition, copyFiles stri
 		Label:     part.Label,
 		UUID:      part.UUID,
 		CopyFiles: copyFiles,
+		ReadOnly:  readOnlyPart(part),
 	}
 
 	partCfg := template.New("partition")
@@ -165,4 +168,13 @@ func fileSystemToFormat(f deployment.FileSystem) string {
 	default:
 		return f.String()
 	}
+}
+
+func readOnlyPart(part *deployment.Partition) string {
+	for _, opt := range part.MountOpts {
+		if strings.HasPrefix(opt, "ro") {
+			return "on"
+		}
+	}
+	return ""
 }
