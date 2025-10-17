@@ -15,7 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package diskrepart
+package filesystem
 
 import (
 	"fmt"
@@ -47,11 +47,6 @@ func (mkfs MkfsCall) buildOptions() ([]string, error) {
 	opts := []string{}
 
 	f, _ := deployment.ParseFileSystem(mkfs.fileSystem)
-	if mkfs.uuid != "" {
-		if !checkUUID(mkfs.uuid, f) {
-			return nil, fmt.Errorf("invalid uuid %s", mkfs.uuid)
-		}
-	}
 
 	switch f {
 	case deployment.XFS:

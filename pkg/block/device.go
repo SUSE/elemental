@@ -27,6 +27,7 @@ import (
 type Device interface {
 	GetAllPartitions() (PartitionList, error)
 	GetDevicePartitions(device string) (PartitionList, error)
+	GetDeviceSectorSize(device string) (uint, error)
 	GetPartitionFS(partition string) (string, error)
 }
 

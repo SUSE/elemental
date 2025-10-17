@@ -30,6 +30,25 @@ import (
 	sysmock "github.com/suse/elemental/v3/pkg/sys/mock"
 )
 
+const sectorSizeLsblk = `{
+   "blockdevices": [
+      {
+         "name": "nvme0n1",
+         "phy-sec": 512
+      }
+   ]
+}
+`
+
+const noSectorSizeLsblk = `{
+   "blockdevices": [
+      {
+         "name": "nvme0n1"
+      }
+   ]
+}
+`
+
 const fullLsblkTmpl = `{
    "blockdevices": [
       {
@@ -203,6 +222,24 @@ var _ = Describe("BlockDevice", Label("lsblk"), func() {
 			_, err := block.GetPartitionDeviceByLabel(s, b, "FAKE", 2)
 			Expect(err).NotTo(BeNil())
 			Expect(runner.CmdsMatch(append(cmds, cmds...))).To(BeNil())
+		})
+	})
+	Describe("GetDeviceSectorSize", func() {
+		It("parses the sector size of for the given device", func() {
+			json = sectorSizeLsblk
+			size, err := b.GetDeviceSectorSize("/dev/device")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(size).To(Equal(uint(512)))
+		})
+		It("fails if no sector size is reported", func() {
+			json = noSectorSizeLsblk
+			_, err := b.GetDeviceSectorSize("/dev/device")
+			Expect(err).To(MatchError(ContainSubstring("no sector size reported")))
+		})
+		It("fails if lsblk reports error", func() {
+			lsblkErr = fmt.Errorf("lsblk call failed")
+			_, err := b.GetDeviceSectorSize("/dev/device")
+			Expect(err).To(MatchError(ContainSubstring("lsblk call failed")))
 		})
 	})
 })

@@ -380,8 +380,9 @@ func nextRandom() string {
 	return strconv.Itoa(int(1e9 + r%1e9))[1:]
 }
 
-// TempDir creates a temp file in the virtual fs
-// Took from afero.FS code and adapted
+// TempDir creates a temporary directory in the virtual fs
+// dir defines the parent directory to create into, if emtpy it relies on
+// the OS default TMP directory. The prefix is used to name new temporary directory.
 func TempDir(fs FS, dir, prefix string) (name string, err error) {
 	var raw string
 	if dir == "" {
