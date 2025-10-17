@@ -65,7 +65,7 @@ func (r run) RunEnv(command string, env []string, args ...string) ([]byte, error
 	out, err := cmd.Output()
 	if err != nil {
 		r.debug("'%s' command reported an error: %s", command, err.Error())
-		r.debug("'%s' command output: %s", command)
+		r.debug("'%s' command output: %s", command, out)
 	}
 	return out, err
 }
