@@ -167,7 +167,7 @@ func (l lsDevice) GetDeviceSectorSize(device string) (uint, error) {
 		return 0, fmt.Errorf("no sector size reported by lsblk %v", device)
 	}
 
-	return unmarshalSectorSize(out)
+	return size, err
 }
 
 // GetPartitionFS gets the filesystem type for the given partition device. If the given device
