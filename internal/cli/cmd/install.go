@@ -62,6 +62,7 @@ func NewInstallCommand(appName string, action func(*cli.Context) error) *cli.Com
 				Name:        "os-image",
 				Usage:       "URI to the image containing the operating system",
 				Destination: &InstallArgs.OperatingSystemImage,
+				Required:    true,
 			},
 			&cli.StringFlag{
 				Name:        "overlay",
@@ -73,6 +74,7 @@ func NewInstallCommand(appName string, action func(*cli.Context) error) *cli.Com
 				Aliases:     []string{"t"},
 				Usage:       "Target device for the installation process",
 				Destination: &InstallArgs.Target,
+				Required:    true,
 			},
 			&cli.BoolFlag{
 				Name:        "create-boot-entry",
