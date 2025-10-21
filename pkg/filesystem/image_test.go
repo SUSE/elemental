@@ -15,14 +15,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package diskrepart_test
+package filesystem_test
 
 import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	"github.com/suse/elemental/v3/pkg/deployment"
-	"github.com/suse/elemental/v3/pkg/diskrepart"
+	"github.com/suse/elemental/v3/pkg/filesystem"
 	"github.com/suse/elemental/v3/pkg/log"
 	"github.com/suse/elemental/v3/pkg/sys"
 	sysmock "github.com/suse/elemental/v3/pkg/sys/mock"
@@ -53,11 +53,11 @@ var _ = Describe("Image", Label("image"), func() {
 		cleanup()
 	})
 	It("Creates an empty file with the required size", func() {
-		Expect(diskrepart.CreateEmptyFile(fs, "/test/raw.img", 10, false)).To(Succeed())
+		Expect(filesystem.CreateEmptyFile(fs, "/test/raw.img", 10, false)).To(Succeed())
 		ok, _ := vfs.Exists(fs, "/test/raw.img")
 		Expect(ok).To(BeTrue())
 
-		Expect(diskrepart.CreateEmptyFile(fs, "/test/raw_nosparse.img", 10, true)).To(Succeed())
+		Expect(filesystem.CreateEmptyFile(fs, "/test/raw_nosparse.img", 10, true)).To(Succeed())
 		ok, _ = vfs.Exists(fs, "/test/raw_nosparse.img")
 		Expect(ok).To(BeTrue())
 
@@ -68,28 +68,28 @@ var _ = Describe("Image", Label("image"), func() {
 		Expect(vfs.MkdirAll(fs, "/test", vfs.DirPerm))
 		roFS, err := sysmock.ReadOnlyTestFS(fs)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(diskrepart.CreateEmptyFile(roFS, "/test/raw.img", 10, false)).NotTo(Succeed())
+		Expect(filesystem.CreateEmptyFile(roFS, "/test/raw.img", 10, false)).NotTo(Succeed())
 	})
 	It("Creates a ext4 image with preloaded content", func() {
-		Expect(diskrepart.CreatePreloadedFileSystemImage(s, "/some/root", "/test/raw.img", "ROOT", 64, deployment.Ext4)).To(Succeed())
+		Expect(filesystem.CreatePreloadedFileSystemImage(s, "/some/root", "/test/raw.img", "ROOT", 64, deployment.Ext4)).To(Succeed())
 		Expect(runner.CmdsMatch([][]string{{"mkfs.ext4", "-L", "ROOT", "-F", "-d", "/some/root", "/test/raw.img"}})).To(Succeed())
 		size, _ := vfs.DirSizeMB(fs, "/test")
 		Expect(size).To(Equal(uint(129)))
 	})
 	It("Creates a ext2 image with preloaded content", func() {
-		Expect(diskrepart.CreatePreloadedFileSystemImage(s, "/some/root", "/test/raw.img", "ROOT", 32, deployment.Ext2)).To(Succeed())
+		Expect(filesystem.CreatePreloadedFileSystemImage(s, "/some/root", "/test/raw.img", "ROOT", 32, deployment.Ext2)).To(Succeed())
 		Expect(runner.CmdsMatch([][]string{{"mkfs.ext2", "-L", "ROOT", "-F", "-d", "/some/root", "/test/raw.img"}})).To(Succeed())
 		size, _ := vfs.DirSizeMB(fs, "/test")
 		Expect(size).To(Equal(uint(65)))
 	})
 	It("Creates a btrfs image with preloaded content", func() {
-		Expect(diskrepart.CreatePreloadedFileSystemImage(s, "/some/root", "/test/raw.img", "ROOT", 32, deployment.Btrfs)).To(Succeed())
+		Expect(filesystem.CreatePreloadedFileSystemImage(s, "/some/root", "/test/raw.img", "ROOT", 32, deployment.Btrfs)).To(Succeed())
 		Expect(runner.CmdsMatch([][]string{{"mkfs.btrfs", "-L", "ROOT", "-f", "--root-dir", "/some/root", "/test/raw.img"}})).To(Succeed())
 		size, _ := vfs.DirSizeMB(fs, "/test")
 		Expect(size).To(Equal(uint(65)))
 	})
 	It("Creates a vfat image with preloaded content", func() {
-		Expect(diskrepart.CreatePreloadedFileSystemImage(s, "/some/root", "/test/raw.img", "ROOT", 16, deployment.VFat)).To(Succeed())
+		Expect(filesystem.CreatePreloadedFileSystemImage(s, "/some/root", "/test/raw.img", "ROOT", 16, deployment.VFat)).To(Succeed())
 		Expect(runner.CmdsMatch([][]string{
 			{"mkfs.vfat", "-n", "ROOT", "/test/raw.img"},
 			{"mcopy", "-s", "-i", "/test/raw.img", "/some/root/file", "::"},
@@ -98,6 +98,6 @@ var _ = Describe("Image", Label("image"), func() {
 		Expect(size).To(Equal(uint(33)))
 	})
 	It("Fails to create a preloaded image with a not supported filesystem", func() {
-		Expect(diskrepart.CreatePreloadedFileSystemImage(s, "/some/root", "/test/raw.img", "ROOT", 16, deployment.XFS)).NotTo(Succeed())
+		Expect(filesystem.CreatePreloadedFileSystemImage(s, "/some/root", "/test/raw.img", "ROOT", 16, deployment.XFS)).NotTo(Succeed())
 	})
 })

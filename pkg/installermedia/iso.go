@@ -29,7 +29,7 @@ import (
 	"github.com/suse/elemental/v3/pkg/bootloader"
 	"github.com/suse/elemental/v3/pkg/cleanstack"
 	"github.com/suse/elemental/v3/pkg/deployment"
-	"github.com/suse/elemental/v3/pkg/diskrepart"
+	"github.com/suse/elemental/v3/pkg/filesystem"
 	"github.com/suse/elemental/v3/pkg/rsync"
 	"github.com/suse/elemental/v3/pkg/selinux"
 	"github.com/suse/elemental/v3/pkg/sys"
@@ -157,7 +157,7 @@ func (i ISO) Build(d *deployment.Deployment) (err error) {
 	}
 
 	efiImg := filepath.Join(tempDir, filepath.Base(efiDir)+".img")
-	err = diskrepart.CreatePreloadedFileSystemImage(i.s, efiDir, efiImg, "EFI", 1, deployment.VFat)
+	err = filesystem.CreatePreloadedFileSystemImage(i.s, efiDir, efiImg, "EFI", 1, deployment.VFat)
 	if err != nil {
 		return fmt.Errorf("failed creating EFI image for the installer image: %w", err)
 	}
@@ -386,7 +386,7 @@ func (i ISO) prepareISO(rootDir, isoDir string, d *deployment.Deployment) error 
 	}
 
 	squashImg := filepath.Join(imgDir, squashfsImg)
-	err = diskrepart.CreateSquashFS(i.ctx, i.s, rootDir, squashImg, diskrepart.DefaultSquashfsCompressionOptions())
+	err = filesystem.CreateSquashFS(i.ctx, i.s, rootDir, squashImg, filesystem.DefaultSquashfsCompressionOptions())
 	if err != nil {
 		return fmt.Errorf("failed creating image (%s) for live ISO: %w", squashImg, err)
 	}

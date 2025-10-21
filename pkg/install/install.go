@@ -27,7 +27,7 @@ import (
 	"github.com/suse/elemental/v3/pkg/btrfs"
 	"github.com/suse/elemental/v3/pkg/cleanstack"
 	"github.com/suse/elemental/v3/pkg/deployment"
-	"github.com/suse/elemental/v3/pkg/diskrepart"
+	"github.com/suse/elemental/v3/pkg/repart"
 	"github.com/suse/elemental/v3/pkg/sys"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 	"github.com/suse/elemental/v3/pkg/upgrade"
@@ -64,7 +64,7 @@ func (i Installer) Install(d *deployment.Deployment) (err error) {
 	defer func() { err = cleanup.Cleanup(err) }()
 
 	for _, disk := range d.Disks {
-		err = diskrepart.PartitionAndFormatDevice(i.s, disk)
+		err = repart.PartitionAndFormatDevice(i.s, disk)
 		if err != nil {
 			return fmt.Errorf("partitioning disk '%s': %w", disk.Device, err)
 		}

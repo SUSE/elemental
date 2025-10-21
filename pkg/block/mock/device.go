@@ -27,11 +27,12 @@ var _ block.Device = (*Device)(nil)
 
 type Device struct {
 	partitions block.PartitionList
+	sectorSize uint
 	err        error
 }
 
 func NewBlockDevice(partitions ...*block.Partition) *Device {
-	return &Device{partitions: partitions}
+	return &Device{partitions: partitions, sectorSize: 512}
 }
 
 func (m *Device) SetPartitions(partitions block.PartitionList) {
@@ -54,6 +55,10 @@ func (m Device) GetDevicePartitions(device string) (block.PartitionList, error) 
 		}
 	}
 	return parts, m.err
+}
+
+func (m Device) GetDeviceSectorSize(_ string) (uint, error) {
+	return m.sectorSize, m.err
 }
 
 func (m Device) GetPartitionFS(partition string) (string, error) {

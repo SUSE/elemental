@@ -164,7 +164,7 @@ func (n Overwrite) UpdateFstab(trans *Transaction) error {
 
 	for _, part := range sysDisk.Partitions {
 		lines = append(lines, fstab.Line{
-			Device:     fmt.Sprintf("UUID=%s", part.UUID),
+			Device:     fmt.Sprintf("PARTUUID=%s", part.UUID),
 			MountPoint: part.MountPoint,
 			Options:    part.MountOpts,
 			FileSystem: part.FileSystem.String(),
