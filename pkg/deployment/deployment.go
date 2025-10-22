@@ -224,6 +224,12 @@ type SnapshotterConfig struct {
 	Name string `yaml:"name"`
 }
 
+type LiveInstaller struct {
+	OverlayTree   *ImageSource `yaml:"overlayTree,omitempty"`
+	CfgScript     string       `yaml:"configScript,omitempty"`
+	KernelCmdline string       `yaml:"kernelCmdline,omitempty"`
+}
+
 type Deployment struct {
 	SourceOS    *ImageSource       `yaml:"sourceOS"`
 	Disks       []*Disk            `yaml:"disks"`
@@ -231,11 +237,9 @@ type Deployment struct {
 	BootConfig  *BootConfig        `yaml:"bootloader"`
 	Fips        *FipsConfig        `yaml:"fips"`
 	Snapshotter *SnapshotterConfig `yaml:"snapshotter"`
-	// Consider adding a systemd-sysext list here
-	// All of them would extracted in the RO context, so only
-	// additions to the RWVolumes would succeed.
-	OverlayTree *ImageSource `yaml:"overlayTree,omitempty"`
-	CfgScript   string       `yaml:"configScript,omitempty"`
+	OverlayTree *ImageSource       `yaml:"overlayTree,omitempty"`
+	CfgScript   string             `yaml:"configScript,omitempty"`
+	Installer   LiveInstaller      `yaml:"-"`
 }
 
 type Opt func(d *Deployment)

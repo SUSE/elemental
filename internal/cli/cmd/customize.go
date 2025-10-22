@@ -28,8 +28,6 @@ type CustomizeFlags struct {
 	InputFile     string
 	OutputDir     string
 	Name          string
-	Target        string
-	Description   string
 	ConfigScript  string
 	Overlay       string
 	Label         string

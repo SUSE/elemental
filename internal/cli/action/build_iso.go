@@ -28,8 +28,7 @@ import (
 	"github.com/suse/elemental/v3/internal/cli/cmd"
 	"github.com/suse/elemental/v3/pkg/bootloader"
 	"github.com/suse/elemental/v3/pkg/deployment"
-	"github.com/suse/elemental/v3/pkg/firmware"
-	"github.com/suse/elemental/v3/pkg/installermedia"
+	"github.com/suse/elemental/v3/pkg/installer"
 	"github.com/suse/elemental/v3/pkg/sys"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 	"github.com/suse/elemental/v3/pkg/unpack"
@@ -45,14 +44,6 @@ func BuildInstaller(ctx *cli.Context) error { //nolint:dupl
 
 	s.Logger().Info("Starting build ISO action with args: %+v", args)
 
-	d, err := digestDeploymentSetup(s, args.InstallSpec)
-	if err != nil {
-		s.Logger().Error("Failed to collect build setup")
-		return err
-	}
-
-	s.Logger().Info("Running build process")
-
 	ctxCancel, stop := signal.NotifyContext(ctx.Context, syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
 
@@ -61,12 +52,17 @@ func BuildInstaller(ctx *cli.Context) error { //nolint:dupl
 		stop()
 	}()
 
-	media := installermedia.NewISO(ctxCancel, s, installermedia.WithUnpackOpts(unpack.WithLocal(args.Local), unpack.WithVerify(args.Verify)))
+	media := installer.NewISO(ctxCancel, s, installer.WithUnpackOpts(unpack.WithLocal(args.Local), unpack.WithVerify(args.Verify)))
 
-	err = digestInstallerSetup(args, media)
+	digestInstallerSetup(args, media)
+
+	d, err := digestInstallerDeploymentSetup(s, media.Label, args)
 	if err != nil {
-		return fmt.Errorf("invalid installer setup: %w", err)
+		s.Logger().Error("Failed to collect build setup")
+		return err
 	}
+
+	s.Logger().Info("Running build process")
 
 	err = media.Build(d)
 	if err != nil {
@@ -78,25 +74,41 @@ func BuildInstaller(ctx *cli.Context) error { //nolint:dupl
 	return nil
 }
 
-func digestInstallerSetup(flags *cmd.InstallerFlags, media *installermedia.ISO) error {
+func digestInstallerDeploymentSetup(s *sys.System, label string, flags *cmd.InstallerFlags) (*deployment.Deployment, error) {
+	d := deployment.DefaultDeployment()
+	if flags.Overlay != "" {
+		src, err := deployment.NewSrcFromURI(flags.Overlay)
+		if err != nil {
+			return nil, fmt.Errorf("invalid overlay data URI (%s) to add into the installer: %w", flags.Overlay, err)
+		}
+		d.Installer.OverlayTree = src
+	}
+	if flags.ConfigScript != "" {
+		d.Installer.CfgScript = flags.ConfigScript
+	}
+	if flags.KernelCmdLine != "" {
+		d.Installer.KernelCmdline = flags.KernelCmdLine
+	}
+
 	src, err := deployment.NewSrcFromURI(flags.OperatingSystemImage)
 	if err != nil {
-		return fmt.Errorf("invalid OS image URI (%s) to build installer: %w", flags.OperatingSystemImage, err)
+		return nil, fmt.Errorf("invalid OS image URI (%s) to build installer: %w", flags.OperatingSystemImage, err)
 	}
-	media.SourceOS = src
+	d.SourceOS = src
 
-	if flags.Overlay != "" {
-		src, err = deployment.NewSrcFromURI(flags.Overlay)
-		if err != nil {
-			return fmt.Errorf("invalid overlay data URI (%s) to add into the installer: %w", flags.Overlay, err)
-		}
-		media.OverlayTree = src
+	err = applyInstallFlags(s, d, flags.InstallSpec)
+	if err != nil {
+		return nil, fmt.Errorf("failed applying install flags to deployment description")
 	}
 
-	if flags.ConfigScript != "" {
-		media.CfgScript = flags.ConfigScript
+	err = d.Sanitize(s)
+	if err != nil {
+		return nil, fmt.Errorf("inconsistent deployment setup found: %w", err)
 	}
+	return d, err
+}
 
+func digestInstallerSetup(flags *cmd.InstallerFlags, media *installer.ISO) {
 	if flags.Name != "" {
 		media.Name = flags.Name
 	}
@@ -108,53 +120,38 @@ func digestInstallerSetup(flags *cmd.InstallerFlags, media *installermedia.ISO) 
 	if flags.Label != "" {
 		media.Label = flags.Label
 	}
-
-	if flags.KernelCmdLine != "" {
-		media.KernelCmdLine = flags.KernelCmdLine
-	}
-	return nil
 }
 
-func digestDeploymentSetup(s *sys.System, flags cmd.InstallFlags) (*deployment.Deployment, error) {
-	d := deployment.DefaultDeployment()
+func applyInstallFlags(s *sys.System, d *deployment.Deployment, flags cmd.InstallFlags) error {
 	if flags.Description != "" {
 		if ok, _ := vfs.Exists(s.FS(), flags.Description); !ok {
-			return nil, fmt.Errorf("config file '%s' not found", flags.Description)
+			return fmt.Errorf("config file '%s' not found", flags.Description)
 		}
 		data, err := s.FS().ReadFile(flags.Description)
 		if err != nil {
-			return nil, fmt.Errorf("could not read description file '%s': %w", flags.Description, err)
+			return fmt.Errorf("could not read description file '%s': %w", flags.Description, err)
 		}
 		err = yaml.Unmarshal(data, d)
 		if err != nil {
-			return nil, fmt.Errorf("could not unmarshal config file: %w", err)
+			return fmt.Errorf("could not unmarshal config file: %w", err)
 		}
 	}
-	if flags.Target != "" && len(d.Disks) > 0 {
-		d.Disks[0].Device = flags.Target
-	}
 
-	// Only overwrite OS source to installer OS if undefined
-	if d.SourceOS == nil || d.SourceOS.IsEmpty() {
-		srcOS := deployment.NewRawSrc(installermedia.SquashfsPath)
-		d.SourceOS = srcOS
+	disk := d.GetSystemDisk()
+	if flags.Target != "" && disk != nil {
+		disk.Device = flags.Target
 	}
 
 	if flags.Overlay != "" {
 		overlay, err := deployment.NewSrcFromURI(flags.Overlay)
 		if err != nil {
-			return nil, fmt.Errorf("failed parsing overlay source URI ('%s'): %w", flags.Overlay, err)
+			return fmt.Errorf("failed parsing overlay source URI ('%s'): %w", flags.Overlay, err)
 		}
 		d.OverlayTree = overlay
 	}
 
 	if flags.ConfigScript != "" {
 		d.CfgScript = flags.ConfigScript
-	}
-
-	// Always add the default boot entry
-	d.Firmware.BootEntries = []*firmware.EfiBootEntry{
-		firmware.DefaultBootEntry(s.Platform(), d.Disks[0].Device),
 	}
 
 	// Default to grub bootloader if none is defined
@@ -165,10 +162,5 @@ func digestDeploymentSetup(s *sys.System, flags cmd.InstallFlags) (*deployment.D
 	if flags.KernelCmdline != "" {
 		d.BootConfig.KernelCmdline = fmt.Sprintf("%s %s", d.BootConfig.KernelCmdline, flags.KernelCmdline)
 	}
-
-	err := d.Sanitize(s)
-	if err != nil {
-		return nil, fmt.Errorf("inconsistent deployment setup found: %w", err)
-	}
-	return d, nil
+	return nil
 }

@@ -15,7 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package installermedia_test
+package installer_test
 
 import (
 	"context"
@@ -28,7 +28,7 @@ import (
 
 	"github.com/suse/elemental/v3/pkg/bootloader"
 	"github.com/suse/elemental/v3/pkg/deployment"
-	"github.com/suse/elemental/v3/pkg/installermedia"
+	"github.com/suse/elemental/v3/pkg/installer"
 	"github.com/suse/elemental/v3/pkg/log"
 	"github.com/suse/elemental/v3/pkg/sys"
 	sysmock "github.com/suse/elemental/v3/pkg/sys/mock"
@@ -64,6 +64,7 @@ var _ = Describe("Install", Label("install"), func() {
 		)
 		Expect(err).NotTo(HaveOccurred())
 		d = deployment.DefaultDeployment()
+		d.Installer = deployment.LiveInstaller{}
 		runner.SideEffect = func(cmd string, args ...string) ([]byte, error) {
 			if f := sideEffects[cmd]; f != nil {
 				return f(args...)
@@ -81,11 +82,13 @@ var _ = Describe("Install", Label("install"), func() {
 			return []byte{}, nil
 		}
 
-		iso := installermedia.NewISO(context.Background(), s, installermedia.WithBootloader(bootloader.NewNone(s)))
-		iso.SourceOS = deployment.NewDirSrc("/some/root")
+		d.SourceOS = deployment.NewDirSrc("/some/root")
+		d.Installer.OverlayTree = deployment.NewDirSrc("/some/dir/iso-overlay")
+		d.Installer.CfgScript = "/some/dir/config-live.sh"
+
+		iso := installer.NewISO(context.Background(), s, installer.WithBootloader(bootloader.NewNone(s)))
+
 		iso.OutputDir = "/some/dir/build"
-		iso.CfgScript = "/some/dir/config-live.sh"
-		iso.OverlayTree = deployment.NewDirSrc("/some/dir/iso-overlay")
 		d.CfgScript = "/some/dir/config.sh"
 		d.OverlayTree = deployment.NewDirSrc("/some/dir/install-overlay")
 
@@ -103,8 +106,8 @@ var _ = Describe("Install", Label("install"), func() {
 		}))
 	})
 	It("fails to create an ISO without an output directory defined", func() {
-		iso := installermedia.NewISO(context.Background(), s, installermedia.WithBootloader(bootloader.NewNone(s)))
-		iso.SourceOS = deployment.NewDirSrc("/some/root")
+		d.SourceOS = deployment.NewDirSrc("/some/root")
+		iso := installer.NewISO(context.Background(), s, installer.WithBootloader(bootloader.NewNone(s)))
 
 		err := iso.Build(d)
 		Expect(err).To(HaveOccurred())
@@ -119,8 +122,8 @@ var _ = Describe("Install", Label("install"), func() {
 		)
 		Expect(err).NotTo(HaveOccurred())
 
-		iso := installermedia.NewISO(context.Background(), s, installermedia.WithBootloader(bootloader.NewNone(s)))
-		iso.SourceOS = deployment.NewDirSrc("/some/root")
+		d.SourceOS = deployment.NewDirSrc("/some/root")
+		iso := installer.NewISO(context.Background(), s, installer.WithBootloader(bootloader.NewNone(s)))
 		iso.OutputDir = "/some/dir/build"
 
 		err = iso.Build(d)
@@ -132,8 +135,8 @@ var _ = Describe("Install", Label("install"), func() {
 			return []byte{}, fmt.Errorf("rsync command failed")
 		}
 
-		iso := installermedia.NewISO(context.Background(), s, installermedia.WithBootloader(bootloader.NewNone(s)))
-		iso.SourceOS = deployment.NewDirSrc("/some/root")
+		d.SourceOS = deployment.NewDirSrc("/some/root")
+		iso := installer.NewISO(context.Background(), s, installer.WithBootloader(bootloader.NewNone(s)))
 		iso.OutputDir = "/some/dir/build"
 
 		err := iso.Build(d)
@@ -145,8 +148,8 @@ var _ = Describe("Install", Label("install"), func() {
 			return []byte{}, fmt.Errorf("xorriso command failed")
 		}
 
-		iso := installermedia.NewISO(context.Background(), s, installermedia.WithBootloader(bootloader.NewNone(s)))
-		iso.SourceOS = deployment.NewDirSrc("/some/root")
+		d.SourceOS = deployment.NewDirSrc("/some/root")
+		iso := installer.NewISO(context.Background(), s, installer.WithBootloader(bootloader.NewNone(s)))
 		iso.OutputDir = "/some/dir/build"
 
 		err := iso.Build(d)
@@ -175,7 +178,7 @@ var _ = Describe("Install", Label("install"), func() {
 		_, err := fs.Create("/some/dir/installer.iso")
 		Expect(err).To(Succeed())
 
-		iso := installermedia.NewISO(context.Background(), s, installermedia.WithBootloader(bootloader.NewNone(s)))
+		iso := installer.NewISO(context.Background(), s, installer.WithBootloader(bootloader.NewNone(s)))
 		iso.InputFile = "/some/dir/installer.iso"
 		iso.OutputDir = "/some/dir/build"
 		iso.Name = "installer2"
@@ -185,7 +188,7 @@ var _ = Describe("Install", Label("install"), func() {
 		Expect(vfs.Exists(fs, "/some/dir/build/installer2.iso")).To(BeTrue())
 	})
 	It("fails to customize non-existent input file", func() {
-		iso := installermedia.NewISO(context.Background(), s)
+		iso := installer.NewISO(context.Background(), s)
 		iso.InputFile = "/non-existent/installer.iso"
 		iso.OutputDir = "/some/dir/build"
 		iso.Name = "installer2.iso"
@@ -203,7 +206,7 @@ var _ = Describe("Install", Label("install"), func() {
 		_, err := fs.Create("/some/dir/installer.iso")
 		Expect(err).To(Succeed())
 
-		iso := installermedia.NewISO(context.Background(), s, installermedia.WithBootloader(bootloader.NewNone(s)))
+		iso := installer.NewISO(context.Background(), s, installer.WithBootloader(bootloader.NewNone(s)))
 		iso.InputFile = "/some/dir/installer.iso"
 		iso.OutputDir = "/some/dir/build"
 		iso.Name = "installer2"

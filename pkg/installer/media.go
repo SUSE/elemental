@@ -15,7 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package installermedia
+package installer
 
 import (
 	"context"
@@ -53,14 +53,10 @@ const (
 type Option func(*ISO)
 
 type ISO struct {
-	SourceOS      *deployment.ImageSource
-	OverlayTree   *deployment.ImageSource
-	CfgScript     string
-	Name          string
-	OutputDir     string
-	Label         string
-	KernelCmdLine string
-	InputFile     string
+	Name      string
+	OutputDir string
+	Label     string
+	InputFile string
 
 	s          *sys.System
 	ctx        context.Context
@@ -141,7 +137,7 @@ func (i ISO) Build(d *deployment.Deployment) (err error) {
 		return fmt.Errorf("failed creating ISO directory: %w", err)
 	}
 
-	err = i.prepareRoot(rootDir)
+	err = i.prepareRoot(d.SourceOS, rootDir)
 	if err != nil {
 		return fmt.Errorf("failed preparing root: %w", err)
 	}
@@ -172,7 +168,7 @@ func (i ISO) Build(d *deployment.Deployment) (err error) {
 
 // Customize repacks an existing installer with more artifacts.
 func (i *ISO) Customize(d *deployment.Deployment) (err error) {
-	err = i.sanitizeCustomize()
+	err = i.sanitize()
 	if err != nil {
 		return fmt.Errorf("cannot proceed with customize due to inconsistent setup: %w", err)
 	}
@@ -193,7 +189,7 @@ func (i *ISO) Customize(d *deployment.Deployment) (err error) {
 	}
 
 	grubEnvPath := filepath.Join(tempDir, "grubenv")
-	err = i.writeGrubEnv(grubEnvPath, map[string]string{"extra_cmdline": i.KernelCmdLine})
+	err = i.writeGrubEnv(grubEnvPath, map[string]string{"extra_cmdline": d.Installer.KernelCmdline})
 	if err != nil {
 		return fmt.Errorf("error writing %s: %s", grubEnvPath, err.Error())
 	}
@@ -202,13 +198,13 @@ func (i *ISO) Customize(d *deployment.Deployment) (err error) {
 		grubEnvPath: "/boot/grub2/grubenv",
 	}
 
-	if i.CfgScript != "" {
-		m[i.CfgScript] = filepath.Join("/LiveOS", installerCfg)
+	if d.Installer.CfgScript != "" {
+		m[d.Installer.CfgScript] = filepath.Join("/", liveDir, installerCfg)
 	}
 
-	if i.OverlayTree != nil {
+	if d.Installer.OverlayTree != nil {
 		unpacker, err := unpack.NewUnpacker(
-			i.s, i.OverlayTree,
+			i.s, d.Installer.OverlayTree,
 			append(i.unpackOpts, unpack.WithRsyncFlags(rsync.OverlayTreeSyncFlags()...))...,
 		)
 		if err != nil {
@@ -242,37 +238,6 @@ func (i *ISO) Customize(d *deployment.Deployment) (err error) {
 // sanitize checks the current public attributes of the ISO object
 // and checks if they are good enough to proceed with an ISO build.
 func (i *ISO) sanitize() error {
-	if i.SourceOS == nil || i.SourceOS.IsEmpty() {
-		return fmt.Errorf("undefined OS image to build the installer from")
-	}
-
-	if i.Label == "" {
-		return fmt.Errorf("undefined label for the installer filesystem")
-	}
-
-	if i.KernelCmdLine == "" {
-		i.KernelCmdLine = fmt.Sprintf("root=live:CDLABEL=%s rd.live.overlay.overlayfs=1", i.Label)
-	}
-
-	if i.OutputDir == "" {
-		return fmt.Errorf("undefined output directory")
-	}
-
-	if i.Name == "" {
-		return fmt.Errorf("undefined name of the installer media")
-	}
-
-	i.outputFile = filepath.Join(i.OutputDir, fmt.Sprintf("%s.iso", i.Name))
-	if ok, _ := vfs.Exists(i.s.FS(), i.outputFile); ok {
-		return fmt.Errorf("target output file %s is an already existing file", i.outputFile)
-	}
-
-	return nil
-}
-
-// sanitizeCustomize checks the current public attributes of the ISO object
-// and checks if they are good enough to proceed with an ISO build.
-func (i *ISO) sanitizeCustomize() error {
 	if i.Label == "" {
 		return fmt.Errorf("undefined label for the installer filesystem")
 	}
@@ -285,8 +250,10 @@ func (i *ISO) sanitizeCustomize() error {
 		return fmt.Errorf("undefined name of the installer media")
 	}
 
-	if ok, _ := vfs.Exists(i.s.FS(), i.InputFile); !ok {
-		return fmt.Errorf("target input file %s does not exist", i.InputFile)
+	if i.InputFile != "" {
+		if ok, _ := vfs.Exists(i.s.FS(), i.InputFile); !ok {
+			return fmt.Errorf("target input file %s does not exist", i.InputFile)
+		}
 	}
 
 	i.outputFile = filepath.Join(i.OutputDir, fmt.Sprintf("%s.iso", i.Name))
@@ -331,10 +298,10 @@ func (i ISO) writeGrubEnv(file string, vars map[string]string) error {
 
 // prepareRoot arranges the root directory tree that will be used to build the ISO's
 // squashfs image. It essentially extracts OS OCI images to the given location.
-func (i ISO) prepareRoot(rootDir string) error {
-	i.s.Logger().Info("Extracting OS %s", i.SourceOS.String())
+func (i ISO) prepareRoot(sourceOS *deployment.ImageSource, rootDir string) error {
+	i.s.Logger().Info("Extracting OS %s", sourceOS.String())
 
-	unpacker, err := unpack.NewUnpacker(i.s, i.SourceOS, i.unpackOpts...)
+	unpacker, err := unpack.NewUnpacker(i.s, sourceOS, i.unpackOpts...)
 	if err != nil {
 		return fmt.Errorf("could not initate OS unpacker: %w", err)
 	}
@@ -342,11 +309,11 @@ func (i ISO) prepareRoot(rootDir string) error {
 	if err != nil {
 		return fmt.Errorf("OS unpack failed: %w", err)
 	}
-	i.SourceOS.SetDigest(digest)
+	sourceOS.SetDigest(digest)
 
 	// Store the source image reference and digest as part of the ISO
 	d := &deployment.Deployment{
-		SourceOS: i.SourceOS,
+		SourceOS: sourceOS,
 	}
 	err = d.WriteDeploymentFile(i.s, rootDir)
 	if err != nil {
@@ -403,21 +370,21 @@ func (i ISO) prepareISO(rootDir, isoDir string, d *deployment.Deployment) error 
 		return fmt.Errorf("failed preparing ISO, could not create %s: %w", bootPath, err)
 	}
 
-	err = i.bl.InstallLive(rootDir, isoDir, i.KernelCmdLine)
+	err = i.bl.InstallLive(rootDir, isoDir, d.Installer.KernelCmdline)
 	if err != nil {
 		return fmt.Errorf("failed installing bootloader in ISO directory tree: %w", err)
 	}
 
-	if i.CfgScript != "" {
-		err = vfs.CopyFile(i.s.FS(), i.CfgScript, filepath.Join(imgDir, installerCfg))
+	if d.Installer.CfgScript != "" {
+		err = vfs.CopyFile(i.s.FS(), d.Installer.CfgScript, filepath.Join(imgDir, installerCfg))
 		if err != nil {
-			return fmt.Errorf("failed copying %s to image directory: %w", i.CfgScript, err)
+			return fmt.Errorf("failed copying %s to image directory: %w", d.Installer.CfgScript, err)
 		}
 	}
 
-	if i.OverlayTree != nil {
+	if d.Installer.OverlayTree != nil {
 		unpacker, err := unpack.NewUnpacker(
-			i.s, i.OverlayTree,
+			i.s, d.Installer.OverlayTree,
 			append(i.unpackOpts, unpack.WithRsyncFlags(rsync.OverlayTreeSyncFlags()...))...,
 		)
 		if err != nil {

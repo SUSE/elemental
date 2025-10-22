@@ -26,7 +26,7 @@ import (
 
 	"github.com/suse/elemental/v3/internal/cli/cmd"
 	"github.com/suse/elemental/v3/pkg/deployment"
-	"github.com/suse/elemental/v3/pkg/installermedia"
+	"github.com/suse/elemental/v3/pkg/installer"
 	"github.com/suse/elemental/v3/pkg/sys"
 )
 
@@ -43,14 +43,11 @@ func Customize(ctx *cli.Context) error {
 
 	logger.Info("Customizing image")
 
-	media := installermedia.NewISO(ctxCancel, s)
+	media := installer.NewISO(ctxCancel, s)
 
-	err := digestCustomizeSetup(args, media)
-	if err != nil {
-		return fmt.Errorf("invalid customize setup: %w", err)
-	}
+	digestCustomizeSetup(args, media)
 
-	d, err := digestDeploymentSetup(s, args.InstallSpec)
+	d, err := digestCustomizeDeploymentSetup(s, args)
 	if err != nil {
 		s.Logger().Error("Failed to collect deployment setup")
 		return err
@@ -66,19 +63,37 @@ func Customize(ctx *cli.Context) error {
 	return nil
 }
 
-func digestCustomizeSetup(flags *cmd.CustomizeFlags, media *installermedia.ISO) error {
+func digestCustomizeDeploymentSetup(s *sys.System, flags *cmd.CustomizeFlags) (*deployment.Deployment, error) {
+	d := deployment.DefaultDeployment()
 	if flags.Overlay != "" {
 		src, err := deployment.NewSrcFromURI(flags.Overlay)
 		if err != nil {
-			return fmt.Errorf("invalid overlay data URI (%s) to add into the customization: %w", flags.Overlay, err)
+			return nil, fmt.Errorf("invalid overlay data URI (%s) to add into the customization: %w", flags.Overlay, err)
 		}
-		media.OverlayTree = src
+		d.Installer.OverlayTree = src
 	}
 
 	if flags.ConfigScript != "" {
-		media.CfgScript = flags.ConfigScript
+		d.Installer.CfgScript = flags.ConfigScript
 	}
 
+	if flags.KernelCmdline != "" {
+		d.Installer.KernelCmdline = flags.KernelCmdline
+	}
+
+	err := applyInstallFlags(s, d, flags.InstallSpec)
+	if err != nil {
+		return nil, fmt.Errorf("failed applying install flags to deployment description")
+	}
+
+	err = d.Sanitize(s)
+	if err != nil {
+		return nil, fmt.Errorf("inconsistent deployment setup found: %w", err)
+	}
+	return d, nil
+}
+
+func digestCustomizeSetup(flags *cmd.CustomizeFlags, media *installer.ISO) {
 	if flags.Name != "" {
 		media.Name = flags.Name
 	}
@@ -91,12 +106,7 @@ func digestCustomizeSetup(flags *cmd.CustomizeFlags, media *installermedia.ISO) 
 		media.Label = flags.Label
 	}
 
-	if flags.KernelCmdline != "" {
-		media.KernelCmdLine = flags.KernelCmdline
-	}
-
 	if flags.InputFile != "" {
 		media.InputFile = flags.InputFile
 	}
-	return nil
 }
