@@ -42,12 +42,15 @@ const (
 	installDir     = "Install"
 	overlayDir     = "Overlay"
 	squashfsImg    = "squashfs.img"
+	installCfg     = "install.yaml"
 	isoBootCatalog = "boot.catalog"
-	isoMountPoint  = "/run/initramfs/live"
-	installerCfg   = "setup.sh"
+	cfgScript      = "setup.sh"
 	xorriso        = "xorriso"
 
-	SquashfsPath = isoMountPoint + "/" + liveDir + "/" + squashfsImg
+	LiveMountPoint = "/run/initramfs/live"
+	SquashfsPath   = LiveMountPoint + "/" + liveDir + "/" + squashfsImg
+	InstallDesc    = LiveMountPoint + "/" + installDir + "/" + installCfg
+	InstallScript  = LiveMountPoint + "/" + installDir + "/" + cfgScript
 )
 
 type Option func(*ISO)
@@ -119,8 +122,8 @@ func (i ISO) Build(d *deployment.Deployment) (err error) {
 	}
 	cleanup.Push(func() error { return i.s.FS().RemoveAll(tempDir) })
 
-	rootDir := filepath.Join(tempDir, "rootfs")
-	err = vfs.MkdirAll(i.s.FS(), rootDir, vfs.DirPerm)
+	rootfs := filepath.Join(tempDir, "rootfs")
+	err = vfs.MkdirAll(i.s.FS(), rootfs, vfs.DirPerm)
 	if err != nil {
 		return fmt.Errorf("failed creating rootfs directory: %w", err)
 	}
@@ -137,12 +140,7 @@ func (i ISO) Build(d *deployment.Deployment) (err error) {
 		return fmt.Errorf("failed creating ISO directory: %w", err)
 	}
 
-	err = i.prepareRoot(d.SourceOS, rootDir)
-	if err != nil {
-		return fmt.Errorf("failed preparing root: %w", err)
-	}
-
-	err = i.prepareISO(rootDir, isoDir, d)
+	err = i.prepareISO(rootfs, isoDir, d)
 	if err != nil {
 		return fmt.Errorf("failed preparing iso directory tree: %w", err)
 	}
@@ -161,6 +159,67 @@ func (i ISO) Build(d *deployment.Deployment) (err error) {
 	err = i.burnISO(isoDir, i.outputFile, efiImg)
 	if err != nil {
 		return fmt.Errorf("failed creating live iso image: %w", err)
+	}
+
+	return nil
+}
+
+// PrepareInstallerFS prepares the directory tree of the installer image, rootDir is the path
+// of the directory tree root and workDir is the path to extract source image, typically a temporary
+// directory entirely managed by the caller logic.
+func (i *ISO) PrepareInstallerFS(rootDir, workDir string, d *deployment.Deployment) error {
+	imgDir := filepath.Join(rootDir, liveDir)
+	err := vfs.MkdirAll(i.s.FS(), imgDir, vfs.DirPerm)
+	if err != nil {
+		return fmt.Errorf("failed preparing ISO, could not create %s: %w", imgDir, err)
+	}
+	squashImg := filepath.Join(imgDir, squashfsImg)
+
+	switch {
+	case d.SourceOS.IsRaw():
+		// We assume this is comming from a ready to be used installer media
+		// no need to unpack and repack
+		err = vfs.CopyFile(i.s.FS(), d.SourceOS.URI(), squashImg)
+		if err != nil {
+			return fmt.Errorf("failed copying OS image to installer root tree: %w", err)
+		}
+	default:
+		err = i.prepareOSRoot(d.SourceOS, workDir)
+		if err != nil {
+			return fmt.Errorf("preparing unpack: %w", err)
+		}
+		err = diskrepart.CreateSquashFS(i.ctx, i.s, workDir, squashImg, diskrepart.DefaultSquashfsCompressionOptions())
+		if err != nil {
+			return fmt.Errorf("failed creating image (%s) for live ISO: %w", squashImg, err)
+		}
+	}
+	// Store the deployment with the OS image we just created/copied
+	d.SourceOS = deployment.NewRawSrc(SquashfsPath)
+
+	if d.Installer.CfgScript != "" {
+		err = vfs.CopyFile(i.s.FS(), d.Installer.CfgScript, filepath.Join(imgDir, cfgScript))
+		if err != nil {
+			return fmt.Errorf("failed copying %s to image directory: %w", d.Installer.CfgScript, err)
+		}
+	}
+
+	if d.Installer.OverlayTree != nil {
+		unpacker, err := unpack.NewUnpacker(
+			i.s, d.Installer.OverlayTree,
+			append(i.unpackOpts, unpack.WithRsyncFlags(rsync.OverlayTreeSyncFlags()...))...,
+		)
+		if err != nil {
+			return fmt.Errorf("could not initate overlay unpacker: %w", err)
+		}
+		_, err = unpacker.Unpack(i.ctx, rootDir)
+		if err != nil {
+			return fmt.Errorf("overlay unpack failed: %w", err)
+		}
+	}
+
+	err = i.addInstallationAssets(rootDir, d)
+	if err != nil {
+		return fmt.Errorf("failed adding installation assets and configuration: %w", err)
 	}
 
 	return nil
@@ -199,7 +258,7 @@ func (i *ISO) Customize(d *deployment.Deployment) (err error) {
 	}
 
 	if d.Installer.CfgScript != "" {
-		m[d.Installer.CfgScript] = filepath.Join("/", liveDir, installerCfg)
+		m[d.Installer.CfgScript] = filepath.Join("/", liveDir, cfgScript)
 	}
 
 	if d.Installer.OverlayTree != nil {
@@ -296,9 +355,9 @@ func (i ISO) writeGrubEnv(file string, vars map[string]string) error {
 	return err
 }
 
-// prepareRoot arranges the root directory tree that will be used to build the ISO's
+// prepareOSRoot arranges the root directory tree that will be used to build the ISO's
 // squashfs image. It essentially extracts OS OCI images to the given location.
-func (i ISO) prepareRoot(sourceOS *deployment.ImageSource, rootDir string) error {
+func (i ISO) prepareOSRoot(sourceOS *deployment.ImageSource, rootDir string) error {
 	i.s.Logger().Info("Extracting OS %s", sourceOS.String())
 
 	unpacker, err := unpack.NewUnpacker(i.s, sourceOS, i.unpackOpts...)
@@ -343,25 +402,12 @@ func (i ISO) prepareEFI(isoDir, efiDir string) error {
 }
 
 // prepareISO sets the root directory three of the ISO filesystem
-func (i ISO) prepareISO(rootDir, isoDir string, d *deployment.Deployment) error {
+func (i ISO) prepareISO(isoDir, rootfs string, d *deployment.Deployment) error {
 	i.s.Logger().Info("Preparing ISO contents at %s", isoDir)
 
-	imgDir := filepath.Join(isoDir, liveDir)
-	err := vfs.MkdirAll(i.s.FS(), imgDir, vfs.DirPerm)
+	err := i.PrepareInstallerFS(isoDir, rootfs, d)
 	if err != nil {
-		return fmt.Errorf("failed preparing ISO, could not create %s: %w", imgDir, err)
-	}
-
-	squashImg := filepath.Join(imgDir, squashfsImg)
-	err = diskrepart.CreateSquashFS(i.ctx, i.s, rootDir, squashImg, diskrepart.DefaultSquashfsCompressionOptions())
-	if err != nil {
-		return fmt.Errorf("failed creating image (%s) for live ISO: %w", squashImg, err)
-	}
-
-	installPath := filepath.Join(isoDir, installDir)
-	err = vfs.MkdirAll(i.s.FS(), installPath, vfs.DirPerm)
-	if err != nil {
-		return fmt.Errorf("failed preparing ISO, could not create %s: %w", installPath, err)
+		return fmt.Errorf("failed to populate ISO directory tree: %w", err)
 	}
 
 	bootPath := filepath.Join(isoDir, "boot")
@@ -370,35 +416,9 @@ func (i ISO) prepareISO(rootDir, isoDir string, d *deployment.Deployment) error 
 		return fmt.Errorf("failed preparing ISO, could not create %s: %w", bootPath, err)
 	}
 
-	err = i.bl.InstallLive(rootDir, isoDir, d.Installer.KernelCmdline)
+	err = i.bl.InstallLive(rootfs, isoDir, d.Installer.KernelCmdline)
 	if err != nil {
 		return fmt.Errorf("failed installing bootloader in ISO directory tree: %w", err)
-	}
-
-	if d.Installer.CfgScript != "" {
-		err = vfs.CopyFile(i.s.FS(), d.Installer.CfgScript, filepath.Join(imgDir, installerCfg))
-		if err != nil {
-			return fmt.Errorf("failed copying %s to image directory: %w", d.Installer.CfgScript, err)
-		}
-	}
-
-	if d.Installer.OverlayTree != nil {
-		unpacker, err := unpack.NewUnpacker(
-			i.s, d.Installer.OverlayTree,
-			append(i.unpackOpts, unpack.WithRsyncFlags(rsync.OverlayTreeSyncFlags()...))...,
-		)
-		if err != nil {
-			return fmt.Errorf("could not initate overlay unpacker: %w", err)
-		}
-		_, err = unpacker.Unpack(i.ctx, isoDir)
-		if err != nil {
-			return fmt.Errorf("overlay unpack failed: %w", err)
-		}
-	}
-
-	err = i.addInstallationAssets(installPath, d)
-	if err != nil {
-		return fmt.Errorf("failed adding installation assets and configuration: %w", err)
 	}
 
 	return nil
@@ -406,19 +426,25 @@ func (i ISO) prepareISO(rootDir, isoDir string, d *deployment.Deployment) error 
 
 // addInstallationAssets adds to the ISO directory three the configuration and files required for
 // the installation from the current media
-func (i ISO) addInstallationAssets(targetDir string, d *deployment.Deployment) error {
+func (i ISO) addInstallationAssets(root string, d *deployment.Deployment) error {
 	var err error
 
+	installPath := filepath.Join(root, installDir)
+	err = vfs.MkdirAll(i.s.FS(), installPath, vfs.DirPerm)
+	if err != nil {
+		return fmt.Errorf("failed preparing ISO, could not create %s: %w", installPath, err)
+	}
+
 	if d.CfgScript != "" {
-		err = vfs.CopyFile(i.s.FS(), d.CfgScript, filepath.Join(targetDir, filepath.Base(d.CfgScript)))
+		err = vfs.CopyFile(i.s.FS(), d.CfgScript, filepath.Join(installPath, cfgScript))
 		if err != nil {
 			return fmt.Errorf("failed copying %s to install directory: %w", d.CfgScript, err)
 		}
-		d.CfgScript = filepath.Join(isoMountPoint, installDir, filepath.Base(d.CfgScript))
+		d.CfgScript = InstallScript
 	}
 
 	if d.OverlayTree != nil {
-		overlayPath := filepath.Join(targetDir, overlayDir)
+		overlayPath := filepath.Join(installPath, overlayDir)
 		err = vfs.MkdirAll(i.s.FS(), overlayPath, vfs.DirPerm)
 		if err != nil {
 			return fmt.Errorf("failed preparing ISO, could not create %s: %w", overlayPath, err)
@@ -431,14 +457,14 @@ func (i ISO) addInstallationAssets(targetDir string, d *deployment.Deployment) e
 			if err != nil {
 				return fmt.Errorf("failed adding overlay tree to ISO directory tree: %w", err)
 			}
-			d.OverlayTree = deployment.NewDirSrc(filepath.Join(isoMountPoint, installDir, overlayDir))
+			d.OverlayTree = deployment.NewDirSrc(filepath.Join(LiveMountPoint, installDir, overlayDir))
 		case d.OverlayTree.IsRaw() || d.OverlayTree.IsTar():
 			overlayFile := filepath.Join(overlayPath, filepath.Base(d.OverlayTree.URI()))
 			err = vfs.CopyFile(i.s.FS(), d.OverlayTree.URI(), overlayFile)
 			if err != nil {
 				return fmt.Errorf("failed adding overlay image to ISO directory tree: %w", err)
 			}
-			path := filepath.Join(isoMountPoint, installDir, overlayDir, filepath.Base(d.OverlayTree.URI()))
+			path := filepath.Join(LiveMountPoint, installDir, overlayDir, filepath.Base(d.OverlayTree.URI()))
 			if d.OverlayTree.IsTar() {
 				d.OverlayTree = deployment.NewTarSrc(path)
 			} else {
@@ -448,7 +474,7 @@ func (i ISO) addInstallationAssets(targetDir string, d *deployment.Deployment) e
 		}
 	}
 
-	installFile := filepath.Join(targetDir, "install.yaml")
+	installFile := filepath.Join(installPath, installCfg)
 	dBytes, err := yaml.Marshal(d)
 	if err != nil {
 		return fmt.Errorf("marshalling deployment: %w", err)
