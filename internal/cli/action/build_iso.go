@@ -23,14 +23,12 @@ import (
 	"syscall"
 
 	"github.com/urfave/cli/v2"
-	"go.yaml.in/yaml/v3"
 
 	"github.com/suse/elemental/v3/internal/cli/cmd"
 	"github.com/suse/elemental/v3/pkg/bootloader"
 	"github.com/suse/elemental/v3/pkg/deployment"
 	"github.com/suse/elemental/v3/pkg/installer"
 	"github.com/suse/elemental/v3/pkg/sys"
-	"github.com/suse/elemental/v3/pkg/sys/vfs"
 	"github.com/suse/elemental/v3/pkg/unpack"
 )
 
@@ -83,6 +81,7 @@ func digestInstallerDeploymentSetup(s *sys.System, label string, flags *cmd.Inst
 		}
 		d.Installer.OverlayTree = src
 	}
+
 	if flags.ConfigScript != "" {
 		d.Installer.CfgScript = flags.ConfigScript
 	}
@@ -124,16 +123,9 @@ func digestInstallerSetup(flags *cmd.InstallerFlags, media *installer.ISO) {
 
 func applyInstallFlags(s *sys.System, d *deployment.Deployment, flags cmd.InstallFlags) error {
 	if flags.Description != "" {
-		if ok, _ := vfs.Exists(s.FS(), flags.Description); !ok {
-			return fmt.Errorf("config file '%s' not found", flags.Description)
-		}
-		data, err := s.FS().ReadFile(flags.Description)
+		err := loadDescriptionFile(s, flags.Description, d)
 		if err != nil {
-			return fmt.Errorf("could not read description file '%s': %w", flags.Description, err)
-		}
-		err = yaml.Unmarshal(data, d)
-		if err != nil {
-			return fmt.Errorf("could not unmarshal config file: %w", err)
+			return err
 		}
 	}
 

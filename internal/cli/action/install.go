@@ -30,6 +30,7 @@ import (
 	"github.com/suse/elemental/v3/pkg/deployment"
 	"github.com/suse/elemental/v3/pkg/firmware"
 	"github.com/suse/elemental/v3/pkg/install"
+	"github.com/suse/elemental/v3/pkg/installer"
 	"github.com/suse/elemental/v3/pkg/sys"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 	"github.com/suse/elemental/v3/pkg/transaction"
@@ -94,23 +95,82 @@ func Install(ctx *cli.Context) error { //nolint:dupl
 	return nil
 }
 
-func digestInstallSetup(s *sys.System, flags *cmd.InstallFlags) (*deployment.Deployment, error) {
-	d := deployment.DefaultDeployment()
-	if flags.Description != "" {
-		if ok, _ := vfs.Exists(s.FS(), flags.Description); !ok {
-			return nil, fmt.Errorf("config file '%s' not found", flags.Description)
-		}
-		data, err := s.FS().ReadFile(flags.Description)
-		if err != nil {
-			return nil, fmt.Errorf("could not read description file '%s': %w", flags.Description, err)
-		}
-		err = yaml.Unmarshal(data, d)
-		if err != nil {
-			return nil, fmt.Errorf("could not unmarshal config file: %w", err)
+// isLiveMedia returns true if the current host is a live media, for instance an ISO
+func isLiveMedia(s *sys.System) bool {
+	mnt, err := s.Mounter().IsMountPoint(installer.LiveMountPoint)
+	if !mnt || err != nil {
+		return false
+	}
+	exists, _ := vfs.Exists(s.FS(), installer.SquashfsPath)
+	return exists
+}
+
+// loadDescriptionFile reads the given deployment description file into the given deployment object
+func loadDescriptionFile(s *sys.System, file string, d *deployment.Deployment) error {
+	data, err := s.FS().ReadFile(file)
+	if err != nil {
+		return fmt.Errorf("could not read description file '%s': %w", file, err)
+	}
+	err = yaml.Unmarshal(data, d)
+	if err != nil {
+		return fmt.Errorf("could not unmarshal config file: %w", err)
+	}
+	s.Logger().Info("Loaded deployment description file: %s", file)
+	return nil
+}
+
+// setBootloader configures the bootloader for the given deployment with the given flags
+func setBootloader(s *sys.System, d *deployment.Deployment, flags *cmd.InstallFlags) {
+	disk := d.GetSystemDisk()
+	if flags.CreateBootEntry && disk != nil {
+		d.Firmware.BootEntries = []*firmware.EfiBootEntry{
+			firmware.DefaultBootEntry(s.Platform(), disk.Device),
 		}
 	}
-	if flags.Target != "" && len(d.Disks) > 0 {
-		d.Disks[0].Device = flags.Target
+
+	if d.BootConfig == nil {
+		d.BootConfig = &deployment.BootConfig{}
+	}
+	if flags.Bootloader != bootloader.BootNone {
+		d.BootConfig.Bootloader = flags.Bootloader
+	}
+
+	if flags.KernelCmdline != "" {
+		d.BootConfig.KernelCmdline = fmt.Sprintf("%s %s", d.BootConfig.KernelCmdline, flags.KernelCmdline)
+	}
+
+	if flags.EnableFips {
+		d.Fips = &deployment.FipsConfig{
+			Enabled: true,
+		}
+
+		bootFlag := fmt.Sprintf("boot=LABEL=%s", deployment.EfiLabel)
+		d.BootConfig.KernelCmdline = fmt.Sprintf("%s %s %s", d.BootConfig.KernelCmdline, "fips=1", bootFlag)
+	}
+}
+
+// disgestInstallSetup produces the Deployment object required to describe the installation parameters
+func digestInstallSetup(s *sys.System, flags *cmd.InstallFlags) (*deployment.Deployment, error) {
+	d := deployment.DefaultDeployment()
+
+	// Given flags have always precedence compared to in place configuration of live media
+	if flags.Description != "" {
+		err := loadDescriptionFile(s, flags.Description, d)
+		if err != nil {
+			return nil, err
+		}
+	} else if isLiveMedia(s) {
+		if ok, _ := vfs.Exists(s.FS(), installer.InstallDesc); ok {
+			err := loadDescriptionFile(s, installer.InstallDesc, d)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	disk := d.GetSystemDisk()
+	if flags.Target != "" && disk != nil {
+		disk.Device = flags.Target
 	}
 
 	if flags.OperatingSystemImage != "" {
@@ -133,28 +193,7 @@ func digestInstallSetup(s *sys.System, flags *cmd.InstallFlags) (*deployment.Dep
 		d.CfgScript = flags.ConfigScript
 	}
 
-	if flags.CreateBootEntry {
-		d.Firmware.BootEntries = []*firmware.EfiBootEntry{
-			firmware.DefaultBootEntry(s.Platform(), d.Disks[0].Device),
-		}
-	}
-
-	if flags.Bootloader != bootloader.BootNone {
-		d.BootConfig.Bootloader = flags.Bootloader
-	}
-
-	if flags.KernelCmdline != "" {
-		d.BootConfig.KernelCmdline = fmt.Sprintf("%s %s", d.BootConfig.KernelCmdline, flags.KernelCmdline)
-	}
-
-	if flags.EnableFips {
-		d.Fips = &deployment.FipsConfig{
-			Enabled: true,
-		}
-
-		bootFlag := fmt.Sprintf("boot=LABEL=%s", deployment.EfiLabel)
-		d.BootConfig.KernelCmdline = fmt.Sprintf("%s %s %s", d.BootConfig.KernelCmdline, "fips=1", bootFlag)
-	}
+	setBootloader(s, d, flags)
 
 	if flags.Snapshotter != "" {
 		d.Snapshotter.Name = flags.Snapshotter

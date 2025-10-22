@@ -91,7 +91,7 @@ var _ = Describe("Install action", Label("install"), func() {
 		cmd.InstallArgs.Description = "doesntexist"
 		err = action.Install(ctx)
 		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("config file 'doesntexist' not found"))
+		Expect(err.Error()).To(ContainSubstring("ReadFile doesntexist"))
 	})
 	It("fails if the setup is inconsistent", func() {
 		cmd.InstallArgs.Target = "/dev/device"

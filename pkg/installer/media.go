@@ -140,7 +140,7 @@ func (i ISO) Build(d *deployment.Deployment) (err error) {
 		return fmt.Errorf("failed creating ISO directory: %w", err)
 	}
 
-	err = i.prepareISO(rootfs, isoDir, d)
+	err = i.prepareISO(isoDir, rootfs, d)
 	if err != nil {
 		return fmt.Errorf("failed preparing iso directory tree: %w", err)
 	}
