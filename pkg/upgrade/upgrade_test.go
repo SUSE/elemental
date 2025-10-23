@@ -80,7 +80,7 @@ var _ = Describe("Upgrade", Label("upgrade"), func() {
 		d.SourceOS = deployment.NewDirSrc("/some/dir")
 		d.OverlayTree = deployment.NewDirSrc("/opt/overlaytree")
 		d.CfgScript = "/opt/config.sh"
-		Expect(d.Sanitize(s)).To(Succeed())
+		Expect(d.Sanitize(s, deployment.CheckDiskDevice)).To(Succeed())
 		u = upgrade.New(context.Background(), s, upgrade.WithTransaction(t), upgrade.WithBootManager(firmware.NewEfiBootManager(s)))
 
 		trans = &transaction.Transaction{

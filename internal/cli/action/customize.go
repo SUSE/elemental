@@ -86,7 +86,7 @@ func digestCustomizeDeploymentSetup(s *sys.System, flags *cmd.CustomizeFlags) (*
 		return nil, fmt.Errorf("failed applying install flags to deployment description")
 	}
 
-	err = d.Sanitize(s)
+	err = d.Sanitize(s, deployment.CheckDiskDevice, deployment.CheckSourceOS)
 	if err != nil {
 		return nil, fmt.Errorf("inconsistent deployment setup found: %w", err)
 	}

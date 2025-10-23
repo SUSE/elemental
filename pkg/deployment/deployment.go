@@ -20,6 +20,8 @@ package deployment
 import (
 	"fmt"
 	"path/filepath"
+	"reflect"
+	"runtime"
 	"slices"
 	"sort"
 	"strings"
@@ -244,6 +246,16 @@ type Deployment struct {
 
 type Opt func(d *Deployment)
 
+// KernelCmdline returns the default kernel command line for the givel label
+func KernelCmdline(label string) string {
+	return fmt.Sprintf("root=LABEL=%s", label)
+}
+
+// LiveKernelCmdline returns the default kernel command line to live boot with the givel label
+func LiveKernelCmdline(label string) string {
+	return fmt.Sprintf("root=live:LABEL=%s rd.live.overlay.overlayfs=1", label)
+}
+
 // GetSnapshottedVolumes returns a list of snapshotted rw volumes defined in the
 // given partitions list.
 func (p Partitions) GetSnapshottedVolumes() RWVolumes {
@@ -260,9 +272,23 @@ func (p Partitions) GetSnapshottedVolumes() RWVolumes {
 
 type SanitizeDeployment func(*sys.System, *Deployment) error
 
+// name returns the sanitizer method name using reflection. This can
+// be used to identify them inside sanitizers slice.
+func (s SanitizeDeployment) name() string {
+	fullName := runtime.FuncForPC(reflect.ValueOf(s).Pointer()).Name()
+
+	lastDotIndex := strings.LastIndex(fullName, ".")
+	if lastDotIndex == -1 {
+		return fullName
+	}
+
+	return fullName[lastDotIndex+1:]
+}
+
 var sanitizers = []SanitizeDeployment{
 	checkSystemPart, checkEFIPart, checkRecoveryPart,
 	checkAllAvailableSize, checkPartitionsFS, checkRWVolumes,
+	checkKernelCmdline, CheckSourceOS, CheckDiskDevice,
 }
 
 // GetSystemPartition gets the data of the system partition.
@@ -304,9 +330,18 @@ func (d Deployment) GetEfiSystemPartition() *Partition {
 	return nil
 }
 
-// Sanitize checks the consistency of the current Disk structure
-func (d *Deployment) Sanitize(s *sys.System) error {
+// Sanitize checks the consistency of the current Disk structure. ExcludeChecks parameter
+// is used to disable any given SanitizeDeployment method. Only public sanitizers can be
+// disabled from other packages.
+func (d *Deployment) Sanitize(s *sys.System, excludeChecks ...SanitizeDeployment) error {
+	var excluded []string
+	for _, exclude := range excludeChecks {
+		excluded = append(excluded, exclude.name())
+	}
 	for _, sanitize := range sanitizers {
+		if slices.Contains(excluded, sanitize.name()) {
+			continue
+		}
 		if err := sanitize(s, d); err != nil {
 			return err
 		}
@@ -422,7 +457,7 @@ func DefaultDeployment() *Deployment {
 		Firmware: &FirmwareConfig{},
 		BootConfig: &BootConfig{
 			Bootloader:    "none",
-			KernelCmdline: fmt.Sprintf("root=LABEL=%s", SystemLabel),
+			KernelCmdline: KernelCmdline(SystemLabel),
 		},
 		Snapshotter: &SnapshotterConfig{
 			Name: "snapper",
@@ -620,6 +655,43 @@ func checkRWVolumes(_ *sys.System, d *Deployment) error {
 	for i := range len(paths) - 1 {
 		if strings.HasPrefix(paths[i+1], paths[i]) {
 			return fmt.Errorf("nested rw volumes is not supported")
+		}
+	}
+	return nil
+}
+
+// checkKernelCmdLine ensures the kernel command line refers to the correct label
+// when using the default command line
+func checkKernelCmdline(_ *sys.System, d *Deployment) error {
+	if d.BootConfig == nil {
+		return fmt.Errorf("no bootloader configuration defined")
+	}
+	cmdLine := strings.Trim(d.BootConfig.KernelCmdline, " ")
+	if cmdLine == KernelCmdline(SystemLabel) {
+		system := d.GetSystemPartition()
+		if system.Label != SystemLabel {
+			d.BootConfig.KernelCmdline = KernelCmdline(system.Label)
+		}
+	}
+	return nil
+}
+
+// CheckSourceOS ensures the deployment includes an OS image
+func CheckSourceOS(_ *sys.System, d *Deployment) error {
+	if d.SourceOS == nil || d.SourceOS.IsEmpty() {
+		return fmt.Errorf("no OS image defined in deployment")
+	}
+	return nil
+}
+
+// CheckDiskDevice ensures the device is defined and it exists
+func CheckDiskDevice(s *sys.System, d *Deployment) error {
+	for i, disk := range d.Disks {
+		if disk.Device == "" {
+			return fmt.Errorf("no device associated with disk %d: %+v", i, disk)
+		}
+		if ok, _ := vfs.Exists(s.FS(), disk.Device); !ok {
+			return fmt.Errorf("device '%s' for disk %d not found", disk.Device, i)
 		}
 	}
 	return nil

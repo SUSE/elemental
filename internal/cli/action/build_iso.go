@@ -87,6 +87,8 @@ func digestInstallerDeploymentSetup(s *sys.System, label string, flags *cmd.Inst
 	}
 	if flags.KernelCmdLine != "" {
 		d.Installer.KernelCmdline = flags.KernelCmdLine
+	} else {
+		d.Installer.KernelCmdline = deployment.LiveKernelCmdline(label)
 	}
 
 	src, err := deployment.NewSrcFromURI(flags.OperatingSystemImage)
@@ -100,7 +102,7 @@ func digestInstallerDeploymentSetup(s *sys.System, label string, flags *cmd.Inst
 		return nil, fmt.Errorf("failed applying install flags to deployment description")
 	}
 
-	err = d.Sanitize(s)
+	err = d.Sanitize(s, deployment.CheckDiskDevice)
 	if err != nil {
 		return nil, fmt.Errorf("inconsistent deployment setup found: %w", err)
 	}

@@ -64,19 +64,30 @@ var _ = Describe("Deployment", Label("deployment"), func() {
 
 		It("creates a default deployment", func() {
 			d := deployment.DefaultDeployment()
+			d.SourceOS = deployment.NewDirSrc("/some/dir")
+			d.Disks[0].Device = "/dev/device"
 			Expect(d.Sanitize(s)).To(Succeed())
 		})
-		It("creates a default deployment with a configuration partition", func() {
+		It("fails if the defined device does not exist", func() {
+			d := deployment.DefaultDeployment()
+			d.SourceOS = deployment.NewDirSrc("/some/dir")
+			d.Disks[0].Device = "/dev/nonexisting"
+			Expect(d.Sanitize(s)).NotTo(Succeed())
+		})
+		It("creates a default deployment with a configuration partition and without a device assigned", func() {
 			d := deployment.New(deployment.WithConfigPartition(127))
-			Expect(d.Sanitize(s)).To(Succeed())
+			d.SourceOS = deployment.NewDirSrc("/some/dir")
+			Expect(d.Sanitize(s, deployment.CheckDiskDevice)).To(Succeed())
 			Expect(d.Disks[0].Partitions[1].Label).To(Equal(deployment.ConfigLabel))
 			Expect(d.Disks[0].Partitions[1].Size).To(Equal(deployment.MiB(256)))
+			Expect(d.Disks[0].Device).To(Equal(""))
 		})
 		It("does not create a deployment including out of range partitions", func() {
 			d := deployment.New(deployment.WithPartitions(
 				5, &deployment.Partition{Role: deployment.Data},
 			))
-			Expect(d.Sanitize(s)).To(Succeed())
+			d.SourceOS = deployment.NewDirSrc("/some/dir")
+			Expect(d.Sanitize(s, deployment.CheckDiskDevice)).To(Succeed())
 			Expect(len(d.Disks[0].Partitions)).To(Equal(2))
 		})
 		It("fails if multiple efi partitions are set", func() {
@@ -132,15 +143,16 @@ var _ = Describe("Deployment", Label("deployment"), func() {
 			Expect(err.Error()).To(ContainSubstring("no 'efi'"))
 		})
 		It("feeds default values even if some where undefined", func() {
-			d := &deployment.Deployment{
-				Disks: []*deployment.Disk{
-					{Partitions: []*deployment.Partition{
-						{Role: deployment.System, Size: 1024},
-						{Role: deployment.EFI, RWVolumes: []deployment.RWVolume{{Path: "/some/path"}}},
-						{Role: deployment.Data, Size: deployment.AllAvailableSize},
-					}},
-				},
+			d := deployment.DefaultDeployment()
+			d.Disks = []*deployment.Disk{
+				{Partitions: []*deployment.Partition{
+					{Role: deployment.System, Size: 1024},
+					{Role: deployment.EFI, RWVolumes: []deployment.RWVolume{{Path: "/some/path"}}},
+					{Role: deployment.Data, Size: deployment.AllAvailableSize},
+				}},
 			}
+			d.SourceOS = deployment.NewDirSrc("/some/dir")
+			d.Disks[0].Device = "/dev/device"
 			Expect(d.Sanitize(s)).To(Succeed())
 			Expect(d.Disks[0].Partitions[0].FileSystem).To(Equal(deployment.Btrfs))
 			Expect(d.Disks[0].Partitions[0].MountPoint).To(Equal(deployment.SystemMnt))
@@ -152,13 +164,14 @@ var _ = Describe("Deployment", Label("deployment"), func() {
 		It("writes and reads deployment files", func() {
 			d := deployment.DefaultDeployment()
 			d.Disks[0].Device = "/dev/device"
+			d.SourceOS = deployment.NewDirSrc("/some/image")
 			Expect(d.WriteDeploymentFile(s, "/some/dir")).To(Succeed())
 			rD, err := deployment.Parse(s, "/some/dir")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(len(rD.Disks)).To(Equal(1))
 			Expect(rD.Disks[0].Device).To(BeEmpty())
 			Expect(len(rD.Disks[0].Partitions)).To(Equal(2))
-			Expect(rD.Sanitize(s)).To(Succeed())
+			Expect(rD.Sanitize(s, deployment.CheckDiskDevice)).To(Succeed())
 		})
 		It("unmarshals Disk.Device", func() {
 			disk := "target: /dev/sometarget"
