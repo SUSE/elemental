@@ -27,6 +27,7 @@ import (
 
 	"github.com/suse/elemental/v3/internal/image"
 	"github.com/suse/elemental/v3/internal/image/release"
+	"github.com/suse/elemental/v3/pkg/log"
 	"github.com/suse/elemental/v3/pkg/manifest/api"
 	"github.com/suse/elemental/v3/pkg/manifest/resolver"
 	"github.com/suse/elemental/v3/pkg/rsync"
@@ -35,7 +36,9 @@ import (
 )
 
 func (b *Builder) downloadSystemExtensions(ctx context.Context, def *image.Definition, rm *resolver.ResolvedManifest, buildDir image.BuildDir) error {
-	extensions, err := enabledExtensions(rm, def)
+	logger := b.System.Logger()
+
+	extensions, err := enabledExtensions(rm, def, logger)
 	if err != nil {
 		return fmt.Errorf("filtering enabled systemd extensions: %w", err)
 	} else if len(extensions) == 0 {
@@ -50,7 +53,7 @@ func (b *Builder) downloadSystemExtensions(ctx context.Context, def *image.Defin
 	}
 
 	for _, extension := range extensions {
-		b.System.Logger().Info("Pulling extension %s from %s...",
+		logger.Info("Pulling extension %s from %s...",
 			extension.Name, extension.Image)
 
 		if isRemoteURL(extension.Image) {
@@ -150,7 +153,7 @@ func isExtensionExplicitlyEnabled(name string, def *image.Definition) bool {
 	})
 }
 
-func enabledExtensions(rm *resolver.ResolvedManifest, def *image.Definition) ([]api.SystemdExtension, error) {
+func enabledExtensions(rm *resolver.ResolvedManifest, def *image.Definition, logger log.Logger) ([]api.SystemdExtension, error) {
 	charts, _, err := enabledHelmCharts(rm, def.Release.Components.HelmCharts, nil)
 	if err != nil {
 		return nil, fmt.Errorf("filtering enabled helm charts: %w", err)
@@ -177,6 +180,22 @@ func enabledExtensions(rm *resolver.ResolvedManifest, def *image.Definition) ([]
 			(ext.Name == k8sExtension && isKubernetesEnabled(def)) ||
 			isDependency(ext.Name) {
 			enabled = append(enabled, ext)
+		} else {
+			logger.Debug("Extension '%s' not enabled", ext.Name)
+		}
+	}
+
+	// List not found extensions
+	for _, askedExt := range def.Release.Components.SystemdExtensions {
+		notIn := true
+		for _, foundExt := range all {
+			if foundExt.Name == askedExt.Name {
+				notIn = false
+				break
+			}
+		}
+		if notIn {
+			logger.Debug("Extension '%s' not found", askedExt.Name)
 		}
 	}
 
