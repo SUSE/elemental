@@ -117,7 +117,7 @@ func digestUpgradeSetup(s *sys.System, flags *cmd.UpgradeFlags) (*deployment.Dep
 		}
 	}
 
-	err = d.Sanitize(s)
+	err = d.Sanitize(s, deployment.CheckDiskDevice)
 	if err != nil {
 		return nil, fmt.Errorf("inconsistent deployment setup found: %w", err)
 	}
