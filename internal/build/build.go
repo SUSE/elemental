@@ -48,6 +48,7 @@ type Builder struct {
 	Helm         helmConfigurator
 	DownloadFile downloadFunc
 	Local        bool
+	ConfigDir    image.ConfigDir
 }
 
 func (b *Builder) Run(ctx context.Context, d *image.Definition, buildDir image.BuildDir) error {
@@ -70,14 +71,14 @@ func (b *Builder) Run(ctx context.Context, d *image.Definition, buildDir image.B
 		}
 	}
 
-	k8sScript, err := b.configureKubernetes(ctx, d, m, buildDir)
+	k8sScript, k8sConfScript, err := b.configureKubernetes(ctx, d, m, buildDir)
 	if err != nil {
 		logger.Error("Configuring Kubernetes failed")
 		return err
 	}
 
-	if k8sScript != "" || len(d.ButaneConfig) > 0 {
-		if err = b.configureIgnition(d, buildDir, k8sScript); err != nil {
+	if k8sScript != "" || len(d.ButaneConfig) > 0 || k8sConfScript != "" {
+		if err = b.configureIgnition(d, buildDir, k8sScript, k8sConfScript); err != nil {
 			logger.Error("Configuring Ignition failed")
 			return err
 		}
