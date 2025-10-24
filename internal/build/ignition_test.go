@@ -153,8 +153,8 @@ passwd:
 		var butane map[string]any
 
 		butaneConfigString := `
-version: 1.1.0
-variant: flatcar
+version: 1.6.0
+variant: fcos
 passwd:
   usrs:
   - name: pipo

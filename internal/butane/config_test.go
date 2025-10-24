@@ -67,23 +67,23 @@ var _ = Describe("Ignition configuration", func() {
 		var conf butane.Config
 		var jsonMap map[string]any
 
-		conf.Variant = "flatcar"
-		conf.Version = "1.1.0"
+		conf.Variant = "fcos"
+		conf.Version = "1.6.0"
 		conf.Passwd.Users = []v0_6.PasswdUser{{
 			Name:              "pipo",
 			SSHAuthorizedKeys: []v0_6.SSHAuthorizedKey{"longkey"},
 		}}
 
 		conf.AddSystemdUnit("test.service", "[Unit]\nDescription=Test unit\n[Install]\nWantedBy=test.target", true)
-		conf.MergeInlineIgnition("{\"ignition\": {\"version\": \"3.4.0\"}}")
+		conf.MergeInlineIgnition("{\"ignition\": {\"version\": \"3.5.0\"}}")
 
 		Expect(butane.WriteIgnitionFile(system, conf, "/ignition.ign")).To(Succeed())
 		ignBytes, err := system.FS().ReadFile("/ignition.ign")
 		Expect(err).ToNot(HaveOccurred())
 
 		Expect(json.Unmarshal(ignBytes, &jsonMap)).To(Succeed())
-		// Converted to ignition 3.4.0 as expected by flatcar 1.1.0 variant
-		Expect(jsonMap["ignition"].(map[string]any)["version"]).To(Equal("3.4.0"))
+		// Converted to ignition 3.5.0 as expected by fcos 1.6.0 variant
+		Expect(jsonMap["ignition"].(map[string]any)["version"]).To(Equal("3.5.0"))
 
 		// Defined user is added
 		user := jsonMap["passwd"].(map[string]any)["users"].([]any)[0].(map[string]any)

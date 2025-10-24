@@ -71,8 +71,8 @@ During the build this will be translated into an [Ignition](https://coreos.githu
 The example below shows how it can be used to setup users:
 
 ```yaml
-version: 1.1.0
-variant: flatcar
+version: 1.6.0
+variant: fcos
 passwd:
   users:
   - name: root
