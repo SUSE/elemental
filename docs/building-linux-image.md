@@ -379,10 +379,8 @@ ConditionFileIsExecutable=/usr/local/bin/elemental3ctl
 
 [Service]
 Type=oneshot
-ExecStart=/usr/local/bin/elemental3ctl --debug install --description /run/initramfs/live/Install/install.yaml
+ExecStart=/usr/local/bin/elemental3ctl --debug install
 ExecStartPost=reboot
-Restart=on-failure
-RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
