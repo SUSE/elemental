@@ -25,30 +25,26 @@ Consumers can use the `release.yaml` file to configure the desired product that 
 name: suse-product
 manifestURI: file:///path/to/manifest/suse-product-manifest.yaml
 # manifestURI: oci://registry.suse.com/suse-product/release-manifest:0.0.1
-core:
+components:
   helm:
     - chart: foo
       valuesFile: foo.yaml
-product:
-  helm:
-    - chart: bar
-      valuesFile: bar.yaml
+  systemd:
+    - extension: bar
 ```
 
 * `name` - Optional; Name of the product that all other configurations will be based on.
 * `manifestURI` - Required; URI to a release manifest for the Core Platform or the Product that will be used as base. For more information, refer to the [Release Manifest](./release-manifest.md) guide. Supports both local file (file://) and OCI image (oci://) definitions.
-* `core` - Optional; Components to explicitly enable from the Core Platform base.
-  * `helm` - Required; List of Helm chart components that need to be enabled from the Core Platform base.
+* `components` - Optional; Components to explicitly enable from the Core Platform base.
+  * `helm` - Optional; List of Helm chart components that need to be enabled from the Core Platform base.
     * `chart` - Required; The actual chart that needs to be enabled, as seen in the Core Platform release manifest.
     * `valuesFile` - Optional; The name of the [Helm values file](https://helm.sh/docs/chart_template_guide/values_files/) (not including the path) that will be applied to this chart. The values file must be placed under `kubernetes/helm/values` for the specified chart.
-* `product` - Optional; Components to explicitly enable from the desired product base. Applicable only if the manifest specified under `manifestURI` is a [product manifest](./release-manifest.md#product-release-manifest).
-  * `helm` - Required; List of Helm chart components that need to be enabled from the product base.
-    * `chart` - Required; The actual chart that needs to be enabled, as seen in the product release manifest.
-    * `valuesFile` - Optional; The name of the [Helm values file](https://helm.sh/docs/chart_template_guide/values_files/) (not including the path) that will be applied to this chart. The values file must be placed under `kubernetes/helm/values` for the specified chart.
+  * `systemd` - Optional; List of System extensions that need to be enabled from the product base.
+    * `extension` - Required; The actual extension that needs to be enabled, as seen in the product release manifest.
 
 ## Operating System
 
-Users can provide configurations related to the operating system through the `install.yaml` and `os.yaml` files.
+Users can provide configurations related to the operating system through the `install.yaml` and `butane.yaml` files.
 
 ### install.yaml
 

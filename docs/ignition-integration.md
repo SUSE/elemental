@@ -5,7 +5,6 @@ This section provides an overview of how to configure the OS at firstboot with I
 ## The runtime context
 
 By default, `elemental3ctl` creates two partitions for its operating system images: an ESP partition
-
 (bootloader, kernel and initrd) and a Linux partition (the OS itself). The Linux partition is a btrfs
 file system including several subvolumes where there is the default read-only subvolume mounted as the
 root device and a list of read-write subvolumes which are mounted in paths that are expected or required
@@ -97,11 +96,11 @@ disks:
 
 ## Configuring via Ignition
 
-SUSE Linux Micro's Ignition comes with certain constraints when this
-is used in conjunction to an image based (also referred as immutable) OS. Most noticeable aspect is that the
-root volume, despite ignition attempts to remount it as a read-write, is still sealed and operating in read-only
-mode. In practice this essentially means that changes over the RO areas of the system are forbidden and any
-attempt to write there is leading to an ignition failure which translates into a non booting system.
+SUSE Linux Micro's Ignition comes with certain constraints when this is used in conjunction to an image based
+(also referred as immutable) OS. Most noticeable aspect is that the root volume, despite ignition attempts to
+remount it as a read-write, is still sealed and operating in read-only mode. In practice this essentially
+means that changes over the RO areas of the system are forbidden and any attempt to write there is leading to
+an ignition failure which translates into a non booting system.
 
 The Ignition configuration file can be provided in a variety of ways depending on the platform (e.g. some
 public cloud provider) the system is running, however a common and easy way to provide the configuration is by using a
