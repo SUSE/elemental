@@ -23,6 +23,7 @@ import (
 
 	"github.com/suse/elemental/v3/internal/image"
 	"github.com/suse/elemental/v3/internal/image/release"
+	"github.com/suse/elemental/v3/pkg/log"
 	"github.com/suse/elemental/v3/pkg/manifest/api"
 	"github.com/suse/elemental/v3/pkg/manifest/api/core"
 	"github.com/suse/elemental/v3/pkg/manifest/api/product"
@@ -30,6 +31,8 @@ import (
 )
 
 var _ = Describe("Systemd extensions", func() {
+	logger := log.New(log.WithDiscardAll())
+
 	It("Detects remote sources", func() {
 		Expect(isRemoteURL("http://example.com/extension.raw")).To(BeTrue(), "http")
 		Expect(isRemoteURL("https://example.com/extension.raw")).To(BeTrue(), "https")
@@ -71,7 +74,7 @@ var _ = Describe("Systemd extensions", func() {
 				},
 			}
 
-			extensions, err := enabledExtensions(rm, def)
+			extensions, err := enabledExtensions(rm, def, logger)
 			Expect(err).To(HaveOccurred())
 			Expect(err).To(MatchError(MatchRegexp("filtering enabled helm charts: adding helm chart 'longhorn': " +
 				"adding dependent helm chart 'longhorn-crd': helm chart does not exist")))
@@ -156,7 +159,7 @@ var _ = Describe("Systemd extensions", func() {
 				},
 			}
 
-			extensions, err := enabledExtensions(rm, def)
+			extensions, err := enabledExtensions(rm, def, logger)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(extensions).To(HaveLen(4))
 
