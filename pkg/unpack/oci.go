@@ -116,7 +116,7 @@ func (o OCI) SynchedUnpack(ctx context.Context, destination string, excludes []s
 	return digest, nil
 }
 
-func (o OCI) Unpack(ctx context.Context, destination string) (string, error) {
+func (o OCI) Unpack(ctx context.Context, destination string, excludes ...string) (string, error) {
 	platform, err := containerregistry.ParsePlatform(o.platformRef)
 	if err != nil {
 		return "", err
@@ -155,7 +155,8 @@ func (o OCI) Unpack(ctx context.Context, destination string) (string, error) {
 		return "", err
 	}
 
-	_, err = archive.Apply(ctx, destination, reader)
+	filter := excludesFilter(destination, excludes...)
+	_, err = archive.Apply(ctx, destination, reader, archive.WithFilter(filter))
 	return digest.String(), err
 }
 

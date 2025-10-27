@@ -82,6 +82,19 @@ var _ = Describe("TarUnpacker", Label("tar"), func() {
 		Expect(ok).To(BeTrue())
 	})
 
+	It("unpacks data excluding given paths", func() {
+		_, err := unpacker.Unpack(context.Background(), "/root", "var", "etc/os")
+		Expect(err).NotTo(HaveOccurred())
+
+		ok, _ := vfs.Exists(tfs, "/root/var")
+		Expect(ok).To(BeFalse())
+
+		// exclude 'etc/os' does not exlude os-release file
+		// exludes require a full directory or file path to be effective
+		ok, _ = vfs.Exists(tfs, "/root/etc/os-release")
+		Expect(ok).To(BeTrue())
+	})
+
 	It("mirrors data deleting pre-existing content", func() {
 		data, err := tfs.ReadFile("/root/etc/os-release")
 		Expect(err).NotTo(HaveOccurred())

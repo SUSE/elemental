@@ -33,6 +33,8 @@ import (
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
 
+type Filter func(h *tar.Header) (bool, error)
+
 type cancelableReader struct {
 	ctx context.Context
 	src io.Reader
@@ -61,43 +63,44 @@ type link struct {
 
 // ExtractTarball extracts a .tar, .tar.gz or .tar.bz2 taball file to the given target.
 // Compression detection is rudimentary and only based on file name extension.
-func ExtractTarball(ctx context.Context, s *sys.System, tarball string, target string) error {
+func ExtractTarball(ctx context.Context, s *sys.System, tarball string, target string, filters ...Filter) error {
 	sourceFile, err := s.FS().OpenFile(tarball, os.O_RDONLY, vfs.FilePerm)
 	if err != nil {
 		return err
 	}
 	switch {
 	case strings.HasSuffix(tarball, "tar.bz2"):
-		return ExtractTarBz2(ctx, s, sourceFile, target)
+		return ExtractTarBz2(ctx, s, sourceFile, target, filters...)
 	case strings.HasSuffix(tarball, "tar.gz"):
-		return ExtractTarGz(ctx, s, sourceFile, target)
+		return ExtractTarGz(ctx, s, sourceFile, target, filters...)
 	default:
-		return ExtractTar(ctx, s, sourceFile, target)
+		return ExtractTar(ctx, s, sourceFile, target, filters...)
 	}
 }
 
 // ExtractTarGz extracts a ..tar.gz archived stream of data to the given target
-func ExtractTarGz(ctx context.Context, s *sys.System, body io.Reader, target string) error {
+func ExtractTarGz(ctx context.Context, s *sys.System, body io.Reader, target string, filters ...Filter) error {
 	reader, err := gzip.NewReader(body)
 	if err != nil {
 		return fmt.Errorf("gzip error: %w", err)
 	}
 
-	return ExtractTar(ctx, s, reader, target)
+	return ExtractTar(ctx, s, reader, target, filters...)
 }
 
 // ExtractTarBz2 extracts a ..tar.bz2 archived stream of data to the given target
-func ExtractTarBz2(ctx context.Context, s *sys.System, body io.Reader, target string) error {
+func ExtractTarBz2(ctx context.Context, s *sys.System, body io.Reader, target string, filters ...Filter) error {
 	reader := bzip2.NewReader(body)
-	return ExtractTar(ctx, s, reader, target)
+	return ExtractTar(ctx, s, reader, target, filters...)
 }
 
 // ExtractTar extracts a .tar archived stream of data to the given target
-func ExtractTar(ctx context.Context, s *sys.System, body io.Reader, target string) error {
+func ExtractTar(ctx context.Context, s *sys.System, body io.Reader, target string, filters ...Filter) error {
 	var links []*link
 	var symlinks []*link
 
 	tr := tar.NewReader(body)
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -117,10 +120,11 @@ func ExtractTar(ctx context.Context, s *sys.System, body io.Reader, target strin
 			continue
 		}
 
-		path := header.Name
-		path, err = sanitizeArchivePath(target, path)
+		path, err := filterTarHeader(s, target, header, filters...)
 		if err != nil {
-			s.Logger().Warn("Ignoring non local path '%s': %v", path, err)
+			return fmt.Errorf("tar filter failed: %w", err)
+		}
+		if path == "" {
 			continue
 		}
 
@@ -213,4 +217,25 @@ func sanitizeArchivePath(root, filename string) (string, error) {
 	}
 
 	return path, fmt.Errorf("content filepath '%s' is tainted", path)
+}
+
+func filterTarHeader(s *sys.System, target string, h *tar.Header, filters ...Filter) (string, error) {
+	path := h.Name
+	path, err := sanitizeArchivePath(target, path)
+	if err != nil {
+		s.Logger().Warn("Ignoring non local path '%s': %v", path, err)
+		return "", nil
+	}
+
+	for _, filter := range filters {
+		accept, err := filter(h)
+		if err != nil {
+			return "", fmt.Errorf("tar filter failed: %w", err)
+		}
+		if !accept {
+			return "", nil
+		}
+	}
+
+	return path, nil
 }

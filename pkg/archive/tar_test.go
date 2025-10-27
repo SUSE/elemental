@@ -18,9 +18,12 @@ limitations under the License.
 package archive_test
 
 import (
+	"archive/tar"
 	"bytes"
 	"context"
+	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -89,6 +92,28 @@ var _ = Describe("Archive", Label("archive"), func() {
 		infoRel, err := tfs.Lstat("/root/etc/os-release")
 		Expect(err).ToNot(HaveOccurred())
 		Expect(os.SameFile(infoRel, infoHl)).To(BeTrue())
+
+	})
+
+	It("Extracts with a filter", func() {
+		filter := func(h *tar.Header) (bool, error) {
+			if filepath.Join("/root", h.Name) == "/root/etc/os-release" {
+				return false, fmt.Errorf("needle found")
+			}
+			return true, nil
+		}
+		Expect(archive.ExtractTarball(context.Background(), s, "/data/test.tar.gz", "/root", filter)).To(MatchError(ContainSubstring("needle found")))
+
+		// Exclude certain path from extraction
+		filter = func(h *tar.Header) (bool, error) {
+			if filepath.Join("/root", h.Name) == "/root/etc/os-release" {
+				return false, nil
+			}
+			return true, nil
+		}
+		Expect(archive.ExtractTarball(context.Background(), s, "/data/test.tar.gz", "/root", filter)).To(Succeed())
+		ok, _ := vfs.Exists(tfs, "/root/etc/os-release")
+		Expect(ok).To(BeFalse())
 	})
 
 	It("fails to extract files of wrong type", func() {

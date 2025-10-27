@@ -48,7 +48,7 @@ func NewRawUnpacker(s *sys.System, path string, opts ...RawOpt) *Raw {
 	return r
 }
 
-func (r Raw) Unpack(ctx context.Context, destination string) (digest string, err error) {
+func (r Raw) Unpack(ctx context.Context, destination string, excludes ...string) (digest string, err error) {
 	var umount umountFunc
 	var mountpoint string
 
@@ -64,7 +64,7 @@ func (r Raw) Unpack(ctx context.Context, destination string) (digest string, err
 	}()
 
 	unpackD := NewDirectoryUnpacker(r.s, mountpoint, WithRsyncFlagsDir(r.rsyncFlags...))
-	return unpackD.Unpack(ctx, destination)
+	return unpackD.Unpack(ctx, destination, excludes...)
 }
 
 func (r Raw) SynchedUnpack(ctx context.Context, destination string, excludes []string, deleteExcludes []string) (digest string, err error) {

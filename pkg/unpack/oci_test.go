@@ -82,10 +82,14 @@ var _ = Describe("OCIUnpacker", Label("oci", "rootlesskit"), func() {
 
 		unpacker := unpack.NewOCIUnpacker(s, alpineImageRef, unpack.WithPlatformRefOCI("linux/amd64"), unpack.WithLocalOCI(true))
 		Expect(vfs.MkdirAll(tfs, "/target/root", vfs.DirPerm)).To(Succeed())
-		digest, err := unpacker.Unpack(context.Background(), "/target/root")
+
+		// Unpack excluding /usr/sbin
+		digest, err := unpacker.Unpack(context.Background(), "/target/root", "/usr/sbin")
 		Expect(err).NotTo(HaveOccurred())
 		exists, _ := vfs.Exists(tfs, "/target/root/etc/os-release")
 		Expect(exists).To(BeTrue())
+		exists, _ = vfs.Exists(tfs, "/target/root/usr/sbin")
+		Expect(exists).To(BeFalse())
 		data, err := tfs.ReadFile("/target/root/etc/os-release")
 		Expect(err).NotTo(HaveOccurred())
 		Expect(string(data)).To(ContainSubstring("VERSION_ID=3.21.3"))

@@ -45,16 +45,24 @@ var _ = Describe("DirectoryUnpacker", Label("directory"), func() {
 		unpacker = unpack.NewDirectoryUnpacker(s, "/some/root")
 		Expect(vfs.MkdirAll(tfs, "/some/root", vfs.DirPerm)).To(Succeed())
 		Expect(tfs.WriteFile("/some/root/datafile", []byte("data"), vfs.FilePerm)).To(Succeed())
+		Expect(tfs.WriteFile("/some/root/foo", []byte("bar"), vfs.FilePerm)).To(Succeed())
+		Expect(tfs.WriteFile("/some/root/pipo", []byte("bar"), vfs.FilePerm)).To(Succeed())
 		Expect(vfs.MkdirAll(tfs, "/target/dir", vfs.DirPerm)).To(Succeed())
 	})
 	AfterEach(func() {
 		cleanup()
 	})
-	It("syncs data to target directory", func() {
-		digest, err := unpacker.Unpack(context.Background(), "/target/dir")
+	It("syncs data to target directory excluding paths", func() {
+		digest, err := unpacker.Unpack(context.Background(), "/target/dir", "/foo", "/pip")
 		Expect(err).NotTo(HaveOccurred())
 		Expect(digest).To(Equal(""))
 		ok, _ := vfs.Exists(tfs, "/target/dir/datafile")
+		Expect(ok).To(BeTrue())
+		ok, _ = vfs.Exists(tfs, "/target/dir/foo")
+		Expect(ok).To(BeFalse())
+
+		// excluded files must match directory of filename
+		ok, _ = vfs.Exists(tfs, "/target/dir/pipo")
 		Expect(ok).To(BeTrue())
 	})
 	It("mirrors data to target directory", func() {

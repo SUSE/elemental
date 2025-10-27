@@ -19,6 +19,7 @@ package unpack
 
 import (
 	"context"
+	"path/filepath"
 
 	"github.com/suse/elemental/v3/pkg/deployment"
 	"github.com/suse/elemental/v3/pkg/rsync"
@@ -47,10 +48,14 @@ func NewDirectoryUnpacker(s *sys.System, path string, opts ...DirectoryOpt) *Dir
 	return dir
 }
 
-func (d Directory) Unpack(ctx context.Context, destination string) (string, error) {
+func (d Directory) Unpack(ctx context.Context, destination string, excludes ...string) (string, error) {
 	sync := rsync.NewRsync(d.s, rsync.WithContext(ctx), rsync.WithFlags(d.rsyncFlags...))
 	digest := findDeploymentDigest(d.s, d.path)
-	return digest, sync.SyncData(d.path, destination)
+	rootedExcl := make([]string, len(excludes))
+	for i, exclude := range excludes {
+		rootedExcl[i] = filepath.Clean(filepath.Join("/", exclude))
+	}
+	return digest, sync.SyncData(d.path, destination, rootedExcl...)
 }
 
 func (d Directory) SynchedUnpack(ctx context.Context, destination string, excludes []string, deleteExcludes []string) (string, error) {

@@ -26,8 +26,9 @@ import (
 )
 
 type Interface interface {
-	// Unpack extracts the contents to the provided destination
-	Unpack(ctx context.Context, destination string) (string, error)
+	// Unpack extracts the contents to the provided destination. It allows to exclude
+	// certain given paths. All exclude paths are assumed to be tied to source root
+	Unpack(ctx context.Context, destination string, excludes ...string) (string, error)
 
 	// SynchedUnpack extracts the contents to the provided destination ensuring origin and
 	// destination are perfectly synched, that is any preexisting content in destination which

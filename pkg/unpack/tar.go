@@ -18,8 +18,10 @@ limitations under the License.
 package unpack
 
 import (
+	"archive/tar"
 	"context"
 	"path/filepath"
+	"strings"
 
 	"github.com/suse/elemental/v3/pkg/archive"
 	"github.com/suse/elemental/v3/pkg/sys"
@@ -48,8 +50,8 @@ func NewTarUnpacker(s *sys.System, tarball string, opts ...TarOpt) *Tar {
 	return t
 }
 
-func (t Tar) Unpack(ctx context.Context, destination string) (string, error) {
-	err := archive.ExtractTarball(ctx, t.s, t.tarball, destination)
+func (t Tar) Unpack(ctx context.Context, destination string, excludes ...string) (string, error) {
+	err := archive.ExtractTarball(ctx, t.s, t.tarball, destination, excludesFilter(destination, excludes...))
 	return "", err
 }
 
@@ -79,4 +81,25 @@ func (t Tar) SynchedUnpack(ctx context.Context, destination string, excludes []s
 		return "", err
 	}
 	return digest, nil
+}
+
+// excludesFilter returns a filter to exclude given path in a tarball extraction. Given paths
+// are assumed to be always tied to tarball root
+func excludesFilter(root string, excludes ...string) func(h *tar.Header) (bool, error) {
+	rootedExcl := make([]string, len(excludes))
+	for i, exclude := range excludes {
+		rootedExcl[i] = filepath.Clean(filepath.Join(root, exclude))
+	}
+	return func(h *tar.Header) (bool, error) {
+		fullName := filepath.Join(root, filepath.Clean(h.Name))
+		for _, exclude := range rootedExcl {
+			if after, ok := strings.CutPrefix(fullName, exclude); ok {
+				if after == "" {
+					return false, nil
+				}
+				return !filepath.IsAbs(after), nil
+			}
+		}
+		return true, nil
+	}
 }
