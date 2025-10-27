@@ -83,7 +83,7 @@ func digestCustomizeDeploymentSetup(s *sys.System, flags *cmd.CustomizeFlags) (*
 
 	err := applyInstallFlags(s, d, flags.InstallSpec)
 	if err != nil {
-		return nil, fmt.Errorf("failed applying install flags to deployment description")
+		return nil, fmt.Errorf("failed applying install flags to deployment description: %w", err)
 	}
 
 	err = d.Sanitize(s, deployment.CheckDiskDevice, deployment.CheckSourceOS)

@@ -99,7 +99,7 @@ func digestInstallerDeploymentSetup(s *sys.System, label string, flags *cmd.Inst
 
 	err = applyInstallFlags(s, d, flags.InstallSpec)
 	if err != nil {
-		return nil, fmt.Errorf("failed applying install flags to deployment description")
+		return nil, fmt.Errorf("failed applying install flags to deployment description: %w", err)
 	}
 
 	err = d.Sanitize(s, deployment.CheckDiskDevice)
