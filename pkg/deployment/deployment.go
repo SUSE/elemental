@@ -239,15 +239,10 @@ type Deployment struct {
 	Snapshotter *SnapshotterConfig `yaml:"snapshotter"`
 	OverlayTree *ImageSource       `yaml:"overlayTree,omitempty"`
 	CfgScript   string             `yaml:"configScript,omitempty"`
-	Installer   LiveInstaller      `yaml:"-"`
+	Installer   LiveInstaller      `yaml:"installer,omitempty"`
 }
 
 type Opt func(d *Deployment)
-
-// KernelCmdline returns the default kernel command line for the givel label
-func KernelCmdline(label string) string {
-	return fmt.Sprintf("root=LABEL=%s", label)
-}
 
 // LiveKernelCmdline returns the default kernel command line to live boot with the givel label
 func LiveKernelCmdline(label string) string {
@@ -286,7 +281,7 @@ func (s SanitizeDeployment) name() string {
 var sanitizers = []SanitizeDeployment{
 	checkSystemPart, checkEFIPart, checkRecoveryPart,
 	checkAllAvailableSize, checkPartitionsFS, checkRWVolumes,
-	checkKernelCmdline, CheckSourceOS, CheckDiskDevice,
+	CheckSourceOS, CheckDiskDevice,
 }
 
 // GetSystemPartition returns the system partition from the disk.
@@ -313,6 +308,16 @@ func (d Deployment) GetSystemPartition() *Partition {
 	return nil
 }
 
+// GetSystemLabel returns the label of the system partition, returns
+// empty string if no label or system partition defined
+func (d Deployment) GetSystemLabel() string {
+	part := d.GetSystemPartition()
+	if part != nil {
+		return part.Label
+	}
+	return ""
+}
+
 // GetSystemDisk gets the disk data including the system partition.
 // returns nil if not found
 func (d Deployment) GetSystemDisk() *Disk {
@@ -326,9 +331,9 @@ func (d Deployment) GetSystemDisk() *Disk {
 	return nil
 }
 
-// GetEfiSystemPartition gets the data of the system partition.
+// GetEfiPartition gets the data of the EFI partition.
 // returns nil if not found
-func (d Deployment) GetEfiSystemPartition() *Partition {
+func (d Deployment) GetEfiPartition() *Partition {
 	for _, disk := range d.Disks {
 		for _, part := range disk.Partitions {
 			if part.Role == EFI {
@@ -337,6 +342,11 @@ func (d Deployment) GetEfiSystemPartition() *Partition {
 		}
 	}
 	return nil
+}
+
+// BaseKernelCmdline returns the base kernel command line for the current deployment
+func (d Deployment) BaseKernelCmdline() string {
+	return fmt.Sprintf("root=LABEL=%s", d.GetSystemLabel())
 }
 
 // Sanitize checks the consistency of the current Disk structure. ExcludeChecks parameter
@@ -465,8 +475,7 @@ func DefaultDeployment() *Deployment {
 		}},
 		Firmware: &FirmwareConfig{},
 		BootConfig: &BootConfig{
-			Bootloader:    "none",
-			KernelCmdline: KernelCmdline(SystemLabel),
+			Bootloader: "none",
 		},
 		Snapshotter: &SnapshotterConfig{
 			Name: "snapper",
@@ -496,7 +505,7 @@ func WithPartitions(num int, parts ...*Partition) Opt {
 	}
 }
 
-// WithConfigParition inserts a configuration partition as the second partition
+// WithConfigPartition inserts a configuration partition as the second partition
 // to the systemd disk. The given size is the amount of data expected to store in
 // the partition, then the partition is sized to be alined with 128MiB and to ensure
 // at least 128MiB of free space is available.
@@ -664,22 +673,6 @@ func checkRWVolumes(_ *sys.System, d *Deployment) error {
 	for i := range len(paths) - 1 {
 		if strings.HasPrefix(paths[i+1], paths[i]) {
 			return fmt.Errorf("nested rw volumes is not supported")
-		}
-	}
-	return nil
-}
-
-// checkKernelCmdLine ensures the kernel command line refers to the correct label
-// when using the default command line
-func checkKernelCmdline(_ *sys.System, d *Deployment) error {
-	if d.BootConfig == nil {
-		return fmt.Errorf("no bootloader configuration defined")
-	}
-	cmdLine := strings.Trim(d.BootConfig.KernelCmdline, " ")
-	if cmdLine == KernelCmdline(SystemLabel) {
-		system := d.GetSystemPartition()
-		if system.Label != SystemLabel {
-			d.BootConfig.KernelCmdline = KernelCmdline(system.Label)
 		}
 	}
 	return nil

@@ -54,7 +54,7 @@ func BuildInstaller(ctx *cli.Context) error { //nolint:dupl
 
 	digestInstallerSetup(args, media)
 
-	d, err := digestInstallerDeploymentSetup(s, media.Label, args)
+	d, err := digestInstallerDeploymentSetup(s, args)
 	if err != nil {
 		s.Logger().Error("Failed to collect build setup")
 		return err
@@ -72,7 +72,7 @@ func BuildInstaller(ctx *cli.Context) error { //nolint:dupl
 	return nil
 }
 
-func digestInstallerDeploymentSetup(s *sys.System, label string, flags *cmd.InstallerFlags) (*deployment.Deployment, error) {
+func digestInstallerDeploymentSetup(s *sys.System, flags *cmd.InstallerFlags) (*deployment.Deployment, error) {
 	d := deployment.DefaultDeployment()
 	if flags.Overlay != "" {
 		src, err := deployment.NewSrcFromURI(flags.Overlay)
@@ -87,8 +87,6 @@ func digestInstallerDeploymentSetup(s *sys.System, label string, flags *cmd.Inst
 	}
 	if flags.KernelCmdLine != "" {
 		d.Installer.KernelCmdline = flags.KernelCmdLine
-	} else {
-		d.Installer.KernelCmdline = deployment.LiveKernelCmdline(label)
 	}
 
 	src, err := deployment.NewSrcFromURI(flags.OperatingSystemImage)
@@ -154,7 +152,7 @@ func applyInstallFlags(s *sys.System, d *deployment.Deployment, flags cmd.Instal
 	}
 
 	if flags.KernelCmdline != "" {
-		d.BootConfig.KernelCmdline = fmt.Sprintf("%s %s", d.BootConfig.KernelCmdline, flags.KernelCmdline)
+		d.BootConfig.KernelCmdline = flags.KernelCmdline
 	}
 	return nil
 }

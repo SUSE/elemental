@@ -62,6 +62,7 @@ const (
 	DefaultBootID = "active"
 
 	liveBootPath = "/boot"
+	grubEnvFile  = "grubenv"
 )
 
 //go:embed grubtemplates/grub.cfg
@@ -73,7 +74,7 @@ var grubLiveEFICfg []byte
 //go:embed grubtemplates/grub_live.cfg
 var grubLiveCfg []byte
 
-// Install installs the live bootloader to the specified target.
+// InstallLive installs the live bootloader to the specified target.
 func (g *Grub) InstallLive(rootPath, target, kernelCmdLine string) error {
 	g.s.Logger().Info("Preparing GRUB bootloader for live media")
 
@@ -90,6 +91,13 @@ func (g *Grub) InstallLive(rootPath, target, kernelCmdLine string) error {
 	err = g.writeGrubConfig(filepath.Join(target, liveBootPath, "grub2"), grubLiveCfg, entries[0])
 	if err != nil {
 		return fmt.Errorf("failed writing grub config file: %w", err)
+	}
+
+	// update cmdline variable in /boot/grubenv
+	grubEnvPath := filepath.Join(target, liveBootPath, grubEnvFile)
+	_, err = g.s.Runner().Run("grub2-editenv", grubEnvPath, "set", fmt.Sprintf("cmdline=%s", kernelCmdLine))
+	if err != nil {
+		return fmt.Errorf("failed setting kernel command line for grub: %w", err)
 	}
 
 	randomID, err := g.generateIDFile(filepath.Join(target, liveBootPath))
@@ -109,7 +117,7 @@ func (g *Grub) InstallLive(rootPath, target, kernelCmdLine string) error {
 
 // Install installs the bootloader to the specified root.
 func (g *Grub) Install(rootPath, snapshotID, kernelCmdline string, d *deployment.Deployment) error {
-	esp := d.GetEfiSystemPartition()
+	esp := d.GetEfiPartition()
 	if esp == nil {
 		return fmt.Errorf("ESP not found")
 	}
@@ -145,7 +153,7 @@ func (g *Grub) Install(rootPath, snapshotID, kernelCmdline string, d *deployment
 
 // Prune prunes old boot entries and artifacts not in the passed in keepSnapshotIDs.
 func (g Grub) Prune(rootPath string, keepSnapshotIDs []int, d *deployment.Deployment) (err error) {
-	esp := d.GetEfiSystemPartition()
+	esp := d.GetEfiPartition()
 	if esp == nil {
 		return fmt.Errorf("ESP not found")
 	}
@@ -171,7 +179,7 @@ func (g Grub) Prune(rootPath string, keepSnapshotIDs []int, d *deployment.Deploy
 		}
 	}()
 
-	grubEnvPath := filepath.Join(bootDir, "grubenv")
+	grubEnvPath := filepath.Join(bootDir, grubEnvFile)
 	grubEnv, err := g.readGrubEnv(grubEnvPath)
 	if err != nil {
 		return fmt.Errorf("reading grubenv: %w", err)
@@ -522,7 +530,7 @@ func (g *Grub) readGrubEnv(path string) (map[string]string, error) {
 }
 
 func (g *Grub) updateBootEntries(rootPath string, esp *deployment.Partition, newEntries ...grubBootEntry) error {
-	grubEnvPath := filepath.Join(rootPath, esp.MountPoint, "grubenv")
+	grubEnvPath := filepath.Join(rootPath, esp.MountPoint, grubEnvFile)
 	activeEntries := []string{}
 
 	// Read current entries

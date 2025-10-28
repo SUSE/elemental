@@ -21,6 +21,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/suse/elemental/v3/pkg/bootloader"
 	"github.com/suse/elemental/v3/pkg/chroot"
@@ -174,12 +175,12 @@ func (u Upgrader) Upgrade(d *deployment.Deployment) (err error) {
 		}
 	}
 
-	baseCmdline := ""
+	cmdline := ""
 	if d.BootConfig != nil {
-		baseCmdline = d.BootConfig.KernelCmdline
+		cmdline = d.BootConfig.KernelCmdline
 	}
 
-	kernelCmdline := fmt.Sprintf("%s %s", baseCmdline, uh.GenerateKernelCmdline(trans))
+	kernelCmdline := strings.TrimSpace(fmt.Sprintf("%s %s %s", d.BaseKernelCmdline(), uh.GenerateKernelCmdline(trans), cmdline))
 
 	err = u.b.Install(trans.Path, strconv.Itoa(trans.ID), kernelCmdline, d)
 	if err != nil {
