@@ -15,31 +15,49 @@
 .default_products: &default_products
   distri: sle-micro
 
-.test_settings: &test_settings
+.common_test_settings: &common_test_settings
   HDDSIZEGB: '30'
   QEMUCPUS: '4'
   QEMURAM: '4096'
+  IMAGE_TYPE: disk
   TEST_PASSWORD: Elemental@R00t
-  YAML_SCHEDULE: schedule/elemental3/test_image.yaml
+  HDD_1: 'elemental-%BUILD%-%ARCH%.qcow2'
+  YAML_SCHEDULE: schedule/elemental3/os_image.yaml
+
+.common_microos_boot_settings: &common_microos_boot_settings
+  HDDSIZEGB: '30'
+  BOOT_HDD_IMAGE: '1'
+  CONTAINER_RUNTIMES: podman
+  DESKTOP: textmode
+  EXCLUDE_MODULES: suseconnect_scc
+  HDD_1: 'openSUSE-MicroOS.%ARCH%-Updated.qcow2'
+  KEEP_GRUB_TIMEOUT: '0'
+  VIDEOMODE: text
 
 .generate_settings: &generate_settings
-  HDDSIZEGB: '30'
-  BOOT_HDD_IMAGE: "1"
-  CONTAINER_RUNTIMES: "podman"
-  DESKTOP: "textmode"
-  EXCLUDE_MODULES: "suseconnect_scc"
-  HDD_1: "openSUSE-MicroOS.%ARCH%-Updated.qcow2"
-  KEEP_GRUB_TIMEOUT: "0"
+  <<: *common_microos_boot_settings
+  TEST_TYPE: generate_image
   TEST_PASSWORD: Elemental@R00t
-  VIDEOMODE: "text"
-  REPO_TO_TEST: "https://dist.suse.de/ibs/Devel:/UnifiedCore:/Main:/ToTest/standard"
-  SYSEXT_PATH: "https://dist.suse.de/ibs/Devel:/UnifiedCore:/Main:/ToTest/sysexts"
-  YAML_SCHEDULE: schedule/elemental3/generate_image.yaml
+  REPO_TO_TEST: https://dist.suse.de/ibs/Devel:/UnifiedCore:/Main:/ToTest/standard
+  SYSEXT_PATH: https://dist.suse.de/ibs/Devel:/UnifiedCore:/Main:/ToTest/sysexts
+  YAML_SCHEDULE: schedule/elemental3/support.yaml
 
-.image_test_settings: &image_test_settings
-  HDD_1: 'elemental-%BUILD%-%ARCH%.qcow2'
-  IMAGE_TYPE: disk
+.test_image_settings: &test_image_settings
+  <<: *common_test_settings
+  TEST_TYPE: test_image
   START_AFTER_TEST: generate_image
+
+.k8s_test_settings: &k8s_test_settings
+  EXPECTED_NM_CONNECTIVITY: none
+  TESTS_TO_RUN: validatecluster,deployrancher
+  TEST_TYPE: k8s_validation
+  NICTYPE: tap
+  NODES_LIST: node01
+
+.node_k8s_validation_settings: &node_k8s_validation_settings
+  <<: *common_test_settings
+  <<: *k8s_test_settings
+  PARALLEL_WITH: master
 
 defaults:
   aarch64:
@@ -68,11 +86,31 @@ scenarios:
           testsuite: null
           settings:
             <<: *generate_settings
+            K8S: rke2
       - test_image:
           testsuite: null
           settings:
-            <<: *test_settings
-            <<: *image_test_settings
+            <<: *test_image_settings
+            K8S: rke2
+      - master:
+          testsuite: null
+          settings:
+            <<: *common_microos_boot_settings
+            <<: *k8s_test_settings
+            CERTMANAGER_VERSION: v1.19.0
+            RANCHER_VERSION: v2.12.2
+            K8S: rke2
+            QEMURAM: '4096'
+            HOSTNAME: master
+            TEST_FRAMEWORK_REPO: https://github.com/ldevulder/distros-test-framework@fix-support-uc-os-image
+            YAML_SCHEDULE: schedule/elemental3/support.yaml
+            START_AFTER_TEST: test_image
+      - node01:
+          testsuite: null
+          settings:
+            <<: *node_k8s_validation_settings
+            K8S: rke2
+            HOSTNAME: node01
   x86_64:
     sl-micro-unifiedcore-image-6.2-x86_64:
       - generate_image:
@@ -80,9 +118,29 @@ scenarios:
           testsuite: null
           settings:
             <<: *generate_settings
+            K8S: rke2
       - test_image:
           testsuite: null
           settings:
-            <<: *test_settings
-            <<: *image_test_settings
+            <<: *test_image_settings
+            K8S: rke2
             START_AFTER_TEST: generate_image@64bit
+      - master:
+          testsuite: null
+          settings:
+            <<: *common_microos_boot_settings
+            <<: *k8s_test_settings
+            CERTMANAGER_VERSION: v1.19.0
+            RANCHER_VERSION: v2.12.2
+            K8S: rke2
+            QEMURAM: '4096'
+            HOSTNAME: master
+            TEST_FRAMEWORK_REPO: https://github.com/ldevulder/distros-test-framework@fix-support-uc-os-image
+            YAML_SCHEDULE: schedule/elemental3/support.yaml
+            START_AFTER_TEST: test_image
+      - node01:
+          testsuite: null
+          settings:
+            <<: *node_k8s_validation_settings
+            K8S: rke2
+            HOSTNAME: node01
