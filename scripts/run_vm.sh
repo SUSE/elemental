@@ -22,6 +22,8 @@ TESTS_PATH=$(realpath -s "${SCRIPTS_PATH}/../tests")
 : "${ELMNTL_MACHINETYPE:=q35}"
 : "${ELMNTL_CPU:=max}"
 : "${ELMNTL_DEBUG:=false}"
+: "${ELMNTL_BRIDGE:=}"
+: "${ELMNTL_MAC:=52:54:00:12:34:56}"
 
 function _abort {
   echo "$@" && exit 1
@@ -29,7 +31,8 @@ function _abort {
 
 function start {
   local base_disk=$1
-  local usrnet_arg="-netdev user,id=user0,hostfwd=tcp:${ELMNTL_FWDIP}:${ELMNTL_FWDPORT}-:22 -device virtio-net-pci,romfile=,netdev=user0"
+  local usrnet_arg="-netdev user,id=user0,hostfwd=tcp:${ELMNTL_FWDIP}:${ELMNTL_FWDPORT}-:22 -device virtio-net-pci,romfile=,netdev=user0,mac=${ELMNTL_MAC}"
+  local brnet_arg="-device virtio-net-pci,netdev=user0,mac=${ELMNTL_MAC} -netdev bridge,id=user0,br=${ELMNTL_BRIDGE}"
   local accel_arg
   local memory_arg="-m ${ELMNTL_MEMORY}"
   local firmware_arg="-drive if=pflash,format=raw,unit=0,readonly=on,file=${ELMNTL_FIRMWARE}"
@@ -88,9 +91,15 @@ function start {
     out="> ${ELMNTL_VMSTDOUT} 2>&1 &"
   fi
 
+  local net_arg="${usrnet_arg}"
+  if [[ "${ELMNTL_BRIDGE}" != "" ]]; then
+    net_arg="${brnet_arg}"
+  fi
+
+
   # Generate the command line
   cmdline="qemu-system-${ELMNTL_TARGETARCH} ${kvm_arg} ${disk_arg} ${cdrom_arg} ${global_arg} ${firmware_arg} \
-             ${usrnet_arg} ${memory_arg} ${graphics_arg} ${serial_arg} ${pidfile_arg} \
+             ${net_arg} ${memory_arg} ${graphics_arg} ${serial_arg} ${pidfile_arg} \
              ${display_arg} ${machine_arg} ${accel_arg} ${cpu_arg}"
 
   # Start the VM
