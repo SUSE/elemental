@@ -59,6 +59,9 @@ function start {
 
   # Generate the VM disk
   case "${base_disk}" in
+    *.raw)
+      qemu-img convert -O qcow2 "${base_disk}" "${ELMNTL_TESTDISK}" > /dev/null
+      ;;
     *.qcow2)
       qemu-img create -f qcow2 -b "${base_disk}" -F qcow2 "${ELMNTL_TESTDISK}" > /dev/null
       ;;
