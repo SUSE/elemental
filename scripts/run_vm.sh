@@ -21,6 +21,7 @@ TESTS_PATH=$(realpath -s "${SCRIPTS_PATH}/../tests")
 : "${ELMNTL_TARGETARCH:=$(uname -p)}"
 : "${ELMNTL_MACHINETYPE:=q35}"
 : "${ELMNTL_CPU:=max}"
+: "${ELMNTL_SMP:=}"
 : "${ELMNTL_DEBUG:=false}"
 : "${ELMNTL_BRIDGE:=}"
 : "${ELMNTL_MAC:=52:54:00:12:34:56}"
@@ -43,6 +44,7 @@ function start {
   local machine_arg="-machine type=${ELMNTL_MACHINETYPE}"
   local cdrom_arg
   local cpu_arg
+  local smp_arg
   local vmpid
   local kvm_arg
   local out
@@ -99,11 +101,12 @@ function start {
     net_arg="${brnet_arg}"
   fi
 
+  [[ "${ELMNTL_SMP}" != "" ]] && smp_arg="-smp ${ELMNTL_SMP}"
 
   # Generate the command line
   cmdline="qemu-system-${ELMNTL_TARGETARCH} ${kvm_arg} ${disk_arg} ${cdrom_arg} ${global_arg} ${firmware_arg} \
              ${net_arg} ${memory_arg} ${graphics_arg} ${serial_arg} ${pidfile_arg} \
-             ${display_arg} ${machine_arg} ${accel_arg} ${cpu_arg}"
+             ${display_arg} ${machine_arg} ${accel_arg} ${cpu_arg} ${smp_arg}"
 
   # Start the VM
   eval ${cmdline} ${out}
