@@ -95,8 +95,15 @@ This section provides an example on how users can leverage the `elemental3` comm
 
 ### Prerequisites
 
-* A server or virtual machine running Tumbleweed, Leap 16.0, SLES 16 or SUSE Linux Micro 6.2, with a minimum x86_64-v2 instruction set.
 * Access to SUSE's internal VPN (as of this moment, our component images are not publicly available).
+* A server or virtual machine running Tumbleweed, Leap 16.0, Leap Micro 6.2, SLES 16 or SUSE Linux Micro 6.2, with a minimum x86_64-v2 instruction set.
+* Some other packages can also be needed if you want to compile the binaries yourself: `git-core go make mtools squashfs xorriso`.
+
+#### Workaround for SELinux
+
+SELinux should be set in `permissive` mode to be able to execute the `build*` or `install` commands on the build host. This is a workaround, we are working on fixing this.
+
+The resulting OS image will not be impacted by this workaround. It will have the default SELinux configuration has expected, so in `enforcing` mode if it is set by default.
 
 ### Use case
 
