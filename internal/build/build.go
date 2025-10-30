@@ -222,7 +222,7 @@ func createDisk(runner sys.Runner, img image.Image, diskSize imginstall.DiskSize
 		return fmt.Errorf("invalid disk size definition '%s'", diskSize)
 	}
 
-	_, err := runner.Run("qemu-img", "create", "-f", "raw", img.OutputImageName, string(diskSize))
+	_, err := runner.Run("truncate", "-s", string(diskSize), img.OutputImageName)
 	return err
 }
 
