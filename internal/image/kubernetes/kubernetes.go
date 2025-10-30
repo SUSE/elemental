@@ -21,6 +21,11 @@ import (
 	"github.com/suse/elemental/v3/pkg/helm"
 )
 
+const (
+	NodeTypeServer = "server"
+	NodeTypeAgent  = "agent"
+)
+
 type Kubernetes struct {
 	// RemoteManifests - manifest URLs specified under config/kubernetes.yaml
 	RemoteManifests []string `yaml:"manifests,omitempty"`
@@ -28,6 +33,16 @@ type Kubernetes struct {
 	Helm *Helm `yaml:"helm,omitempty"`
 	// LocalManifests - local manifest files specified under config/kubernetes/manifests
 	LocalManifests []string
+	Nodes          Nodes   `yaml:"nodes,omitempty"`
+	Network        Network `yaml:"network,omitempty"`
+	Config         Config  `yaml:"-"`
+}
+
+type Config struct {
+	// AgentFilePath path to agent.yaml rke2 configuration file
+	AgentFilePath string
+	// ServerFilePath path to server.yaml rke2 configuration file
+	ServerFilePath string
 }
 
 type Helm struct {
@@ -80,4 +95,17 @@ func (c *HelmChart) ToCRD(values []byte, repository string) *helm.CRD {
 type HelmRepository struct {
 	Name string `yaml:"name"`
 	URL  string `yaml:"url"`
+}
+
+type Node struct {
+	Hostname string `yaml:"hostname"`
+	Type     string `yaml:"type"`
+}
+
+type Nodes []Node
+
+type Network struct {
+	APIHost string `yaml:"apiHost"`
+	APIVIP4 string `yaml:"apiVIP"`
+	APIVIP6 string `yaml:"apiVIP6"`
 }

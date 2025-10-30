@@ -43,7 +43,9 @@ var _ = Describe("Ignition configuration", func() {
 
 	BeforeEach(func() {
 		buffer = &bytes.Buffer{}
-		fs, cleanup, err = sysmock.TestFS(nil)
+		fs, cleanup, err = sysmock.TestFS(map[string]any{
+			"/etc/kubernetes/config/server.yaml": "",
+		})
 		Expect(err).ToNot(HaveOccurred())
 
 		Expect(vfs.MkdirAll(fs, string(buildDir), vfs.DirPerm)).To(Succeed())
@@ -67,7 +69,7 @@ var _ = Describe("Ignition configuration", func() {
 
 		ignitionFile := filepath.Join(buildDir.FirstbootConfigDir(), image.IgnitionFilePath())
 
-		Expect(builder.configureIgnition(def, buildDir, "")).To(Succeed())
+		Expect(builder.configureIgnition(def, buildDir, "", "")).To(Succeed())
 		ok, err := vfs.Exists(system.FS(), ignitionFile)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(ok).To(BeFalse())
@@ -95,7 +97,7 @@ passwd:
 
 		ignitionFile := filepath.Join(buildDir.FirstbootConfigDir(), image.IgnitionFilePath())
 
-		Expect(builder.configureIgnition(def, buildDir, "")).To(Succeed())
+		Expect(builder.configureIgnition(def, buildDir, "", "")).To(Succeed())
 		ok, err := vfs.Exists(system.FS(), ignitionFile)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(ok).To(BeTrue())
@@ -109,8 +111,9 @@ passwd:
 		ignitionFile := filepath.Join(buildDir.FirstbootConfigDir(), image.IgnitionFilePath())
 
 		k8sScript := filepath.Join(buildDir.OverlaysDir(), "path/to/k8s/script.sh")
+		k8sConfScript := filepath.Join(buildDir.OverlaysDir(), "path/to/k8s/conf_script.sh")
 
-		Expect(builder.configureIgnition(def, buildDir, k8sScript)).To(Succeed())
+		Expect(builder.configureIgnition(def, buildDir, k8sScript, k8sConfScript)).To(Succeed())
 		ok, err := vfs.Exists(system.FS(), ignitionFile)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(ok).To(BeTrue())
@@ -118,6 +121,7 @@ passwd:
 		Expect(err).NotTo(HaveOccurred())
 		Expect(ignition).NotTo(ContainSubstring("merge"))
 		Expect(ignition).To(ContainSubstring("Kubernetes Resources Installer"))
+		Expect(ignition).To(ContainSubstring("Kubernetes Config Installer"))
 	})
 
 	It("Fails to translate a butaneConfig with a wrong version or variant", func() {
@@ -133,6 +137,7 @@ passwd:
     - key1
 `
 		k8sScript := filepath.Join(buildDir.OverlaysDir(), "path/to/k8s/script.sh")
+		k8sConfScript := filepath.Join(buildDir.OverlaysDir(), "path/to/k8s/conf_script.sh")
 
 		Expect(image.ParseConfig([]byte(butaneConfigString), &butane)).To(Succeed())
 		def := &image.Definition{
@@ -141,7 +146,7 @@ passwd:
 
 		ignitionFile := filepath.Join(buildDir.FirstbootConfigDir(), image.IgnitionFilePath())
 
-		Expect(builder.configureIgnition(def, buildDir, k8sScript)).To(MatchError(
+		Expect(builder.configureIgnition(def, buildDir, k8sScript, k8sConfScript)).To(MatchError(
 			ContainSubstring("No translator exists for variant unknown with version"),
 		))
 		ok, err := vfs.Exists(system.FS(), ignitionFile)
@@ -166,7 +171,7 @@ passwd:
 		}
 
 		ignitionFile := filepath.Join(buildDir.FirstbootConfigDir(), image.IgnitionFilePath())
-		Expect(builder.configureIgnition(def, buildDir, "")).To(Succeed())
+		Expect(builder.configureIgnition(def, buildDir, "", "")).To(Succeed())
 		ok, err := vfs.Exists(system.FS(), ignitionFile)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(ok).To(BeTrue())
