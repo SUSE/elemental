@@ -52,12 +52,13 @@ The `install.yaml` file enables users to configure the OS installation process b
 
 ```yaml
 bootloader: grub
-kernelCmdLine: "root=LABEL=SYSTEM console=ttyS0"
+kernelCmdLine: "console=ttyS0"
 diskSize: 35G
 ```
 
 * `bootloader` - Required; Specifies the bootloader that will load the operating system.
-* `kernelCmdLine` - Required; Parameters to add to the kernel when the operating system boots up.
+* `kernelCmdLine` - Optional; Parameters to add to the kernel when the operating system boots up. The tool itself defines the essential parameters to boot (e.g. `root=LABEL=SYSTEM`),
+   the string provided here is simply concatenated after them in order to provide a mechanism to include additional custom parameters.
 * `diskSize` - Required; Specifies the size of the resulting disk image.
 
 ### butane.yaml

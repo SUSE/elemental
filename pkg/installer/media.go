@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"strings"
 
 	"go.yaml.in/yaml/v3"
 
@@ -248,13 +249,14 @@ func (i *ISO) Customize(d *deployment.Deployment) (err error) {
 	}
 
 	grubEnvPath := filepath.Join(tempDir, "grubenv")
-	err = i.writeGrubEnv(grubEnvPath, map[string]string{"extra_cmdline": d.Installer.KernelCmdline})
+	cmdline := strings.TrimSpace(fmt.Sprintf("%s %s", deployment.LiveKernelCmdline(i.Label), d.Installer.KernelCmdline))
+	err = i.writeGrubEnv(grubEnvPath, map[string]string{"cmdline": cmdline})
 	if err != nil {
 		return fmt.Errorf("error writing %s: %s", grubEnvPath, err.Error())
 	}
 
 	m := map[string]string{
-		grubEnvPath: "/boot/grub2/grubenv",
+		grubEnvPath: "/boot/grubenv",
 	}
 
 	if d.Installer.CfgScript != "" {
@@ -416,7 +418,8 @@ func (i ISO) prepareISO(isoDir, rootfs string, d *deployment.Deployment) error {
 		return fmt.Errorf("failed preparing ISO, could not create %s: %w", bootPath, err)
 	}
 
-	err = i.bl.InstallLive(rootfs, isoDir, d.Installer.KernelCmdline)
+	cmdline := strings.TrimSpace(fmt.Sprintf("%s %s", deployment.LiveKernelCmdline(i.Label), d.Installer.KernelCmdline))
+	err = i.bl.InstallLive(rootfs, isoDir, cmdline)
 	if err != nil {
 		return fmt.Errorf("failed installing bootloader in ISO directory tree: %w", err)
 	}
