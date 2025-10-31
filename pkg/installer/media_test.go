@@ -88,7 +88,7 @@ var _ = Describe("Install", Label("install"), func() {
 		d.Installer.CfgScript = "/some/dir/config-live.sh"
 		d.Installer.KernelCmdline = "console=ttyS0"
 
-		iso := installer.NewISO(context.Background(), s, installer.WithBootloader(bootloader.NewNone(s)))
+		iso := installer.NewMedia(context.Background(), s, installer.ISO, installer.WithBootloader(bootloader.NewNone(s)))
 
 		iso.OutputDir = "/some/dir/build"
 		d.CfgScript = "/some/dir/config.sh"
@@ -109,11 +109,11 @@ var _ = Describe("Install", Label("install"), func() {
 	})
 	It("fails to create an ISO without an output directory defined", func() {
 		d.SourceOS = deployment.NewDirSrc("/some/root")
-		iso := installer.NewISO(context.Background(), s, installer.WithBootloader(bootloader.NewNone(s)))
+		iso := installer.NewMedia(context.Background(), s, installer.ISO, installer.WithBootloader(bootloader.NewNone(s)))
 
 		err := iso.Build(d)
 		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("undefined output directory"))
+		Expect(err.Error()).To(ContainSubstring("could not compute image checksum"))
 	})
 	It("fails to create an ISO on a readonly FS", func() {
 		roFS, err := sysmock.ReadOnlyTestFS(fs)
@@ -125,7 +125,7 @@ var _ = Describe("Install", Label("install"), func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		d.SourceOS = deployment.NewDirSrc("/some/root")
-		iso := installer.NewISO(context.Background(), s, installer.WithBootloader(bootloader.NewNone(s)))
+		iso := installer.NewMedia(context.Background(), s, installer.ISO, installer.WithBootloader(bootloader.NewNone(s)))
 		iso.OutputDir = "/some/dir/build"
 
 		err = iso.Build(d)
@@ -138,7 +138,7 @@ var _ = Describe("Install", Label("install"), func() {
 		}
 
 		d.SourceOS = deployment.NewDirSrc("/some/root")
-		iso := installer.NewISO(context.Background(), s, installer.WithBootloader(bootloader.NewNone(s)))
+		iso := installer.NewMedia(context.Background(), s, installer.ISO, installer.WithBootloader(bootloader.NewNone(s)))
 		iso.OutputDir = "/some/dir/build"
 
 		err := iso.Build(d)
@@ -151,7 +151,7 @@ var _ = Describe("Install", Label("install"), func() {
 		}
 
 		d.SourceOS = deployment.NewDirSrc("/some/root")
-		iso := installer.NewISO(context.Background(), s, installer.WithBootloader(bootloader.NewNone(s)))
+		iso := installer.NewMedia(context.Background(), s, installer.ISO, installer.WithBootloader(bootloader.NewNone(s)))
 		iso.OutputDir = "/some/dir/build"
 
 		err := iso.Build(d)
@@ -186,7 +186,7 @@ var _ = Describe("Install", Label("install"), func() {
 		_, err := fs.Create("/some/dir/installer.iso")
 		Expect(err).To(Succeed())
 
-		iso := installer.NewISO(context.Background(), s, installer.WithBootloader(bootloader.NewNone(s)))
+		iso := installer.NewMedia(context.Background(), s, installer.ISO, installer.WithBootloader(bootloader.NewNone(s)))
 		iso.InputFile = "/some/dir/installer.iso"
 		iso.OutputDir = "/some/dir/build"
 		iso.Name = "installer2"
@@ -209,7 +209,7 @@ var _ = Describe("Install", Label("install"), func() {
 		_, err := fs.Create("/some/dir/installer.iso")
 		Expect(err).To(Succeed())
 
-		iso := installer.NewISO(context.Background(), s, installer.WithBootloader(bootloader.NewNone(s)))
+		iso := installer.NewMedia(context.Background(), s, installer.ISO, installer.WithBootloader(bootloader.NewNone(s)))
 		iso.InputFile = "/some/dir/installer.iso"
 		iso.OutputDir = "/some/dir/build"
 		iso.Name = "installer2"
@@ -217,7 +217,7 @@ var _ = Describe("Install", Label("install"), func() {
 		Expect(iso.Customize(d)).To(MatchError(ContainSubstring("failed extracting install description")))
 	})
 	It("fails to customize non-existent input file", func() {
-		iso := installer.NewISO(context.Background(), s)
+		iso := installer.NewMedia(context.Background(), s, installer.ISO)
 		iso.InputFile = "/non-existent/installer.iso"
 		iso.OutputDir = "/some/dir/build"
 		iso.Name = "installer2.iso"
@@ -234,7 +234,7 @@ var _ = Describe("Install", Label("install"), func() {
 		_, err := fs.Create("/some/dir/installer.iso")
 		Expect(err).To(Succeed())
 
-		iso := installer.NewISO(context.Background(), s, installer.WithBootloader(bootloader.NewNone(s)))
+		iso := installer.NewMedia(context.Background(), s, installer.ISO, installer.WithBootloader(bootloader.NewNone(s)))
 		iso.InputFile = "/some/dir/installer.iso"
 		iso.OutputDir = "/some/dir/build"
 		iso.Name = "installer2"

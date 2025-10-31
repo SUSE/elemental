@@ -43,7 +43,7 @@ func Customize(ctx *cli.Context) error {
 
 	logger.Info("Customizing image")
 
-	media := installer.NewISO(ctxCancel, s)
+	media := installer.NewMedia(ctxCancel, s, installer.ISO)
 
 	digestCustomizeSetup(args, media)
 
@@ -91,7 +91,7 @@ func digestCustomizeDeploymentSetup(s *sys.System, flags *cmd.CustomizeFlags) (*
 	return d, nil
 }
 
-func digestCustomizeSetup(flags *cmd.CustomizeFlags, media *installer.ISO) {
+func digestCustomizeSetup(flags *cmd.CustomizeFlags, media *installer.Media) {
 	if flags.Name != "" {
 		media.Name = flags.Name
 	}

@@ -34,15 +34,16 @@ type InstallerFlags struct {
 	Overlay              string
 	Label                string
 	KernelCmdLine        string
+	Type                 string
 }
 
 var InstallerArgs InstallerFlags
 
-func NewBuildISOCommand(appName string, action func(*cli.Context) error) *cli.Command {
+func NewBuildInstallerCommand(appName string, action func(*cli.Context) error) *cli.Command {
 	return &cli.Command{
-		Name:      "build-iso",
-		Usage:     "Build an installer ISO",
-		UsageText: fmt.Sprintf("%s build-iso [OPTIONS]", appName),
+		Name:      "build-installer",
+		Usage:     "Build an installer media",
+		UsageText: fmt.Sprintf("%s build-installer [OPTIONS]", appName),
 		Action:    action,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
@@ -118,6 +119,12 @@ func NewBuildISOCommand(appName string, action func(*cli.Context) error) *cli.Co
 				Name:        "cmdline",
 				Usage:       "Kernel command line to boot the installer media",
 				Destination: &InstallerArgs.KernelCmdLine,
+			},
+			&cli.StringFlag{
+				Name:        "type",
+				Usage:       "Type of the installer media, 'iso' or 'raw'",
+				Destination: &InstallerArgs.Type,
+				Required:    true,
 			},
 		},
 	}

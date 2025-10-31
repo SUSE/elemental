@@ -18,6 +18,7 @@ limitations under the License.
 package action
 
 import (
+	"context"
 	"fmt"
 	"os/signal"
 	"syscall"
@@ -50,14 +51,14 @@ func BuildInstaller(ctx *cli.Context) error { //nolint:dupl
 		stop()
 	}()
 
-	media := installer.NewISO(ctxCancel, s, installer.WithUnpackOpts(unpack.WithLocal(args.Local), unpack.WithVerify(args.Verify)))
-
-	digestInstallerSetup(args, media)
+	media, err := digestInstallerMedia(ctxCancel, s, args)
+	if err != nil {
+		return fmt.Errorf("bad installer media setup: %w", err)
+	}
 
 	d, err := digestInstallerDeploymentSetup(s, args)
 	if err != nil {
-		s.Logger().Error("Failed to collect build setup")
-		return err
+		return fmt.Errorf("failed to collect build setup: %w", err)
 	}
 
 	s.Logger().Info("Running build process")
@@ -108,7 +109,17 @@ func digestInstallerDeploymentSetup(s *sys.System, flags *cmd.InstallerFlags) (*
 	return d, err
 }
 
-func digestInstallerSetup(flags *cmd.InstallerFlags, media *installer.ISO) {
+func digestInstallerMedia(ctx context.Context, s *sys.System, flags *cmd.InstallerFlags) (*installer.Media, error) {
+	mType, err := installer.StringToMediaType(flags.Type)
+	if err != nil {
+		return nil, err
+	}
+
+	media := installer.NewMedia(
+		ctx, s, mType,
+		installer.WithUnpackOpts(unpack.WithLocal(flags.Local), unpack.WithVerify(flags.Verify)),
+	)
+
 	if flags.Name != "" {
 		media.Name = flags.Name
 	}
@@ -120,6 +131,7 @@ func digestInstallerSetup(flags *cmd.InstallerFlags, media *installer.ISO) {
 	if flags.Label != "" {
 		media.Label = flags.Label
 	}
+	return media, nil
 }
 
 func applyInstallFlags(s *sys.System, d *deployment.Deployment, flags cmd.InstallFlags) error {

@@ -20,6 +20,7 @@ package installer
 import (
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -31,6 +32,7 @@ import (
 	"github.com/suse/elemental/v3/pkg/cleanstack"
 	"github.com/suse/elemental/v3/pkg/deployment"
 	"github.com/suse/elemental/v3/pkg/filesystem"
+	"github.com/suse/elemental/v3/pkg/repart"
 	"github.com/suse/elemental/v3/pkg/rsync"
 	"github.com/suse/elemental/v3/pkg/selinux"
 	"github.com/suse/elemental/v3/pkg/sys"
@@ -55,14 +57,44 @@ const (
 	InstallScript   = LiveMountPoint + "/" + installDir + "/" + cfgScript
 )
 
-type Option func(*ISO)
+type MediaType int
 
-type ISO struct {
+const (
+	ISO MediaType = iota + 1
+	Disk
+)
+
+func (m MediaType) String() string {
+	switch m {
+	case ISO:
+		return "iso"
+	case Disk:
+		return "raw"
+	default:
+		return "unknown"
+	}
+}
+
+func StringToMediaType(mType string) (MediaType, error) {
+	switch mType {
+	case "raw":
+		return Disk, nil
+	case "iso":
+		return ISO, nil
+	default:
+		return 0, fmt.Errorf("unsupported media type %s: %w", mType, errors.ErrUnsupported)
+	}
+}
+
+type Option func(*Media)
+
+type Media struct {
 	Name      string
 	OutputDir string
 	Label     string
 	InputFile string
 
+	mType      MediaType
 	s          *sys.System
 	ctx        context.Context
 	unpackOpts []unpack.Opt
@@ -72,34 +104,37 @@ type ISO struct {
 
 // WithBootloader allows to create an ISO object with the given bootloader interface instance
 func WithBootloader(bootloader bootloader.Bootloader) Option {
-	return func(i *ISO) {
+	return func(i *Media) {
 		i.bl = bootloader
 	}
 }
 
 // WithUnpackOpts allows to create an ISO object with the given unpack package options
 func WithUnpackOpts(opts ...unpack.Opt) Option {
-	return func(i *ISO) {
+	return func(i *Media) {
 		i.unpackOpts = opts
 	}
 }
 
-// NewISO returns a new ISO object
-func NewISO(ctx context.Context, s *sys.System, opts ...Option) *ISO {
-	iso := &ISO{
+func NewMedia(ctx context.Context, s *sys.System, mType MediaType, opts ...Option) *Media {
+	media := &Media{
 		Name:       "installer",
-		Label:      "LIVE",
+		OutputDir:  "build-installer",
 		s:          s,
 		ctx:        ctx,
 		unpackOpts: []unpack.Opt{},
+		mType:      mType,
 	}
 	for _, o := range opts {
-		o(iso)
+		o(media)
 	}
-	if iso.bl == nil {
-		iso.bl, _ = bootloader.New(bootloader.BootGrub, iso.s)
+	if media.bl == nil {
+		media.bl, _ = bootloader.New(bootloader.BootGrub, media.s)
 	}
-	return iso
+	if media.mType == ISO {
+		media.Label = "LIVE"
+	}
+	return media
 }
 
 // loadISOInstallDesc extracts the install description file form the given ISO and parses it into a new deployment
@@ -129,9 +164,9 @@ func loadISOInstallDesc(s *sys.System, tempDir, iso string) (*deployment.Deploym
 	return d, nil
 }
 
-// Build creates a new ISO installer image with the given installation or deployment
-// paramters
-func (i ISO) Build(d *deployment.Deployment) (err error) {
+// Build creates a new media installer image with the given installation and deployment
+// parameters
+func (i Media) Build(d *deployment.Deployment) (err error) {
 	err = i.sanitize()
 	if err != nil {
 		return fmt.Errorf("cannot proceed with installer build due to inconsistent setup: %w", err)
@@ -142,56 +177,57 @@ func (i ISO) Build(d *deployment.Deployment) (err error) {
 
 	tempDir, err := vfs.TempDir(i.s.FS(), i.OutputDir, "elemental-installer")
 	if err != nil {
-		return fmt.Errorf("could note create working directory for installer ISO build: %w", err)
+		return fmt.Errorf("could note create working directory for installer disk build: %w", err)
 	}
 	cleanup.Push(func() error { return i.s.FS().RemoveAll(tempDir) })
 
-	rootfs := filepath.Join(tempDir, "rootfs")
-	err = vfs.MkdirAll(i.s.FS(), rootfs, vfs.DirPerm)
+	osRoot := filepath.Join(tempDir, "osroot")
+	err = vfs.MkdirAll(i.s.FS(), osRoot, vfs.DirPerm)
 	if err != nil {
 		return fmt.Errorf("failed creating rootfs directory: %w", err)
 	}
 
-	efiDir := filepath.Join(tempDir, "efi")
-	err = vfs.MkdirAll(i.s.FS(), efiDir, vfs.DirPerm)
-	if err != nil {
-		return fmt.Errorf("failed creating EFI directory: %w", err)
-	}
-
-	isoDir := filepath.Join(tempDir, "iso")
-	err = vfs.MkdirAll(i.s.FS(), isoDir, vfs.DirPerm)
+	liveRoot := filepath.Join(tempDir, "liveroot")
+	err = vfs.MkdirAll(i.s.FS(), liveRoot, vfs.DirPerm)
 	if err != nil {
 		return fmt.Errorf("failed creating ISO directory: %w", err)
 	}
 
-	err = i.prepareISO(isoDir, rootfs, d)
+	err = i.PrepareInstallerFS(liveRoot, osRoot, d)
 	if err != nil {
-		return fmt.Errorf("failed preparing iso directory tree: %w", err)
+		return fmt.Errorf("failed to populate ISO directory tree: %w", err)
 	}
 
-	err = i.prepareEFI(isoDir, efiDir)
+	switch i.mType {
+	case ISO:
+		cmdline := i.kernelCmdline(d)
+		err = i.buildISO(tempDir, liveRoot, osRoot, cmdline)
+	case Disk:
+		err = i.buildDisk(tempDir, liveRoot, osRoot, d)
+	default:
+		return fmt.Errorf("unknown media type: %w", errors.ErrUnsupported)
+	}
 	if err != nil {
-		return fmt.Errorf("failed preparing efi partition: %w", err)
+		return err
 	}
 
-	efiImg := filepath.Join(tempDir, filepath.Base(efiDir)+".img")
-	err = filesystem.CreatePreloadedFileSystemImage(i.s, efiDir, efiImg, "EFI", 1, deployment.VFat)
+	checksum, err := calcFileChecksum(i.s.FS(), i.outputFile)
 	if err != nil {
-		return fmt.Errorf("failed creating EFI image for the installer image: %w", err)
+		return fmt.Errorf("could not compute image checksum: %w", err)
 	}
 
-	err = i.burnISO(isoDir, i.outputFile, efiImg)
+	checksumFile := fmt.Sprintf("%s.sha256", i.outputFile)
+	err = i.s.FS().WriteFile(checksumFile, fmt.Appendf(nil, "%s %s\n", checksum, filepath.Base(i.outputFile)), vfs.FilePerm)
 	if err != nil {
-		return fmt.Errorf("failed creating live iso image: %w", err)
+		return fmt.Errorf("failed writing image checksum file %s: %w", checksumFile, err)
 	}
-
 	return nil
 }
 
 // PrepareInstallerFS prepares the directory tree of the installer image, rootDir is the path
 // of the directory tree root and workDir is the path to extract source image, typically a temporary
 // directory entirely managed by the caller logic.
-func (i *ISO) PrepareInstallerFS(rootDir, workDir string, d *deployment.Deployment) error {
+func (i *Media) PrepareInstallerFS(rootDir, workDir string, d *deployment.Deployment) error {
 	imgDir := filepath.Join(rootDir, liveDir)
 	err := vfs.MkdirAll(i.s.FS(), imgDir, vfs.DirPerm)
 	if err != nil {
@@ -248,7 +284,7 @@ func (i *ISO) PrepareInstallerFS(rootDir, workDir string, d *deployment.Deployme
 }
 
 // Customize repacks an existing installer with more artifacts.
-func (i *ISO) Customize(d *deployment.Deployment) (err error) {
+func (i *Media) Customize(d *deployment.Deployment) (err error) {
 	err = i.sanitize()
 	if err != nil {
 		return fmt.Errorf("cannot proceed with customize due to inconsistent setup: %w", err)
@@ -336,8 +372,15 @@ func (i *ISO) Customize(d *deployment.Deployment) (err error) {
 
 // sanitize checks the current public attributes of the ISO object
 // and checks if they are good enough to proceed with an ISO build.
-func (i *ISO) sanitize() error {
-	if i.Label == "" {
+func (i *Media) sanitize() error {
+	if !filepath.IsAbs(i.OutputDir) {
+		path, err := filepath.Abs(i.OutputDir)
+		if err != nil {
+			return err
+		}
+		i.OutputDir = path
+	}
+	if i.Label == "" && i.mType == ISO {
 		return fmt.Errorf("undefined label for the installer filesystem")
 	}
 
@@ -355,7 +398,7 @@ func (i *ISO) sanitize() error {
 		}
 	}
 
-	i.outputFile = filepath.Join(i.OutputDir, fmt.Sprintf("%s.iso", i.Name))
+	i.outputFile = filepath.Join(i.OutputDir, fmt.Sprintf("%s.%s", i.Name, i.mType.String()))
 	if ok, _ := vfs.Exists(i.s.FS(), i.outputFile); ok {
 		return fmt.Errorf("target output file %s is an already existing file", i.outputFile)
 	}
@@ -363,7 +406,7 @@ func (i *ISO) sanitize() error {
 	return nil
 }
 
-func (i ISO) mapFiles(inputFile, outputFile string, fileMap map[string]string) error {
+func (i Media) mapFiles(inputFile, outputFile string, fileMap map[string]string) error {
 	args := []string{"-indev", inputFile, "-outdev", outputFile, "-boot_image", "any", "replay"}
 
 	for f, m := range fileMap {
@@ -378,7 +421,7 @@ func (i ISO) mapFiles(inputFile, outputFile string, fileMap map[string]string) e
 	return nil
 }
 
-func (i ISO) writeGrubEnv(file string, vars map[string]string) error {
+func (i Media) writeGrubEnv(file string, vars map[string]string) error {
 	arr := make([]string, len(vars)+2)
 
 	arr[0] = file
@@ -397,7 +440,7 @@ func (i ISO) writeGrubEnv(file string, vars map[string]string) error {
 
 // prepareOSRoot arranges the root directory tree that will be used to build the ISO's
 // squashfs image. It essentially extracts OS OCI images to the given location.
-func (i ISO) prepareOSRoot(sourceOS *deployment.ImageSource, rootDir string) error {
+func (i Media) prepareOSRoot(sourceOS *deployment.ImageSource, rootDir string) error {
 	i.s.Logger().Info("Extracting OS %s", sourceOS.String())
 
 	unpacker, err := unpack.NewUnpacker(i.s, sourceOS, i.unpackOpts...)
@@ -427,7 +470,7 @@ func (i ISO) prepareOSRoot(sourceOS *deployment.ImageSource, rootDir string) err
 }
 
 // prepareEFI sets the root directory tree of the EFI partition
-func (i ISO) prepareEFI(isoDir, efiDir string) error {
+func (i Media) prepareEFI(isoDir, efiDir string) error {
 	i.s.Logger().Info("Preparing EFI partition at %s", efiDir)
 
 	err := vfs.MkdirAll(i.s.FS(), filepath.Join(efiDir, "EFI"), vfs.FilePerm)
@@ -441,27 +484,22 @@ func (i ISO) prepareEFI(isoDir, efiDir string) error {
 	return r.SyncData(filepath.Join(isoDir, "EFI"), filepath.Join(efiDir, "EFI"))
 }
 
-// prepareISO sets the root directory three of the ISO filesystem
-func (i ISO) prepareISO(isoDir, rootfs string, d *deployment.Deployment) error {
-	i.s.Logger().Info("Preparing ISO contents at %s", isoDir)
-
-	err := i.PrepareInstallerFS(isoDir, rootfs, d)
-	if err != nil {
-		return fmt.Errorf("failed to populate ISO directory tree: %w", err)
+// kernelCmdline returns the kernel command line including the label for disk or iso
+// and any additional custom kernel parameter
+func (i Media) kernelCmdline(d *deployment.Deployment) string {
+	label := i.Label
+	rec := d.GetRecoveryPartition()
+	if i.mType == Disk && rec != nil {
+		label = rec.Label
 	}
-
-	cmdline := strings.TrimSpace(fmt.Sprintf("%s %s", deployment.LiveKernelCmdline(i.Label), d.Installer.KernelCmdline))
-	err = i.bl.InstallLive(rootfs, isoDir, cmdline)
-	if err != nil {
-		return fmt.Errorf("failed installing bootloader in ISO directory tree: %w", err)
-	}
-
-	return nil
+	return strings.TrimSpace(
+		fmt.Sprintf("%s %s", deployment.LiveKernelCmdline(label), d.Installer.KernelCmdline),
+	)
 }
 
 // addInstallationAssets adds to the ISO directory three the configuration and files required for
 // the installation from the current media
-func (i ISO) addInstallationAssets(root string, d *deployment.Deployment) error {
+func (i Media) addInstallationAssets(root string, d *deployment.Deployment) error {
 	var err error
 
 	installPath := filepath.Join(root, installDir)
@@ -523,7 +561,7 @@ func (i ISO) addInstallationAssets(root string, d *deployment.Deployment) error 
 
 // writeInstallDescription writes the installation yaml file embedded in installer media
 // with the installer assets related to the live system mount point.
-func (i ISO) writeInstallDescription(installPath string, d *deployment.Deployment) error {
+func (i Media) writeInstallDescription(installPath string, d *deployment.Deployment) error {
 	// Keep original data as the deployment could still be used later stages
 	// here we want to store it from live installer PoV
 	source := d.SourceOS
@@ -578,28 +616,75 @@ func (i ISO) writeInstallDescription(installPath string, d *deployment.Deploymen
 	return nil
 }
 
-// burnISO creates the ISO image from the prepared data
-func (i ISO) burnISO(isoDir, output, efiImg string) error {
+// buildDisk creates an installer disk image from the prepared root
+func (i Media) buildDisk(tempDir, liveRoot, osRoot string, d *deployment.Deployment) error {
+	espDir := filepath.Join(tempDir, "esp")
+	err := vfs.MkdirAll(i.s.FS(), espDir, vfs.DirPerm)
+	if err != nil {
+		return fmt.Errorf("failed creating ESP directory: %w", err)
+	}
+
+	esp := d.GetEfiPartition()
+	recovery := d.GetRecoveryPartition()
+	if esp == nil || recovery == nil {
+		return fmt.Errorf("undefined essential recovery or esp partitions")
+	}
+
+	cmdline := fmt.Sprintf("%s %s", d.RecoveryKernelCmdline(), d.Installer.KernelCmdline)
+	err = i.bl.Install(osRoot, espDir, esp.Label, bootloader.RecoveryBootID, cmdline, "")
+	if err != nil {
+		return fmt.Errorf("failed installing the bootloader for a installer raw image: %w", err)
+	}
+
+	parts := []repart.Partition{
+		{
+			Partition: esp,
+			CopyFiles: []string{fmt.Sprintf("%s:/", espDir)},
+		}, {
+			Partition: recovery,
+			CopyFiles: []string{fmt.Sprintf("%s:/", liveRoot)},
+		},
+	}
+	err = repart.CreateDiskImage(i.s, i.outputFile, 0, parts)
+	if err != nil {
+		return fmt.Errorf("failed creating disk image: %w", err)
+	}
+	return nil
+}
+
+// buildISO creates an ISO image from the prepared root
+func (i Media) buildISO(tempDir, isoDir, osRoot, kernelCmdline string) error {
+	err := i.bl.InstallLive(osRoot, isoDir, kernelCmdline)
+	if err != nil {
+		return fmt.Errorf("failed installing bootloader in ISO directory tree: %w", err)
+	}
+
+	espDir := filepath.Join(tempDir, "esp")
+	err = vfs.MkdirAll(i.s.FS(), espDir, vfs.DirPerm)
+	if err != nil {
+		return fmt.Errorf("failed creating ESP directory: %w", err)
+	}
+
+	err = i.prepareEFI(isoDir, espDir)
+	if err != nil {
+		return fmt.Errorf("failed preparing efi partition: %w", err)
+	}
+
+	efiImg := filepath.Join(tempDir, filepath.Base(espDir)+".img")
+	err = filesystem.CreatePreloadedFileSystemImage(i.s, espDir, efiImg, deployment.EfiLabel, 1, deployment.VFat)
+	if err != nil {
+		return fmt.Errorf("failed creating EFI image for the installer image: %w", err)
+	}
+
 	args := []string{
 		"-volid", "LIVE", "-padding", "0",
-		"-outdev", output, "-map", isoDir, "/", "-chmod", "0755", "--",
+		"-outdev", i.outputFile, "-map", isoDir, "/", "-chmod", "0755", "--",
 	}
 	args = append(args, xorrisoBootloaderArgs(efiImg)...)
 
-	_, err := i.s.Runner().RunContext(i.ctx, xorriso, args...)
+	_, err = i.s.Runner().RunContext(i.ctx, xorriso, args...)
 	if err != nil {
 		return fmt.Errorf("failed creating the installer ISO image: %w", err)
-	}
-
-	checksum, err := calcFileChecksum(i.s.FS(), output)
-	if err != nil {
-		return fmt.Errorf("could not compute ISO's checksum: %w", err)
-	}
-
-	checksumFile := fmt.Sprintf("%s.sha256", output)
-	err = i.s.FS().WriteFile(checksumFile, fmt.Appendf(nil, "%s %s\n", checksum, filepath.Base(output)), vfs.FilePerm)
-	if err != nil {
-		return fmt.Errorf("failed writing ISO's checksum file %s: %w", checksumFile, err)
 	}
 
 	return nil
@@ -640,7 +725,7 @@ func calcFileChecksum(fs vfs.FS, fileName string) (string, error) {
 	return fmt.Sprintf("%x", h.Sum(nil)), nil
 }
 
-// reservedPaths returns an array of the paths which can't be overlayed
+// reservedPaths returns an array of the paths which can't be overlayed in installer media
 func reservedPaths() []string {
 	return []string{liveDir, installDir, "EFI", "boot"}
 }

@@ -175,7 +175,7 @@ func (i Installer) installRecoveryPartition(cleanup *cleanstack.CleanStack, d *d
 	}
 	cleanup.Push(func() error { return i.s.Mounter().Unmount(mountPoint) })
 
-	media := installer.NewISO(i.ctx, i.s, installer.WithUnpackOpts(i.unpackOpts...))
+	media := installer.NewMedia(i.ctx, i.s, installer.Disk, installer.WithUnpackOpts(i.unpackOpts...))
 	err = media.PrepareInstallerFS(mountPoint, workDir, d)
 	if err != nil {
 		return fmt.Errorf("failed preparing recovery partition root: %w", err)

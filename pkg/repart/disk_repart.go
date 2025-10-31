@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"text/template"
 
@@ -41,10 +42,115 @@ const (
 //go:embed templates/partition.conf.tpl
 var partTpl []byte
 
+type Partition struct {
+	Partition *deployment.Partition
+	// CopyFiles is list of paths to copy into the partition, uses CopyFiles syntax as defined
+	// in repart.d(5) man pages
+	CopyFiles []string
+	// Excludes is a list of paths to exclude from the host to be copied into the partition, uses
+	// ExcludeFiles syntax as defined in repart.d(5) man pages
+	Excludes []string
+}
+
 // PartitionAndFormatDevice creates a new empty partition table on target disk
 // and applies the configured disk layout by creating and formatting all
 // required partitions.
 func PartitionAndFormatDevice(s *sys.System, d *deployment.Disk) (err error) {
+	lsblkWrapper := lsblk.NewLsDevice(s)
+	sSize, err := lsblkWrapper.GetDeviceSectorSize(d.Device)
+	if err != nil {
+		return err
+	}
+
+	parts := make([]Partition, len(d.Partitions))
+	for i, part := range d.Partitions {
+		parts[i] = Partition{Partition: part}
+	}
+
+	flags := []string{
+		"--empty=force", fmt.Sprintf("--sector-size=%d", sSize),
+	}
+	return runSystemdRepart(s, d.Device, parts, flags...)
+}
+
+// CreateDiskImage creates a disk image file with the given size and partitions
+func CreateDiskImage(s *sys.System, filename string, size deployment.MiB, partitions []Partition) error {
+	s.Logger().Info("Partitioning image '%s'", filename)
+
+	var sizeFlag string
+	if size == 0 {
+		sizeFlag = "--size=auto"
+	} else {
+		sizeFlag = fmt.Sprintf("--size=%dM", size)
+	}
+	flags := []string{"--empty=create", sizeFlag}
+	return runSystemdRepart(s, filename, partitions, flags...)
+}
+
+// CreatePartitionConfFile writes a partition configuration for systemd-repart for the given partition into the given file
+func CreatePartitionConfFile(s *sys.System, filename string, p Partition) error {
+	file, err := s.FS().Create(filename)
+	if err != nil {
+		return fmt.Errorf("failed creating systemd-repart configuration file '%s': %w", filename, err)
+	}
+	err = CreatePartitionConf(file, p)
+	if err != nil {
+		return fmt.Errorf("failed generation of '%s' systemd-repart configuration file: %w", filename, err)
+	}
+	err = file.Close()
+	if err != nil {
+		return fmt.Errorf("failed closing systemd-repart configuration file '%s': %w", filename, err)
+	}
+	return nil
+}
+
+// CreatePartitionConf writes a partition configuration for systemd-repart for the given partition into the given io.Writer
+func CreatePartitionConf(wr io.Writer, p Partition) error {
+	pType := roleToType(p.Partition.Role)
+	if pType == deployment.Unknown {
+		return fmt.Errorf("invalid partition role: %s", p.Partition.Role.String())
+	}
+
+	for _, copy := range p.CopyFiles {
+		path := strings.Split(copy, ":")[0]
+		if path != "" && !filepath.IsAbs(path) {
+			return fmt.Errorf("requires an absolute path to copy files from, given path is '%s'", p.CopyFiles)
+		}
+	}
+
+	values := struct {
+		Type      string
+		Format    string
+		Size      deployment.MiB
+		Label     string
+		UUID      string
+		CopyFiles []string
+		Excludes  []string
+		ReadOnly  string
+	}{
+		Type:      pType,
+		Format:    fileSystemToFormat(p.Partition.FileSystem),
+		Size:      p.Partition.Size,
+		Label:     p.Partition.Label,
+		UUID:      p.Partition.UUID,
+		CopyFiles: p.CopyFiles,
+		Excludes:  p.Excludes,
+		ReadOnly:  readOnlyPart(p.Partition),
+	}
+
+	partCfg := template.New("partition")
+	partCfg = template.Must(partCfg.Parse(string(partTpl)))
+	err := partCfg.Execute(wr, values)
+	if err != nil {
+		return fmt.Errorf("failed parsing systemd-repart partition template: %w", err)
+	}
+	return nil
+}
+
+// runSystemdRepart runs systemd-repart for the given partitions and target device. It appends to the generated command the
+// the optional given flags. On success it parses systemd-repart output to get the generated partition UUIDs and update the
+// given partitions list with them.
+func runSystemdRepart(s *sys.System, target string, parts []Partition, flags ...string) error {
 	dir, err := vfs.TempDir(s.FS(), "", "elemental-repart.d")
 	if err != nil {
 		return fmt.Errorf("failed creating a temporary directory for systemd-repart configuration: %w", err)
@@ -56,39 +162,31 @@ func PartitionAndFormatDevice(s *sys.System, d *deployment.Disk) (err error) {
 		}
 	}()
 
-	s.Logger().Info("Creating systemd-repart configuration at %s", dir)
-
-	lsblkWrapper := lsblk.NewLsDevice(s)
-	sSize, err := lsblkWrapper.GetDeviceSectorSize(d.Device)
-	if err != nil {
-		return err
-	}
-
-	for i, part := range d.Partitions {
-		partConf := fmt.Sprintf("%d-%s.conf", i, part.Role.String())
-		file, err := s.FS().Create(filepath.Join(dir, partConf))
-		if err != nil {
-			return fmt.Errorf("failed creating systemd-repart configuration file '%s': %w", partConf, err)
+	for i, part := range parts {
+		if part.Partition == nil {
+			return fmt.Errorf("cannot configure a nil partition")
 		}
-		err = CreatePartitionConf(file, part, "")
+		partConf := fmt.Sprintf("%d-%s.conf", i, part.Partition.Role.String())
+		err = CreatePartitionConfFile(s, filepath.Join(dir, partConf), part)
 		if err != nil {
 			return fmt.Errorf("failed generation of '%s' systemd-repart configuration file: %w", partConf, err)
 		}
-		err = file.Close()
-		if err != nil {
-			return fmt.Errorf("failed closing systemd-repart configuration file '%s': %w", partConf, err)
-		}
 	}
 
-	s.Logger().Info("Partitioning device '%s'", d.Device)
-	args := []string{
-		"--empty=force", "--json=pretty", fmt.Sprintf("--definitions=%s", dir),
-		"--dry-run=no", fmt.Sprintf("--sector-size=%d", sSize), d.Device,
+	args := []string{"--json=pretty", fmt.Sprintf("--definitions=%s", dir), "--dry-run=no"}
+	reg := regexp.MustCompile(`(--json|--definitions|--dry-run)`)
+	for _, flag := range flags {
+		if reg.MatchString(flag) {
+			return fmt.Errorf("json, definitions and dry-run flags are not configurable by repart.runSystemdRepart method")
+		}
+		args = append(args, flag)
 	}
+	args = append(args, target)
+
 	out, err := s.Runner().RunEnv("systemd-repart", []string{"PATH=/sbin:/usr/sbin:/usr/bin:/bin"}, args...)
 	s.Logger().Debug("systemd-repart output:\n%s", string(out))
 	if err != nil {
-		return fmt.Errorf("failed partitioning disk '%s' with systemd-repart: %w", d.Device, err)
+		return fmt.Errorf("failed partitioning disk '%s' with systemd-repart: %w", target, err)
 	}
 	uuids := []struct {
 		UUID    string `json:"uuid,omitempty"`
@@ -96,54 +194,12 @@ func PartitionAndFormatDevice(s *sys.System, d *deployment.Disk) (err error) {
 	}{}
 
 	err = json.Unmarshal(out, &uuids)
-	if err != nil || len(uuids) != len(d.Partitions) {
+	if err != nil || len(uuids) != len(parts) {
 		return fmt.Errorf("failed parsing systemd-repart JSON output: %w", err)
 	}
 
 	for _, uuid := range uuids {
-		d.Partitions[uuid.PartNum].UUID = uuid.UUID
-	}
-
-	// Notify kernel of partition table changes, swallows errors, just a best effort call
-	_, _ = s.Runner().Run("partx", "-u", d.Device)
-	_, _ = s.Runner().Run("udevadm", "settle")
-	return nil
-}
-
-// CreatePartitionConf writes a partition configuration for systemd-repart for the given partition
-func CreatePartitionConf(wr io.Writer, part *deployment.Partition, copyFiles string) error {
-	pType := roleToType(part.Role)
-	if pType == deployment.Unknown {
-		return fmt.Errorf("invalid partition role: %s", part.Role.String())
-	}
-
-	if copyFiles != "" && !filepath.IsAbs(copyFiles) {
-		return fmt.Errorf("requires an absolute path to copy files from, given path is '%s'", copyFiles)
-	}
-
-	values := struct {
-		Type      string
-		Format    string
-		Size      deployment.MiB
-		Label     string
-		UUID      string
-		CopyFiles string
-		ReadOnly  string
-	}{
-		Type:      pType,
-		Format:    fileSystemToFormat(part.FileSystem),
-		Size:      part.Size,
-		Label:     part.Label,
-		UUID:      part.UUID,
-		CopyFiles: copyFiles,
-		ReadOnly:  readOnlyPart(part),
-	}
-
-	partCfg := template.New("partition")
-	partCfg = template.Must(partCfg.Parse(string(partTpl)))
-	err := partCfg.Execute(wr, values)
-	if err != nil {
-		return fmt.Errorf("failed parsing systemd-repart partition template: %w", err)
+		parts[uuid.PartNum].Partition.UUID = uuid.UUID
 	}
 	return nil
 }
