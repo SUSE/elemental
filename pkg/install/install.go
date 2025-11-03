@@ -96,6 +96,11 @@ func (i Installer) Install(d *deployment.Deployment) (err error) {
 	cleanup := cleanstack.NewCleanStack()
 	defer func() { err = cleanup.Cleanup(err) }()
 
+	err = i.checkTargetDisks(d)
+	if err != nil {
+		return err
+	}
+
 	for _, disk := range d.Disks {
 		err = repart.PartitionAndFormatDevice(i.s, disk)
 		if err != nil {
@@ -120,6 +125,22 @@ func (i Installer) Install(d *deployment.Deployment) (err error) {
 		return fmt.Errorf("executing transaction: %w", err)
 	}
 
+	return nil
+}
+
+func (i Installer) checkTargetDisks(d *deployment.Deployment) error {
+	bDev := lsblk.NewLsDevice(i.s)
+	for _, disk := range d.Disks {
+		parts, err := bDev.GetDevicePartitions(disk.Device)
+		if err != nil {
+			return fmt.Errorf("failed to list target device partitions: %w", err)
+		}
+		for _, part := range parts {
+			if part != nil && len(part.MountPoints) > 0 {
+				return fmt.Errorf("cannot install, target device (%s) has active mountpoints: %v", disk.Device, part.MountPoints)
+			}
+		}
+	}
 	return nil
 }
 

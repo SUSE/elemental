@@ -152,6 +152,9 @@ var _ = Describe("Install", Label("install"), func() {
 			if slices.Contains(args, "NAME,PHY-SEC") {
 				return []byte(sectorSizeJson), runner.ReturnError
 			}
+			if slices.Contains(args, "/dev/device") {
+				return []byte(`{"blockdevices": []}`), runner.ReturnError
+			}
 			return []byte(lsblkJson), runner.ReturnError
 		}
 	})
@@ -166,6 +169,18 @@ var _ = Describe("Install", Label("install"), func() {
 			{"btrfs", "subvolume", "create"},
 			{"mksquashfs"},
 		}))
+	})
+	It("fails if lsblk can't get target device data", func() {
+		sideEffects["lsblk"] = func(args ...string) ([]byte, error) {
+			return nil, fmt.Errorf("lsblk failed")
+		}
+		Expect(i.Install(d)).To(MatchError(ContainSubstring("lsblk failed")))
+	})
+	It("fails if lsblk lists mountpoints for target device", func() {
+		sideEffects["lsblk"] = func(args ...string) ([]byte, error) {
+			return []byte(lsblkJson), nil
+		}
+		Expect(i.Install(d)).To(MatchError(ContainSubstring("has active mountpoints")))
 	})
 	It("fails if systemd-repart partitions do not match deployment", func() {
 		// systemd-repart reports a recovery partition that is not part of the deployment
