@@ -35,20 +35,12 @@ import (
 	"github.com/suse/elemental/v3/pkg/unpack"
 )
 
-func (b *Builder) downloadSystemExtensions(ctx context.Context, def *image.Definition, rm *resolver.ResolvedManifest, buildDir image.BuildDir) error {
+func (b *Builder) downloadSystemExtensions(ctx context.Context, extensions []api.SystemdExtension, buildDir image.BuildDir) error {
 	logger := b.System.Logger()
-
-	extensions, err := enabledExtensions(rm, def, logger)
-	if err != nil {
-		return fmt.Errorf("filtering enabled systemd extensions: %w", err)
-	} else if len(extensions) == 0 {
-		return nil
-	}
-
 	fs := b.System.FS()
 	extensionsDir := filepath.Join(buildDir.OverlaysDir(), image.ExtensionsPath())
 
-	if err = vfs.MkdirAll(fs, extensionsDir, 0o700); err != nil {
+	if err := vfs.MkdirAll(fs, extensionsDir, 0o700); err != nil {
 		return fmt.Errorf("creating extensions directory: %w", err)
 	}
 
@@ -58,14 +50,14 @@ func (b *Builder) downloadSystemExtensions(ctx context.Context, def *image.Defin
 
 		if isRemoteURL(extension.Image) {
 			extensionPath := filepath.Join(extensionsDir, filepath.Base(extension.Image))
-			if err = b.DownloadFile(ctx, fs, extension.Image, extensionPath); err != nil {
+			if err := b.DownloadFile(ctx, fs, extension.Image, extensionPath); err != nil {
 				return fmt.Errorf("downloading systemd extension %s: %w", extension.Name, err)
 			}
 
 			continue
 		}
 
-		if err = b.unpackExtension(ctx, extension, extensionsDir); err != nil {
+		if err := b.unpackExtension(ctx, extension, extensionsDir); err != nil {
 			return fmt.Errorf("unpacking systemd extension %s: %w", extension.Name, err)
 		}
 	}
