@@ -92,6 +92,10 @@ func NewCluster(s *sys.System, kube *Kubernetes) (*Cluster, error) {
 	agentConfig[selinuxKey] = serverConfig[selinuxKey]
 	agentConfig[cniKey] = serverConfig[cniKey]
 
+	if ServersCount(kube.Nodes) < 2 {
+		delete(serverConfig, serverKey)
+	}
+
 	return &Cluster{
 		ServerConfig: serverConfig,
 		AgentConfig:  agentConfig,

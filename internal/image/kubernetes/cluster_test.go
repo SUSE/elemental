@@ -143,7 +143,7 @@ var _ = Describe("Cluster", func() {
 		Expect(cluster.ServerConfig["token"]).To(Equal("token123"))
 		Expect(cluster.ServerConfig["tls-san"]).To(ContainElements([]string{"10.10.10.1", "cluster1.suse.com", "192.168.122.50", "fd12:3456:789a::21", "api.suse.com"}))
 		Expect(cluster.ServerConfig["selinux"]).To(BeTrue())
-		Expect(cluster.ServerConfig["server"]).To(Equal("https://192.168.122.50:9345"))
+		Expect(cluster.ServerConfig["server"]).To(BeEmpty())
 
 		Expect(cluster.AgentConfig).ToNot(BeEmpty())
 		// server settings override the agent.yaml
