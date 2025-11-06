@@ -34,6 +34,7 @@ func main() {
 		cmd.Setup,
 		cmd.NewInstallCommand(appName, action.Install),
 		cmd.NewUpgradeCommand(appName, action.Upgrade),
+		cmd.NewKernelModulesCommand(appName, action.ManageKernelModules),
 		cmd.NewUnpackImageCommand(appName, action.Unpack),
 		cmd.NewBuildISOCommand(appName, action.BuildInstaller),
 		cmd.NewVersionCommand(appName))
