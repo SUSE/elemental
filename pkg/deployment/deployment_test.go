@@ -23,6 +23,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
 	"go.yaml.in/yaml/v3"
 
 	"github.com/suse/elemental/v3/pkg/deployment"
@@ -66,7 +67,12 @@ var _ = Describe("Deployment", Label("deployment"), func() {
 			d := deployment.DefaultDeployment()
 			d.SourceOS = deployment.NewDirSrc("/some/dir")
 			d.Disks[0].Device = "/dev/device"
+
 			Expect(d.Sanitize(s)).To(Succeed())
+
+			Expect(d.Snapshotter.Name).To(Equal("snapper"))
+			Expect(d.BootConfig.Bootloader).To(Equal("none"))
+			Expect(d.Security.Policy).To(BeEquivalentTo("default"))
 		})
 		It("fails if the defined device does not exist", func() {
 			d := deployment.DefaultDeployment()
