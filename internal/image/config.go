@@ -90,10 +90,6 @@ func ElementalPath() string {
 	return filepath.Join("var", "lib", "elemental")
 }
 
-func NetworkPath() string {
-	return filepath.Join(ElementalPath(), "network")
-}
-
 func KubernetesPath() string {
 	return filepath.Join(ElementalPath(), "kubernetes")
 }
