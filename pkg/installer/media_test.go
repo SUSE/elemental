@@ -86,6 +86,7 @@ var _ = Describe("Install", Label("install"), func() {
 		d.SourceOS = deployment.NewDirSrc("/some/root")
 		d.Installer.OverlayTree = deployment.NewDirSrc("/some/dir/iso-overlay")
 		d.Installer.CfgScript = "/some/dir/config-live.sh"
+		d.Installer.KernelCmdline = "console=ttyS0"
 
 		iso := installer.NewISO(context.Background(), s, installer.WithBootloader(bootloader.NewNone(s)))
 
@@ -226,7 +227,6 @@ var _ = Describe("Install", Label("install"), func() {
 		Expect(err.Error()).To(ContainSubstring("target input file /non-existent/installer.iso does not exist"))
 	})
 	It("fails to customize an ISO using xorriso", func() {
-		// Create the file pointed out by -outdev when xorriso is called.
 		sideEffects["xorriso"] = func(args ...string) ([]byte, error) {
 			return []byte{}, fmt.Errorf("failed to run xorriso")
 		}

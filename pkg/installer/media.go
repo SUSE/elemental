@@ -275,15 +275,17 @@ func (i *ISO) Customize(d *deployment.Deployment) (err error) {
 		return fmt.Errorf("could note create working directory for installer ISO build: %w", err)
 	}
 
-	grubEnvPath := filepath.Join(tempDir, "grubenv")
-	cmdline := strings.TrimSpace(fmt.Sprintf("%s %s", deployment.LiveKernelCmdline(i.Label), d.Installer.KernelCmdline))
-	err = i.writeGrubEnv(grubEnvPath, map[string]string{"cmdline": cmdline})
-	if err != nil {
-		return fmt.Errorf("error writing %s: %s", grubEnvPath, err.Error())
-	}
+	m := map[string]string{}
 
-	m := map[string]string{
-		grubEnvPath: "/boot/grubenv",
+	if d.Installer.KernelCmdline != "" {
+		grubEnvPath := filepath.Join(tempDir, "grubenv")
+		cmdline := strings.TrimSpace(fmt.Sprintf("%s %s", deployment.LiveKernelCmdline(i.Label), d.Installer.KernelCmdline))
+		err = i.writeGrubEnv(grubEnvPath, map[string]string{"cmdline": cmdline})
+		if err != nil {
+			return fmt.Errorf("error writing %s: %s", grubEnvPath, err.Error())
+		}
+
+		m[grubEnvPath] = "/boot/grubenv"
 	}
 
 	if d.Installer.CfgScript != "" {
