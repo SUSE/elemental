@@ -417,10 +417,11 @@ func (d Deployment) WriteDeploymentFile(s *sys.System, root string) error {
 	for _, disk := range dep.Disks {
 		disk.Device = ""
 	}
-	// omit the OverlayTree and CfgTree as this is a runtime information which might
+	// omit the OverlayTree, CfgScript and Installer as this is a runtime information which might
 	// not be consistent across reboots, there is no need to store it.
 	dep.OverlayTree = nil
 	dep.CfgScript = ""
+	dep.Installer = LiveInstaller{}
 
 	data, err = yaml.Marshal(dep)
 	if err != nil {

@@ -3,6 +3,7 @@ module github.com/suse/elemental/v3
 go 1.25
 
 require (
+	dario.cat/mergo v1.0.2
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/containerd/containerd/v2 v2.2.0
 	github.com/coreos/butane v0.25.1

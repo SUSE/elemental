@@ -25,6 +25,7 @@ import (
 	. "github.com/onsi/gomega"
 	"go.yaml.in/yaml/v3"
 
+	"github.com/suse/elemental/v3/pkg/bootloader"
 	"github.com/suse/elemental/v3/pkg/deployment"
 	"github.com/suse/elemental/v3/pkg/log"
 	"github.com/suse/elemental/v3/pkg/sys"
@@ -194,6 +195,49 @@ var _ = Describe("Deployment", Label("deployment"), func() {
 			_, err := deployment.Parse(s, "/some/dir")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(buffer.String()).To(ContainSubstring("deployment file not found"))
+		})
+		It("merges the default deployment with a given one", func() {
+			d := deployment.New(
+				deployment.WithPartitions(1, &deployment.Partition{
+					Role:      deployment.Recovery,
+					Label:     deployment.RecoveryLabel,
+					Size:      2048,
+					MountOpts: []string{"defaults", "ro"},
+				}),
+				deployment.WithConfigPartition(1024),
+			)
+			d.SourceOS = deployment.NewEmptySrc()
+			newD := &deployment.Deployment{
+				SourceOS: deployment.NewOCISrc("domain.org/image/repo:tag"),
+				Disks: []*deployment.Disk{
+					{Device: "/dev/device", Partitions: []*deployment.Partition{
+						{Size: 2048}, nil, {Label: "newLabel", Size: 4096},
+						{MountPoint: "/data", MountOpts: []string{"rw"}},
+					}}, nil,
+				},
+				CfgScript: "script",
+				BootConfig: &deployment.BootConfig{
+					KernelCmdline: "new cmdline",
+				},
+			}
+			Expect(deployment.Merge(d, newD)).To(Succeed())
+
+			Expect(d.SourceOS.String()).To(Equal("oci://domain.org/image/repo:tag"))
+			Expect(d.CfgScript).To(Equal("script"))
+			Expect(len(d.Disks)).To(Equal(1))
+			Expect(d.Disks[0].Device).To(Equal("/dev/device"))
+			Expect(len(d.Disks[0].Partitions)).To(Equal(3))
+			Expect(d.Disks[0].Partitions[0].Size).To(Equal(deployment.MiB(2048)))
+			system := d.GetSystemPartition()
+			Expect(system).NotTo(BeNil())
+			Expect(system.Size).To(Equal(deployment.MiB(0)))
+			Expect(d.Disks[0].Partitions[1].Role).To(Equal(deployment.Recovery))
+			Expect(d.Disks[0].Partitions[1].Label).To(Equal("newLabel"))
+			Expect(d.Disks[0].Partitions[1].Size).To(Equal(deployment.MiB(4096)))
+			Expect(system.MountOpts).To(Equal([]string{"rw"}))
+			Expect(len(system.RWVolumes)).To(Equal(6))
+			Expect(d.BootConfig.KernelCmdline).To(Equal("new cmdline"))
+			Expect(d.BootConfig.Bootloader).To(Equal(bootloader.BootNone))
 		})
 	})
 

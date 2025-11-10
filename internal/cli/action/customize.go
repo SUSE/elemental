@@ -64,7 +64,9 @@ func Customize(ctx *cli.Context) error {
 }
 
 func digestCustomizeDeploymentSetup(s *sys.System, flags *cmd.CustomizeFlags) (*deployment.Deployment, error) {
-	d := deployment.DefaultDeployment()
+	// use an empty deployment instead of a default one, as this will be merged on top of the one embedded
+	// inside the installer media.
+	d := &deployment.Deployment{}
 	if flags.Overlay != "" {
 		src, err := deployment.NewSrcFromURI(flags.Overlay)
 		if err != nil {
@@ -86,10 +88,6 @@ func digestCustomizeDeploymentSetup(s *sys.System, flags *cmd.CustomizeFlags) (*
 		return nil, fmt.Errorf("failed applying install flags to deployment description: %w", err)
 	}
 
-	err = d.Sanitize(s, deployment.CheckDiskDevice, deployment.CheckSourceOS)
-	if err != nil {
-		return nil, fmt.Errorf("inconsistent deployment setup found: %w", err)
-	}
 	return d, nil
 }
 

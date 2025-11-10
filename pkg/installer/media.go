@@ -101,6 +101,33 @@ func NewISO(ctx context.Context, s *sys.System, opts ...Option) *ISO {
 	return iso
 }
 
+// loadISOInstallDesc extracts the install description file form the given ISO and parses it into a new deployment
+func loadISOInstallDesc(s *sys.System, tempDir, iso string) (*deployment.Deployment, error) {
+	installDst := filepath.Join(tempDir, installCfg)
+	installSrc := filepath.Join(installDir, installCfg)
+
+	args := []string{
+		"-osirrox", "on:auto_chmod_on", "-overwrite", "nondir", "-indev", iso, "-extract", installSrc, installDst,
+	}
+	out, err := s.Runner().Run("xorriso", args...)
+	s.Logger().Debug("xorriso output: %s", string(out))
+	if err != nil {
+		return nil, fmt.Errorf("failed extracting install description: %w", err)
+	}
+
+	data, err := s.FS().ReadFile(installDst)
+	if err != nil {
+		return nil, fmt.Errorf("reading deployment file '%s': %w", installDst, err)
+	}
+	d := &deployment.Deployment{}
+	err = yaml.Unmarshal(data, d)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshalling deployment file '%s': %w: %s", installDst, err, string(data))
+	}
+
+	return d, nil
+}
+
 // Build creates a new ISO installer image with the given installation or deployment
 // paramters
 func (i ISO) Build(d *deployment.Deployment) (err error) {
@@ -111,11 +138,6 @@ func (i ISO) Build(d *deployment.Deployment) (err error) {
 
 	cleanup := cleanstack.NewCleanStack()
 	defer func() { err = cleanup.Cleanup(err) }()
-
-	err = vfs.MkdirAll(i.s.FS(), i.OutputDir, vfs.DirPerm)
-	if err != nil {
-		return fmt.Errorf("failed creating output directory: %w", err)
-	}
 
 	tempDir, err := vfs.TempDir(i.s.FS(), i.OutputDir, "elemental-installer")
 	if err != nil {
@@ -223,7 +245,7 @@ func (i *ISO) PrepareInstallerFS(rootDir, workDir string, d *deployment.Deployme
 		return fmt.Errorf("failed adding installation assets and configuration: %w", err)
 	}
 
-	return nil
+	return i.writeInstallDescription(filepath.Join(rootDir, installDir), d)
 }
 
 // Customize repacks an existing installer with more artifacts.
@@ -236,11 +258,16 @@ func (i *ISO) Customize(d *deployment.Deployment) (err error) {
 	cleanup := cleanstack.NewCleanStack()
 	defer func() { err = cleanup.Cleanup(err) }()
 
-	tempDir, err := vfs.TempDir(i.s.FS(), "/tmp", "elemental-installer")
+	tempDir, err := vfs.TempDir(i.s.FS(), i.OutputDir, "elemental-installer")
 	if err != nil {
 		return fmt.Errorf("could note create working directory for installer ISO build: %w", err)
 	}
 	cleanup.Push(func() error { return i.s.FS().RemoveAll(tempDir) })
+
+	installDesc, err := loadISOInstallDesc(i.s, tempDir, i.InputFile)
+	if err != nil {
+		return fmt.Errorf("failed extracting install description from '%s': %w", i.InputFile, err)
+	}
 
 	ovDir := filepath.Join(tempDir, "overlay")
 	err = vfs.MkdirAll(i.s.FS(), ovDir, vfs.FilePerm)
@@ -291,7 +318,17 @@ func (i *ISO) Customize(d *deployment.Deployment) (err error) {
 		return fmt.Errorf("failed adding installation assets and configuration: %w", err)
 	}
 
-	m[assetsPath] = "/Install"
+	err = deployment.Merge(installDesc, d)
+	if err != nil {
+		return fmt.Errorf("failed merging deployment description: %w", err)
+	}
+
+	err = i.writeInstallDescription(filepath.Join(assetsPath, installDir), installDesc)
+	if err != nil {
+		return err
+	}
+
+	m[assetsPath] = "/"
 
 	return i.mapFiles(i.InputFile, i.outputFile, m)
 }
@@ -473,9 +510,26 @@ func (i ISO) addInstallationAssets(root string, d *deployment.Deployment) error 
 			} else {
 				d.OverlayTree = deployment.NewRawSrc(path)
 			}
-		default:
 		}
 	}
+
+	return nil
+}
+
+// writeInstallDescription writes the installation yaml file embedded in installer media
+// with the installer assets related to the live system mount point.
+func (i ISO) writeInstallDescription(installPath string, d *deployment.Deployment) error {
+	// Keep original data as the deployment could still be used later stages
+	// here we want to store it from live installer PoV
+	source := d.SourceOS
+	script := d.Installer.CfgScript
+	overlay := d.Installer.OverlayTree
+
+	d.SourceOS = deployment.NewRawSrc(SquashfsPath)
+	if d.Installer.CfgScript != "" {
+		d.Installer.CfgScript = filepath.Join(LiveMountPoint, liveDir, cfgScript)
+	}
+	d.Installer.OverlayTree = deployment.NewDirSrc(LiveMountPoint)
 
 	installFile := filepath.Join(installPath, installCfg)
 	dBytes, err := yaml.Marshal(d)
@@ -487,6 +541,11 @@ func (i ISO) addInstallationAssets(root string, d *deployment.Deployment) error 
 	if err != nil {
 		return fmt.Errorf("writing deployment file '%s': %w", installFile, err)
 	}
+
+	// Restore originial values
+	d.SourceOS = source
+	d.Installer.CfgScript = script
+	d.Installer.OverlayTree = overlay
 
 	return nil
 }

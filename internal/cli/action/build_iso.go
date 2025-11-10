@@ -130,8 +130,17 @@ func applyInstallFlags(s *sys.System, d *deployment.Deployment, flags cmd.Instal
 	}
 
 	disk := d.GetSystemDisk()
-	if flags.Target != "" && disk != nil {
-		disk.Device = flags.Target
+	if flags.Target != "" {
+		switch {
+		case disk != nil:
+			disk.Device = flags.Target
+		case len(d.Disks) > 0:
+			d.Disks[0].Device = flags.Target
+		case len(d.Disks) == 0:
+			d.Disks = []*deployment.Disk{
+				{Device: flags.Target},
+			}
+		}
 	}
 
 	if flags.Overlay != "" {
@@ -144,6 +153,12 @@ func applyInstallFlags(s *sys.System, d *deployment.Deployment, flags cmd.Instal
 
 	if flags.ConfigScript != "" {
 		d.CfgScript = flags.ConfigScript
+	}
+
+	if d.BootConfig == nil {
+		d.BootConfig = &deployment.BootConfig{
+			Bootloader: bootloader.BootGrub,
+		}
 	}
 
 	// Default to grub bootloader if none is defined

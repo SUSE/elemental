@@ -20,6 +20,7 @@ package installer_test
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"testing"
 
@@ -161,12 +162,18 @@ var _ = Describe("Install", Label("install"), func() {
 
 		// Create the file pointed out by -outdev when xorriso is called.
 		sideEffects["xorriso"] = func(args ...string) ([]byte, error) {
+			offset := 0
 			for i, arg := range args {
-				if arg != "-outdev" {
+				switch arg {
+				case "-outdev":
+					offset = 1
+				case "-extract":
+					offset = 2
+				default:
 					continue
 				}
 
-				file := args[i+1]
+				file := args[i+offset]
 				_, err := fs.Create(file)
 				Expect(err).To(Succeed())
 
@@ -186,6 +193,27 @@ var _ = Describe("Install", Label("install"), func() {
 		Expect(iso.Customize(d)).To(Succeed())
 
 		Expect(vfs.Exists(fs, "/some/dir/build/installer2.iso")).To(BeTrue())
+	})
+	It("fails to customize an iso that is not including an install.yaml file", func() {
+		Expect(vfs.MkdirAll(fs, "/some/dir/build", vfs.DirPerm)).To(Succeed())
+
+		// Error while extracting Install/install.yaml
+		sideEffects["xorriso"] = func(args ...string) ([]byte, error) {
+			if slices.Contains(args, "-extract") {
+				return nil, fmt.Errorf("fatal error")
+			}
+			return []byte{}, nil
+		}
+
+		_, err := fs.Create("/some/dir/installer.iso")
+		Expect(err).To(Succeed())
+
+		iso := installer.NewISO(context.Background(), s, installer.WithBootloader(bootloader.NewNone(s)))
+		iso.InputFile = "/some/dir/installer.iso"
+		iso.OutputDir = "/some/dir/build"
+		iso.Name = "installer2"
+
+		Expect(iso.Customize(d)).To(MatchError(ContainSubstring("failed extracting install description")))
 	})
 	It("fails to customize non-existent input file", func() {
 		iso := installer.NewISO(context.Background(), s)
