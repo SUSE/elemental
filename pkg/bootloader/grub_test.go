@@ -26,6 +26,8 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"github.com/suse/elemental/v3/pkg/block"
+	"github.com/suse/elemental/v3/pkg/block/mock"
 	"github.com/suse/elemental/v3/pkg/bootloader"
 	"github.com/suse/elemental/v3/pkg/deployment"
 	"github.com/suse/elemental/v3/pkg/log"
@@ -89,22 +91,42 @@ var _ = Describe("Grub tests", Label("bootloader", "grub"), func() {
 		esp := &deployment.Partition{
 			Role:       deployment.EFI,
 			MountPoint: "/boot",
+			Label:      deployment.EfiLabel,
 		}
 
 		sysPart := &deployment.Partition{
 			Role:       deployment.System,
 			MountPoint: "/",
+			Label:      deployment.SystemLabel,
 		}
 
 		d = &deployment.Deployment{
 			Disks: []*deployment.Disk{
 				{
+					Device:     "/dev/loop0",
 					Partitions: deployment.Partitions{esp, sysPart},
 				},
 			},
 		}
 
-		grub = bootloader.NewGrub(s)
+		blk := mock.NewBlockDevice([]*block.Partition{
+			{
+				Name:       "/dev/loop0p1",
+				Label:      deployment.EfiLabel,
+				UUID:       "1234-ABCD",
+				FileSystem: deployment.VFat.String(),
+				Disk:       "/dev/loop0",
+			},
+			{
+				Name:       "/dev/loop0p2",
+				Label:      deployment.SystemLabel,
+				UUID:       "2345-ABCD",
+				FileSystem: deployment.Ext4.String(),
+				Disk:       "/dev/loop0",
+			},
+		}...)
+
+		grub = bootloader.NewGrub(s, bootloader.WithDevice(blk))
 
 		// Setup GRUB and EFI dirs
 		Expect(vfs.MkdirAll(tfs, "/target/dir/usr/share/efi/x86_64", vfs.DirPerm)).To(Succeed())

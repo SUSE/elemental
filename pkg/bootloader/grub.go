@@ -31,6 +31,8 @@ import (
 
 	"github.com/joho/godotenv"
 
+	"github.com/suse/elemental/v3/pkg/block"
+	"github.com/suse/elemental/v3/pkg/block/lsblk"
 	"github.com/suse/elemental/v3/pkg/cleanstack"
 	"github.com/suse/elemental/v3/pkg/deployment"
 	"github.com/suse/elemental/v3/pkg/rsync"
@@ -40,8 +42,9 @@ import (
 )
 
 type Grub struct {
-	s     *sys.System
-	clean *cleanstack.CleanStack
+	s      *sys.System
+	clean  *cleanstack.CleanStack
+	device block.Device
 }
 
 type grubBootEntry struct {
@@ -52,8 +55,22 @@ type grubBootEntry struct {
 	ID          string
 }
 
-func NewGrub(s *sys.System) *Grub {
-	return &Grub{s, cleanstack.NewCleanStack()}
+type Option func(*Grub)
+
+func NewGrub(s *sys.System, opts ...Option) *Grub {
+	g := &Grub{s, cleanstack.NewCleanStack(), lsblk.NewLsDevice(s)}
+
+	for _, opt := range opts {
+		opt(g)
+	}
+
+	return g
+}
+
+func WithDevice(device block.Device) Option {
+	return func(g *Grub) {
+		g.device = device
+	}
 }
 
 const (
@@ -166,7 +183,22 @@ func (g Grub) Prune(rootPath string, keepSnapshotIDs []int, d *deployment.Deploy
 		return fmt.Errorf("failed creating target directory %s: %w", bootDir, err)
 	}
 
-	err = g.s.Mounter().Mount(filepath.Join("/dev/disk/by-label/", esp.Label), bootDir, esp.FileSystem.String(), esp.MountOpts)
+	efiDisk := d.GetEfiDisk()
+	if efiDisk == nil {
+		return fmt.Errorf("EFI disk not found")
+	}
+
+	hwPartitions, err := g.device.GetDevicePartitions(efiDisk.Device)
+	if err != nil {
+		return fmt.Errorf("listing host partitions: %w", err)
+	}
+
+	hwEfiPart := hwPartitions.GetByLabel(esp.Label)
+	if hwEfiPart == nil {
+		return fmt.Errorf("unknown efi partition")
+	}
+
+	err = g.s.Mounter().Mount(hwEfiPart.Path, bootDir, esp.FileSystem.String(), esp.MountOpts)
 	if err != nil {
 		return fmt.Errorf("failed mounting ESP to %s: %w", bootDir, err)
 	}

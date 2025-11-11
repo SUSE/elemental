@@ -344,6 +344,19 @@ func (d Deployment) GetEfiPartition() *Partition {
 	return nil
 }
 
+// GetSystemDisk gets the disk data including the system partition.
+// returns nil if not found
+func (d Deployment) GetEfiDisk() *Disk {
+	for _, disk := range d.Disks {
+		for _, part := range disk.Partitions {
+			if part.Role == EFI {
+				return disk
+			}
+		}
+	}
+	return nil
+}
+
 // BaseKernelCmdline returns the base kernel command line for the current deployment
 func (d Deployment) BaseKernelCmdline() string {
 	return fmt.Sprintf("root=LABEL=%s", d.GetSystemLabel())
