@@ -146,11 +146,11 @@ func setBootloader(s *sys.System, d *deployment.Deployment, flags *cmd.InstallFl
 	}
 }
 
-// disgestInstallSetup produces the Deployment object required to describe the installation parameters
+// digestInstallSetup produces the Deployment object required to describe the installation parameters
 func digestInstallSetup(s *sys.System, flags *cmd.InstallFlags) (*deployment.Deployment, error) {
 	d := deployment.DefaultDeployment()
 
-	// Given flags have always precedence compared to in place configuration of live media
+	// Given flags always have precedence compared to in place configuration of live media
 	if flags.Description != "" {
 		err := loadDescriptionFile(s, flags.Description, d)
 		if err != nil {

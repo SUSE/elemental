@@ -31,6 +31,7 @@ import (
 	"github.com/suse/elemental/v3/pkg/install"
 	"github.com/suse/elemental/v3/pkg/manifest/resolver"
 	"github.com/suse/elemental/v3/pkg/manifest/source"
+	"github.com/suse/elemental/v3/pkg/security"
 	"github.com/suse/elemental/v3/pkg/sys"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 	"github.com/suse/elemental/v3/pkg/unpack"
@@ -119,6 +120,7 @@ func (b *Builder) Run(ctx context.Context, d *image.Definition, buildDir image.B
 		d.Installation.Bootloader,
 		d.Installation.KernelCmdLine,
 		m.CorePlatform.Components.OperatingSystem.Image,
+		d.Installation.SecurityPolicy,
 		buildDir,
 		preparePart,
 	)
@@ -151,7 +153,7 @@ func (b *Builder) Run(ctx context.Context, d *image.Definition, buildDir image.B
 	return nil
 }
 
-func newDeployment(system *sys.System, installationDevice, bootloader, kernelCmdLine, osImage string, buildDir image.BuildDir, customPartitions ...*deployment.Partition) (*deployment.Deployment, error) {
+func newDeployment(system *sys.System, installationDevice, bootloader, kernelCmdLine, osImage string, securityPolicy security.Policy, buildDir image.BuildDir, customPartitions ...*deployment.Partition) (*deployment.Deployment, error) {
 	var d *deployment.Deployment
 	if ok, _ := vfs.Exists(system.FS(), buildDir.FirstbootConfigDir()); ok {
 		configSize, err := vfs.DirSizeMB(system.FS(), buildDir.FirstbootConfigDir())
@@ -171,6 +173,7 @@ func newDeployment(system *sys.System, installationDevice, bootloader, kernelCmd
 	d.Disks[0].Device = installationDevice
 	d.BootConfig.Bootloader = bootloader
 	d.BootConfig.KernelCmdline = kernelCmdLine
+	d.Security.Policy = securityPolicy
 
 	osURI := fmt.Sprintf("%s://%s", deployment.OCI, osImage)
 	osSource, err := deployment.NewSrcFromURI(osURI)

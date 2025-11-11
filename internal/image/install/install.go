@@ -17,7 +17,11 @@ limitations under the License.
 
 package install
 
-import "regexp"
+import (
+	"regexp"
+
+	"github.com/suse/elemental/v3/pkg/security"
+)
 
 type DiskSize string
 
@@ -26,7 +30,8 @@ func (d DiskSize) IsValid() bool {
 }
 
 type Installation struct {
-	Bootloader    string   `yaml:"bootloader"`
-	KernelCmdLine string   `yaml:"kernelCmdLine"`
-	DiskSize      DiskSize `yaml:"diskSize"`
+	Bootloader     string          `yaml:"bootloader"`
+	KernelCmdLine  string          `yaml:"kernelCmdLine"`
+	DiskSize       DiskSize        `yaml:"diskSize"`
+	SecurityPolicy security.Policy `yaml:"securityPolicy"`
 }
