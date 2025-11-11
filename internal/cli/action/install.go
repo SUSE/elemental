@@ -28,6 +28,7 @@ import (
 	"github.com/suse/elemental/v3/internal/cli/cmd"
 	"github.com/suse/elemental/v3/pkg/bootloader"
 	"github.com/suse/elemental/v3/pkg/deployment"
+	"github.com/suse/elemental/v3/pkg/fips"
 	"github.com/suse/elemental/v3/pkg/firmware"
 	"github.com/suse/elemental/v3/pkg/install"
 	"github.com/suse/elemental/v3/pkg/installer"
@@ -141,8 +142,7 @@ func setBootloader(s *sys.System, d *deployment.Deployment, flags *cmd.InstallFl
 	}
 
 	if d.IsFipsEnabled() {
-		bootFlag := fmt.Sprintf("boot=LABEL=%s", deployment.EfiLabel)
-		d.BootConfig.KernelCmdline = fmt.Sprintf("%s %s %s", d.BootConfig.KernelCmdline, "fips=1", bootFlag)
+		d.BootConfig.KernelCmdline = fips.AppendCommandLine(d.BootConfig.KernelCmdline)
 	}
 }
 
