@@ -32,7 +32,7 @@ import (
 	"github.com/suse/elemental/v3/pkg/unpack"
 )
 
-func BuildInstaller(ctx *cli.Context) error { //nolint:dupl
+func BuildInstaller(ctx *cli.Context) error {
 	var s *sys.System
 	args := &cmd.InstallerArgs
 	if ctx.App.Metadata == nil || ctx.App.Metadata["system"] == nil {
