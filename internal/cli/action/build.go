@@ -25,6 +25,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"slices"
+	"strings"
 	"syscall"
 	"time"
 
@@ -34,6 +35,7 @@ import (
 	"github.com/suse/elemental/v3/internal/cli/cmd"
 	"github.com/suse/elemental/v3/internal/image"
 	"github.com/suse/elemental/v3/internal/image/kubernetes"
+	"github.com/suse/elemental/v3/internal/image/release"
 	"github.com/suse/elemental/v3/pkg/helm"
 	"github.com/suse/elemental/v3/pkg/http"
 	"github.com/suse/elemental/v3/pkg/sys"
@@ -156,6 +158,11 @@ func parseImageDefinition(f vfs.FS, args *cmd.BuildFlags) (*image.Definition, er
 		return nil, fmt.Errorf("parsing config file %q: %w", configDir.ReleaseFilepath(), err)
 	}
 
+	if err = resolveManifestURI(&definition.Release, args.ConfigDir); err != nil {
+		return nil, fmt.Errorf("updating manifest URI: %w", err)
+
+	}
+
 	data, err = f.ReadFile(configDir.KubernetesFilepath())
 	if err == nil {
 		if err = image.ParseConfig(data, &definition.Kubernetes); err != nil {
@@ -183,6 +190,21 @@ func parseImageDefinition(f vfs.FS, args *cmd.BuildFlags) (*image.Definition, er
 	}
 
 	return definition, nil
+}
+
+func resolveManifestURI(r *release.Release, configDir string) error {
+	if !strings.HasPrefix(r.ManifestURI, "file://") {
+		return nil
+	}
+
+	absConfDir, err := filepath.Abs(configDir)
+	if err != nil {
+		return fmt.Errorf("calculate absolute directory: %w", err)
+	}
+
+	r.ManifestURI = filepath.Join("file://", absConfDir, strings.TrimPrefix(r.ManifestURI, "file://"))
+
+	return nil
 }
 
 func createBuildDir(fs vfs.FS, rootBuildDir string) (image.BuildDir, error) {
