@@ -19,6 +19,8 @@ package config
 
 import (
 	"path/filepath"
+
+	"github.com/suse/elemental/v3/pkg/deployment"
 )
 
 type Dir string
@@ -57,4 +59,22 @@ func (dir Dir) HelmValuesDir() string {
 
 func (dir Dir) NetworkDir() string {
 	return filepath.Join(string(dir), "network")
+}
+
+type OutputDir string
+
+func (dir OutputDir) OverlaysDir() string {
+	return filepath.Join(string(dir), "overlays")
+}
+
+func (dir OutputDir) FirstbootConfigDir() string {
+	return filepath.Join(dir.OverlaysDir(), deployment.ConfigMnt)
+}
+
+func (dir OutputDir) CatalystConfigDir() string {
+	return filepath.Join(dir.OverlaysDir(), deployment.ConfigMnt, "catalyst")
+}
+
+func (dir OutputDir) ReleaseManifestsDir() string {
+	return filepath.Join(string(dir), "release-manifests")
 }

@@ -22,27 +22,7 @@ import (
 	"path/filepath"
 
 	"go.yaml.in/yaml/v3"
-
-	"github.com/suse/elemental/v3/pkg/deployment"
 )
-
-type BuildDir string
-
-func (dir BuildDir) OverlaysDir() string {
-	return filepath.Join(string(dir), "overlays")
-}
-
-func (dir BuildDir) FirstbootConfigDir() string {
-	return filepath.Join(dir.OverlaysDir(), deployment.ConfigMnt)
-}
-
-func (dir BuildDir) CatalystConfigDir() string {
-	return filepath.Join(dir.OverlaysDir(), deployment.ConfigMnt, "catalyst")
-}
-
-func (dir BuildDir) ReleaseManifestsDir() string {
-	return filepath.Join(string(dir), "release-manifests")
-}
 
 func ExtensionsPath() string {
 	return filepath.Join("var", "lib", "extensions")
