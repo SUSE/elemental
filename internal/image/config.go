@@ -26,44 +26,6 @@ import (
 	"github.com/suse/elemental/v3/pkg/deployment"
 )
 
-type ConfigDir string
-
-func (dir ConfigDir) InstallFilepath() string {
-	return filepath.Join(string(dir), "install.yaml")
-}
-
-func (dir ConfigDir) ReleaseFilepath() string {
-	return filepath.Join(string(dir), "release.yaml")
-}
-
-func (dir ConfigDir) KubernetesFilepath() string {
-	return filepath.Join(string(dir), "kubernetes.yaml")
-}
-
-func (dir ConfigDir) ButaneFilepath() string {
-	return filepath.Join(string(dir), "butane.yaml")
-}
-
-func (dir ConfigDir) kubernetesDir() string {
-	return filepath.Join(string(dir), "kubernetes")
-}
-
-func (dir ConfigDir) KubernetesConfigDir() string {
-	return filepath.Join(dir.kubernetesDir(), "config")
-}
-
-func (dir ConfigDir) KubernetesManifestsDir() string {
-	return filepath.Join(dir.kubernetesDir(), "manifests")
-}
-
-func (dir ConfigDir) HelmValuesDir() string {
-	return filepath.Join(dir.kubernetesDir(), "helm", "values")
-}
-
-func (dir ConfigDir) NetworkDir() string {
-	return filepath.Join(string(dir), "network")
-}
-
 type BuildDir string
 
 func (dir BuildDir) OverlaysDir() string {
