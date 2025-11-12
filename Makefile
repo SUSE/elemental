@@ -101,12 +101,12 @@ build-disk: $(BUILD_DIR) elemental-image
 
 .PHONY: unit-tests
 unit-tests:
-	go run $(GINKGO) --label-filter '!rootlesskit' --race --cover --coverpkg=$(COVER_PKG) --github-output -p -r $(GO_RUN_ARGS) ${PKG}
+	go run $(GINKGO) --label-filter '!rootlesskit' --race --cover --coverpkg=$(COVER_PKG) --github-output -p -r $(GO_RUN_ARGS) ${PKG} || exit $$?
 ifeq (, $(shell which rootlesskit 2>/dev/null))
 	@echo "No rootlesskit utility found, not executing tests requiring it"
 else
 	@mv coverprofile.out coverprofile.out.bk
-	rootlesskit go run $(GINKGO) --label-filter 'rootlesskit' --race --cover --coverpkg=$(COVER_PKG) --github-output -p -r $(GO_RUN_ARGS) ${PKG}
+	rootlesskit go run $(GINKGO) --label-filter 'rootlesskit' --race --cover --coverpkg=$(COVER_PKG) --github-output -p -r $(GO_RUN_ARGS) ${PKG} || exit $$?
 	@grep -v "mode: atomic" coverprofile.out >> coverprofile.out.bk
 	@mv coverprofile.out.bk coverprofile.out
 endif
