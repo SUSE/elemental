@@ -176,7 +176,7 @@ func newDeployment(
 	d.Disks[0].Device = installationDevice
 	d.BootConfig.Bootloader = installation.Bootloader
 	d.BootConfig.KernelCmdline = installation.KernelCmdLine
-	d.Security.Policy = installation.SecurityPolicy
+	d.Security.CryptoPolicy = installation.CryptoPolicy
 
 	if d.IsFipsEnabled() {
 		d.BootConfig.KernelCmdline = fips.AppendCommandLine(d.BootConfig.KernelCmdline)

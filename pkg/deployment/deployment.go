@@ -28,8 +28,8 @@ import (
 
 	"go.yaml.in/yaml/v3"
 
+	"github.com/suse/elemental/v3/pkg/crypto"
 	"github.com/suse/elemental/v3/pkg/firmware"
-	"github.com/suse/elemental/v3/pkg/security"
 	"github.com/suse/elemental/v3/pkg/sys"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
@@ -218,7 +218,7 @@ type FirmwareConfig struct {
 }
 
 type SecurityConfig struct {
-	Policy security.Policy `yaml:"policy"`
+	CryptoPolicy crypto.Policy `yaml:"cryptoPolicy"`
 }
 
 type SnapshotterConfig struct {
@@ -288,7 +288,7 @@ var sanitizers = []SanitizeDeployment{
 	checkRWVolumes,
 	CheckSourceOS,
 	CheckDiskDevice,
-	checkSecurityPolicy,
+	checkCryptoPolicy,
 }
 
 // GetSystemPartition returns the system partition from the disk.
@@ -377,7 +377,7 @@ func (d *Deployment) Sanitize(s *sys.System, excludeChecks ...SanitizeDeployment
 
 // IsFipsEnabled returns true if FIPS is enabled for the deployment, otherwise false.
 func (d *Deployment) IsFipsEnabled() bool {
-	return d.Security.Policy == security.FIPSPolicy
+	return d.Security.CryptoPolicy == crypto.FIPSPolicy
 }
 
 // WriteDeploymentFile serialized the Deployment variable into a file. As part of the
@@ -686,18 +686,18 @@ func checkRWVolumes(_ *sys.System, d *Deployment) error {
 	return nil
 }
 
-func checkSecurityPolicy(s *sys.System, d *Deployment) error {
+func checkCryptoPolicy(s *sys.System, d *Deployment) error {
 	if d.Security == nil {
 		d.Security = &SecurityConfig{}
 	}
 
-	if d.Security.Policy == "" {
-		s.Logger().Info("Security policy not set, proceeding with default")
-		d.Security.Policy = security.DefaultPolicy
+	if d.Security.CryptoPolicy == "" {
+		s.Logger().Info("Crypto policy not set, proceeding with default")
+		d.Security.CryptoPolicy = crypto.DefaultPolicy
 	}
 
-	if !d.Security.Policy.IsValid() {
-		return fmt.Errorf("invalid security policy: %s", d.Security.Policy)
+	if !d.Security.CryptoPolicy.IsValid() {
+		return fmt.Errorf("invalid crypto policy: %s", d.Security.CryptoPolicy)
 	}
 
 	return nil

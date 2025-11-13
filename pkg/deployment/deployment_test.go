@@ -72,7 +72,7 @@ var _ = Describe("Deployment", Label("deployment"), func() {
 
 			Expect(d.Snapshotter.Name).To(Equal("snapper"))
 			Expect(d.BootConfig.Bootloader).To(Equal("none"))
-			Expect(d.Security.Policy).To(BeEquivalentTo("default"))
+			Expect(d.Security.CryptoPolicy).To(BeEquivalentTo("default"))
 		})
 		It("fails if the defined device does not exist", func() {
 			d := deployment.DefaultDeployment()

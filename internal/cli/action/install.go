@@ -27,12 +27,12 @@ import (
 
 	"github.com/suse/elemental/v3/internal/cli/cmd"
 	"github.com/suse/elemental/v3/pkg/bootloader"
+	"github.com/suse/elemental/v3/pkg/crypto"
 	"github.com/suse/elemental/v3/pkg/deployment"
 	"github.com/suse/elemental/v3/pkg/fips"
 	"github.com/suse/elemental/v3/pkg/firmware"
 	"github.com/suse/elemental/v3/pkg/install"
 	"github.com/suse/elemental/v3/pkg/installer"
-	"github.com/suse/elemental/v3/pkg/security"
 	"github.com/suse/elemental/v3/pkg/sys"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 	"github.com/suse/elemental/v3/pkg/transaction"
@@ -191,9 +191,9 @@ func digestInstallSetup(s *sys.System, flags *cmd.InstallFlags) (*deployment.Dep
 	}
 
 	if flags.EnableFips {
-		d.Security.Policy = security.FIPSPolicy
+		d.Security.CryptoPolicy = crypto.FIPSPolicy
 	} else {
-		d.Security.Policy = security.DefaultPolicy
+		d.Security.CryptoPolicy = crypto.DefaultPolicy
 	}
 
 	setBootloader(s, d, flags)
