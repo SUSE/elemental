@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"net/netip"
 	"strings"
 
@@ -40,12 +41,16 @@ const (
 	selinuxKey = "selinux"
 )
 
+type ConfigMap map[string]any
+
 type Cluster struct {
 	// ServerConfig contains the server configurations for a single node cluster
 	// or the additional server nodes in a multi node cluster.
-	ServerConfig map[string]any
+	ServerConfig ConfigMap
+	// InitServerConfig contains the initial server configurations for a multi node cluster
+	InitServerConfig ConfigMap
 	// AgentConfig contains the agent configurations in multi node clusters.
-	AgentConfig map[string]any
+	AgentConfig ConfigMap
 }
 
 func NewCluster(s *sys.System, kube *Kubernetes) (*Cluster, error) {
@@ -92,18 +97,19 @@ func NewCluster(s *sys.System, kube *Kubernetes) (*Cluster, error) {
 	agentConfig[selinuxKey] = serverConfig[selinuxKey]
 	agentConfig[cniKey] = serverConfig[cniKey]
 
-	if ServersCount(kube.Nodes) < 2 {
-		delete(serverConfig, serverKey)
-	}
+	initConfig := ConfigMap{}
+	maps.Copy(initConfig, serverConfig)
+	delete(initConfig, serverKey)
 
 	return &Cluster{
-		ServerConfig: serverConfig,
-		AgentConfig:  agentConfig,
-	}, nil
+		InitServerConfig: initConfig,
+		ServerConfig:     serverConfig,
+		AgentConfig:      agentConfig,
+	}, err
 }
 
-func ParseKubernetesConfig(s *sys.System, configFile string) (map[string]any, error) {
-	config := map[string]any{}
+func ParseKubernetesConfig(s *sys.System, configFile string) (ConfigMap, error) {
+	config := ConfigMap{}
 
 	if exists, _ := vfs.Exists(s.FS(), configFile); !exists {
 		s.Logger().Warn("Kubernetes config file '%s' does not exist", configFile)
@@ -131,7 +137,7 @@ func ParseKubernetesConfig(s *sys.System, configFile string) (map[string]any, er
 	return config, nil
 }
 
-func setSingleNodeConfigDefaults(logger log.Logger, kube *Kubernetes, config map[string]any) {
+func setSingleNodeConfigDefaults(logger log.Logger, kube *Kubernetes, config ConfigMap) {
 	if kube.Network.APIVIP4 != "" {
 		appendClusterTLSSAN(logger, config, kube.Network.APIVIP4)
 	}
@@ -146,7 +152,7 @@ func setSingleNodeConfigDefaults(logger log.Logger, kube *Kubernetes, config map
 	delete(config, serverKey)
 }
 
-func setMultiNodeConfigDefaults(logger log.Logger, kube *Kubernetes, config map[string]any, ip4 netip.Addr, ip6 netip.Addr, prioritizeIPv6 bool) error {
+func setMultiNodeConfigDefaults(logger log.Logger, kube *Kubernetes, config ConfigMap, ip4 netip.Addr, ip6 netip.Addr, prioritizeIPv6 bool) error {
 	const rke2ServerPort = 9345
 
 	err := setClusterAPIAddress(config, ip4, ip6, rke2ServerPort, prioritizeIPv6)
@@ -171,7 +177,7 @@ func setMultiNodeConfigDefaults(logger log.Logger, kube *Kubernetes, config map[
 	return nil
 }
 
-func setClusterToken(logger log.Logger, config map[string]any) {
+func setClusterToken(logger log.Logger, config ConfigMap) {
 	if _, ok := config[tokenKey].(string); ok {
 		return
 	}
@@ -182,7 +188,7 @@ func setClusterToken(logger log.Logger, config map[string]any) {
 	config[tokenKey] = token
 }
 
-func setClusterAPIAddress(config map[string]any, ip4 netip.Addr, ip6 netip.Addr, port uint16, prioritizeIPv6 bool) error {
+func setClusterAPIAddress(config ConfigMap, ip4 netip.Addr, ip6 netip.Addr, port uint16, prioritizeIPv6 bool) error {
 	if !ip4.IsValid() && !ip6.IsValid() {
 		return fmt.Errorf("attempted to set an invalid cluster API address")
 	}
@@ -197,7 +203,7 @@ func setClusterAPIAddress(config map[string]any, ip4 netip.Addr, ip6 netip.Addr,
 	return nil
 }
 
-func setSELinux(config map[string]any) {
+func setSELinux(config ConfigMap) {
 	if _, ok := config[selinuxKey].(bool); ok {
 		return
 	}
@@ -205,7 +211,7 @@ func setSELinux(config map[string]any) {
 	config[selinuxKey] = false
 }
 
-func appendClusterTLSSAN(logger log.Logger, config map[string]any, address string) {
+func appendClusterTLSSAN(logger log.Logger, config ConfigMap, address string) {
 	if address == "" {
 		logger.Warn("Attempted to append TLS SAN with an empty address")
 		return
@@ -265,7 +271,7 @@ func FilterNodeType(nodes Nodes, nodeType string) Nodes {
 	return ret
 }
 
-func IsIPv6Priority(serverConfig map[string]any) bool {
+func IsIPv6Priority(serverConfig ConfigMap) bool {
 	if clusterCIDR, ok := serverConfig["cluster-cidr"].(string); ok {
 		cidrs := strings.Split(clusterCIDR, ",")
 		if len(cidrs) > 0 {
@@ -276,7 +282,7 @@ func IsIPv6Priority(serverConfig map[string]any) bool {
 	return false
 }
 
-func IsNodeIPSet(serverConfig map[string]any) bool {
+func IsNodeIPSet(serverConfig ConfigMap) bool {
 	_, ok := serverConfig["node-ip"].(string)
 	return ok
 }

@@ -18,6 +18,8 @@ limitations under the License.
 package kubernetes
 
 import (
+	"fmt"
+
 	"github.com/suse/elemental/v3/pkg/helm"
 )
 
@@ -100,9 +102,30 @@ type HelmRepository struct {
 type Node struct {
 	Hostname string `yaml:"hostname"`
 	Type     string `yaml:"type"`
+	Init     bool   `yaml:"init"`
 }
 
 type Nodes []Node
+
+// FindInitNode loops through the nodes and returns the first one with init field set to true, or if none found, pick the first server Node.
+func FindInitNode(nodes Nodes) (*Node, error) {
+	var pick *Node
+	for _, n := range nodes {
+		if n.Init {
+			return &n, nil
+		}
+
+		if pick == nil && n.Type == NodeTypeServer {
+			pick = &n
+		}
+	}
+
+	if pick == nil {
+		return nil, fmt.Errorf("finding suitable init-node")
+	}
+
+	return pick, nil
+}
 
 type Network struct {
 	APIHost string `yaml:"apiHost"`

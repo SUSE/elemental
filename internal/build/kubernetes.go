@@ -164,18 +164,36 @@ func writeK8sResDeployScript(fs vfs.FS, buildDir image.BuildDir, runtimeManifest
 func writeK8sConfigDeployScript(fs vfs.FS, buildDir image.BuildDir, k kubernetes.Kubernetes) (string, error) {
 	relativeK8sPath := filepath.Join("/", image.KubernetesPath())
 
+	var (
+		initNode *kubernetes.Node
+		err      error
+	)
+
+	if len(k.Nodes) > 0 {
+		initNode, err = kubernetes.FindInitNode(k.Nodes)
+		if err != nil {
+			return "", fmt.Errorf("finding init node: %w", err)
+		}
+	}
+
 	values := struct {
 		Nodes         kubernetes.Nodes
 		APIVIP4       string
 		APIVIP6       string
 		APIHost       string
 		KubernetesDir string
+		InitNode      kubernetes.Node
 	}{
 		Nodes:         k.Nodes,
 		APIVIP4:       k.Network.APIVIP4,
 		APIVIP6:       k.Network.APIVIP6,
 		APIHost:       k.Network.APIHost,
 		KubernetesDir: relativeK8sPath,
+		InitNode:      kubernetes.Node{},
+	}
+
+	if initNode != nil {
+		values.InitNode = *initNode
 	}
 
 	data, err := template.Parse(k8sConfDeployScriptName, k8sConfDeployScriptTpl, &values)

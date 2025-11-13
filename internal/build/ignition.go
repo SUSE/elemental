@@ -153,15 +153,29 @@ func appendRke2Configuration(s *sys.System, config *butane.Config, k *kubernetes
 		Contents: v0_6.Resource{Inline: util.StrToPtr(string(serverBytes))},
 	})
 
-	agentBytes, err := marshalConfig(c.AgentConfig)
-	if err != nil {
-		return fmt.Errorf("failed marshaling agent config: %w", err)
+	if c.InitServerConfig != nil {
+		initServerBytes, err := marshalConfig(c.InitServerConfig)
+		if err != nil {
+			return fmt.Errorf("failed marshaling init-server config: %w", err)
+		}
+
+		config.Storage.Files = append(config.Storage.Files, v0_6.File{
+			Path:     filepath.Join(k8sPath, "init.yaml"),
+			Contents: v0_6.Resource{Inline: util.StrToPtr(string(initServerBytes))},
+		})
 	}
 
-	config.Storage.Files = append(config.Storage.Files, v0_6.File{
-		Path:     filepath.Join(k8sPath, "agent.yaml"),
-		Contents: v0_6.Resource{Inline: util.StrToPtr(string(agentBytes))},
-	})
+	if c.AgentConfig != nil {
+		agentBytes, err := marshalConfig(c.AgentConfig)
+		if err != nil {
+			return fmt.Errorf("failed marshaling agent config: %w", err)
+		}
+
+		config.Storage.Files = append(config.Storage.Files, v0_6.File{
+			Path:     filepath.Join(k8sPath, "agent.yaml"),
+			Contents: v0_6.Resource{Inline: util.StrToPtr(string(agentBytes))},
+		})
+	}
 
 	return nil
 }

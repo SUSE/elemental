@@ -143,7 +143,14 @@ var _ = Describe("Cluster", func() {
 		Expect(cluster.ServerConfig["token"]).To(Equal("token123"))
 		Expect(cluster.ServerConfig["tls-san"]).To(ContainElements([]string{"10.10.10.1", "cluster1.suse.com", "192.168.122.50", "fd12:3456:789a::21", "api.suse.com"}))
 		Expect(cluster.ServerConfig["selinux"]).To(BeTrue())
-		Expect(cluster.ServerConfig["server"]).To(BeNil())
+		Expect(cluster.ServerConfig["server"]).To(Equal("https://192.168.122.50:9345"))
+
+		Expect(cluster.InitServerConfig).ToNot(BeEmpty())
+		Expect(cluster.InitServerConfig["cni"]).To(Equal("calico"))
+		Expect(cluster.InitServerConfig["token"]).To(Equal("token123"))
+		Expect(cluster.InitServerConfig["tls-san"]).To(ContainElements([]string{"10.10.10.1", "cluster1.suse.com", "192.168.122.50", "fd12:3456:789a::21", "api.suse.com"}))
+		Expect(cluster.InitServerConfig["selinux"]).To(BeTrue())
+		Expect(cluster.InitServerConfig["server"]).To(BeNil())
 
 		Expect(cluster.AgentConfig).ToNot(BeEmpty())
 		// server settings override the agent.yaml
@@ -246,5 +253,35 @@ var _ = Describe("Cluster Helpers", func() {
 				Expect(test.config["tls-san"]).To(BeNil())
 			}
 		}
+	})
+
+})
+
+var _ = Describe("Node Helpers", func() {
+	It("Fails to find suitable init node among 3 unknown types", func() {
+		n1 := Nodes{{}, {}, {}}
+		found, err := FindInitNode(n1)
+		Expect(err).To(HaveOccurred())
+		Expect(found).To(BeNil())
+	})
+
+	It("Finds the correctly labeled init node", func() {
+		n1 := Nodes{{Hostname: "test", Init: true}, {}, {}}
+		found, err := FindInitNode(n1)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(found).ToNot(BeNil())
+		Expect(found.Hostname).To(Equal("test"))
+		Expect(found.Init).To(BeTrue())
+	})
+	It("Finds the first server init node", func() {
+		n1 := Nodes{
+			{Hostname: "agent1", Type: NodeTypeAgent},
+			{Hostname: "server1", Type: NodeTypeServer},
+			{Hostname: "server2", Type: NodeTypeServer},
+		}
+		found, err := FindInitNode(n1)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(found).ToNot(BeNil())
+		Expect(found.Hostname).To(Equal("server1"))
 	})
 })
