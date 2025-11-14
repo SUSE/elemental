@@ -81,7 +81,7 @@ func NewSUT() *SUT {
 	sshKey, _ = os.ReadFile(sshKeyFile)
 
 	if pass = os.Getenv("SSH_PASS"); pass == "" {
-		pass = "uc0@linux"
+		pass = "linux"
 	}
 
 	if host = os.Getenv("SSH_HOST"); host == "" {
