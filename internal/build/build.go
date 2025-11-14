@@ -22,74 +22,42 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/suse/elemental/v3/internal/config"
 	"github.com/suse/elemental/v3/internal/image"
 	imginstall "github.com/suse/elemental/v3/internal/image/install"
-	"github.com/suse/elemental/v3/internal/manifest/extractor"
 	"github.com/suse/elemental/v3/pkg/bootloader"
 	"github.com/suse/elemental/v3/pkg/deployment"
 	"github.com/suse/elemental/v3/pkg/firmware"
 	"github.com/suse/elemental/v3/pkg/install"
-	"github.com/suse/elemental/v3/pkg/manifest/resolver"
-	"github.com/suse/elemental/v3/pkg/manifest/source"
 	"github.com/suse/elemental/v3/pkg/sys"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 	"github.com/suse/elemental/v3/pkg/unpack"
 	"github.com/suse/elemental/v3/pkg/upgrade"
 )
 
-type downloadFunc func(ctx context.Context, fs vfs.FS, url, path string) error
-
-type helmConfigurator interface {
-	Configure(definition *image.Definition, manifest *resolver.ResolvedManifest) ([]string, error)
+type configManager interface {
+	ConfigureComponents(ctx context.Context, conf *image.Configuration, output config.OutputDir) (*config.ReportData, error)
 }
 
 type Builder struct {
-	System       *sys.System
-	Helm         helmConfigurator
-	DownloadFile downloadFunc
-	Local        bool
+	System        *sys.System
+	ConfigManager configManager
+	Local         bool
 }
 
-func (b *Builder) Run(ctx context.Context, d *image.Definition, buildDir image.BuildDir) error {
+func (b *Builder) Run(ctx context.Context, d *image.Definition, outputDir config.OutputDir) error {
 	logger := b.System.Logger()
 	runner := b.System.Runner()
-	fs := b.System.FS()
 
-	logger.Info("Resolving release manifest: %s", d.Release.ManifestURI)
-	m, err := resolveManifest(fs, d.Release.ManifestURI, buildDir, b.Local)
+	logger.Info("Configuring image components")
+	report, err := b.ConfigManager.ConfigureComponents(ctx, d.Configuration, outputDir)
 	if err != nil {
-		logger.Error("Resolving release manifest failed")
-		return err
-	}
-
-	preparePart := b.generatePreparePartition(d)
-	if preparePart != nil {
-		if err := b.configureNetworkOnPartition(d, buildDir, preparePart); err != nil {
-			logger.Error("Configuring network failed")
-			return err
-		}
-	}
-
-	k8sScript, k8sConfScript, err := b.configureKubernetes(ctx, d, m, buildDir)
-	if err != nil {
-		logger.Error("Configuring Kubernetes failed")
-		return err
-	}
-
-	if k8sScript != "" || len(d.ButaneConfig) > 0 || k8sConfScript != "" {
-		if err = b.configureIgnition(d, buildDir, k8sScript, k8sConfScript); err != nil {
-			logger.Error("Configuring Ignition failed")
-			return err
-		}
-	}
-
-	if err = b.downloadSystemExtensions(ctx, d, m, buildDir); err != nil {
-		logger.Error("Downloading system extensions failed")
+		logger.Error("Configuring image components")
 		return err
 	}
 
 	logger.Info("Creating RAW disk image")
-	if err = createDisk(runner, d.Image, d.Installation.DiskSize); err != nil {
+	if err = createDisk(runner, d.Image, d.Configuration.Installation.DiskSize); err != nil {
 		logger.Error("Creating RAW disk image failed")
 		return err
 	}
@@ -106,7 +74,7 @@ func (b *Builder) Run(ctx context.Context, d *image.Definition, buildDir image.B
 		}
 	}()
 
-	err = vfs.MkdirAll(b.System.FS(), buildDir.OverlaysDir(), vfs.DirPerm)
+	err = vfs.MkdirAll(b.System.FS(), outputDir.OverlaysDir(), vfs.DirPerm)
 	if err != nil {
 		logger.Error("Failed creating overlay dir")
 		return err
@@ -116,11 +84,11 @@ func (b *Builder) Run(ctx context.Context, d *image.Definition, buildDir image.B
 	dep, err := newDeployment(
 		b.System,
 		device,
-		d.Installation.Bootloader,
-		d.Installation.KernelCmdLine,
-		m.CorePlatform.Components.OperatingSystem.Image,
-		buildDir,
-		preparePart,
+		d.Configuration.Installation.Bootloader,
+		d.Configuration.Installation.KernelCmdLine,
+		report.ResolvedManifest.CorePlatform.Components.OperatingSystem.Image,
+		outputDir,
+		report.CustomPartitions...,
 	)
 	if err != nil {
 		logger.Error("Preparing installation setup failed")
@@ -153,10 +121,10 @@ func (b *Builder) Run(ctx context.Context, d *image.Definition, buildDir image.B
 	return nil
 }
 
-func newDeployment(system *sys.System, installationDevice, bootloader, kernelCmdLine, osImage string, buildDir image.BuildDir, customPartitions ...*deployment.Partition) (*deployment.Deployment, error) {
+func newDeployment(system *sys.System, installationDevice, bootloader, kernelCmdLine, osImage string, outputDir config.OutputDir, customPartitions ...*deployment.Partition) (*deployment.Deployment, error) {
 	var d *deployment.Deployment
-	if ok, _ := vfs.Exists(system.FS(), buildDir.FirstbootConfigDir()); ok {
-		configSize, err := vfs.DirSizeMB(system.FS(), buildDir.FirstbootConfigDir())
+	if ok, _ := vfs.Exists(system.FS(), outputDir.FirstbootConfigDir()); ok {
+		configSize, err := vfs.DirSizeMB(system.FS(), outputDir.FirstbootConfigDir())
 		if err != nil {
 			return nil, fmt.Errorf("failed to compute configuration partition size: %w", err)
 		}
@@ -181,7 +149,7 @@ func newDeployment(system *sys.System, installationDevice, bootloader, kernelCmd
 	}
 	d.SourceOS = osSource
 
-	overlaysURI := fmt.Sprintf("%s://%s", deployment.Dir, buildDir.OverlaysDir())
+	overlaysURI := fmt.Sprintf("%s://%s", deployment.Dir, outputDir.OverlaysDir())
 	overlaySource, err := deployment.NewSrcFromURI(overlaysURI)
 	if err != nil {
 		return nil, fmt.Errorf("parsing overlay source URI %q: %w", overlaysURI, err)
@@ -193,26 +161,6 @@ func newDeployment(system *sys.System, installationDevice, bootloader, kernelCmd
 	}
 
 	return d, nil
-}
-
-func resolveManifest(fs vfs.FS, manifestURI string, buildDir image.BuildDir, local bool) (*resolver.ResolvedManifest, error) {
-	manifestsDir := buildDir.ReleaseManifestsDir()
-	if err := vfs.MkdirAll(fs, manifestsDir, 0700); err != nil {
-		return nil, fmt.Errorf("creating release manifest store '%s': %w", manifestsDir, err)
-	}
-
-	extr, err := extractor.New(extractor.WithStore(manifestsDir))
-	if err != nil {
-		return nil, fmt.Errorf("initialising OCI release manifest extractor: %w", err)
-	}
-
-	res := resolver.New(source.NewReader(extr, local))
-	m, err := res.Resolve(manifestURI)
-	if err != nil {
-		return nil, fmt.Errorf("resolving manifest at uri '%s': %w", manifestURI, err)
-	}
-
-	return m, nil
 }
 
 func createDisk(runner sys.Runner, img image.Image, diskSize imginstall.DiskSize) error {
