@@ -25,7 +25,7 @@ components:
           crds:
             enabled: true
       - chart: "rancher"
-        version: "2.11.1"
+        version: "2.12.2"
         namespace: "cattle-system"
         repository: "rancher"
         values:

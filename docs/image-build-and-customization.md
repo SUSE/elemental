@@ -166,7 +166,7 @@ virt-install --name uc-demo \
              --osinfo detect=on,name=sle-unknown \
              --graphics none \
              --console pty,target_type=serial \
-             --network default,model=virtio,mac=FE:C4:05:42:8B:AB \
+             --network network=default,model=virtio,mac=FE:C4:05:42:8B:AB \
              --virt-type kvm \
              --import \
              --boot uefi,loader=/usr/share/qemu/ovmf-x86_64-ms-code.bin,nvram.template=/usr/share/qemu/ovmf-x86_64-ms-vars.bin
