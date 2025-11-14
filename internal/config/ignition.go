@@ -15,7 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package build
+package config
 
 import (
 	_ "embed"
@@ -50,9 +50,9 @@ var k8sConfigUnitTpl string
 
 // configureIngition writes the ignition configuration file based on the provided butane configuration
 // and the given kubernetes configuration
-func (b *Builder) configureIgnition(def *image.Definition, buildDir image.BuildDir, k8sScript, k8sConfScript string) error {
-	if len(def.ButaneConfig) == 0 && k8sScript == "" && k8sConfScript == "" {
-		b.System.Logger().Info("No ignition configuration required")
+func (m *Manager) configureIgnition(conf *image.Configuration, outputDir OutputDir, k8sScript, k8sConfScript string) error {
+	if len(conf.ButaneConfig) == 0 && k8sScript == "" && k8sConfScript == "" {
+		m.system.Logger().Info("No ignition configuration required")
 		return nil
 	}
 
@@ -65,16 +65,16 @@ func (b *Builder) configureIgnition(def *image.Definition, buildDir image.BuildD
 	config.Variant = variant
 	config.Version = version
 
-	if len(def.ButaneConfig) > 0 {
-		b.System.Logger().Info("Translating butane configuration to Ignition syntax")
+	if len(conf.ButaneConfig) > 0 {
+		m.system.Logger().Info("Translating butane configuration to Ignition syntax")
 
-		ignitionBytes, err := butane.TranslateBytes(b.System, def.ButaneConfig)
+		ignitionBytes, err := butane.TranslateBytes(m.system, conf.ButaneConfig)
 		if err != nil {
 			return fmt.Errorf("failed translating butane configuration: %w", err)
 		}
 		config.MergeInlineIgnition(string(ignitionBytes))
 	} else {
-		b.System.Logger().Info("No butane configuration to translate into Ignition syntax")
+		m.system.Logger().Info("No butane configuration to translate into Ignition syntax")
 	}
 
 	if k8sScript != "" {
@@ -88,14 +88,14 @@ func (b *Builder) configureIgnition(def *image.Definition, buildDir image.BuildD
 	}
 
 	if k8sConfScript != "" {
-		err := appendRke2Configuration(b.System, &config, &def.Kubernetes, k8sConfScript)
+		err := appendRke2Configuration(m.system, &config, &conf.Kubernetes, k8sConfScript)
 		if err != nil {
 			return fmt.Errorf("failed appending rke2 configuration: %w", err)
 		}
 	}
 
-	ignitionFile := filepath.Join(buildDir.FirstbootConfigDir(), image.IgnitionFilePath())
-	return butane.WriteIgnitionFile(b.System, config, ignitionFile)
+	ignitionFile := filepath.Join(outputDir.FirstbootConfigDir(), image.IgnitionFilePath())
+	return butane.WriteIgnitionFile(m.system, config, ignitionFile)
 }
 
 func generateK8sResourcesUnit(deployScript string) (string, error) {
