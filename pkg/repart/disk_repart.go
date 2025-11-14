@@ -70,7 +70,15 @@ func PartitionAndFormatDevice(s *sys.System, d *deployment.Disk) (err error) {
 	flags := []string{
 		"--empty=force", fmt.Sprintf("--sector-size=%d", sSize),
 	}
-	return runSystemdRepart(s, d.Device, parts, flags...)
+	err = runSystemdRepart(s, d.Device, parts, flags...)
+	if err != nil {
+		return fmt.Errorf("failed creating the new partition table: %w", err)
+	}
+
+	// Notify kernel of partition table changes, swallows errors, just a best effort call
+	_, _ = s.Runner().Run("partx", "-u", d.Device)
+	_, _ = s.Runner().Run("udevadm", "settle")
+	return nil
 }
 
 // CreateDiskImage creates a disk image file with the given size and partitions
