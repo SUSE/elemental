@@ -28,6 +28,7 @@ import (
 
 	"go.yaml.in/yaml/v3"
 
+	"github.com/suse/elemental/v3/pkg/crypto"
 	"github.com/suse/elemental/v3/pkg/firmware"
 	"github.com/suse/elemental/v3/pkg/sys"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
@@ -216,8 +217,8 @@ type FirmwareConfig struct {
 	BootEntries []*firmware.EfiBootEntry `yaml:"entries"`
 }
 
-type FipsConfig struct {
-	Enabled bool `yaml:"enabled"`
+type SecurityConfig struct {
+	CryptoPolicy crypto.Policy `yaml:"cryptoPolicy"`
 }
 
 type SnapshotterConfig struct {
@@ -235,7 +236,7 @@ type Deployment struct {
 	Disks       []*Disk            `yaml:"disks"`
 	Firmware    *FirmwareConfig    `yaml:"firmware"`
 	BootConfig  *BootConfig        `yaml:"bootloader"`
-	Fips        *FipsConfig        `yaml:"fips"`
+	Security    *SecurityConfig    `yaml:"security"`
 	Snapshotter *SnapshotterConfig `yaml:"snapshotter"`
 	OverlayTree *ImageSource       `yaml:"overlayTree,omitempty"`
 	CfgScript   string             `yaml:"configScript,omitempty"`
@@ -279,9 +280,15 @@ func (s SanitizeDeployment) name() string {
 }
 
 var sanitizers = []SanitizeDeployment{
-	checkSystemPart, checkEFIPart, checkRecoveryPart,
-	checkAllAvailableSize, checkPartitionsFS, checkRWVolumes,
-	CheckSourceOS, CheckDiskDevice,
+	checkSystemPart,
+	checkEFIPart,
+	checkRecoveryPart,
+	checkAllAvailableSize,
+	checkPartitionsFS,
+	checkRWVolumes,
+	CheckSourceOS,
+	CheckDiskDevice,
+	checkCryptoPolicy,
 }
 
 // GetSystemPartition returns the system partition from the disk.
@@ -383,7 +390,7 @@ func (d *Deployment) Sanitize(s *sys.System, excludeChecks ...SanitizeDeployment
 
 // IsFipsEnabled returns true if FIPS is enabled for the deployment, otherwise false.
 func (d *Deployment) IsFipsEnabled() bool {
-	return d.Fips != nil && d.Fips.Enabled
+	return d.Security.CryptoPolicy == crypto.FIPSPolicy
 }
 
 // WriteDeploymentFile serialized the Deployment variable into a file. As part of the
@@ -491,6 +498,7 @@ func DefaultDeployment() *Deployment {
 		BootConfig: &BootConfig{
 			Bootloader: "none",
 		},
+		Security: &SecurityConfig{},
 		Snapshotter: &SnapshotterConfig{
 			Name: "snapper",
 		},
@@ -689,6 +697,23 @@ func checkRWVolumes(_ *sys.System, d *Deployment) error {
 			return fmt.Errorf("nested rw volumes is not supported")
 		}
 	}
+	return nil
+}
+
+func checkCryptoPolicy(s *sys.System, d *Deployment) error {
+	if d.Security == nil {
+		d.Security = &SecurityConfig{}
+	}
+
+	if d.Security.CryptoPolicy == "" {
+		s.Logger().Info("Crypto policy not set, proceeding with default")
+		d.Security.CryptoPolicy = crypto.DefaultPolicy
+	}
+
+	if !d.Security.CryptoPolicy.IsValid() {
+		return fmt.Errorf("invalid crypto policy: %s", d.Security.CryptoPolicy)
+	}
+
 	return nil
 }
 

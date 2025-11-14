@@ -33,7 +33,7 @@ import (
 	"github.com/suse/elemental/v3/pkg/upgrade"
 )
 
-func Upgrade(ctx *cli.Context) error { //nolint:dupl
+func Upgrade(ctx *cli.Context) error {
 	var s *sys.System
 	args := &cmd.UpgradeArgs
 	if ctx.App.Metadata == nil || ctx.App.Metadata["system"] == nil {

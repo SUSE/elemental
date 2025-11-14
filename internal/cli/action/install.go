@@ -27,7 +27,9 @@ import (
 
 	"github.com/suse/elemental/v3/internal/cli/cmd"
 	"github.com/suse/elemental/v3/pkg/bootloader"
+	"github.com/suse/elemental/v3/pkg/crypto"
 	"github.com/suse/elemental/v3/pkg/deployment"
+	"github.com/suse/elemental/v3/pkg/fips"
 	"github.com/suse/elemental/v3/pkg/firmware"
 	"github.com/suse/elemental/v3/pkg/install"
 	"github.com/suse/elemental/v3/pkg/installer"
@@ -38,7 +40,7 @@ import (
 	"github.com/suse/elemental/v3/pkg/upgrade"
 )
 
-func Install(ctx *cli.Context) error { //nolint:dupl
+func Install(ctx *cli.Context) error {
 	var s *sys.System
 	args := &cmd.InstallArgs
 	if ctx.App.Metadata == nil || ctx.App.Metadata["system"] == nil {
@@ -139,21 +141,16 @@ func setBootloader(s *sys.System, d *deployment.Deployment, flags *cmd.InstallFl
 		d.BootConfig.KernelCmdline = fmt.Sprintf("%s %s", d.BootConfig.KernelCmdline, flags.KernelCmdline)
 	}
 
-	if flags.EnableFips {
-		d.Fips = &deployment.FipsConfig{
-			Enabled: true,
-		}
-
-		bootFlag := fmt.Sprintf("boot=LABEL=%s", deployment.EfiLabel)
-		d.BootConfig.KernelCmdline = fmt.Sprintf("%s %s %s", d.BootConfig.KernelCmdline, "fips=1", bootFlag)
+	if d.IsFipsEnabled() {
+		d.BootConfig.KernelCmdline = fips.AppendCommandLine(d.BootConfig.KernelCmdline)
 	}
 }
 
-// disgestInstallSetup produces the Deployment object required to describe the installation parameters
+// digestInstallSetup produces the Deployment object required to describe the installation parameters
 func digestInstallSetup(s *sys.System, flags *cmd.InstallFlags) (*deployment.Deployment, error) {
 	d := deployment.DefaultDeployment()
 
-	// Given flags have always precedence compared to in place configuration of live media
+	// Given flags always have precedence compared to in place configuration of live media
 	if flags.Description != "" {
 		err := loadDescriptionFile(s, flags.Description, d)
 		if err != nil {
@@ -191,6 +188,12 @@ func digestInstallSetup(s *sys.System, flags *cmd.InstallFlags) (*deployment.Dep
 
 	if flags.ConfigScript != "" {
 		d.CfgScript = flags.ConfigScript
+	}
+
+	if flags.EnableFips {
+		d.Security.CryptoPolicy = crypto.FIPSPolicy
+	} else {
+		d.Security.CryptoPolicy = crypto.DefaultPolicy
 	}
 
 	setBootloader(s, d, flags)

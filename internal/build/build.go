@@ -27,6 +27,7 @@ import (
 	"github.com/suse/elemental/v3/internal/manifest/extractor"
 	"github.com/suse/elemental/v3/pkg/bootloader"
 	"github.com/suse/elemental/v3/pkg/deployment"
+	"github.com/suse/elemental/v3/pkg/fips"
 	"github.com/suse/elemental/v3/pkg/firmware"
 	"github.com/suse/elemental/v3/pkg/install"
 	"github.com/suse/elemental/v3/pkg/manifest/resolver"
@@ -116,9 +117,8 @@ func (b *Builder) Run(ctx context.Context, d *image.Definition, buildDir image.B
 	dep, err := newDeployment(
 		b.System,
 		device,
-		d.Installation.Bootloader,
-		d.Installation.KernelCmdLine,
 		m.CorePlatform.Components.OperatingSystem.Image,
+		&d.Installation,
 		buildDir,
 		preparePart,
 	)
@@ -151,26 +151,36 @@ func (b *Builder) Run(ctx context.Context, d *image.Definition, buildDir image.B
 	return nil
 }
 
-func newDeployment(system *sys.System, installationDevice, bootloader, kernelCmdLine, osImage string, buildDir image.BuildDir, customPartitions ...*deployment.Partition) (*deployment.Deployment, error) {
-	var d *deployment.Deployment
+func newDeployment(
+	system *sys.System,
+	installationDevice, osImage string,
+	installation *imginstall.Installation,
+	buildDir image.BuildDir,
+	customPartitions ...*deployment.Partition,
+) (*deployment.Deployment, error) {
+	deploymentOpts := []deployment.Opt{
+		deployment.WithPartitions(1, customPartitions...),
+	}
+
 	if ok, _ := vfs.Exists(system.FS(), buildDir.FirstbootConfigDir()); ok {
 		configSize, err := vfs.DirSizeMB(system.FS(), buildDir.FirstbootConfigDir())
 		if err != nil {
-			return nil, fmt.Errorf("failed to compute configuration partition size: %w", err)
+			return nil, fmt.Errorf("computing configuration partition size: %w", err)
 		}
-		d = deployment.New(
-			deployment.WithPartitions(1, customPartitions...),
-			deployment.WithConfigPartition(deployment.MiB(configSize)),
-		)
-	} else {
-		d = deployment.New(
-			deployment.WithPartitions(1, customPartitions...),
-		)
+
+		deploymentOpts = append(deploymentOpts, deployment.WithConfigPartition(deployment.MiB(configSize)))
 	}
 
+	d := deployment.New(deploymentOpts...)
+
 	d.Disks[0].Device = installationDevice
-	d.BootConfig.Bootloader = bootloader
-	d.BootConfig.KernelCmdline = kernelCmdLine
+	d.BootConfig.Bootloader = installation.Bootloader
+	d.BootConfig.KernelCmdline = installation.KernelCmdLine
+	d.Security.CryptoPolicy = installation.CryptoPolicy
+
+	if d.IsFipsEnabled() {
+		d.BootConfig.KernelCmdline = fips.AppendCommandLine(d.BootConfig.KernelCmdline)
+	}
 
 	osURI := fmt.Sprintf("%s://%s", deployment.OCI, osImage)
 	osSource, err := deployment.NewSrcFromURI(osURI)

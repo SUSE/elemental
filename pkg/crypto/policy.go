@@ -15,23 +15,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package install
+package crypto
 
-import (
-	"regexp"
-
-	"github.com/suse/elemental/v3/pkg/crypto"
+const (
+	DefaultPolicy Policy = "default"
+	FIPSPolicy    Policy = "fips"
 )
 
-type DiskSize string
+type Policy string
 
-func (d DiskSize) IsValid() bool {
-	return regexp.MustCompile(`^[1-9]\d*[KMGT]$`).MatchString(string(d))
-}
-
-type Installation struct {
-	Bootloader    string        `yaml:"bootloader"`
-	KernelCmdLine string        `yaml:"kernelCmdLine"`
-	DiskSize      DiskSize      `yaml:"diskSize"`
-	CryptoPolicy  crypto.Policy `yaml:"cryptoPolicy"`
+func (p Policy) IsValid() bool {
+	return p == DefaultPolicy || p == FIPSPolicy
 }

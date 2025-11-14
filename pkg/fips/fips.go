@@ -19,8 +19,10 @@ package fips
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/suse/elemental/v3/pkg/chroot"
+	"github.com/suse/elemental/v3/pkg/deployment"
 	"github.com/suse/elemental/v3/pkg/sys"
 )
 
@@ -33,4 +35,11 @@ func Enable(ctx context.Context, s *sys.System) error {
 func ChrootedEnable(ctx context.Context, s *sys.System, rootDir string) error {
 	callback := func() error { return Enable(ctx, s) }
 	return chroot.ChrootedCallback(s, rootDir, nil, callback)
+}
+
+func AppendCommandLine(cmdline string) string {
+	bootFlag := fmt.Sprintf("boot=LABEL=%s", deployment.EfiLabel)
+	fipsFlag := "fips=1"
+
+	return fmt.Sprintf("%s %s %s", cmdline, fipsFlag, bootFlag)
 }
