@@ -83,9 +83,23 @@ func (b *Builder) Run(ctx context.Context, d *image.Definition, buildDir image.B
 		}
 	}
 
-	if err = b.downloadSystemExtensions(ctx, d, m, buildDir); err != nil {
-		logger.Error("Downloading system extensions failed")
+	extensions, err := enabledExtensions(m, d, logger)
+	if err != nil {
+		logger.Error("Filtering enabled systemd extensions failed")
 		return err
+	}
+
+	var kernelModulesFromExtensions []string
+
+	if len(extensions) != 0 {
+		for _, extension := range extensions {
+			kernelModulesFromExtensions = append(kernelModulesFromExtensions, extension.KernelModules...)
+		}
+
+		if err = b.downloadSystemExtensions(ctx, extensions, buildDir); err != nil {
+			logger.Error("Downloading system extensions failed")
+			return err
+		}
 	}
 
 	logger.Info("Creating RAW disk image")
@@ -120,6 +134,7 @@ func (b *Builder) Run(ctx context.Context, d *image.Definition, buildDir image.B
 		d.Installation.KernelCmdLine,
 		m.CorePlatform.Components.OperatingSystem.Image,
 		buildDir,
+		kernelModulesFromExtensions,
 		preparePart,
 	)
 	if err != nil {
@@ -151,7 +166,13 @@ func (b *Builder) Run(ctx context.Context, d *image.Definition, buildDir image.B
 	return nil
 }
 
-func newDeployment(system *sys.System, installationDevice, bootloader, kernelCmdLine, osImage string, buildDir image.BuildDir, customPartitions ...*deployment.Partition) (*deployment.Deployment, error) {
+func newDeployment(
+	system *sys.System,
+	installationDevice, bootloader, kernelCmdLine, osImage string,
+	buildDir image.BuildDir,
+	kernelModules []string,
+	customPartitions ...*deployment.Partition,
+) (*deployment.Deployment, error) {
 	var d *deployment.Deployment
 	if ok, _ := vfs.Exists(system.FS(), buildDir.FirstbootConfigDir()); ok {
 		configSize, err := vfs.DirSizeMB(system.FS(), buildDir.FirstbootConfigDir())
@@ -171,6 +192,7 @@ func newDeployment(system *sys.System, installationDevice, bootloader, kernelCmd
 	d.Disks[0].Device = installationDevice
 	d.BootConfig.Bootloader = bootloader
 	d.BootConfig.KernelCmdline = kernelCmdLine
+	d.Extensions.KernelModules = kernelModules
 
 	osURI := fmt.Sprintf("%s://%s", deployment.OCI, osImage)
 	osSource, err := deployment.NewSrcFromURI(osURI)

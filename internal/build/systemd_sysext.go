@@ -35,20 +35,12 @@ import (
 	"github.com/suse/elemental/v3/pkg/unpack"
 )
 
-func (b *Builder) downloadSystemExtensions(ctx context.Context, def *image.Definition, rm *resolver.ResolvedManifest, buildDir image.BuildDir) error {
+func (b *Builder) downloadSystemExtensions(ctx context.Context, extensions []api.SystemdExtension, buildDir image.BuildDir) error {
 	logger := b.System.Logger()
-
-	extensions, err := enabledExtensions(rm, def, logger)
-	if err != nil {
-		return fmt.Errorf("filtering enabled systemd extensions: %w", err)
-	} else if len(extensions) == 0 {
-		return nil
-	}
-
 	fs := b.System.FS()
 	extensionsDir := filepath.Join(buildDir.OverlaysDir(), image.ExtensionsPath())
 
-	if err = vfs.MkdirAll(fs, extensionsDir, 0o700); err != nil {
+	if err := vfs.MkdirAll(fs, extensionsDir, 0o700); err != nil {
 		return fmt.Errorf("creating extensions directory: %w", err)
 	}
 
@@ -58,14 +50,14 @@ func (b *Builder) downloadSystemExtensions(ctx context.Context, def *image.Defin
 
 		if isRemoteURL(extension.Image) {
 			extensionPath := filepath.Join(extensionsDir, filepath.Base(extension.Image))
-			if err = b.DownloadFile(ctx, fs, extension.Image, extensionPath); err != nil {
+			if err := b.DownloadFile(ctx, fs, extension.Image, extensionPath); err != nil {
 				return fmt.Errorf("downloading systemd extension %s: %w", extension.Name, err)
 			}
 
 			continue
 		}
 
-		if err = b.unpackExtension(ctx, extension, extensionsDir); err != nil {
+		if err := b.unpackExtension(ctx, extension, extensionsDir); err != nil {
 			return fmt.Errorf("unpacking systemd extension %s: %w", extension.Name, err)
 		}
 	}
@@ -154,6 +146,26 @@ func isExtensionExplicitlyEnabled(name string, def *image.Definition) bool {
 }
 
 func enabledExtensions(rm *resolver.ResolvedManifest, def *image.Definition, logger log.Logger) ([]api.SystemdExtension, error) {
+	var all, enabled []api.SystemdExtension
+
+	all = append(all, rm.CorePlatform.Components.Systemd.Extensions...)
+	if rm.ProductExtension != nil {
+		all = append(all, rm.ProductExtension.Components.Systemd.Extensions...)
+	}
+
+	var notFound []string
+	for _, selected := range def.Release.Components.SystemdExtensions {
+		if !slices.ContainsFunc(all, func(e api.SystemdExtension) bool {
+			return e.Name == selected.Name
+		}) {
+			notFound = append(notFound, selected.Name)
+		}
+	}
+
+	if len(notFound) > 0 {
+		return nil, fmt.Errorf("requested systemd extension(s) not found: %q", notFound)
+	}
+
 	charts, _, err := enabledHelmCharts(rm, def.Release.Components.HelmCharts, nil)
 	if err != nil {
 		return nil, fmt.Errorf("filtering enabled helm charts: %w", err)
@@ -167,16 +179,6 @@ func enabledExtensions(rm *resolver.ResolvedManifest, def *image.Definition, log
 		})
 	}
 
-	var all, enabled []api.SystemdExtension
-
-	all = append(all, rm.CorePlatform.Components.Systemd.Extensions...)
-	if rm.ProductExtension != nil {
-		all = append(all, rm.ProductExtension.Components.Systemd.Extensions...)
-	}
-
-	var extNotFound []release.SystemdExtension
-	extNotFound = append(extNotFound, def.Release.Components.SystemdExtensions...)
-
 	for _, ext := range all {
 		if ext.Required ||
 			isExtensionExplicitlyEnabled(ext.Name, def) ||
@@ -186,13 +188,6 @@ func enabledExtensions(rm *resolver.ResolvedManifest, def *image.Definition, log
 		} else {
 			logger.Debug("Extension '%s' not enabled", ext.Name)
 		}
-		extNotFound = slices.DeleteFunc(extNotFound, func(e release.SystemdExtension) bool {
-			return e.Name == ext.Name
-		})
-	}
-
-	if len(extNotFound) > 0 {
-		return nil, fmt.Errorf("extension(s) not found: %v", extNotFound)
 	}
 
 	return enabled, nil

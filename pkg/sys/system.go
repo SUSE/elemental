@@ -33,7 +33,7 @@ import (
 type Runner interface {
 	Run(cmd string, args ...string) ([]byte, error)
 	RunEnv(cmd string, env []string, args ...string) ([]byte, error)
-	RunContext(cxt context.Context, cmd string, args ...string) ([]byte, error)
+	RunContext(ctx context.Context, cmd string, args ...string) ([]byte, error)
 	RunContextParseOutput(ctx context.Context, stdoutH, stderrH func(line string), cmd string, args ...string) error
 }
 
