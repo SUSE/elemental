@@ -15,7 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package build
+package config
 
 import (
 	"fmt"
@@ -118,7 +118,7 @@ var _ = Describe("Helm tests", Label("helm"), func() {
 
 		It("Fails resolving values of core Helm chart", func() {
 			resolver := &valuesResolverMock{Err: fmt.Errorf("resolving failed")}
-			definition := &image.Definition{
+			conf := &image.Configuration{
 				Release: release.Release{
 					Components: release.Components{
 						HelmCharts: []release.HelmChart{
@@ -132,7 +132,7 @@ var _ = Describe("Helm tests", Label("helm"), func() {
 
 			h := &Helm{ValuesResolver: resolver, Logger: logger}
 
-			charts, err := h.Configure(definition, rm)
+			charts, err := h.Configure(conf, rm)
 			Expect(err).To(HaveOccurred())
 			Expect(err).To(MatchError("retrieving helm charts: collecting helm charts: resolving values for chart metallb: resolving failed"))
 			Expect(charts).To(BeNil())
@@ -140,7 +140,7 @@ var _ = Describe("Helm tests", Label("helm"), func() {
 
 		It("Fails resolving values of product Helm chart", func() {
 			resolver := &valuesResolverMock{Err: fmt.Errorf("resolving failed")}
-			definition := &image.Definition{
+			conf := &image.Configuration{
 				Release: release.Release{
 					Components: release.Components{
 						HelmCharts: []release.HelmChart{
@@ -154,7 +154,7 @@ var _ = Describe("Helm tests", Label("helm"), func() {
 
 			h := &Helm{ValuesResolver: resolver, Logger: logger}
 
-			charts, err := h.Configure(definition, rm)
+			charts, err := h.Configure(conf, rm)
 			Expect(err).To(HaveOccurred())
 			Expect(err).To(MatchError("retrieving helm charts: collecting helm charts: resolving values for chart neuvector-crd: resolving failed"))
 			Expect(charts).To(BeNil())
@@ -162,7 +162,7 @@ var _ = Describe("Helm tests", Label("helm"), func() {
 
 		It("Fails resolving values of user Helm chart", func() {
 			resolver := &valuesResolverMock{Err: fmt.Errorf("resolving failed")}
-			definition := &image.Definition{
+			conf := &image.Configuration{
 				Kubernetes: kubernetes.Kubernetes{
 					Helm: &kubernetes.Helm{
 						Charts: []*kubernetes.HelmChart{
@@ -186,7 +186,7 @@ var _ = Describe("Helm tests", Label("helm"), func() {
 
 			h := &Helm{ValuesResolver: resolver}
 
-			charts, err := h.Configure(definition, rm)
+			charts, err := h.Configure(conf, rm)
 			Expect(err).To(HaveOccurred())
 			Expect(err).To(MatchError("retrieving helm charts: collecting user helm charts: resolving values for chart apache: resolving failed"))
 			Expect(charts).To(BeNil())
@@ -194,7 +194,7 @@ var _ = Describe("Helm tests", Label("helm"), func() {
 
 		It("Fails to collect chart with a missing repository", func() {
 			resolver := &valuesResolverMock{}
-			definition := &image.Definition{
+			conf := &image.Configuration{
 				Kubernetes: kubernetes.Kubernetes{
 					Helm: &kubernetes.Helm{
 						Charts: []*kubernetes.HelmChart{
@@ -211,7 +211,7 @@ var _ = Describe("Helm tests", Label("helm"), func() {
 			}
 
 			h := &Helm{ValuesResolver: resolver}
-			charts, err := h.Configure(definition, rm)
+			charts, err := h.Configure(conf, rm)
 			Expect(err).To(HaveOccurred())
 			Expect(err).To(MatchError("retrieving helm charts: collecting user helm charts: repository not found for chart: apache"))
 			Expect(charts).To(BeNil())
@@ -219,7 +219,7 @@ var _ = Describe("Helm tests", Label("helm"), func() {
 
 		It("Fails enabling a missing release chart", func() {
 			resolver := &valuesResolverMock{}
-			definition := &image.Definition{
+			conf := &image.Configuration{
 				Release: release.Release{
 					Components: release.Components{
 						HelmCharts: []release.HelmChart{
@@ -233,7 +233,7 @@ var _ = Describe("Helm tests", Label("helm"), func() {
 
 			h := &Helm{ValuesResolver: resolver, Logger: logger}
 
-			charts, err := h.Configure(definition, rm)
+			charts, err := h.Configure(conf, rm)
 			Expect(err).To(HaveOccurred())
 			Expect(err).To(MatchError("retrieving helm charts: filtering enabled helm charts: adding helm chart 'rancher': helm chart does not exist"))
 			Expect(charts).To(BeNil())
@@ -247,7 +247,7 @@ var _ = Describe("Helm tests", Label("helm"), func() {
 			fs, err = sysmock.ReadOnlyTestFS(fs)
 			Expect(err).NotTo(HaveOccurred())
 
-			definition := &image.Definition{}
+			conf := &image.Configuration{}
 
 			h := &Helm{
 				FS:             fs,
@@ -256,7 +256,7 @@ var _ = Describe("Helm tests", Label("helm"), func() {
 				RelativePath:   helmPath,
 			}
 
-			charts, err := h.Configure(definition, rm)
+			charts, err := h.Configure(conf, rm)
 			Expect(err).To(HaveOccurred())
 			Expect(err).To(MatchError("writing helm chart resources: creating directory: Mkdir /etc/overlays/helm: operation not permitted"))
 			Expect(charts).To(BeNil())
@@ -275,7 +275,7 @@ var _ = Describe("Helm tests", Label("helm"), func() {
 				FS:        fs,
 			}
 
-			definition := &image.Definition{
+			conf := &image.Configuration{
 				Release: release.Release{
 					Components: release.Components{
 						HelmCharts: []release.HelmChart{
@@ -313,7 +313,7 @@ var _ = Describe("Helm tests", Label("helm"), func() {
 				Logger:         logger,
 			}
 
-			charts, err := h.Configure(definition, rm)
+			charts, err := h.Configure(conf, rm)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(charts).To(ConsistOf(
 				"/helm/metallb.yaml",

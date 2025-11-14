@@ -15,22 +15,22 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package build
+package config
 
 import (
 	"github.com/suse/elemental/v3/internal/image"
 	"github.com/suse/elemental/v3/pkg/deployment"
 )
 
-func (b *Builder) generatePreparePartition(d *image.Definition) *deployment.Partition {
-	const (
-		PrepareLabel = "ELEMENTAL-PREPARE"
-		PrepareMnt   = "/run/elemental/prepare"
-		PrepareSize  = deployment.MiB(128)
-	)
+const (
+	PrepareLabel = "ELEMENTAL-PREPARE"
+	PrepareMnt   = "/run/elemental/prepare"
+	PrepareSize  = deployment.MiB(128)
+)
 
-	if d.Network.ConfigDir == "" && d.Network.CustomScript == "" {
-		b.System.Logger().Info("No dependency configurations requiring %s partition generation, skipping.", PrepareLabel)
+func (m *Manager) generatePreparePartition(conf *image.Configuration) *deployment.Partition {
+	if !needsNetworkSetup(conf) {
+		m.system.Logger().Info("No dependency configurations requiring %s partition generation, skipping.", PrepareLabel)
 		return nil
 	}
 
