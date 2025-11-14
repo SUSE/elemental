@@ -18,10 +18,7 @@ limitations under the License.
 package image
 
 import (
-	"bytes"
 	"path/filepath"
-
-	"go.yaml.in/yaml/v3"
 )
 
 func ExtensionsPath() string {
@@ -46,11 +43,4 @@ func KubernetesManifestsPath() string {
 
 func HelmPath() string {
 	return filepath.Join(KubernetesPath(), "helm")
-}
-
-func ParseConfig(data []byte, target any) error {
-	decoder := yaml.NewDecoder(bytes.NewReader(data))
-	decoder.KnownFields(true)
-
-	return decoder.Decode(target)
 }

@@ -18,14 +18,10 @@ limitations under the License.
 package action
 
 import (
-	"errors"
 	"fmt"
-	"io/fs"
-	"os"
 	"os/signal"
 	"path/filepath"
 	"slices"
-	"strings"
 	"syscall"
 	"time"
 
@@ -33,19 +29,13 @@ import (
 
 	"github.com/suse/elemental/v3/internal/build"
 	"github.com/suse/elemental/v3/internal/cli/cmd"
+	"github.com/suse/elemental/v3/internal/config"
 	"github.com/suse/elemental/v3/internal/image"
-	"github.com/suse/elemental/v3/internal/image/kubernetes"
-	"github.com/suse/elemental/v3/internal/image/release"
 	"github.com/suse/elemental/v3/pkg/helm"
 	"github.com/suse/elemental/v3/pkg/http"
 	"github.com/suse/elemental/v3/pkg/sys"
 	"github.com/suse/elemental/v3/pkg/sys/platform"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
-)
-
-const (
-	MetalLB                = "metallb"
-	EndpointCopierOperator = "endpoint-copier-operator"
 )
 
 func Build(ctx *cli.Context) error {
@@ -143,161 +133,23 @@ func parseImageDefinition(f vfs.FS, args *cmd.BuildFlags) (*image.Definition, er
 		return nil, fmt.Errorf("error parsing platform %s", args.Platform)
 	}
 
-	definition := &image.Definition{
+	conf, err := config.Parse(f, config.Dir(args.ConfigDir))
+	if err != nil {
+		return nil, fmt.Errorf("parsing configuration directory %s: %w", args.ConfigDir, err)
+	}
+
+	return &image.Definition{
 		Image: image.Image{
 			ImageType:       args.ImageType,
 			Platform:        p,
 			OutputImageName: outputPath,
 		},
-	}
-
-	configDir := image.ConfigDir(args.ConfigDir)
-
-	data, err := f.ReadFile(configDir.InstallFilepath())
-	if err != nil {
-		return nil, fmt.Errorf("reading config file: %w", err)
-	}
-
-	if err = image.ParseConfig(data, &definition.Installation); err != nil {
-		return nil, fmt.Errorf("parsing config file %q: %w", configDir.InstallFilepath(), err)
-	}
-
-	data, err = f.ReadFile(configDir.ReleaseFilepath())
-	if err != nil {
-		return nil, fmt.Errorf("reading config file: %w", err)
-	}
-
-	if err = image.ParseConfig(data, &definition.Release); err != nil {
-		return nil, fmt.Errorf("parsing config file %q: %w", configDir.ReleaseFilepath(), err)
-	}
-
-	if err = resolveManifestURI(&definition.Release, args.ConfigDir); err != nil {
-		return nil, fmt.Errorf("updating manifest URI: %w", err)
-
-	}
-
-	data, err = f.ReadFile(configDir.KubernetesFilepath())
-	if err == nil {
-		if err = image.ParseConfig(data, &definition.Kubernetes); err != nil {
-			return nil, fmt.Errorf("parsing config file %q: %w", configDir.KubernetesFilepath(), err)
-		}
-	} else if !errors.Is(err, fs.ErrNotExist) {
-		return nil, fmt.Errorf("reading config file: %w", err)
-	}
-
-	if err = parseKubernetesDir(f, configDir, &definition.Kubernetes); err != nil {
-		return nil, fmt.Errorf("parsing local kubernetes directory: %w", err)
-	}
-
-	if err = parseNetworkDir(configDir, &definition.Network); err != nil {
-		return nil, fmt.Errorf("parsing network directory: %w", err)
-	}
-
-	if definition.Kubernetes.Network.APIVIP4 != "" || definition.Kubernetes.Network.APIVIP6 != "" {
-		containsChart := func(name string) bool {
-			return slices.ContainsFunc(definition.Release.Components.HelmCharts, func(c release.HelmChart) bool {
-				return c.Name == name
-			})
-		}
-
-		if !containsChart(MetalLB) {
-			definition.Release.Components.HelmCharts = append(definition.Release.Components.HelmCharts, release.HelmChart{Name: MetalLB})
-		}
-
-		if !containsChart(EndpointCopierOperator) {
-			definition.Release.Components.HelmCharts = append(definition.Release.Components.HelmCharts, release.HelmChart{Name: EndpointCopierOperator})
-		}
-	}
-
-	data, err = f.ReadFile(configDir.ButaneFilepath())
-	if err == nil {
-		if err = image.ParseConfig(data, &definition.ButaneConfig); err != nil {
-			return nil, fmt.Errorf("parsing config file %q: %w", configDir.ButaneFilepath(), err)
-		}
-	} else if !errors.Is(err, fs.ErrNotExist) {
-		return nil, fmt.Errorf("reading config file: %w", err)
-	}
-
-	return definition, nil
-}
-
-func resolveManifestURI(r *release.Release, configDir string) error {
-	if !strings.HasPrefix(r.ManifestURI, "file://") {
-		return nil
-	}
-
-	absConfDir, err := filepath.Abs(configDir)
-	if err != nil {
-		return fmt.Errorf("calculate absolute directory: %w", err)
-	}
-
-	r.ManifestURI = filepath.Join("file://", absConfDir, strings.TrimPrefix(r.ManifestURI, "file://"))
-
-	return nil
+		Configuration: conf,
+	}, nil
 }
 
 func createBuildDir(fs vfs.FS, rootBuildDir string) (image.BuildDir, error) {
 	buildDirName := fmt.Sprintf("build-%s", time.Now().UTC().Format("2006-01-02T15-04-05"))
 	buildDirPath := filepath.Join(rootBuildDir, buildDirName)
 	return image.BuildDir(buildDirPath), vfs.MkdirAll(fs, buildDirPath, 0700)
-}
-
-func parseKubernetesDir(f vfs.FS, configDir image.ConfigDir, k *kubernetes.Kubernetes) error {
-	entries, err := f.ReadDir(configDir.KubernetesManifestsDir())
-	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return nil
-		}
-		return fmt.Errorf("reading %s: %w", configDir.KubernetesManifestsDir(), err)
-	}
-
-	for _, entry := range entries {
-		localManifestPath := filepath.Join(configDir.KubernetesManifestsDir(), entry.Name())
-		k.LocalManifests = append(k.LocalManifests, localManifestPath)
-	}
-
-	k.Config = kubernetes.Config{}
-
-	serverYamlPath := filepath.Join(configDir.KubernetesConfigDir(), "server.yaml")
-	if exists, _ := vfs.Exists(f, serverYamlPath); exists {
-		k.Config.ServerFilePath = serverYamlPath
-	}
-
-	agentYamlPath := filepath.Join(configDir.KubernetesConfigDir(), "agent.yaml")
-	if exists, _ := vfs.Exists(f, agentYamlPath); exists {
-		k.Config.AgentFilePath = agentYamlPath
-	}
-
-	return nil
-}
-
-func parseNetworkDir(configDir image.ConfigDir, n *image.Network) error {
-	const networkCustomScriptName = "configure-network.sh"
-
-	networkDir := configDir.NetworkDir()
-
-	entries, err := os.ReadDir(networkDir)
-	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			// Not configured.
-			return nil
-		}
-
-		return fmt.Errorf("reading network directory: %w", err)
-	}
-
-	switch len(entries) {
-	case 0:
-		return fmt.Errorf("network directory is empty")
-	case 1:
-		if entries[0].Name() == networkCustomScriptName {
-			n.CustomScript = filepath.Join(networkDir, networkCustomScriptName)
-			return nil
-		}
-		fallthrough
-	default:
-		n.ConfigDir = networkDir
-	}
-
-	return nil
 }
