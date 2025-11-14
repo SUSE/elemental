@@ -57,4 +57,3 @@ spec:
     protocol: TCP
     targetPort: 6443
   type: LoadBalancer
-

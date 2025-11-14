@@ -15,7 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package build
+package config
 
 import (
 	"context"
@@ -42,58 +42,58 @@ var k8sResDeployScriptTpl string
 //go:embed templates/k8s_conf_deploy.sh.tpl
 var k8sConfDeployScriptTpl string
 
-func needsManifestsSetup(def *image.Definition) bool {
-	return len(def.Kubernetes.RemoteManifests) > 0 || len(def.Kubernetes.LocalManifests) > 0
+func needsManifestsSetup(conf *image.Configuration) bool {
+	return len(conf.Kubernetes.RemoteManifests) > 0 || len(conf.Kubernetes.LocalManifests) > 0
 }
 
-func needsHelmChartsSetup(def *image.Definition) bool {
-	return (len(def.Release.Components.HelmCharts) > 0) || def.Kubernetes.Helm != nil
+func needsHelmChartsSetup(conf *image.Configuration) bool {
+	return (len(conf.Release.Components.HelmCharts) > 0) || conf.Kubernetes.Helm != nil
 }
 
-func isKubernetesEnabled(def *image.Definition) bool {
-	return isExtensionExplicitlyEnabled(k8sExtension, def) || needsHelmChartsSetup(def) || needsManifestsSetup(def)
+func isKubernetesEnabled(conf *image.Configuration) bool {
+	return isExtensionExplicitlyEnabled(k8sExtension, conf) || needsHelmChartsSetup(conf) || needsManifestsSetup(conf)
 }
 
-func (b *Builder) configureKubernetes(
+func (m *Manager) configureKubernetes(
 	ctx context.Context,
-	def *image.Definition,
+	conf *image.Configuration,
 	manifest *resolver.ResolvedManifest,
-	buildDir image.BuildDir,
+	outputDir OutputDir,
 ) (k8sResourceScript, k8sConfScript string, err error) {
-	if !isKubernetesEnabled(def) {
-		b.System.Logger().Info("Kubernetes is not enabled, skipping configuration")
+	if !isKubernetesEnabled(conf) {
+		m.system.Logger().Info("Kubernetes is not enabled, skipping configuration")
 
 		return "", "", nil
 	}
 
 	var runtimeHelmCharts []string
-	if needsHelmChartsSetup(def) {
-		b.System.Logger().Info("Configuring Helm charts")
+	if needsHelmChartsSetup(conf) {
+		m.system.Logger().Info("Configuring Helm charts")
 
-		runtimeHelmCharts, err = b.Helm.Configure(def, manifest)
+		runtimeHelmCharts, err = m.helm.Configure(conf, manifest)
 		if err != nil {
 			return "", "", fmt.Errorf("configuring helm charts: %w", err)
 		}
 	}
 
 	var runtimeManifestsDir string
-	if needsManifestsSetup(def) {
-		b.System.Logger().Info("Configuring Kubernetes manifests")
+	if needsManifestsSetup(conf) {
+		m.system.Logger().Info("Configuring Kubernetes manifests")
 
-		runtimeManifestsDir, err = b.setupManifests(ctx, &def.Kubernetes, buildDir)
+		runtimeManifestsDir, err = m.setupManifests(ctx, &conf.Kubernetes, outputDir)
 		if err != nil {
 			return "", "", fmt.Errorf("configuring kubernetes manifests: %w", err)
 		}
 	}
 
 	if len(runtimeHelmCharts) > 0 || runtimeManifestsDir != "" {
-		k8sResourceScript, err = writeK8sResDeployScript(b.System.FS(), buildDir, runtimeManifestsDir, runtimeHelmCharts)
+		k8sResourceScript, err = writeK8sResDeployScript(m.system.FS(), outputDir, runtimeManifestsDir, runtimeHelmCharts)
 		if err != nil {
 			return "", "", fmt.Errorf("writing kubernetes resource deployment script: %w", err)
 		}
 	}
 
-	k8sConfScript, err = writeK8sConfigDeployScript(b.System.FS(), buildDir, def.Kubernetes)
+	k8sConfScript, err = writeK8sConfigDeployScript(m.system.FS(), outputDir, conf.Kubernetes)
 	if err != nil {
 		return "", "", fmt.Errorf("writing kubernetes resource deployment script: %w", err)
 	}
@@ -101,11 +101,11 @@ func (b *Builder) configureKubernetes(
 	return k8sResourceScript, k8sConfScript, nil
 }
 
-func (b *Builder) setupManifests(ctx context.Context, k *kubernetes.Kubernetes, buildDir image.BuildDir) (string, error) {
-	fs := b.System.FS()
+func (m *Manager) setupManifests(ctx context.Context, k *kubernetes.Kubernetes, outputDir OutputDir) (string, error) {
+	fs := m.system.FS()
 
 	relativeManifestsPath := filepath.Join("/", image.KubernetesManifestsPath())
-	manifestsDir := filepath.Join(buildDir.OverlaysDir(), relativeManifestsPath)
+	manifestsDir := filepath.Join(outputDir.OverlaysDir(), relativeManifestsPath)
 
 	if err := vfs.MkdirAll(fs, manifestsDir, vfs.DirPerm); err != nil {
 		return "", fmt.Errorf("setting up manifests directory '%s': %w", manifestsDir, err)
@@ -114,7 +114,7 @@ func (b *Builder) setupManifests(ctx context.Context, k *kubernetes.Kubernetes, 
 	for _, manifest := range k.RemoteManifests {
 		path := filepath.Join(manifestsDir, filepath.Base(manifest))
 
-		if err := b.DownloadFile(ctx, fs, manifest, path); err != nil {
+		if err := m.downloadFile(ctx, fs, manifest, path); err != nil {
 			return "", fmt.Errorf("downloading remote Kubernetes manifest '%s': %w", manifest, err)
 		}
 	}
@@ -129,7 +129,7 @@ func (b *Builder) setupManifests(ctx context.Context, k *kubernetes.Kubernetes, 
 	return relativeManifestsPath, nil
 }
 
-func writeK8sResDeployScript(fs vfs.FS, buildDir image.BuildDir, runtimeManifestsDir string, runtimeHelmCharts []string) (string, error) {
+func writeK8sResDeployScript(fs vfs.FS, outputDir OutputDir, runtimeManifestsDir string, runtimeHelmCharts []string) (string, error) {
 
 	values := struct {
 		HelmCharts   []string
@@ -145,7 +145,7 @@ func writeK8sResDeployScript(fs vfs.FS, buildDir image.BuildDir, runtimeManifest
 	}
 
 	relativeK8sPath := filepath.Join("/", image.KubernetesPath())
-	destDir := filepath.Join(buildDir.OverlaysDir(), relativeK8sPath)
+	destDir := filepath.Join(outputDir.OverlaysDir(), relativeK8sPath)
 
 	if err = vfs.MkdirAll(fs, destDir, vfs.DirPerm); err != nil {
 		return "", fmt.Errorf("creating destination directory: %w", err)
@@ -161,7 +161,7 @@ func writeK8sResDeployScript(fs vfs.FS, buildDir image.BuildDir, runtimeManifest
 	return relativePath, nil
 }
 
-func writeK8sConfigDeployScript(fs vfs.FS, buildDir image.BuildDir, k kubernetes.Kubernetes) (string, error) {
+func writeK8sConfigDeployScript(fs vfs.FS, outputDir OutputDir, k kubernetes.Kubernetes) (string, error) {
 	relativeK8sPath := filepath.Join("/", image.KubernetesPath())
 
 	var (
@@ -201,7 +201,7 @@ func writeK8sConfigDeployScript(fs vfs.FS, buildDir image.BuildDir, k kubernetes
 		return "", fmt.Errorf("parsing deployment template: %w", err)
 	}
 
-	destDir := filepath.Join(buildDir.OverlaysDir(), relativeK8sPath)
+	destDir := filepath.Join(outputDir.OverlaysDir(), relativeK8sPath)
 
 	if err = vfs.MkdirAll(fs, destDir, vfs.DirPerm); err != nil {
 		return "", fmt.Errorf("creating destination directory: %w", err)

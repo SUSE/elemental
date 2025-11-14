@@ -15,7 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package build
+package config
 
 import (
 	"fmt"
@@ -25,34 +25,38 @@ import (
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
 
-func (b *Builder) configureNetworkOnFirstboot(def *image.Definition, buildDir image.BuildDir) error {
-	if def.Network.CustomScript == "" && def.Network.ConfigDir == "" {
-		b.System.Logger().Info("Network configuration not provided, skipping.")
+func needsNetworkSetup(conf *image.Configuration) bool {
+	return conf.Network.CustomScript != "" || conf.Network.ConfigDir != ""
+}
+
+func (m *Manager) configureNetworkOnFirstboot(conf *image.Configuration, outputDir OutputDir) error {
+	if !needsNetworkSetup(conf) {
+		m.system.Logger().Info("Network configuration not provided, skipping.")
 		return nil
 	}
 
-	netDir := filepath.Join(buildDir.CatalystConfigDir(), "network")
-	if err := vfs.MkdirAll(b.System.FS(), netDir, vfs.DirPerm); err != nil {
+	netDir := filepath.Join(outputDir.CatalystConfigDir(), "network")
+	if err := vfs.MkdirAll(m.system.FS(), netDir, vfs.DirPerm); err != nil {
 		return fmt.Errorf("creating network directory in overlays: %w", err)
 	}
 
-	if def.Network.CustomScript != "" {
-		if err := vfs.CopyFile(b.System.FS(), def.Network.CustomScript, netDir); err != nil {
+	if conf.Network.CustomScript != "" {
+		if err := vfs.CopyFile(m.system.FS(), conf.Network.CustomScript, netDir); err != nil {
 			return fmt.Errorf("copying custom network script: %w", err)
 		}
 	} else {
-		entries, err := b.System.FS().ReadDir(def.Network.ConfigDir)
+		entries, err := m.system.FS().ReadDir(conf.Network.ConfigDir)
 		if err != nil {
 			return fmt.Errorf("reading network directory: %w", err)
 		}
 
 		for _, entry := range entries {
 			if entry.IsDir() {
-				return fmt.Errorf("directories under %s are not supported", def.Network.ConfigDir)
+				return fmt.Errorf("directories under %s are not supported", conf.Network.ConfigDir)
 			}
 
-			fileInConfigDir := filepath.Join(def.Network.ConfigDir, entry.Name())
-			if err := vfs.CopyFile(b.System.FS(), fileInConfigDir, netDir); err != nil {
+			fileInConfigDir := filepath.Join(conf.Network.ConfigDir, entry.Name())
+			if err := vfs.CopyFile(m.system.FS(), fileInConfigDir, netDir); err != nil {
 				return fmt.Errorf("copying network config file '%s' to '%s': %w ", fileInConfigDir, netDir, err)
 			}
 		}

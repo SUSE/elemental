@@ -15,7 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package build
+package config
 
 import (
 	"path/filepath"
@@ -31,8 +31,9 @@ import (
 )
 
 var _ = Describe("Network", func() {
-	const buildDir image.BuildDir = "/_build"
+	const outputDir OutputDir = "/_out"
 
+	var m *Manager
 	var system *sys.System
 	var fs vfs.FS
 	var runner *sysmock.Runner
@@ -55,6 +56,8 @@ var _ = Describe("Network", func() {
 			sys.WithFS(fs),
 		)
 		Expect(err).ToNot(HaveOccurred())
+
+		m = NewManager(system, nil)
 	})
 
 	AfterEach(func() {
@@ -62,47 +65,35 @@ var _ = Describe("Network", func() {
 	})
 
 	It("Skips configuration", func() {
-		b := &Builder{
-			System: system,
-		}
-
-		err := b.configureNetworkOnFirstboot(&image.Definition{}, "")
+		err := m.configureNetworkOnFirstboot(&image.Configuration{}, "")
 		Expect(err).NotTo(HaveOccurred())
 	})
 
 	It("Fails to copy custom script", func() {
-		b := &Builder{
-			System: system,
-		}
-
-		def := &image.Definition{
+		conf := &image.Configuration{
 			Network: image.Network{
 				CustomScript: "/etc/custom.sh",
 			},
 		}
 
-		err := b.configureNetworkOnFirstboot(def, buildDir)
+		err := m.configureNetworkOnFirstboot(conf, outputDir)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("copying custom network script: stat"))
 		Expect(err.Error()).To(ContainSubstring("/etc/custom.sh: no such file or directory"))
 	})
 
 	It("Successfully copies custom script", func() {
-		b := &Builder{
-			System: system,
-		}
-
-		def := &image.Definition{
+		conf := &image.Configuration{
 			Network: image.Network{
 				CustomScript: "/etc/configure-network.sh",
 			},
 		}
 
-		err := b.configureNetworkOnFirstboot(def, buildDir)
+		err := m.configureNetworkOnFirstboot(conf, outputDir)
 		Expect(err).NotTo(HaveOccurred())
 
 		// Verify script contents
-		netDir := filepath.Join(buildDir.CatalystConfigDir(), "network")
+		netDir := filepath.Join(outputDir.CatalystConfigDir(), "network")
 		scriptPath := filepath.Join(netDir, "configure-network.sh")
 		contents, err := fs.ReadFile(scriptPath)
 		Expect(err).NotTo(HaveOccurred())
@@ -113,42 +104,34 @@ var _ = Describe("Network", func() {
 		nestedDir := "/etc/network/nested"
 		Expect(vfs.MkdirAll(fs, nestedDir, vfs.DirPerm)).To(Succeed())
 
-		b := &Builder{
-			System: system,
-		}
-
-		def := &image.Definition{
+		conf := &image.Configuration{
 			Network: image.Network{
 				ConfigDir: "/etc/missing",
 			},
 		}
 
-		err := b.configureNetworkOnFirstboot(def, buildDir)
+		err := m.configureNetworkOnFirstboot(conf, outputDir)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("reading network directory: open"))
 		Expect(err.Error()).To(ContainSubstring("/etc/missing: no such file or directory"))
 
-		def.Network.ConfigDir = "/etc/network"
-		err = b.configureNetworkOnFirstboot(def, buildDir)
+		conf.Network.ConfigDir = "/etc/network"
+		err = m.configureNetworkOnFirstboot(conf, outputDir)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(Equal("directories under /etc/network are not supported"))
 	})
 
 	It("Successfully copies network directory nmstate files", func() {
-		b := &Builder{
-			System: system,
-		}
-
-		def := &image.Definition{
+		conf := &image.Configuration{
 			Network: image.Network{
 				ConfigDir: "/etc/nmstate",
 			},
 		}
 
-		err := b.configureNetworkOnFirstboot(def, buildDir)
+		err := m.configureNetworkOnFirstboot(conf, outputDir)
 		Expect(err).ToNot(HaveOccurred())
 
-		netDir := filepath.Join(buildDir.CatalystConfigDir(), "network")
+		netDir := filepath.Join(outputDir.CatalystConfigDir(), "network")
 
 		libvirt := filepath.Join(netDir, "libvirt.yaml")
 		contents, err := fs.ReadFile(libvirt)

@@ -15,7 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package build
+package config
 
 import (
 	"context"
@@ -36,12 +36,12 @@ import (
 )
 
 type helmConfiguratorMock struct {
-	configureFunc func(*image.Definition, *resolver.ResolvedManifest) ([]string, error)
+	configureFunc func(*image.Configuration, *resolver.ResolvedManifest) ([]string, error)
 }
 
-func (h *helmConfiguratorMock) Configure(def *image.Definition, manifest *resolver.ResolvedManifest) ([]string, error) {
+func (h *helmConfiguratorMock) Configure(conf *image.Configuration, manifest *resolver.ResolvedManifest) ([]string, error) {
 	if h.configureFunc != nil {
-		return h.configureFunc(def, manifest)
+		return h.configureFunc(conf, manifest)
 	}
 
 	panic("not implemented")
@@ -50,35 +50,35 @@ func (h *helmConfiguratorMock) Configure(def *image.Definition, manifest *resolv
 var _ = Describe("Kubernetes", func() {
 	Describe("Resources trigger", func() {
 		It("Skips manifests setup if manifests are not provided", func() {
-			def := &image.Definition{}
-			Expect(needsManifestsSetup(def)).To(BeFalse())
+			conf := &image.Configuration{}
+			Expect(needsManifestsSetup(conf)).To(BeFalse())
 		})
 
 		It("Requires manifests setup if local manifests are provided", func() {
-			def := &image.Definition{
+			conf := &image.Configuration{
 				Kubernetes: kubernetes.Kubernetes{
 					LocalManifests: []string{"/apache.yaml"},
 				},
 			}
-			Expect(needsManifestsSetup(def)).To(BeTrue())
+			Expect(needsManifestsSetup(conf)).To(BeTrue())
 		})
 
 		It("Requires manifests setup if remote manifests are provided", func() {
-			def := &image.Definition{
+			conf := &image.Configuration{
 				Kubernetes: kubernetes.Kubernetes{
 					RemoteManifests: []string{"https://raw.githubusercontent.com/rancher/local-path-provisioner/v0.0.31/deploy/local-path-storage.yaml"},
 				},
 			}
-			Expect(needsManifestsSetup(def)).To(BeTrue())
+			Expect(needsManifestsSetup(conf)).To(BeTrue())
 		})
 
 		It("Skips Helm setup if charts are not provided", func() {
-			def := &image.Definition{}
-			Expect(needsHelmChartsSetup(def)).To(BeFalse())
+			conf := &image.Configuration{}
+			Expect(needsHelmChartsSetup(conf)).To(BeFalse())
 		})
 
 		It("Requires Helm setup if user charts are provided", func() {
-			def := &image.Definition{
+			conf := &image.Configuration{
 				Kubernetes: kubernetes.Kubernetes{
 					Helm: &kubernetes.Helm{
 						Charts: []*kubernetes.HelmChart{
@@ -87,11 +87,11 @@ var _ = Describe("Kubernetes", func() {
 					},
 				},
 			}
-			Expect(needsHelmChartsSetup(def)).To(BeTrue())
+			Expect(needsHelmChartsSetup(conf)).To(BeTrue())
 		})
 
 		It("Requires Helm setup if core charts are provided", func() {
-			def := &image.Definition{
+			conf := &image.Configuration{
 				Release: release.Release{
 					Components: release.Components{
 						HelmCharts: []release.HelmChart{
@@ -103,11 +103,11 @@ var _ = Describe("Kubernetes", func() {
 				},
 			}
 
-			Expect(needsHelmChartsSetup(def)).To(BeTrue())
+			Expect(needsHelmChartsSetup(conf)).To(BeTrue())
 		})
 
 		It("Requires Helm setup if product charts are provided", func() {
-			def := &image.Definition{
+			conf := &image.Configuration{
 				Release: release.Release{
 					Components: release.Components{
 						HelmCharts: []release.HelmChart{
@@ -119,12 +119,12 @@ var _ = Describe("Kubernetes", func() {
 				},
 			}
 
-			Expect(needsHelmChartsSetup(def)).To(BeTrue())
+			Expect(needsHelmChartsSetup(conf)).To(BeTrue())
 		})
 	})
 
 	Describe("Configuration", func() {
-		const buildDir image.BuildDir = "/_build"
+		const outputDir OutputDir = "/_out"
 
 		var system *sys.System
 		var fs vfs.FS
@@ -135,7 +135,7 @@ var _ = Describe("Kubernetes", func() {
 			fs, cleanup, err = sysmock.TestFS(nil)
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(vfs.MkdirAll(fs, string(buildDir), vfs.DirPerm)).To(Succeed())
+			Expect(vfs.MkdirAll(fs, string(outputDir), vfs.DirPerm)).To(Succeed())
 
 			system, err = sys.NewSystem(
 				sys.WithLogger(log.New(log.WithDiscardAll())),
@@ -149,20 +149,24 @@ var _ = Describe("Kubernetes", func() {
 		})
 
 		It("Fails to configure Helm charts", func() {
-			builder := &Builder{
-				System: system,
-				Helm: &helmConfiguratorMock{
-					configureFunc: func(definition *image.Definition, manifest *resolver.ResolvedManifest) ([]string, error) {
-						return nil, fmt.Errorf("helm error")
-					},
-				},
-				DownloadFile: func(ctx context.Context, fs vfs.FS, url, path string) error {
-					return nil
+			helmMock := &helmConfiguratorMock{
+				configureFunc: func(conf *image.Configuration, manifest *resolver.ResolvedManifest) ([]string, error) {
+					return nil, fmt.Errorf("helm error")
 				},
 			}
 
+			dlFunc := func(ctx context.Context, fs vfs.FS, url, path string) error {
+				return nil
+			}
+
+			m := NewManager(
+				system,
+				helmMock,
+				WithDownloadFunc(dlFunc),
+			)
+
 			manifest := &resolver.ResolvedManifest{}
-			def := &image.Definition{
+			conf := &image.Configuration{
 				Release: release.Release{
 					Components: release.Components{
 						HelmCharts: []release.HelmChart{
@@ -174,7 +178,7 @@ var _ = Describe("Kubernetes", func() {
 				},
 			}
 
-			script, confScript, err := builder.configureKubernetes(context.Background(), def, manifest, buildDir)
+			script, confScript, err := m.configureKubernetes(context.Background(), conf, manifest, outputDir)
 			Expect(err).To(HaveOccurred())
 			Expect(err).To(MatchError("configuring helm charts: helm error"))
 			Expect(script).To(BeEmpty())
@@ -182,20 +186,24 @@ var _ = Describe("Kubernetes", func() {
 		})
 
 		It("Succeeds to configure RKE2 with additional resources", func() {
-			builder := &Builder{
-				System: system,
-				Helm: &helmConfiguratorMock{
-					configureFunc: func(definition *image.Definition, manifest *resolver.ResolvedManifest) ([]string, error) {
-						return []string{"rancher.yaml"}, nil
-					},
-				},
-				DownloadFile: func(ctx context.Context, fs vfs.FS, url, path string) error {
-					return nil
+			helmMock := &helmConfiguratorMock{
+				configureFunc: func(conf *image.Configuration, manifest *resolver.ResolvedManifest) ([]string, error) {
+					return []string{"rancher.yaml"}, nil
 				},
 			}
 
+			dlFunc := func(ctx context.Context, fs vfs.FS, url, path string) error {
+				return nil
+			}
+
+			m := NewManager(
+				system,
+				helmMock,
+				WithDownloadFunc(dlFunc),
+			)
+
 			manifest := &resolver.ResolvedManifest{}
-			def := &image.Definition{
+			conf := &image.Configuration{
 				Kubernetes: kubernetes.Kubernetes{
 					RemoteManifests: []string{"some-url"},
 					Nodes: kubernetes.Nodes{
@@ -213,31 +221,34 @@ var _ = Describe("Kubernetes", func() {
 				},
 			}
 
-			script, confScript, err := builder.configureKubernetes(context.Background(), def, manifest, buildDir)
+			script, confScript, err := m.configureKubernetes(context.Background(), conf, manifest, outputDir)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(script).To(Equal("/var/lib/elemental/kubernetes/k8s_res_deploy.sh"))
 
 			// Verify deployment script contents
-			b, err := fs.ReadFile(filepath.Join(buildDir.OverlaysDir(), script))
+			b, err := fs.ReadFile(filepath.Join(outputDir.OverlaysDir(), script))
 			Expect(err).NotTo(HaveOccurred())
 			Expect(string(b)).To(ContainSubstring("deployHelmCharts"))
 			Expect(string(b)).To(ContainSubstring("rancher.yaml"))
 			Expect(string(b)).To(ContainSubstring("deployManifests"))
 
-			_, err = fs.ReadFile(filepath.Join(buildDir.OverlaysDir(), confScript))
+			_, err = fs.ReadFile(filepath.Join(outputDir.OverlaysDir(), confScript))
 			Expect(err).NotTo(HaveOccurred())
 		})
 
 		It("Succeeds to configure RKE2 without additional resources", func() {
-			builder := &Builder{
-				System: system,
-				DownloadFile: func(ctx context.Context, fs vfs.FS, url, path string) error {
-					return nil
-				},
+			dlFunc := func(ctx context.Context, fs vfs.FS, url, path string) error {
+				return nil
 			}
 
+			m := NewManager(
+				system,
+				nil,
+				WithDownloadFunc(dlFunc),
+			)
+
 			manifest := &resolver.ResolvedManifest{}
-			def := &image.Definition{
+			conf := &image.Configuration{
 				Release: release.Release{
 					Components: release.Components{
 						SystemdExtensions: []release.SystemdExtension{
@@ -249,7 +260,7 @@ var _ = Describe("Kubernetes", func() {
 				},
 			}
 
-			script, confScript, err := builder.configureKubernetes(context.Background(), def, manifest, buildDir)
+			script, confScript, err := m.configureKubernetes(context.Background(), conf, manifest, outputDir)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(script).To(BeEmpty())
 			Expect(confScript).ToNot(BeEmpty())

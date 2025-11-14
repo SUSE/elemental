@@ -15,7 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package build
+package config
 
 import (
 	"fmt"
@@ -63,17 +63,17 @@ func NewHelm(fs vfs.FS, valuesResolver helmValuesResolver, logger log.Logger, de
 	}
 }
 
-func (h *Helm) Configure(def *image.Definition, rm *resolver.ResolvedManifest) ([]string, error) {
-	if len(def.Release.Components.HelmCharts) > 0 {
+func (h *Helm) Configure(conf *image.Configuration, rm *resolver.ResolvedManifest) ([]string, error) {
+	if len(conf.Release.Components.HelmCharts) > 0 {
 		var charts []string
-		for _, c := range def.Release.Components.HelmCharts {
+		for _, c := range conf.Release.Components.HelmCharts {
 			charts = append(charts, c.Name)
 		}
 
 		h.Logger.Info("Enabling the following Helm components: %s", strings.Join(charts, ", "))
 	}
 
-	charts, err := h.retrieveHelmCharts(rm, def)
+	charts, err := h.retrieveHelmCharts(rm, conf)
 	if err != nil {
 		return nil, fmt.Errorf("retrieving helm charts: %w", err)
 	}
@@ -112,15 +112,15 @@ func (h *Helm) writeHelmCharts(crds []*helm.CRD) ([]string, error) {
 	return charts, nil
 }
 
-func (h *Helm) retrieveHelmCharts(rm *resolver.ResolvedManifest, def *image.Definition) ([]*helm.CRD, error) {
+func (h *Helm) retrieveHelmCharts(rm *resolver.ResolvedManifest, conf *image.Configuration) ([]*helm.CRD, error) {
 	var crds []*helm.CRD
 
-	charts, repositories, err := enabledHelmCharts(rm, def.Release.Components.HelmCharts, h.Logger)
+	charts, repositories, err := enabledHelmCharts(rm, conf.Release.Components.HelmCharts, h.Logger)
 	if err != nil {
 		return nil, fmt.Errorf("filtering enabled helm charts: %w", err)
 	}
 
-	valueFiles := def.Release.Components.HelmValueFiles()
+	valueFiles := conf.Release.Components.HelmValueFiles()
 
 	for _, chart := range charts {
 		if err = h.appendHelmChart(chart, repositories, valueFiles, &crds); err != nil {
@@ -128,11 +128,11 @@ func (h *Helm) retrieveHelmCharts(rm *resolver.ResolvedManifest, def *image.Defi
 		}
 	}
 
-	if def.Kubernetes.Helm != nil {
-		repositories = def.Kubernetes.Helm.ChartRepositories()
-		valueFiles = def.Kubernetes.Helm.ValueFiles()
+	if conf.Kubernetes.Helm != nil {
+		repositories = conf.Kubernetes.Helm.ChartRepositories()
+		valueFiles = conf.Kubernetes.Helm.ValueFiles()
 
-		for _, chart := range def.Kubernetes.Helm.Charts {
+		for _, chart := range conf.Kubernetes.Helm.Charts {
 			if err = h.appendHelmChart(chart, repositories, valueFiles, &crds); err != nil {
 				return nil, fmt.Errorf("collecting user helm charts: %w", err)
 			}

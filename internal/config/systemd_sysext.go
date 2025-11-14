@@ -15,7 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package build
+package config
 
 import (
 	"context"
@@ -35,10 +35,10 @@ import (
 	"github.com/suse/elemental/v3/pkg/unpack"
 )
 
-func (b *Builder) downloadSystemExtensions(ctx context.Context, extensions []api.SystemdExtension, buildDir image.BuildDir) error {
-	logger := b.System.Logger()
-	fs := b.System.FS()
-	extensionsDir := filepath.Join(buildDir.OverlaysDir(), image.ExtensionsPath())
+func (m *Manager) downloadSystemExtensions(ctx context.Context, extensions []api.SystemdExtension, outputDir OutputDir) error {
+	logger := m.system.Logger()
+	fs := m.system.FS()
+	extensionsDir := filepath.Join(outputDir.OverlaysDir(), image.ExtensionsPath())
 
 	if err := vfs.MkdirAll(fs, extensionsDir, 0o700); err != nil {
 		return fmt.Errorf("creating extensions directory: %w", err)
@@ -50,14 +50,14 @@ func (b *Builder) downloadSystemExtensions(ctx context.Context, extensions []api
 
 		if isRemoteURL(extension.Image) {
 			extensionPath := filepath.Join(extensionsDir, filepath.Base(extension.Image))
-			if err := b.DownloadFile(ctx, fs, extension.Image, extensionPath); err != nil {
+			if err := m.downloadFile(ctx, fs, extension.Image, extensionPath); err != nil {
 				return fmt.Errorf("downloading systemd extension %s: %w", extension.Name, err)
 			}
 
 			continue
 		}
 
-		if err := b.unpackExtension(ctx, extension, extensionsDir); err != nil {
+		if err := m.unpackExtension(ctx, extension, extensionsDir); err != nil {
 			return fmt.Errorf("unpacking systemd extension %s: %w", extension.Name, err)
 		}
 	}
@@ -74,8 +74,8 @@ func isRemoteURL(s string) bool {
 	return u.Scheme == "http" || u.Scheme == "https"
 }
 
-func (b *Builder) unpackExtension(ctx context.Context, extension api.SystemdExtension, extensionsDir string) error {
-	fs := b.System.FS()
+func (m *Manager) unpackExtension(ctx context.Context, extension api.SystemdExtension, extensionsDir string) error {
+	fs := m.system.FS()
 
 	tempDir, err := vfs.TempDir(fs, "", fmt.Sprintf("%s-", extension.Name))
 	if err != nil {
@@ -85,7 +85,7 @@ func (b *Builder) unpackExtension(ctx context.Context, extension api.SystemdExte
 		_ = fs.RemoveAll(tempDir)
 	}()
 
-	unpacker := unpack.NewOCIUnpacker(b.System, extension.Image, unpack.WithLocalOCI(b.Local))
+	unpacker := unpack.NewOCIUnpacker(m.system, extension.Image, unpack.WithLocalOCI(m.local))
 	if _, err = unpacker.Unpack(ctx, tempDir); err != nil {
 		return fmt.Errorf("unpacking extension: %w", err)
 	}
@@ -113,7 +113,7 @@ func (b *Builder) unpackExtension(ctx context.Context, extension api.SystemdExte
 		return fmt.Errorf("invalid extension: either a single image file or a /usr directory is required")
 	}
 
-	sync := rsync.NewRsync(b.System, rsync.WithContext(ctx))
+	sync := rsync.NewRsync(m.system, rsync.WithContext(ctx))
 	syncDirectory := func(dirName string) error {
 		sourcePath := filepath.Join(tempDir, dirName)
 		if exists, _ := vfs.Exists(fs, sourcePath); !exists {
@@ -139,13 +139,13 @@ func (b *Builder) unpackExtension(ctx context.Context, extension api.SystemdExte
 	return syncDirectory("opt")
 }
 
-func isExtensionExplicitlyEnabled(name string, def *image.Definition) bool {
-	return slices.ContainsFunc(def.Release.Components.SystemdExtensions, func(e release.SystemdExtension) bool {
+func isExtensionExplicitlyEnabled(name string, conf *image.Configuration) bool {
+	return slices.ContainsFunc(conf.Release.Components.SystemdExtensions, func(e release.SystemdExtension) bool {
 		return e.Name == name
 	})
 }
 
-func enabledExtensions(rm *resolver.ResolvedManifest, def *image.Definition, logger log.Logger) ([]api.SystemdExtension, error) {
+func enabledExtensions(rm *resolver.ResolvedManifest, conf *image.Configuration, logger log.Logger) ([]api.SystemdExtension, error) {
 	var all, enabled []api.SystemdExtension
 
 	all = append(all, rm.CorePlatform.Components.Systemd.Extensions...)
@@ -154,7 +154,7 @@ func enabledExtensions(rm *resolver.ResolvedManifest, def *image.Definition, log
 	}
 
 	var notFound []string
-	for _, selected := range def.Release.Components.SystemdExtensions {
+	for _, selected := range conf.Release.Components.SystemdExtensions {
 		if !slices.ContainsFunc(all, func(e api.SystemdExtension) bool {
 			return e.Name == selected.Name
 		}) {
@@ -166,7 +166,7 @@ func enabledExtensions(rm *resolver.ResolvedManifest, def *image.Definition, log
 		return nil, fmt.Errorf("requested systemd extension(s) not found: %q", notFound)
 	}
 
-	charts, _, err := enabledHelmCharts(rm, def.Release.Components.HelmCharts, nil)
+	charts, _, err := enabledHelmCharts(rm, conf.Release.Components.HelmCharts, nil)
 	if err != nil {
 		return nil, fmt.Errorf("filtering enabled helm charts: %w", err)
 	}
@@ -181,8 +181,8 @@ func enabledExtensions(rm *resolver.ResolvedManifest, def *image.Definition, log
 
 	for _, ext := range all {
 		if ext.Required ||
-			isExtensionExplicitlyEnabled(ext.Name, def) ||
-			(ext.Name == k8sExtension && isKubernetesEnabled(def)) ||
+			isExtensionExplicitlyEnabled(ext.Name, conf) ||
+			(ext.Name == k8sExtension && isKubernetesEnabled(conf)) ||
 			isDependency(ext.Name) {
 			enabled = append(enabled, ext)
 		} else {

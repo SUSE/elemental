@@ -15,7 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package build
+package config
 
 import (
 	. "github.com/onsi/ginkgo/v2"
@@ -62,7 +62,7 @@ var _ = Describe("Systemd extensions", func() {
 				},
 			}
 
-			def := &image.Definition{
+			conf := &image.Configuration{
 				Release: release.Release{
 					Components: release.Components{
 						HelmCharts: []release.HelmChart{
@@ -74,7 +74,7 @@ var _ = Describe("Systemd extensions", func() {
 				},
 			}
 
-			extensions, err := enabledExtensions(rm, def, logger)
+			extensions, err := enabledExtensions(rm, conf, logger)
 			Expect(err).To(HaveOccurred())
 			Expect(err).To(MatchError(MatchRegexp("filtering enabled helm charts: adding helm chart 'longhorn': " +
 				"adding dependent helm chart 'longhorn-crd': helm chart does not exist")))
@@ -142,7 +142,7 @@ var _ = Describe("Systemd extensions", func() {
 				},
 			}
 
-			def := &image.Definition{
+			conf := &image.Configuration{
 				Release: release.Release{
 					Components: release.Components{
 						SystemdExtensions: []release.SystemdExtension{
@@ -159,7 +159,7 @@ var _ = Describe("Systemd extensions", func() {
 				},
 			}
 
-			extensions, err := enabledExtensions(rm, def, logger)
+			extensions, err := enabledExtensions(rm, conf, logger)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(extensions).To(HaveLen(4))
 

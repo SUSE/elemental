@@ -15,7 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package build
+package config
 
 import (
 	"bytes"
@@ -33,13 +33,13 @@ import (
 )
 
 var _ = Describe("Ignition configuration", func() {
-	const buildDir image.BuildDir = "/_build"
+	const outputDir OutputDir = "/_out"
 
 	var system *sys.System
 	var fs vfs.FS
 	var cleanup func()
 	var err error
-	var builder *Builder
+	var m *Manager
 	var buffer *bytes.Buffer
 
 	BeforeEach(func() {
@@ -49,16 +49,15 @@ var _ = Describe("Ignition configuration", func() {
 		})
 		Expect(err).ToNot(HaveOccurred())
 
-		Expect(vfs.MkdirAll(fs, string(buildDir), vfs.DirPerm)).To(Succeed())
+		Expect(vfs.MkdirAll(fs, string(outputDir), vfs.DirPerm)).To(Succeed())
 
 		system, err = sys.NewSystem(
 			sys.WithLogger(log.New(log.WithBuffer(buffer))),
 			sys.WithFS(fs),
 		)
 		Expect(err).ToNot(HaveOccurred())
-		builder = &Builder{
-			System: system,
-		}
+
+		m = NewManager(system, nil)
 	})
 
 	AfterEach(func() {
@@ -66,11 +65,11 @@ var _ = Describe("Ignition configuration", func() {
 	})
 
 	It("Does no Ignition configuration if data is not provided", func() {
-		def := &image.Definition{}
+		conf := &image.Configuration{}
 
-		ignitionFile := filepath.Join(buildDir.FirstbootConfigDir(), image.IgnitionFilePath())
+		ignitionFile := filepath.Join(outputDir.FirstbootConfigDir(), image.IgnitionFilePath())
 
-		Expect(builder.configureIgnition(def, buildDir, "", "", nil)).To(Succeed())
+		Expect(m.configureIgnition(conf, outputDir, "", "", nil)).To(Succeed())
 		ok, err := vfs.Exists(system.FS(), ignitionFile)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(ok).To(BeFalse())
@@ -88,17 +87,17 @@ passwd:
     password_hash: $y$j9T$aUmgEDoFIDPhGxEe2FUjc/$C5A...
 `
 
-		Expect(image.ParseConfig([]byte(butaneConfigString), &butaneConf)).To(Succeed())
+		Expect(parseAny([]byte(butaneConfigString), &butaneConf)).To(Succeed())
 
-		def := &image.Definition{
+		conf := &image.Configuration{
 			ButaneConfig: butaneConf,
 		}
 
 		Expect(err).NotTo(HaveOccurred())
 
-		ignitionFile := filepath.Join(buildDir.FirstbootConfigDir(), image.IgnitionFilePath())
+		ignitionFile := filepath.Join(outputDir.FirstbootConfigDir(), image.IgnitionFilePath())
 
-		Expect(builder.configureIgnition(def, buildDir, "", "", nil)).To(Succeed())
+		Expect(m.configureIgnition(conf, outputDir, "", "", nil)).To(Succeed())
 		ok, err := vfs.Exists(system.FS(), ignitionFile)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(ok).To(BeTrue())
@@ -108,13 +107,13 @@ passwd:
 	})
 
 	It("Configures kubernetes via Ignition with the given k8s script", func() {
-		def := &image.Definition{}
-		ignitionFile := filepath.Join(buildDir.FirstbootConfigDir(), image.IgnitionFilePath())
+		conf := &image.Configuration{}
+		ignitionFile := filepath.Join(outputDir.FirstbootConfigDir(), image.IgnitionFilePath())
 
-		k8sScript := filepath.Join(buildDir.OverlaysDir(), "path/to/k8s/script.sh")
-		k8sConfScript := filepath.Join(buildDir.OverlaysDir(), "path/to/k8s/conf_script.sh")
+		k8sScript := filepath.Join(outputDir.OverlaysDir(), "path/to/k8s/script.sh")
+		k8sConfScript := filepath.Join(outputDir.OverlaysDir(), "path/to/k8s/conf_script.sh")
 
-		Expect(builder.configureIgnition(def, buildDir, k8sScript, k8sConfScript, nil)).To(Succeed())
+		Expect(m.configureIgnition(conf, outputDir, k8sScript, k8sConfScript, nil)).To(Succeed())
 		ok, err := vfs.Exists(system.FS(), ignitionFile)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(ok).To(BeTrue())
@@ -127,11 +126,11 @@ passwd:
 	})
 
 	It("Writes systemd extension via Ignition", func() {
-		def := &image.Definition{}
+		conf := &image.Configuration{}
 		ext := []api.SystemdExtension{{Name: "ext1", Image: "ext1-image"}}
-		ignitionFile := filepath.Join(buildDir.FirstbootConfigDir(), image.IgnitionFilePath())
+		ignitionFile := filepath.Join(outputDir.FirstbootConfigDir(), image.IgnitionFilePath())
 
-		Expect(builder.configureIgnition(def, buildDir, "", "", ext)).To(Succeed())
+		Expect(m.configureIgnition(conf, outputDir, "", "", ext)).To(Succeed())
 
 		ok, err := vfs.Exists(system.FS(), ignitionFile)
 		Expect(err).NotTo(HaveOccurred())
@@ -160,17 +159,17 @@ passwd:
     ssh_authorized_keys:
     - key1
 `
-		k8sScript := filepath.Join(buildDir.OverlaysDir(), "path/to/k8s/script.sh")
-		k8sConfScript := filepath.Join(buildDir.OverlaysDir(), "path/to/k8s/conf_script.sh")
+		k8sScript := filepath.Join(outputDir.OverlaysDir(), "path/to/k8s/script.sh")
+		k8sConfScript := filepath.Join(outputDir.OverlaysDir(), "path/to/k8s/conf_script.sh")
 
-		Expect(image.ParseConfig([]byte(butaneConfigString), &butane)).To(Succeed())
-		def := &image.Definition{
+		Expect(parseAny([]byte(butaneConfigString), &butane)).To(Succeed())
+		conf := &image.Configuration{
 			ButaneConfig: butane,
 		}
 
-		ignitionFile := filepath.Join(buildDir.FirstbootConfigDir(), image.IgnitionFilePath())
+		ignitionFile := filepath.Join(outputDir.FirstbootConfigDir(), image.IgnitionFilePath())
 
-		Expect(builder.configureIgnition(def, buildDir, k8sScript, k8sConfScript, nil)).To(MatchError(
+		Expect(m.configureIgnition(conf, outputDir, k8sScript, k8sConfScript, nil)).To(MatchError(
 			ContainSubstring("No translator exists for variant unknown with version"),
 		))
 		ok, err := vfs.Exists(system.FS(), ignitionFile)
@@ -189,13 +188,13 @@ passwd:
   - name: pipo
     password_hash: $y$j9T$aUmgEDoFIDPhGxEe2FUjc/$C5A...
 `
-		Expect(image.ParseConfig([]byte(butaneConfigString), &butane)).To(Succeed())
-		def := &image.Definition{
+		Expect(parseAny([]byte(butaneConfigString), &butane)).To(Succeed())
+		conf := &image.Configuration{
 			ButaneConfig: butane,
 		}
 
-		ignitionFile := filepath.Join(buildDir.FirstbootConfigDir(), image.IgnitionFilePath())
-		Expect(builder.configureIgnition(def, buildDir, "", "", nil)).To(Succeed())
+		ignitionFile := filepath.Join(outputDir.FirstbootConfigDir(), image.IgnitionFilePath())
+		Expect(m.configureIgnition(conf, outputDir, "", "", nil)).To(Succeed())
 		ok, err := vfs.Exists(system.FS(), ignitionFile)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(ok).To(BeTrue())
