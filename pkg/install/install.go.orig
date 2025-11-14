@@ -128,6 +128,8 @@ func (i Installer) Install(d *deployment.Deployment) (err error) {
 	return nil
 }
 
+<<<<<<< HEAD
+=======
 func (i Installer) checkTargetDisks(d *deployment.Deployment) error {
 	bDev := lsblk.NewLsDevice(i.s)
 	for _, disk := range d.Disks {
@@ -144,6 +146,37 @@ func (i Installer) checkTargetDisks(d *deployment.Deployment) error {
 	return nil
 }
 
+func (i Installer) addRecoveryBootEntry(cleanup *cleanstack.CleanStack, d *deployment.Deployment) error {
+	if d.GetRecoveryPartition() == nil {
+		return nil
+	}
+	esp := d.GetEfiPartition()
+	if esp == nil {
+		return fmt.Errorf("no ESP partition defined in deployment")
+	}
+
+	espDir, err := vfs.TempDir(i.s.FS(), "", "elemental_esp")
+	if err != nil {
+		return err
+	}
+	cleanup.Push(func() error { return i.s.FS().RemoveAll(espDir) })
+
+	device, err := block.GetPartitionDeviceByLabel(i.s, lsblk.NewLsDevice(i.s), esp.Label, 4)
+	if err != nil {
+		return fmt.Errorf("partition with label '%s', not found: %w", esp.Label, err)
+	}
+
+	err = i.s.Mounter().Mount(device, espDir, "auto", []string{"rw"})
+	if err != nil {
+		return fmt.Errorf("failed mounting ESP to %s: %w", espDir, err)
+	}
+	cleanup.Push(func() error { return i.s.Mounter().Unmount(espDir) })
+
+	cmdline := fmt.Sprintf("%s %s", d.RecoveryKernelCmdline(), d.Installer.KernelCmdline)
+	return i.b.AddBootEntry(espDir, bootloader.DefaultBootID, bootloader.RecoveryBootID, cmdline)
+}
+
+>>>>>>> 593ffa7 (Check target device mountpoints before repartitioning)
 func (i Installer) installRecoveryPartition(cleanup *cleanstack.CleanStack, d *deployment.Deployment) (err error) {
 	recPart := d.GetRecoveryPartition()
 	if recPart == nil {
@@ -175,7 +208,7 @@ func (i Installer) installRecoveryPartition(cleanup *cleanstack.CleanStack, d *d
 	}
 	cleanup.Push(func() error { return i.s.Mounter().Unmount(mountPoint) })
 
-	media := installer.NewMedia(i.ctx, i.s, installer.Disk, installer.WithUnpackOpts(i.unpackOpts...))
+	media := installer.NewISO(i.ctx, i.s, installer.WithUnpackOpts(i.unpackOpts...))
 	err = media.PrepareInstallerFS(mountPoint, workDir, d)
 	if err != nil {
 		return fmt.Errorf("failed preparing recovery partition root: %w", err)

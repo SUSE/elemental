@@ -41,7 +41,6 @@ const (
 	EfiSize  MiB = 1024
 
 	RecoveryLabel = "RECOVERY"
-	RecoveryMnt   = "/run/elemental/recovery"
 	RecoverySize  = 0
 
 	SystemLabel          = "SYSTEM"
@@ -344,6 +343,19 @@ func (d Deployment) GetEfiPartition() *Partition {
 	return nil
 }
 
+// GetRecoveryPartition gets the data of the recovery partition.
+// returns nil if not found
+func (d Deployment) GetRecoveryPartition() *Partition {
+	for _, disk := range d.Disks {
+		for _, part := range disk.Partitions {
+			if part.Role == Recovery {
+				return part
+			}
+		}
+	}
+	return nil
+}
+
 // GetSystemDisk gets the disk data including the system partition.
 // returns nil if not found
 func (d Deployment) GetEfiDisk() *Disk {
@@ -360,6 +372,16 @@ func (d Deployment) GetEfiDisk() *Disk {
 // BaseKernelCmdline returns the base kernel command line for the current deployment
 func (d Deployment) BaseKernelCmdline() string {
 	return fmt.Sprintf("root=LABEL=%s", d.GetSystemLabel())
+}
+
+// RecoveryKernelCmdline returns the base kernel command line for the current deployment
+func (d Deployment) RecoveryKernelCmdline() string {
+	var label string
+	rec := d.GetRecoveryPartition()
+	if rec != nil {
+		label = rec.Label
+	}
+	return LiveKernelCmdline(label)
 }
 
 // Sanitize checks the consistency of the current Disk structure. ExcludeChecks parameter
@@ -536,6 +558,22 @@ func WithConfigPartition(size MiB) Opt {
 	return WithPartitions(1, part)
 }
 
+// WithRecoveryPartition inserts a recovery partition as the second partition
+// to the systemd disk. The given size is the amount of data expected to store in
+// the partition, then the partition is sized to be alined with 128MiB and to ensure
+// at least 128MiB of free space is available.
+func WithRecoveryPartition(size MiB) Opt {
+	size = (size/128)*128 + 256
+	part := &Partition{
+		Label:      RecoveryLabel,
+		Role:       Recovery,
+		FileSystem: Btrfs,
+		Size:       size,
+		Hidden:     true,
+	}
+	return WithPartitions(1, part)
+}
+
 // checkSystemPart verifies the system partition is properly defined and forces mandatory values
 func checkSystemPart(s *sys.System, d *Deployment) error {
 	var found bool
@@ -610,10 +648,8 @@ func checkRecoveryPart(s *sys.System, d *Deployment) error {
 		for _, part := range disk.Partitions {
 			if part.Role == Recovery && !found {
 				found = true
-				if part.MountPoint != RecoveryMnt {
-					s.Logger().Warn("custom mountpoints for the recovery partition are not supported")
-					s.Logger().Info("recovery partition mountpoint set to defaults")
-					part.MountPoint = RecoveryMnt
+				if part.MountPoint != "" {
+					return fmt.Errorf("custom mountpoints for the recovery partition are not supported")
 				}
 				if len(part.RWVolumes) > 0 {
 					s.Logger().Warn("recovery partition does not support volumes")
@@ -622,6 +658,9 @@ func checkRecoveryPart(s *sys.System, d *Deployment) error {
 				}
 				if part.FileSystem.String() == Unknown {
 					part.FileSystem = Ext2
+				}
+				if part.Label == "" {
+					part.Label = RecoveryLabel
 				}
 			} else if part.Role == Recovery {
 				return fmt.Errorf("multiple 'recovery' partitions defined, there can be only one")

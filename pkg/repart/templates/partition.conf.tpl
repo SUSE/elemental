@@ -13,8 +13,11 @@ Label={{ .Label }}
 {{- if .UUID }}
 UUID={{ .UUID }}
 {{- end }}
-{{- if .CopyFiles }}
-CopyFiles={{ .CopyFiles }}
+{{- range $cpy := .CopyFiles }}
+CopyFiles={{ $cpy }}
+{{- end }}
+{{- range $excl := .Excludes }}
+ExcludeFiles={{ $excl }}
 {{- end }}
 {{- if .ReadOnly }}
 ReadOnly={{ .ReadOnly }}
