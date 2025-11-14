@@ -73,7 +73,8 @@ func BuildInstaller(ctx *cli.Context) error { //nolint:dupl
 }
 
 func digestInstallerDeploymentSetup(s *sys.System, flags *cmd.InstallerFlags) (*deployment.Deployment, error) {
-	d := deployment.DefaultDeployment()
+	// Recovery partition size will be determined during the build
+	d := deployment.New(deployment.WithRecoveryPartition(0))
 	if flags.Overlay != "" {
 		src, err := deployment.NewSrcFromURI(flags.Overlay)
 		if err != nil {

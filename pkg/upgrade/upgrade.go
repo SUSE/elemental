@@ -41,6 +41,7 @@ const configFile = "/etc/elemental/config.sh"
 
 type Interface interface {
 	Upgrade(*deployment.Deployment) error
+	SetUnpackOpts(opts ...unpack.Opt)
 }
 
 type Option func(*Upgrader)
@@ -99,6 +100,12 @@ func New(ctx context.Context, s *sys.System, opts ...Option) *Upgrader {
 		up.b = bootloader.NewNone(s)
 	}
 	return up
+}
+
+// SetUnpackOpts defines the unpacker options the upgrader will use for
+// the upgrade process.
+func (u *Upgrader) SetUnpackOpts(opts ...unpack.Opt) {
+	u.unpackOpts = opts
 }
 
 //nolint:gocyclo
@@ -187,8 +194,13 @@ func (u Upgrader) Upgrade(d *deployment.Deployment) (err error) {
 	}
 
 	kernelCmdline := strings.TrimSpace(fmt.Sprintf("%s %s %s", d.BaseKernelCmdline(), uh.GenerateKernelCmdline(trans), cmdline))
+	recKernelCmdline := ""
+	if d.GetRecoveryPartition() != nil {
+		recKernelCmdline = strings.TrimSpace(fmt.Sprintf("%s %s", d.RecoveryKernelCmdline(), d.Installer.KernelCmdline))
+	}
 
-	err = u.b.Install(trans.Path, strconv.Itoa(trans.ID), kernelCmdline, d)
+	espDir := filepath.Join(trans.Path, esp.MountPoint)
+	err = u.b.Install(trans.Path, espDir, esp.Label, strconv.Itoa(trans.ID), kernelCmdline, recKernelCmdline)
 	if err != nil {
 		return fmt.Errorf("installing bootloader: %w", err)
 	}

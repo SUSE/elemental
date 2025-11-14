@@ -80,9 +80,12 @@ func Install(ctx *cli.Context) error { //nolint:dupl
 	upgrader := upgrade.New(
 		ctxCancel, s, upgrade.WithBootManager(manager), upgrade.WithBootloader(bootloader),
 		upgrade.WithSnapshotter(snapshotter),
-		upgrade.WithUnpackOpts(unpack.WithVerify(args.Verify), unpack.WithLocal(args.Local)),
 	)
-	installer := install.New(ctxCancel, s, install.WithUpgrader(upgrader))
+	installer := install.New(
+		ctxCancel, s, install.WithUpgrader(upgrader),
+		install.WithUnpackOpts(unpack.WithVerify(args.Verify), unpack.WithLocal(args.Local)),
+		install.WithBootloader(bootloader),
+	)
 
 	err = installer.Install(d)
 	if err != nil {
@@ -93,16 +96,6 @@ func Install(ctx *cli.Context) error { //nolint:dupl
 	s.Logger().Info("Installation complete")
 
 	return nil
-}
-
-// isLiveMedia returns true if the current host is a live media, for instance an ISO
-func isLiveMedia(s *sys.System) bool {
-	mnt, err := s.Mounter().IsMountPoint(installer.LiveMountPoint)
-	if !mnt || err != nil {
-		return false
-	}
-	exists, _ := vfs.Exists(s.FS(), installer.SquashfsPath)
-	return exists
 }
 
 // loadDescriptionFile reads the given deployment description file into the given deployment object
@@ -136,7 +129,7 @@ func setBootloader(s *sys.System, d *deployment.Deployment, flags *cmd.InstallFl
 	}
 
 	if flags.KernelCmdline != "" {
-		d.BootConfig.KernelCmdline = fmt.Sprintf("%s %s", d.BootConfig.KernelCmdline, flags.KernelCmdline)
+		d.BootConfig.KernelCmdline = flags.KernelCmdline
 	}
 
 	if flags.EnableFips {
@@ -159,7 +152,7 @@ func digestInstallSetup(s *sys.System, flags *cmd.InstallFlags) (*deployment.Dep
 		if err != nil {
 			return nil, err
 		}
-	} else if isLiveMedia(s) {
+	} else if install.IsLiveMedia(s) {
 		if ok, _ := vfs.Exists(s.FS(), installer.InstallDesc); ok {
 			err := loadDescriptionFile(s, installer.InstallDesc, d)
 			if err != nil {

@@ -32,6 +32,7 @@ import (
 	"github.com/suse/elemental/v3/pkg/sys"
 	sysmock "github.com/suse/elemental/v3/pkg/sys/mock"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
+	"github.com/suse/elemental/v3/pkg/unpack"
 )
 
 func TestInstallSuite(t *testing.T) {
@@ -41,7 +42,8 @@ func TestInstallSuite(t *testing.T) {
 
 const systemdRepartJson = `[
 	{"uuid" : "c60d1845-7b04-4fc4-8639-8c49eb7277d5", "partno" : 0},
-	{"uuid" : "34a8abb8-ddb3-48a2-8ecc-2443e92c7510", "partno" : 1}
+	{"uuid" : "ddb334a8-48a2-c4de-ddb3-849eb2443e92", "partno" : 1},
+	{"uuid" : "34a8abb8-ddb3-48a2-8ecc-2443e92c7510", "partno" : 2}
 ]`
 
 const sectorSizeJson = `{
@@ -57,7 +59,7 @@ const lsblkJson = `{
 	"blockdevices": [
 	   {
 		  "label": "EFI",
-		  "partlabel": "efi",
+		  "partlabel": "EFI",
 		  "partuuid": "c60d1845-7b04-4fc4-8639-8c49eb7277d5",
 		  "size": 272629760,
 		  "fstype": "vfat",
@@ -68,15 +70,25 @@ const lsblkJson = `{
 		  "pkname": "/dev/device",
 		  "type": "part"
 	   },{
+	      "label": "RECOVERY",
+		  "partlabel": "RECOVERY",
+		  "partuuid": "ddb334a8-48a2-c4de-ddb3-849eb2443e92",
+		  "size": 2726297600,
+		  "fstype": "btrfs",
+		  "mountpoints": [],
+		  "path": "/dev/device2",
+		  "pkname": "/dev/device",
+		  "type": "part"
+	   },{
 		  "label": "SYSTEM",
-		  "partlabel": "system",
+		  "partlabel": "SYSTEM",
 		  "partuuid": "34a8abb8-ddb3-48a2-8ecc-2443e92c7510",
 		  "size": 2726297600,
 		  "fstype": "btrfs",
 		  "mountpoints": [
 			  "/some/root"
 		  ],
-		  "path": "/dev/device2",
+		  "path": "/dev/device3",
 		  "pkname": "/dev/device",
 		  "type": "part"
 	   }
@@ -90,6 +102,8 @@ type upgraderMock struct {
 func (u upgraderMock) Upgrade(_ *deployment.Deployment) error {
 	return u.Error
 }
+
+func (u *upgraderMock) SetUnpackOpts(opts ...unpack.Opt) {}
 
 var _ = Describe("Install", Label("install"), func() {
 	var runner *sysmock.Runner
@@ -121,8 +135,6 @@ var _ = Describe("Install", Label("install"), func() {
 		Expect(err).NotTo(HaveOccurred())
 		d = deployment.DefaultDeployment()
 		d.Disks[0].Device = "/dev/device"
-		d.Disks[0].Partitions[0].UUID = "c60d1845-7b04-4fc4-8639-8c49eb7277d5"
-		d.Disks[0].Partitions[1].UUID = "34a8abb8-ddb3-48a2-8ecc-2443e92c7510"
 		d.SourceOS = deployment.NewDirSrc("/some/dir")
 		Expect(d.Sanitize(s)).To(Succeed())
 		i = install.New(context.Background(), s, install.WithUpgrader(upgrader))
@@ -146,14 +158,38 @@ var _ = Describe("Install", Label("install"), func() {
 	AfterEach(func() {
 		cleanup()
 	})
-	It("installs the given deployment", func() {
+	It("installs the given deployment including a recovery partition", func() {
+		deployment.WithRecoveryPartition(0)(d)
 		Expect(i.Install(d)).To(Succeed())
 		Expect(runner.MatchMilestones([][]string{
 			{"systemd-repart"},
 			{"btrfs", "subvolume", "create"},
+			{"mksquashfs"},
 		}))
 	})
+	It("fails if systemd-repart partitions do not match deployment", func() {
+		// systemd-repart reports a recovery partition that is not part of the deployment
+		Expect(i.Install(d)).To(MatchError(ContainSubstring("failed parsing systemd-repart JSON")))
+	})
+	It("fails creating subvolumes", func() {
+		sideEffects["btrfs"] = func(args ...string) ([]byte, error) {
+			if slices.Contains(args, "subvolume") {
+				return nil, fmt.Errorf("failed creating subvolume")
+			}
+			return []byte{}, nil
+		}
+		deployment.WithRecoveryPartition(0)(d)
+		Expect(i.Install(d)).To(MatchError(ContainSubstring("failed creating subvolume")))
+	})
+	It("fails installing recovery partition", func() {
+		sideEffects["mksquashfs"] = func(args ...string) ([]byte, error) {
+			return nil, fmt.Errorf("mksquasfs call failed")
+		}
+		deployment.WithRecoveryPartition(0)(d)
+		Expect(i.Install(d)).To(MatchError(ContainSubstring("mksquasfs call failed")))
+	})
 	It("fails if upgrader errors out", func() {
+		deployment.WithRecoveryPartition(0)(d)
 		upgrader.Error = fmt.Errorf("transaction failed")
 		err := i.Install(d)
 		Expect(err).To(HaveOccurred())
@@ -161,6 +197,7 @@ var _ = Describe("Install", Label("install"), func() {
 		Expect(runner.MatchMilestones([][]string{
 			{"systemd-repart"},
 			{"btrfs", "subvolume", "create"},
+			{"mksquashfs"},
 		}))
 	})
 })

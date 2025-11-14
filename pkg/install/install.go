@@ -24,20 +24,32 @@ import (
 
 	"github.com/suse/elemental/v3/pkg/block"
 	"github.com/suse/elemental/v3/pkg/block/lsblk"
+	"github.com/suse/elemental/v3/pkg/bootloader"
 	"github.com/suse/elemental/v3/pkg/btrfs"
 	"github.com/suse/elemental/v3/pkg/cleanstack"
 	"github.com/suse/elemental/v3/pkg/deployment"
+	"github.com/suse/elemental/v3/pkg/installer"
 	"github.com/suse/elemental/v3/pkg/repart"
 	"github.com/suse/elemental/v3/pkg/sys"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
+	"github.com/suse/elemental/v3/pkg/unpack"
 	"github.com/suse/elemental/v3/pkg/upgrade"
 )
 
 type Option func(*Installer)
 
 type Installer struct {
-	s *sys.System
-	u upgrade.Interface
+	s          *sys.System
+	ctx        context.Context
+	u          upgrade.Interface
+	unpackOpts []unpack.Opt
+	b          bootloader.Bootloader
+}
+
+func WithUnpackOpts(opts ...unpack.Opt) Option {
+	return func(i *Installer) {
+		i.unpackOpts = opts
+	}
 }
 
 func WithUpgrader(u upgrade.Interface) Option {
@@ -46,9 +58,16 @@ func WithUpgrader(u upgrade.Interface) Option {
 	}
 }
 
+func WithBootloader(b bootloader.Bootloader) Option {
+	return func(i *Installer) {
+		i.b = b
+	}
+}
+
 func New(ctx context.Context, s *sys.System, opts ...Option) *Installer {
 	installer := &Installer{
-		s: s,
+		s:   s,
+		ctx: ctx,
 	}
 	for _, o := range opts {
 		o(installer)
@@ -56,7 +75,21 @@ func New(ctx context.Context, s *sys.System, opts ...Option) *Installer {
 	if installer.u == nil {
 		installer.u = upgrade.New(ctx, s)
 	}
+	if installer.b == nil {
+		installer.b = bootloader.NewNone(s)
+	}
+	installer.u.SetUnpackOpts(installer.unpackOpts...)
 	return installer
+}
+
+// IsLiveMedia returns true if the current host is a live media, for instance an ISO
+func IsLiveMedia(s *sys.System) bool {
+	mnt, err := s.Mounter().IsMountPoint(installer.LiveMountPoint)
+	if !mnt || err != nil {
+		return false
+	}
+	exists, _ := vfs.Exists(s.FS(), installer.SquashfsPath)
+	return exists
 }
 
 func (i Installer) Install(d *deployment.Deployment) (err error) {
@@ -69,7 +102,7 @@ func (i Installer) Install(d *deployment.Deployment) (err error) {
 			return fmt.Errorf("partitioning disk '%s': %w", disk.Device, err)
 		}
 		for _, part := range disk.Partitions {
-			i.s.Logger().Debug("creating partition volumes: ", part)
+			i.s.Logger().Debug("creating partition volumes: %+v", part.RWVolumes)
 			err = createPartitionVolumes(i.s, cleanup, part)
 			if err != nil {
 				return fmt.Errorf("creating partition volumes: %w", err)
@@ -77,11 +110,56 @@ func (i Installer) Install(d *deployment.Deployment) (err error) {
 		}
 	}
 
+	err = i.installRecoveryPartition(cleanup, d)
+	if err != nil {
+		return fmt.Errorf("installing recovery system: %w", err)
+	}
+
 	err = i.u.Upgrade(d)
 	if err != nil {
 		return fmt.Errorf("executing transaction: %w", err)
 	}
 
+	return nil
+}
+
+func (i Installer) installRecoveryPartition(cleanup *cleanstack.CleanStack, d *deployment.Deployment) (err error) {
+	recPart := d.GetRecoveryPartition()
+	if recPart == nil {
+		i.s.Logger().Info("No recovery system defined, skipping recovery system installation")
+		return nil
+	}
+
+	i.s.Logger().Info("Installing recovery system")
+	// This is only required if the SourceOS is a remote OCI image we need to extract
+	workDir, err := vfs.TempDir(i.s.FS(), "", "elemental_workdir")
+	if err != nil {
+		return fmt.Errorf("failed creating a temporary directory to extract the OS image: %w", err)
+	}
+	cleanup.Push(func() error { return i.s.FS().RemoveAll(workDir) })
+
+	mountPoint, err := vfs.TempDir(i.s.FS(), "", "elemental_"+recPart.Role.String())
+	if err != nil {
+		return fmt.Errorf("creating temporary directory to mount system partition: %w", err)
+	}
+	cleanup.PushSuccessOnly(func() error { return i.s.FS().RemoveAll(mountPoint) })
+
+	bPart, err := block.GetPartitionByUUID(i.s, lsblk.NewLsDevice(i.s), recPart.UUID, 4)
+	if err != nil {
+		return fmt.Errorf("finding partition '%s': %w", recPart.UUID, err)
+	}
+	err = i.s.Mounter().Mount(bPart.Path, mountPoint, "", []string{"rw"})
+	if err != nil {
+		return fmt.Errorf("mounting partition '%s': %w", bPart.Path, err)
+	}
+	cleanup.Push(func() error { return i.s.Mounter().Unmount(mountPoint) })
+
+	media := installer.NewISO(i.ctx, i.s, installer.WithUnpackOpts(i.unpackOpts...))
+	err = media.PrepareInstallerFS(mountPoint, workDir, d)
+	if err != nil {
+		return fmt.Errorf("failed preparing recovery partition root: %w", err)
+	}
+	d.SourceOS = deployment.NewRawSrc(filepath.Join(mountPoint, installer.SquashfsRelPath))
 	return nil
 }
 

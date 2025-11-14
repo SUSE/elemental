@@ -21,14 +21,13 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/suse/elemental/v3/pkg/deployment"
 	"github.com/suse/elemental/v3/pkg/sys"
 )
 
 type Bootloader interface {
-	Install(rootPath, snapshotID, kernelCmdline string, d *deployment.Deployment) error
-	InstallLive(rootPath, target, kernelCmdline string) error
-	Prune(rootPath, espDir string, keepSnapshotIDs []int) error
+	Install(rootPath, espDir, espLabel, entryID, kernelCmdline, recKernelCmdline string) error
+	InstallLive(rootPath, espDir, kernelCmdline string) error
+	Prune(rootPath, espDir string, keepEntryIDs []int) error
 }
 
 const (
@@ -44,7 +43,7 @@ func NewNone(s *sys.System) *None {
 	return &None{s}
 }
 
-func (n *None) Install(_, _, _ string, _ *deployment.Deployment) error {
+func (n *None) Install(_, _, _, _, _, _ string) error {
 	n.s.Logger().Info("Skipping bootloader installation")
 	return nil
 }
