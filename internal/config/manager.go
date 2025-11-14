@@ -24,18 +24,12 @@ import (
 	"github.com/suse/elemental/v3/internal/image"
 	"github.com/suse/elemental/v3/internal/manifest/extractor"
 
-	"github.com/suse/elemental/v3/pkg/deployment"
 	"github.com/suse/elemental/v3/pkg/http"
 	"github.com/suse/elemental/v3/pkg/manifest/resolver"
 	"github.com/suse/elemental/v3/pkg/manifest/source"
 	"github.com/suse/elemental/v3/pkg/sys"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
-
-type ReportData struct {
-	ResolvedManifest *resolver.ResolvedManifest
-	CustomPartitions []*deployment.Partition
-}
 
 type downloadFunc func(ctx context.Context, fs vfs.FS, url, path string) error
 
@@ -96,7 +90,7 @@ func NewManager(sys *sys.System, helm helmConfigurator, opts ...Opts) *Manager {
 // ConfigureComponents configures the components defined in the provided configuration
 // and outputs a report containing data that cannot easily be retrieved just by looking
 // at the output directory.
-func (m *Manager) ConfigureComponents(ctx context.Context, conf *image.Configuration, output OutputDir) (report *ReportData, err error) {
+func (m *Manager) ConfigureComponents(ctx context.Context, conf *image.Configuration, output OutputDir) (rm *resolver.ResolvedManifest, err error) {
 	if m.rmResolver == nil {
 		defaultResolver, err := defaultManifestResolver(m.system.FS(), output, m.local)
 		if err != nil {
@@ -105,18 +99,13 @@ func (m *Manager) ConfigureComponents(ctx context.Context, conf *image.Configura
 		m.rmResolver = defaultResolver
 	}
 
-	rm, err := m.rmResolver.Resolve(conf.Release.ManifestURI)
+	rm, err = m.rmResolver.Resolve(conf.Release.ManifestURI)
 	if err != nil {
 		return nil, fmt.Errorf("resolving release manifest at uri '%s': %w", conf.Release.ManifestURI, err)
 	}
 
-	var customPartitions []*deployment.Partition
-	part := m.generatePreparePartition(conf)
-	if part != nil {
-		customPartitions = append(customPartitions, part)
-		if err := m.configureNetworkOnPartition(conf, output, part); err != nil {
-			return nil, fmt.Errorf("configuring network on partition with label '%s': %w", part.Label, err)
-		}
+	if err := m.configureNetworkOnFirstboot(conf, output); err != nil {
+		return nil, fmt.Errorf("configuring network: %w", err)
 	}
 
 	k8sScript, k8sConfScript, err := m.configureKubernetes(ctx, conf, rm, output)
@@ -124,18 +113,22 @@ func (m *Manager) ConfigureComponents(ctx context.Context, conf *image.Configura
 		return nil, fmt.Errorf("configuring kubernetes: %w", err)
 	}
 
-	if err = m.configureIgnition(conf, output, k8sScript, k8sConfScript); err != nil {
+	extensions, err := enabledExtensions(rm, conf, m.system.Logger())
+	if err != nil {
+		return nil, fmt.Errorf("filtering enabled systemd extensions: %w", err)
+	}
+
+	if len(extensions) != 0 {
+		if err = m.downloadSystemExtensions(ctx, extensions, output); err != nil {
+			return nil, fmt.Errorf("downloading system extensions: %w", err)
+		}
+	}
+
+	if err = m.configureIgnition(conf, output, k8sScript, k8sConfScript, extensions); err != nil {
 		return nil, fmt.Errorf("configuring ignition: %w", err)
 	}
 
-	if err = m.downloadSystemExtensions(ctx, conf, rm, output); err != nil {
-		return nil, fmt.Errorf("configuring system extensions: %w", err)
-	}
-
-	return &ReportData{
-		ResolvedManifest: rm,
-		CustomPartitions: customPartitions,
-	}, nil
+	return rm, nil
 }
 
 func defaultManifestResolver(fs vfs.FS, out OutputDir, local bool) (res *resolver.Resolver, err error) {

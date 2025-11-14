@@ -65,36 +65,40 @@ func Build(ctx *cli.Context) error {
 
 	logger.Info("Validated image configuration")
 
-	buildDir, err := createBuildDir(system.FS(), args.BuildDir)
+	outDir, err := createOutputDirectory(system.FS(), args.BuildDir)
 	if err != nil {
 		logger.Error("Creating build directory failed")
 		return err
 	}
 
 	defer func() {
-		logger.Debug("Cleaning up build-dir %s", buildDir)
-		err = system.FS().RemoveAll(string(buildDir))
+		logger.Debug("Cleaning up build-dir %s", outDir)
+		err = system.FS().RemoveAll(string(outDir))
 		if err != nil {
-			logger.Error("Cleaning up build-dir %s", buildDir)
+			logger.Error("Cleaning up build-dir %s", outDir)
 		}
 	}()
 
-	configDir := image.ConfigDir(args.ConfigDir)
-
 	valuesResolver := &helm.ValuesResolver{
-		ValuesDir: configDir.HelmValuesDir(),
+		ValuesDir: config.Dir(args.ConfigDir).HelmValuesDir(),
 		FS:        system.FS(),
 	}
 
+	configManager := config.NewManager(
+		system,
+		config.NewHelm(system.FS(), valuesResolver, logger, outDir.OverlaysDir()),
+		config.WithDownloadFunc(http.DownloadFile),
+		config.WithLocal(args.Local),
+	)
+
 	builder := &build.Builder{
-		System:       system,
-		Helm:         build.NewHelm(system.FS(), valuesResolver, logger, buildDir.OverlaysDir()),
-		DownloadFile: http.DownloadFile,
-		Local:        args.Local,
+		System:        system,
+		ConfigManager: configManager,
+		Local:         args.Local,
 	}
 
 	logger.Info("Starting build process for %s %s image", definition.Image.Platform.String(), definition.Image.ImageType)
-	if err = builder.Run(ctxCancel, definition, buildDir); err != nil {
+	if err = builder.Run(ctxCancel, definition, outDir); err != nil {
 		logger.Error("Build process failed")
 		return err
 	}
@@ -148,8 +152,8 @@ func parseImageDefinition(f vfs.FS, args *cmd.BuildFlags) (*image.Definition, er
 	}, nil
 }
 
-func createBuildDir(fs vfs.FS, rootBuildDir string) (image.BuildDir, error) {
-	buildDirName := fmt.Sprintf("build-%s", time.Now().UTC().Format("2006-01-02T15-04-05"))
-	buildDirPath := filepath.Join(rootBuildDir, buildDirName)
-	return image.BuildDir(buildDirPath), vfs.MkdirAll(fs, buildDirPath, 0700)
+func createOutputDirectory(fs vfs.FS, rootOutputDir string) (config.OutputDir, error) {
+	outputDirName := fmt.Sprintf("build-%s", time.Now().UTC().Format("2006-01-02T15-04-05"))
+	outputDirPath := filepath.Join(rootOutputDir, outputDirName)
+	return config.OutputDir(outputDirPath), vfs.MkdirAll(fs, outputDirPath, 0700)
 }
