@@ -109,7 +109,7 @@ type Nodes []Node
 
 // FindInitNode loops through the nodes and returns the first one with init field set to true, or if none found, pick a random Node.
 func FindInitNode(nodes Nodes) (*Node, error) {
-	var pick *Node = nil
+	var pick *Node
 	for _, n := range nodes {
 		if n.Init {
 			return &n, nil

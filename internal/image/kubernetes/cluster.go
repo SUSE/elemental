@@ -98,16 +98,15 @@ func NewCluster(s *sys.System, kube *Kubernetes) (*Cluster, error) {
 	agentConfig[selinuxKey] = serverConfig[selinuxKey]
 	agentConfig[cniKey] = serverConfig[cniKey]
 
-	initConfig := make(ConfigMap)
-
+	initConfig := ConfigMap{}
 	maps.Copy(initConfig, serverConfig)
-	delete(initConfig, "server")
+	delete(initConfig, serverKey)
 
 	return &Cluster{
 		InitServerConfig: initConfig,
 		ServerConfig:     serverConfig,
 		AgentConfig:      agentConfig,
-	}, nil
+	}, err
 }
 
 func ParseKubernetesConfig(s *sys.System, configFile string) (ConfigMap, error) {
