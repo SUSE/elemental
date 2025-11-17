@@ -319,9 +319,20 @@ You should see the bootloader prompting you to start `openSUSE Tumbleweed`.
         elemental3ctl version
         ```
 
-## Create an Installer ISO
+## Create an Installer Media
 
-To create a self installer ISO, you should prepare and include a specific set of configuration assets. These include:
+Elemental supports creating installation media in the form of live ISOs or RAW disk images. In both cases they are almost the same.
+The difference is the ISO installs to a target disk device and the RAW disk resets to factory from a recovery partition.
+
+Content wise both supports include the same content, the ISO image includes an EFI binaries and bootloader setup, the OS image
+(as a squashfs image) and the installation assets (configuration script and drop-in files overlayed over the OS). The RAW image
+includes the ESP partition with the EFI binaries and the bootloader setup and a recovery partition including the OS image
+(again as an squashfs image) together with the installation assets.
+
+On both supports the image boots like a live OS system based on tmpfs overlayfs. Boot relies on the `dmsquash-live` dracut module
+for live booting.
+
+To create a self installer image, you should prepare and include a specific set of configuration assets. These include:
 
 1. A configuration script
 2. Extensions to the installer media
@@ -329,7 +340,7 @@ To create a self installer ISO, you should prepare and include a specific set of
 
 ### Configure the Live Installer
 
-The ISO supports configurations through a script which will run in late initramfs in a writeable system root.
+The installer media supports configurations through a script which will run in late initramfs in a writeable system root.
 
 
 #### Example live configuration script
@@ -414,23 +425,27 @@ available and loaded at boot.
 
 3. Make sure the live configuration script links the `extensions` folder at `/run/extensions`
 
-### Build the Installer ISO
+
+### Build the Installer Image
 
 The command below creates an ISO image inside the `build` output directory.
 It will be using an `openSUSE Tumbleweed` image and will be configured to automatically self install to the target device (e.g. `dev/sda`) at boot.
 
 ```shell
-sudo elemental3ctl --debug build-iso \
+sudo elemental3ctl --debug build-installer \
+    --type iso \
     --output build \
     --os-image registry.opensuse.org/devel/unifiedcore/tumbleweed/containers/uc-base-os-kernel-default:latest \
     --overlay dir://iso-overlay \
-    --cmdline "root=live:CDLABEL=LIVE rd.live.overlay.overlayfs=1 console=ttyS0" \
+    --cmdline "console=ttyS0" \
     --config config-live.sh \
     --install-target /dev/sda \
     --install-overlay tar://overlays.tar.gz \
     --install-config config.sh \
-    --install-cmdline "root=LABEL=SYSTEM console=ttyS0"
+    --install-cmdline "console=ttyS0"
 ```
+
+In order to build a RAW disk image just use the same command as a above but switching to RAW type (`--type raw` flag).
 
 Note that:
 * The `overlays.tar.gz` tarball came from the system extension image [example configuration](#example-system-extension-image).
@@ -439,7 +454,8 @@ Note that:
 * The `iso-overlay` is the directory tree [including extensions](#include-extensions-in-the-installer-media) that will be included in the ISO filesystem of the built image.
 * The `config-live.sh` script came from the live [configuration script example](#example-live-configuration-script).
 
-### Booting a Live Installer Image
+
+### Booting an ISO Installer Image
 
 > **NOTE:** Make sure you have `qemu` installed on your system. If not, you can install it using `zypper -n install qemu-x86`.
 > If you are using a different architecture, ensure the package name and respective command below are adjusted accordingly.
@@ -461,6 +477,33 @@ Note that:
 * EFI devices are included in the command. There is a code device for the EFI firmware and a local copy of the EFI variable store to persist any new EFI entry included during the installation.
 * The `disk.img` can be an empty disk image file created with the `qemu-img create` command.
 
+
+### Booting a RAW Installer Image
+
+> **NOTE:** Make sure you have `qemu` installed on your system. If not, you can install it using `zypper -n install qemu-x86`.
+> If you are using a different architecture, ensure the package name and respective command below are adjusted accordingly.
+
+In order to test the RAW installer image with QEMU we need to dump the image to a bigger image or either expand the
+generated image.
+
+```shell
+qemu-img resize build/installer.raw 16G
+```
+
+Launch a virtual machine to boot the installer RAW:
+
+```shell
+qemu-system-x86_64 -m 8G \
+         -accel kvm \
+         -cpu host \
+         -hda build/installer.raw \
+         -drive if=pflash,format=raw,readonly,file=/usr/share/qemu/ovmf-x86_64-code.bin \
+         -drive if=pflash,format=raw,file=ovmf-x86_64-vars.bin \
+         -nographic
+```
+
+Note that:
+* EFI devices are included in the command. There is a code device for the EFI firmware and a local copy of the EFI variable store to persist any new EFI entry included during the installation.
 
 ## Upgrading the OS of a Booted Image
 
