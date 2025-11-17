@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
-	"strings"
 
 	"go.yaml.in/yaml/v3"
 
@@ -137,16 +136,25 @@ func NewMedia(ctx context.Context, s *sys.System, mType MediaType, opts ...Optio
 	return media
 }
 
+// extractISO extracts the given source path (relative to iso root) to the destination path
+func extractISO(s *sys.System, iso, srcPath, destPath string) error {
+	args := []string{
+		"-osirrox", "on:auto_chmod_on", "-overwrite", "nondir", "-indev", iso, "-extract", srcPath, destPath,
+	}
+	out, err := s.Runner().Run("xorriso", args...)
+	s.Logger().Debug("xorriso output: %s", string(out))
+	if err != nil {
+		return fmt.Errorf("failed extracting '%s' to '%s' from iso '%s': %w", srcPath, destPath, iso, err)
+	}
+	return nil
+}
+
 // loadISOInstallDesc extracts the install description file form the given ISO and parses it into a new deployment
 func loadISOInstallDesc(s *sys.System, tempDir, iso string) (*deployment.Deployment, error) {
 	installDst := filepath.Join(tempDir, installCfg)
 	installSrc := filepath.Join(installDir, installCfg)
 
-	args := []string{
-		"-osirrox", "on:auto_chmod_on", "-overwrite", "nondir", "-indev", iso, "-extract", installSrc, installDst,
-	}
-	out, err := s.Runner().Run("xorriso", args...)
-	s.Logger().Debug("xorriso output: %s", string(out))
+	err := extractISO(s, iso, installSrc, installDst)
 	if err != nil {
 		return nil, fmt.Errorf("failed extracting install description: %w", err)
 	}
@@ -211,17 +219,7 @@ func (i Media) Build(d *deployment.Deployment) (err error) {
 		return err
 	}
 
-	checksum, err := calcFileChecksum(i.s.FS(), i.outputFile)
-	if err != nil {
-		return fmt.Errorf("could not compute image checksum: %w", err)
-	}
-
-	checksumFile := fmt.Sprintf("%s.sha256", i.outputFile)
-	err = i.s.FS().WriteFile(checksumFile, fmt.Appendf(nil, "%s %s\n", checksum, filepath.Base(i.outputFile)), vfs.FilePerm)
-	if err != nil {
-		return fmt.Errorf("failed writing image checksum file %s: %w", checksumFile, err)
-	}
-	return nil
+	return i.writeChecksum()
 }
 
 // PrepareInstallerFS prepares the directory tree of the installer image, rootDir is the path
@@ -304,42 +302,41 @@ func (i *Media) Customize(d *deployment.Deployment) (err error) {
 		return fmt.Errorf("failed extracting install description from '%s': %w", i.InputFile, err)
 	}
 
-	ovDir := filepath.Join(tempDir, "overlay")
-	err = vfs.MkdirAll(i.s.FS(), ovDir, vfs.FilePerm)
-	if err != nil {
-		return fmt.Errorf("could note create working directory for installer ISO build: %w", err)
-	}
-
 	m := map[string]string{}
 
-	if d.Installer.KernelCmdline != "" {
-		grubEnvPath := filepath.Join(tempDir, "grubenv")
-		cmdline := strings.TrimSpace(fmt.Sprintf("%s %s", deployment.LiveKernelCmdline(i.Label), d.Installer.KernelCmdline))
-		err = i.writeGrubEnv(grubEnvPath, map[string]string{"cmdline": cmdline})
-		if err != nil {
-			return fmt.Errorf("error writing %s: %s", grubEnvPath, err.Error())
-		}
-
-		m[grubEnvPath] = "/boot/grubenv"
+	grubEnvPath := filepath.Join(tempDir, "grubenv")
+	err = i.recreateGrubenv(grubEnvPath, d.Installer.KernelCmdline, installDesc)
+	if err != nil {
+		return fmt.Errorf("failed rewriting grubenv file: %w", err)
 	}
+	m[grubEnvPath] = "/boot/grubenv"
 
 	if d.Installer.CfgScript != "" {
 		m[d.Installer.CfgScript] = filepath.Join("/", liveDir, cfgScript)
 	}
 
+	var ovDir string
 	if d.Installer.OverlayTree != nil {
-		unpacker, err := unpack.NewUnpacker(
-			i.s, d.Installer.OverlayTree,
-			append(i.unpackOpts, unpack.WithRsyncFlags(rsync.OverlayTreeSyncFlags()...))...,
-		)
-		if err != nil {
-			return fmt.Errorf("could not initate overlay unpacker: %w", err)
+		if d.Installer.OverlayTree.IsDir() {
+			ovDir = d.Installer.OverlayTree.URI()
+		} else {
+			ovDir = filepath.Join(tempDir, "overlay")
+			err = vfs.MkdirAll(i.s.FS(), ovDir, vfs.FilePerm)
+			if err != nil {
+				return fmt.Errorf("could note create working directory for installer ISO build: %w", err)
+			}
+			unpacker, err := unpack.NewUnpacker(
+				i.s, d.Installer.OverlayTree,
+				append(i.unpackOpts, unpack.WithRsyncFlags(rsync.OverlayTreeSyncFlags()...))...,
+			)
+			if err != nil {
+				return fmt.Errorf("could not initate overlay unpacker: %w", err)
+			}
+			_, err = unpacker.Unpack(i.ctx, ovDir, reservedPaths()...)
+			if err != nil {
+				return fmt.Errorf("overlay unpack failed: %w", err)
+			}
 		}
-		_, err = unpacker.Unpack(i.ctx, ovDir, reservedPaths()...)
-		if err != nil {
-			return fmt.Errorf("overlay unpack failed: %w", err)
-		}
-
 		m[ovDir] = "/"
 	}
 
@@ -353,10 +350,16 @@ func (i *Media) Customize(d *deployment.Deployment) (err error) {
 	if err != nil {
 		return fmt.Errorf("failed adding installation assets and configuration: %w", err)
 	}
+	m[assetsPath] = "/"
 
 	err = deployment.Merge(installDesc, d)
 	if err != nil {
 		return fmt.Errorf("failed merging deployment description: %w", err)
+	}
+
+	err = i.increaseRecoverySize(m, installDesc)
+	if err != nil {
+		return fmt.Errorf("failed computing recovery size increasal: %w", err)
 	}
 
 	err = i.writeInstallDescription(filepath.Join(assetsPath, installDir), installDesc)
@@ -364,9 +367,77 @@ func (i *Media) Customize(d *deployment.Deployment) (err error) {
 		return err
 	}
 
-	m[assetsPath] = "/"
+	switch i.mType {
+	case ISO:
+		err = i.customizeISO(i.InputFile, i.outputFile, m)
+	case Disk:
+		err = i.customizeDisk(tempDir, installDesc, m)
+	default:
+		err = fmt.Errorf("unknown media type: %w", errors.ErrUnsupported)
+	}
+	if err != nil {
+		return err
+	}
 
-	return i.mapFiles(i.InputFile, i.outputFile, m)
+	return i.writeChecksum()
+}
+
+// writeChecksum computes the checksum for the current media output file and writes
+// the checksum file to the same output file path, but with the *.sha256 suffix
+func (i Media) writeChecksum() error {
+	checksum, err := calcFileChecksum(i.s.FS(), i.outputFile)
+	if err != nil {
+		return fmt.Errorf("could not compute image checksum: %w", err)
+	}
+
+	checksumFile := fmt.Sprintf("%s.sha256", i.outputFile)
+	err = i.s.FS().WriteFile(checksumFile, fmt.Appendf(nil, "%s %s\n", checksum, filepath.Base(i.outputFile)), vfs.FilePerm)
+	if err != nil {
+		return fmt.Errorf("failed writing image checksum file %s: %w", checksumFile, err)
+	}
+	return nil
+}
+
+// recreateGrubenv creates again the grubenv file on customize process. If no new kernel command line
+// is provided it keeps whatever it was defined in the loaded Deployment.
+func (i Media) recreateGrubenv(target, kernelCmdline string, loadedDep *deployment.Deployment) error {
+	if kernelCmdline == "" {
+		kernelCmdline = loadedDep.Installer.KernelCmdline
+	}
+	switch i.mType {
+	case ISO:
+		kernelCmdline = fmt.Sprintf("%s %s", deployment.LiveKernelCmdline(i.Label), kernelCmdline)
+	case Disk:
+		kernelCmdline = fmt.Sprintf("%s %s %s", loadedDep.RecoveryKernelCmdline(), deployment.ResetMark, kernelCmdline)
+	default:
+		return fmt.Errorf("invalid media type")
+	}
+	err := i.writeGrubEnv(target, map[string]string{"cmdline": kernelCmdline})
+	if err != nil {
+		return fmt.Errorf("error writing %s: %w", target, err)
+	}
+	return nil
+}
+
+// increaseRecoverySize increases the recovery partition size based on the data included as part
+// of the customize process
+func (i Media) increaseRecoverySize(mappedFiles map[string]string, d *deployment.Deployment) error {
+	recovery := d.GetRecoveryPartition()
+	if recovery == nil {
+		if i.mType == Disk {
+			return fmt.Errorf("no recovery partition defined")
+		}
+		// A recovery partition in ISOs is not mandatory
+		return nil
+	}
+	for k := range mappedFiles {
+		size, err := vfs.DirSizeMB(i.s.FS(), k)
+		if err != nil {
+			return fmt.Errorf("failed computing size for '%s': %w", k, err)
+		}
+		recovery.Size += deployment.MiB(size)
+	}
+	return nil
 }
 
 // sanitize checks the current public attributes of the ISO object
@@ -405,7 +476,7 @@ func (i *Media) sanitize() error {
 	return nil
 }
 
-func (i Media) mapFiles(inputFile, outputFile string, fileMap map[string]string) error {
+func (i Media) customizeISO(inputFile, outputFile string, fileMap map[string]string) error {
 	args := []string{"-indev", inputFile, "-outdev", outputFile, "-boot_image", "any", "replay"}
 
 	for f, m := range fileMap {
@@ -598,6 +669,61 @@ func (i Media) writeInstallDescription(installPath string, d *deployment.Deploym
 	}
 
 	return nil
+}
+
+// customizeDisk creates an installer disk image from the prepared root
+func (i Media) customizeDisk(tempDir string, d *deployment.Deployment, mappedFiles map[string]string) error {
+	isoDir := filepath.Join(tempDir, "extracted-iso")
+	err := vfs.MkdirAll(i.s.FS(), isoDir, vfs.DirPerm)
+	if err != nil {
+		return fmt.Errorf("failed creating ESP directory: %w", err)
+	}
+
+	esp := d.GetEfiPartition()
+	recovery := d.GetRecoveryPartition()
+	if esp == nil || recovery == nil {
+		return fmt.Errorf("undefined essential recovery or esp partitions")
+	}
+
+	err = extractISO(i.s, i.InputFile, "/", isoDir)
+	if err != nil {
+		return err
+	}
+
+	sync := rsync.NewRsync(i.s, rsync.WithFlags(rsync.DefaultFlags()...))
+	for k, v := range mappedFiles {
+		target := filepath.Join(isoDir, v)
+		err = vfs.MkdirAll(i.s.FS(), filepath.Dir(target), vfs.DirPerm)
+		if err != nil {
+			return err
+		}
+		info, err := i.s.FS().Lstat(k)
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			err = sync.SyncData(k, target)
+		} else {
+			err = vfs.CopyFile(i.s.FS(), k, target)
+		}
+		if err != nil {
+			return err
+		}
+	}
+
+	parts := []repart.Partition{
+		{
+			Partition: esp,
+			CopyFiles: []string{
+				fmt.Sprintf("%s/boot:/boot", isoDir), fmt.Sprintf("%s/EFI:/EFI", isoDir),
+			},
+		}, {
+			Partition: recovery,
+			CopyFiles: []string{fmt.Sprintf("%s:/", isoDir)},
+			Excludes:  []string{filepath.Join(isoDir, "boot"), filepath.Join(isoDir, "EFI")},
+		},
+	}
+	return repart.CreateDiskImage(i.s, i.outputFile, 0, parts)
 }
 
 // buildDisk creates an installer disk image from the prepared root

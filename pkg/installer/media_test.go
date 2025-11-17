@@ -21,6 +21,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strings"
 
 	"testing"
 
@@ -41,7 +42,7 @@ func TestInstallerMediaSuite(t *testing.T) {
 	RunSpecs(t, "InstallerMedia test suite")
 }
 
-var _ = Describe("Install", Label("install"), func() {
+var _ = Describe("InstallerMedia", Label("installermedia"), func() {
 	var runner *sysmock.Runner
 	var fs vfs.FS
 	var cleanup func()
@@ -179,6 +180,13 @@ var _ = Describe("Install", Label("install"), func() {
 				Expect(err).To(Succeed())
 
 				break
+			}
+			return []byte{}, nil
+		}
+		sideEffects["grub2-editenv"] = func(args ...string) ([]byte, error) {
+			path := args[0]
+			if args[1] == "set" {
+				Expect(fs.WriteFile(path, []byte(strings.Join(args[2:], "\n")), vfs.FilePerm)).To(Succeed())
 			}
 			return []byte{}, nil
 		}
