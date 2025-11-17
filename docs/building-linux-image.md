@@ -340,7 +340,7 @@ In this example, we are going to prepare a configuration script that will set th
 * An elemental-autoinstaller service to run the installation at boot
 * A link between the extensions in the ISO filesystem and `/run/extensions` so that they are loaded at boot
 
-Create the script and make it executable:
+Create the script.
 
 ```shell
 cat <<- END > config-live.sh
@@ -388,7 +388,11 @@ EOF
 
 systemctl enable elemental-autoinstall.service
 END
+```
 
+Make the script executable:
+
+```shell
 chmod +x config-live.sh
 ```
 
@@ -424,12 +428,12 @@ sudo elemental3ctl --debug build-iso \
     --output build \
     --os-image registry.opensuse.org/devel/unifiedcore/tumbleweed/containers/uc-base-os-kernel-default:latest \
     --overlay dir://iso-overlay \
-    --cmdline "root=live:CDLABEL=LIVE rd.live.overlay.overlayfs=1 console=ttyS0" \
+    --cmdline "root=live:CDLABEL=LIVE rd.live.overlay.overlayfs=1 console=ttyS0 enforcing=0" \
     --config config-live.sh \
     --install-target /dev/sda \
     --install-overlay tar://overlays.tar.gz \
     --install-config config.sh \
-    --install-cmdline "root=LABEL=SYSTEM console=ttyS0"
+    --install-cmdline "root=LABEL=SYSTEM console=ttyS0 enforcing=0"
 ```
 
 Note that:
