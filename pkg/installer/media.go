@@ -200,7 +200,7 @@ func (i Media) Build(d *deployment.Deployment) (err error) {
 
 	switch i.mType {
 	case ISO:
-		cmdline := i.kernelCmdline(d)
+		cmdline := fmt.Sprintf("%s %s", deployment.LiveKernelCmdline(i.Label), d.Installer.KernelCmdline)
 		err = i.buildISO(tempDir, liveRoot, osRoot, cmdline)
 	case Disk:
 		err = i.buildDisk(tempDir, liveRoot, osRoot, d)
@@ -483,19 +483,6 @@ func (i Media) prepareEFI(isoDir, efiDir string) error {
 	return r.SyncData(filepath.Join(isoDir, "EFI"), filepath.Join(efiDir, "EFI"))
 }
 
-// kernelCmdline returns the kernel command line including the label for disk or iso
-// and any additional custom kernel parameter
-func (i Media) kernelCmdline(d *deployment.Deployment) string {
-	label := i.Label
-	rec := d.GetRecoveryPartition()
-	if i.mType == Disk && rec != nil {
-		label = rec.Label
-	}
-	return strings.TrimSpace(
-		fmt.Sprintf("%s %s", deployment.LiveKernelCmdline(label), d.Installer.KernelCmdline),
-	)
-}
-
 // addInstallationAssets adds to the ISO directory three the configuration and files required for
 // the installation from the current media
 func (i Media) addInstallationAssets(root string, d *deployment.Deployment) error {
@@ -627,8 +614,9 @@ func (i Media) buildDisk(tempDir, liveRoot, osRoot string, d *deployment.Deploym
 		return fmt.Errorf("undefined essential recovery or esp partitions")
 	}
 
-	cmdline := fmt.Sprintf("%s %s", d.RecoveryKernelCmdline(), d.Installer.KernelCmdline)
-	err = i.bl.Install(osRoot, espDir, esp.Label, bootloader.RecoveryBootID, cmdline, "")
+	// include the reset flag so it can be detected at boot this is an installer image
+	cmdline := fmt.Sprintf("%s %s %s", d.RecoveryKernelCmdline(), deployment.ResetMark, d.Installer.KernelCmdline)
+	err = i.bl.InstallLive(osRoot, espDir, cmdline)
 	if err != nil {
 		return fmt.Errorf("failed installing the bootloader for a installer raw image: %w", err)
 	}

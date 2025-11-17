@@ -242,4 +242,29 @@ var _ = Describe("BlockDevice", Label("lsblk"), func() {
 			Expect(err).To(MatchError(ContainSubstring("lsblk call failed")))
 		})
 	})
+	Describe("GetByMountPoint", func() {
+		BeforeEach(func() {
+			json = fmt.Sprintf(fullLsblkTmpl, partsPortionLslbkOut, "")
+		})
+		It("finds a partition by its mountpoint", func() {
+			parts, err := b.GetAllPartitions()
+			Expect(err).NotTo(HaveOccurred())
+			part := parts.GetByMountPoint("/etc")
+			Expect(part).NotTo(BeNil())
+			Expect(part.Label).To(Equal("STATE"))
+			part = parts.GetByMountPoint("/nonexisting")
+			Expect(part).To(BeNil())
+		})
+	})
+	Describe("GetPartitionByMountPoint", func() {
+		BeforeEach(func() {
+			json = fmt.Sprintf(fullLsblkTmpl, partsPortionLslbkOut, "")
+		})
+		It("finds a partition by its mountpoint", func() {
+			part, err := block.GetPartitionByMountPoint(s, b, "/boot", 1)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(part).NotTo(BeNil())
+			Expect(part.Label).To(Equal("EFI"))
+		})
+	})
 })

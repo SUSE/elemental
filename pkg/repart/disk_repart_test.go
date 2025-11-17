@@ -43,6 +43,15 @@ const systemdRepartJson = `[
 	{"uuid" : "ddb334a8-48a2-c4de-ddb3-849eb2443e92", "partno" : 1}
 ]`
 
+const sectorSizeJson = `{
+   "blockdevices": [
+      {
+         "name": "device",
+         "phy-sec": 512
+      }
+   ]
+}`
+
 var _ = Describe("Systemd-repart tests", Label("systemd-repart"), func() {
 	var runner *sysmock.Runner
 	var fs vfs.FS
@@ -66,8 +75,13 @@ var _ = Describe("Systemd-repart tests", Label("systemd-repart"), func() {
 			if cmd == "systemd-repart" {
 				return []byte(systemdRepartJson), runner.ReturnError
 			}
+			if cmd == "lsblk" {
+				return []byte(sectorSizeJson), runner.ReturnError
+			}
 			return []byte{}, runner.ReturnError
 		}
+		Expect(vfs.MkdirAll(fs, "/dev", vfs.DirPerm)).To(Succeed())
+		Expect(fs.WriteFile("/dev/device", []byte{}, vfs.FilePerm)).To(Succeed())
 	})
 
 	AfterEach(func() {
@@ -155,6 +169,58 @@ var _ = Describe("Systemd-repart tests", Label("systemd-repart"), func() {
 			"systemd-repart", "--json=pretty", "--definitions=/tmp/elemental-repart.d",
 			"--dry-run=no", "--empty=create", "--size=auto", "/temp/dir/image.raw",
 		}}))
+	})
+
+	It("reparts a disk with force flag and feeds partition UUIDs", func() {
+		d := deployment.DefaultDeployment()
+		Expect(len(d.Disks)).To(Equal(1))
+		Expect(len(d.Disks[0].Partitions)).To(Equal(2))
+		d.Disks[0].Device = "/dev/device"
+		Expect(repart.PartitionAndFormatDevice(s, d.Disks[0])).To(Succeed())
+		Expect(d.Disks[0].Partitions[0].UUID).To(Equal("c60d1845-7b04-4fc4-8639-8c49eb7277d5"))
+		Expect(d.Disks[0].Partitions[1].UUID).To(Equal("ddb334a8-48a2-c4de-ddb3-849eb2443e92"))
+		Expect(runner.MatchMilestones([][]string{{
+			"systemd-repart", "--json=pretty", "--definitions=/tmp/elemental-repart.d",
+			"--dry-run=no", "--empty=force", "--sector-size=512", "/dev/device",
+		}}))
+	})
+
+	It("fails if systemd-repart does not report all defined partitions", func() {
+		d := deployment.DefaultDeployment()
+		deployment.WithConfigPartition(0)(d)
+		Expect(len(d.Disks)).To(Equal(1))
+		d.Disks[0].Device = "/dev/device"
+		Expect(repart.PartitionAndFormatDevice(s, d.Disks[0])).To(
+			MatchError(ContainSubstring("partitions mismatch")),
+		)
+	})
+
+	It("reparts a disk with allow flag", func() {
+		d := deployment.DefaultDeployment()
+		Expect(len(d.Disks)).To(Equal(1))
+		Expect(len(d.Disks[0].Partitions)).To(Equal(2))
+		d.Disks[0].Device = "/dev/device"
+		Expect(repart.ReconcileDevicePartitions(s, d.Disks[0])).To(Succeed())
+		Expect(runner.MatchMilestones([][]string{{
+			"systemd-repart", "--json=pretty", "--definitions=/tmp/elemental-repart.d",
+			"--dry-run=no", "--empty=allow", "--sector-size=512", "/dev/device",
+		}}))
+	})
+
+	It("fails if systemd-repart does not return a valid json", func() {
+		runner.SideEffect = func(cmd string, args ...string) ([]byte, error) {
+			if cmd == "lsblk" {
+				return []byte(sectorSizeJson), runner.ReturnError
+			}
+			return []byte{}, runner.ReturnError
+		}
+		d := deployment.DefaultDeployment()
+		Expect(len(d.Disks)).To(Equal(1))
+		Expect(len(d.Disks[0].Partitions)).To(Equal(2))
+		d.Disks[0].Device = "/dev/device"
+		Expect(repart.ReconcileDevicePartitions(s, d.Disks[0])).To(
+			MatchError(ContainSubstring("failed parsing systemd-repart JSON")),
+		)
 	})
 
 	It("fails to create partition configuration with invalid data", func() {

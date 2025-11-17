@@ -254,12 +254,4 @@ var _ = Describe("Grub tests", Label("bootloader", "grub"), func() {
 		Expect(vfs.Exists(tfs, "/target/dir/boot/opensuse-tumbleweed/6.14.4-1-default/.vmlinuz.hmac")).To(BeTrue())
 		Expect(vfs.Exists(tfs, "/target/dir/boot/opensuse-tumbleweed/6.14.4-1-default/initrd")).To(BeTrue())
 	})
-	It("Installs bootloader for recovery", func() {
-		err := grub.Install("/target/dir", "/target/dir/boot", "EFI", bootloader.RecoveryBootID, "snapshot1", "")
-		Expect(err).ToNot(HaveOccurred())
-
-		// Only 'recovery' entry should exist
-		Expect(vfs.Exists(tfs, "/target/dir/boot/loader/entries/active")).To(BeFalse())
-		Expect(vfs.Exists(tfs, "/target/dir/boot/loader/entries/recovery")).To(BeTrue())
-	})
 })

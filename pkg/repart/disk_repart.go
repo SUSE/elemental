@@ -55,29 +55,26 @@ type Partition struct {
 // PartitionAndFormatDevice creates a new empty partition table on target disk
 // and applies the configured disk layout by creating and formatting all
 // required partitions.
-func PartitionAndFormatDevice(s *sys.System, d *deployment.Disk) (err error) {
-	lsblkWrapper := lsblk.NewLsDevice(s)
-	sSize, err := lsblkWrapper.GetDeviceSectorSize(d.Device)
-	if err != nil {
-		return err
-	}
-
-	parts := make([]Partition, len(d.Partitions))
-	for i, part := range d.Partitions {
-		parts[i] = Partition{Partition: part}
-	}
-
-	flags := []string{
-		"--empty=force", fmt.Sprintf("--sector-size=%d", sSize),
-	}
-	err = runSystemdRepart(s, d.Device, parts, flags...)
+func PartitionAndFormatDevice(s *sys.System, d *deployment.Disk) error {
+	err := repartDisk(s, d, "force")
 	if err != nil {
 		return fmt.Errorf("failed creating the new partition table: %w", err)
 	}
 
-	// Notify kernel of partition table changes, swallows errors, just a best effort call
-	_, _ = s.Runner().Run("partx", "-u", d.Device)
-	_, _ = s.Runner().Run("udevadm", "settle")
+	notifyKernel(s, d.Device)
+	return nil
+}
+
+// ReconcileDevicePartitions attempts to match the given disk layout with the current device.
+// It attemps to extend an existing partition table or create a new one if none exists. It does not
+// remove any pre-existing partition.
+func ReconcileDevicePartitions(s *sys.System, d *deployment.Disk) error {
+	err := repartDisk(s, d, "allow")
+	if err != nil {
+		return fmt.Errorf("failed updating the current partition table: %w", err)
+	}
+
+	notifyKernel(s, d.Device)
 	return nil
 }
 
@@ -155,6 +152,34 @@ func CreatePartitionConf(wr io.Writer, p Partition) error {
 	return nil
 }
 
+// notifyKernel asks the kernel to reread the partition table. It is just a best effort call, does not return error.
+// In recent versions of systemd-repart this step is already performed by the tool, however, as of today this is required
+// for GH public runners (November 2025)
+func notifyKernel(s *sys.System, device string) {
+	_, _ = s.Runner().Run("partx", "-u", device)
+	_, _ = s.Runner().Run("udevadm", "settle")
+}
+
+// repartDisk generates the systemd-repart configuration according to the given disk and runs systemd-repart with the given
+// empty flag.
+func repartDisk(s *sys.System, d *deployment.Disk, empty string) (err error) {
+	lsblkWrapper := lsblk.NewLsDevice(s)
+	sSize, err := lsblkWrapper.GetDeviceSectorSize(d.Device)
+	if err != nil {
+		return err
+	}
+
+	parts := make([]Partition, len(d.Partitions))
+	for i, part := range d.Partitions {
+		parts[i] = Partition{Partition: part}
+	}
+
+	flags := []string{
+		fmt.Sprintf("--empty=%s", empty), fmt.Sprintf("--sector-size=%d", sSize),
+	}
+	return runSystemdRepart(s, d.Device, parts, flags...)
+}
+
 // runSystemdRepart runs systemd-repart for the given partitions and target device. It appends to the generated command the
 // the optional given flags. On success it parses systemd-repart output to get the generated partition UUIDs and update the
 // given partitions list with them.
@@ -202,8 +227,11 @@ func runSystemdRepart(s *sys.System, target string, parts []Partition, flags ...
 	}{}
 
 	err = json.Unmarshal(out, &uuids)
-	if err != nil || len(uuids) != len(parts) {
+	if err != nil {
 		return fmt.Errorf("failed parsing systemd-repart JSON output: %w", err)
+	}
+	if len(uuids) != len(parts) {
+		return fmt.Errorf("partitions mismatch between Deployment and systemd-repart JSON output: %s", string(out))
 	}
 
 	for _, uuid := range uuids {

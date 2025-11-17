@@ -21,6 +21,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	"github.com/suse/elemental/v3/pkg/block"
 	"github.com/suse/elemental/v3/pkg/block/lsblk"
@@ -81,7 +82,7 @@ func New(ctx context.Context, s *sys.System, opts ...Option) *Installer {
 	return installer
 }
 
-// IsLiveMedia returns true if the current host is a live media, for instance an ISO
+// IsLiveMedia returns true if the current host is a live media
 func IsLiveMedia(s *sys.System) bool {
 	mnt, err := s.Mounter().IsMountPoint(installer.LiveMountPoint)
 	if !mnt || err != nil {
@@ -89,6 +90,20 @@ func IsLiveMedia(s *sys.System) bool {
 	}
 	exists, _ := vfs.Exists(s.FS(), installer.SquashfsPath)
 	return exists
+}
+
+// IsRecovery returns true if the current host is booted from an elemental recovery system
+func IsRecovery(s *sys.System) bool {
+	if IsLiveMedia(s) {
+		cmdline, err := s.FS().ReadFile("/proc/cmdline")
+		if err != nil {
+			return false
+		}
+		if strings.Contains(string(cmdline), deployment.RecoveryMark) {
+			return true
+		}
+	}
+	return false
 }
 
 func (i Installer) Install(d *deployment.Deployment) (err error) {
@@ -117,6 +132,32 @@ func (i Installer) Install(d *deployment.Deployment) (err error) {
 	err = i.installRecoveryPartition(cleanup, d)
 	if err != nil {
 		return fmt.Errorf("installing recovery system: %w", err)
+	}
+
+	err = i.u.Upgrade(d)
+	if err != nil {
+		return fmt.Errorf("executing transaction: %w", err)
+	}
+
+	return nil
+}
+
+func (i Installer) Reset(d *deployment.Deployment) (err error) {
+	cleanup := cleanstack.NewCleanStack()
+	defer func() { err = cleanup.Cleanup(err) }()
+
+	for _, disk := range d.Disks {
+		err = repart.ReconcileDevicePartitions(i.s, disk)
+		if err != nil {
+			return fmt.Errorf("partitioning disk '%s': %w", disk.Device, err)
+		}
+		for _, part := range disk.Partitions {
+			i.s.Logger().Debug("creating partition volumes: %+v", part.RWVolumes)
+			err = createPartitionVolumes(i.s, cleanup, part)
+			if err != nil {
+				return fmt.Errorf("creating partition volumes: %w", err)
+			}
+		}
 	}
 
 	err = i.u.Upgrade(d)

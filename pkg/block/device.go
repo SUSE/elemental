@@ -19,6 +19,7 @@ package block
 
 import (
 	"errors"
+	"slices"
 	"time"
 
 	"github.com/suse/elemental/v3/pkg/sys"
@@ -60,6 +61,16 @@ func (pl PartitionList) GetByName(name string) *Partition {
 		}
 	}
 	return part
+}
+
+// GetByMountPoint gets a partition by its mountpoint from the PartitionList.
+func (pl PartitionList) GetByMountPoint(mountpoint string) *Partition {
+	for _, p := range pl {
+		if slices.Contains(p.MountPoints, mountpoint) {
+			return p
+		}
+	}
+	return nil
 }
 
 // GetByLabel gets a partition by its label from the PartitionList
@@ -132,6 +143,24 @@ func GetPartitionByUUID(s *sys.System, b Device, uuid string, attempts int) (*Pa
 			return nil, err
 		}
 		part := parts.GetByUUID(uuid)
+		if part != nil {
+			return part, nil
+		}
+		time.Sleep(1 * time.Second)
+	}
+	return nil, errors.New("no device found")
+}
+
+// GetPartitionByMountPoint tries to return the partition that is mounted in the given mount point.
+// attempts value sets the number of attempts to find the device, it waits a second between attempts.
+func GetPartitionByMountPoint(s *sys.System, b Device, mountpoint string, attempts int) (*Partition, error) {
+	for range attempts {
+		_, _ = s.Runner().Run("udevadm", "settle")
+		parts, err := b.GetAllPartitions()
+		if err != nil {
+			return nil, err
+		}
+		part := parts.GetByMountPoint(mountpoint)
 		if part != nil {
 			return part, nil
 		}
