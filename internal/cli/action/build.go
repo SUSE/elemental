@@ -76,6 +76,14 @@ func Build(ctx *cli.Context) error {
 		return err
 	}
 
+	defer func() {
+		logger.Debug("Cleaning up build-dir %s", buildDir)
+		err = system.FS().RemoveAll(string(buildDir))
+		if err != nil {
+			logger.Error("Cleaning up build-dir %s", buildDir)
+		}
+	}()
+
 	configDir := image.ConfigDir(args.ConfigDir)
 
 	valuesResolver := &helm.ValuesResolver{
