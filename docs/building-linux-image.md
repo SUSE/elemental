@@ -428,7 +428,7 @@ sudo elemental3ctl --debug build-iso \
     --output build \
     --os-image registry.opensuse.org/devel/unifiedcore/tumbleweed/containers/uc-base-os-kernel-default:latest \
     --overlay dir://iso-overlay \
-    --cmdline "root=live:CDLABEL=LIVE rd.live.overlay.overlayfs=1 console=ttyS0 enforcing=0" \
+    --cmdline "console=ttyS0 enforcing=0" \
     --config config-live.sh \
     --install-target /dev/sda \
     --install-overlay tar://overlays.tar.gz \
