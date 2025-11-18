@@ -433,7 +433,7 @@ sudo elemental3ctl --debug build-iso \
     --install-target /dev/sda \
     --install-overlay tar://overlays.tar.gz \
     --install-config config.sh \
-    --install-cmdline "root=LABEL=SYSTEM console=ttyS0 enforcing=0"
+    --install-cmdline "console=ttyS0 enforcing=0"
 ```
 
 Note that:
