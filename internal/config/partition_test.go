@@ -15,7 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package build
+package config
 
 import (
 	. "github.com/onsi/ginkgo/v2"
@@ -27,14 +27,12 @@ import (
 
 var _ = Describe("Partition", func() {
 	Describe("Prepare partition", func() {
-		var b *Builder
+		var m *Manager
 		BeforeEach(func() {
 			system, err := sys.NewSystem()
 			Expect(err).ToNot(HaveOccurred())
 
-			b = &Builder{
-				System: system,
-			}
+			m = NewManager(system, nil)
 		})
 		It("is generated when dependency configurations are defined", func() {
 			label := "ELEMENTAL-PREPARE"
@@ -42,14 +40,14 @@ var _ = Describe("Partition", func() {
 			size := deployment.MiB(128)
 			role := deployment.Data
 			fs := deployment.Btrfs
-			def := &image.Definition{
+			conf := &image.Configuration{
 				Network: image.Network{
 					CustomScript: "/foo/configure-network.sh",
 					ConfigDir:    "/foo",
 				},
 			}
 
-			partition := b.generatePreparePartition(def)
+			partition := m.generatePreparePartition(conf)
 			Expect(partition).ToNot(BeNil())
 			Expect(partition.Label).To(Equal(label))
 			Expect(partition.MountPoint).To(Equal(mountPoint))
@@ -58,7 +56,7 @@ var _ = Describe("Partition", func() {
 			Expect(partition.FileSystem).To(Equal(fs))
 		})
 		It("skips generation when dependency configurations are missing", func() {
-			Expect(b.generatePreparePartition(&image.Definition{})).To(BeNil())
+			Expect(m.generatePreparePartition(&image.Configuration{})).To(BeNil())
 		})
 	})
 })

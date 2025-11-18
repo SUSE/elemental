@@ -30,7 +30,11 @@ const (
 )
 
 type Definition struct {
-	Image        Image
+	Image         Image
+	Configuration *Configuration
+}
+
+type Configuration struct {
 	Installation install.Installation
 	Release      release.Release
 	Kubernetes   kubernetes.Kubernetes
