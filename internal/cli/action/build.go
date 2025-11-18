@@ -43,6 +43,11 @@ import (
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
 
+const (
+	MetalLB                = "metallb"
+	EndpointCopierOperator = "endpoint-copier-operator"
+)
+
 func Build(ctx *cli.Context) error {
 	args := &cmd.BuildArgs
 
@@ -186,6 +191,22 @@ func parseImageDefinition(f vfs.FS, args *cmd.BuildFlags) (*image.Definition, er
 
 	if err = parseNetworkDir(configDir, &definition.Network); err != nil {
 		return nil, fmt.Errorf("parsing network directory: %w", err)
+	}
+
+	if definition.Kubernetes.Network.APIVIP4 != "" || definition.Kubernetes.Network.APIVIP6 != "" {
+		containsChart := func(name string) bool {
+			return slices.ContainsFunc(definition.Release.Components.HelmCharts, func(c release.HelmChart) bool {
+				return c.Name == name
+			})
+		}
+
+		if !containsChart(MetalLB) {
+			definition.Release.Components.HelmCharts = append(definition.Release.Components.HelmCharts, release.HelmChart{Name: MetalLB})
+		}
+
+		if !containsChart(EndpointCopierOperator) {
+			definition.Release.Components.HelmCharts = append(definition.Release.Components.HelmCharts, release.HelmChart{Name: EndpointCopierOperator})
+		}
 	}
 
 	data, err = f.ReadFile(configDir.ButaneFilepath())

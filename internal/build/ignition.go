@@ -42,17 +42,22 @@ const (
 	k8sConfigUnitName           = "k8s-config-installer.service"
 )
 
-//go:embed templates/ensure-sysext.service
-var ensureSysextUnit string
+var (
+	//go:embed templates/ensure-sysext.service
+	ensureSysextUnit string
 
-//go:embed templates/reload-kernel-modules.service
-var reloadKernelModulesUnit string
+	//go:embed templates/reload-kernel-modules.service
+	reloadKernelModulesUnit string
 
-//go:embed templates/k8s-resource-installer.service.tpl
-var k8sResourceUnitTpl string
+	//go:embed templates/k8s-resource-installer.service.tpl
+	k8sResourceUnitTpl string
 
-//go:embed templates/k8s-config-installer.service.tpl
-var k8sConfigUnitTpl string
+	//go:embed templates/k8s-config-installer.service.tpl
+	k8sConfigUnitTpl string
+
+	//go:embed templates/k8s-vip.yaml.tpl
+	k8sVIPManifestTpl string
+)
 
 // configureIgnition writes the Ignition configuration file including:
 // * Predefined Butane configuration
@@ -153,6 +158,18 @@ func generateK8sConfigUnit(deployScript string) (string, error) {
 	return data, nil
 }
 
+func kubernetesVIPManifest(k *kubernetes.Kubernetes) (string, error) {
+	vars := struct {
+		APIAddress4 string
+		APIAddress6 string
+	}{
+		APIAddress4: k.Network.APIVIP4,
+		APIAddress6: k.Network.APIVIP6,
+	}
+
+	return template.Parse("k8s-vip", k8sVIPManifestTpl, &vars)
+}
+
 func appendRke2Configuration(s *sys.System, config *butane.Config, k *kubernetes.Kubernetes, configScript string) error {
 	c, err := kubernetes.NewCluster(s, k)
 	if err != nil {
@@ -199,6 +216,20 @@ func appendRke2Configuration(s *sys.System, config *butane.Config, k *kubernetes
 		config.Storage.Files = append(config.Storage.Files, v0_6.File{
 			Path:     filepath.Join(k8sPath, "agent.yaml"),
 			Contents: v0_6.Resource{Inline: util.StrToPtr(string(agentBytes))},
+		})
+	}
+
+	if k.Network.APIVIP4 != "" || k.Network.APIVIP6 != "" {
+		manifestsPath := filepath.Join("/", image.KubernetesManifestsPath())
+
+		vip, err := kubernetesVIPManifest(k)
+		if err != nil {
+			return fmt.Errorf("failed marshaling agent config: %w", err)
+		}
+
+		config.Storage.Files = append(config.Storage.Files, v0_6.File{
+			Path:     filepath.Join(manifestsPath, "k8s-vip.yaml"),
+			Contents: v0_6.Resource{Inline: util.StrToPtr(string(vip))},
 		})
 	}
 
