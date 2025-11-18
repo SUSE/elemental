@@ -239,6 +239,28 @@ var _ = Describe("Deployment", Label("deployment"), func() {
 			Expect(d.BootConfig.KernelCmdline).To(Equal("new cmdline"))
 			Expect(d.BootConfig.Bootloader).To(Equal(bootloader.BootNone))
 		})
+		It("deep copies the current deployment", func() {
+			d := deployment.DefaultDeployment()
+			d.SourceOS = deployment.NewDirSrc("/some/path")
+			disk := d.GetSystemDisk()
+			disk.Device = "/some/device"
+
+			cpy, err := d.DeepCopy()
+			Expect(err).ToNot(HaveOccurred())
+
+			// Changing contents of internal pointers in any of the two
+			// Deployment objects does not impact on the other one
+			cpyDisk := cpy.GetSystemDisk()
+			Expect(cpyDisk).NotTo(BeNil())
+			Expect(cpyDisk.Device).To(Equal("/some/device"))
+			Expect(cpy.SourceOS.URI()).To(Equal("/some/path"))
+			cpy.SourceOS = deployment.NewEmptySrc()
+
+			cpyDisk.Device = "/some/other/device"
+			Expect(d.SourceOS.URI()).To(Equal("/some/path"))
+			Expect(d.Disks[0].Device).To(Equal("/some/device"))
+			Expect(cpy.Disks[0].Device).To(Equal("/some/other/device"))
+		})
 	})
 
 	Describe("Deployment utilities", Label("yaml"), func() {

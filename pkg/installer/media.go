@@ -344,7 +344,6 @@ func (i *Media) Customize(d *deployment.Deployment) (err error) {
 	}
 
 	assetsPath := filepath.Join(tempDir, "assets")
-
 	err = vfs.MkdirAll(i.s.FS(), assetsPath, vfs.DirPerm)
 	if err != nil {
 		return fmt.Errorf("failed creating assets dir '%s': %w", assetsPath, err)
@@ -562,19 +561,18 @@ func (i Media) addInstallationAssets(root string, d *deployment.Deployment) erro
 // writeInstallDescription writes the installation yaml file embedded in installer media
 // with the installer assets related to the live system mount point.
 func (i Media) writeInstallDescription(installPath string, d *deployment.Deployment) error {
-	// Keep original data as the deployment could still be used later stages
+	// Do not modify original data as the deployment could still be used later stages
 	// here we want to store it from live installer PoV
-	source := d.SourceOS
-	script := d.CfgScript
-	overlay := d.OverlayTree
-	installerScript := d.Installer.CfgScript
-	installerOverlay := d.Installer.OverlayTree
+	d, err := d.DeepCopy()
+	if err != nil {
+		return fmt.Errorf("failed creating a deep copy a deployment: %w", err)
+	}
 
-	if overlay != nil && !overlay.IsEmpty() {
+	if d.OverlayTree != nil && !d.OverlayTree.IsEmpty() {
 		switch {
-		case overlay.IsDir():
+		case d.OverlayTree.IsDir():
 			d.OverlayTree = deployment.NewDirSrc(filepath.Join(LiveMountPoint, installDir, overlayDir))
-		case overlay.IsRaw() || overlay.IsTar():
+		case d.OverlayTree.IsRaw() || d.OverlayTree.IsTar():
 			path := filepath.Join(LiveMountPoint, installDir, overlayDir, filepath.Base(d.OverlayTree.URI()))
 			if d.OverlayTree.IsTar() {
 				d.OverlayTree = deployment.NewTarSrc(path)
@@ -595,6 +593,12 @@ func (i Media) writeInstallDescription(installPath string, d *deployment.Deploym
 	d.SourceOS = deployment.NewRawSrc(SquashfsPath)
 	d.Installer.OverlayTree = deployment.NewDirSrc(LiveMountPoint)
 
+	if i.mType == Disk {
+		for _, disk := range d.Disks {
+			disk.Device = ""
+		}
+	}
+
 	installFile := filepath.Join(installPath, installCfg)
 	dBytes, err := yaml.Marshal(d)
 	if err != nil {
@@ -605,13 +609,6 @@ func (i Media) writeInstallDescription(installPath string, d *deployment.Deploym
 	if err != nil {
 		return fmt.Errorf("writing deployment file '%s': %w", installFile, err)
 	}
-
-	// Restore originial values
-	d.SourceOS = source
-	d.OverlayTree = overlay
-	d.CfgScript = script
-	d.Installer.CfgScript = installerScript
-	d.Installer.OverlayTree = installerOverlay
 
 	return nil
 }

@@ -408,10 +408,28 @@ func (d *Deployment) IsFipsEnabled() bool {
 	return d.Fips != nil && d.Fips.Enabled
 }
 
+// DeepCopy returns deep copy of the current Deployment object. Note the deep copy
+// is based on yaml.Marshal and yaml.Unmarshal, hence it is subject to the defined
+// marshalling behavior with custom marshallers and type decorators.
+func (d Deployment) DeepCopy() (*Deployment, error) {
+	data, err := yaml.Marshal(d)
+	if err != nil {
+		return nil, err
+	}
+
+	// Unmarshal it back for a deep copy
+	dep := &Deployment{}
+	err = yaml.Unmarshal(data, dep)
+	if err != nil {
+		return nil, err
+	}
+	return dep, nil
+}
+
 // WriteDeploymentFile serialized the Deployment variable into a file. As part of the
 // serialization it omits runtime information such as device paths, overlay and config
 // script paths.
-func (d Deployment) WriteDeploymentFile(s *sys.System, root string) error {
+func (d *Deployment) WriteDeploymentFile(s *sys.System, root string) error {
 	path := filepath.Join(root, deploymentFile)
 	if ok, _ := vfs.Exists(s.FS(), path); !ok {
 		err := vfs.MkdirAll(s.FS(), filepath.Dir(path), vfs.DirPerm)
@@ -425,14 +443,10 @@ func (d Deployment) WriteDeploymentFile(s *sys.System, root string) error {
 		}
 	}
 
-	data, err := yaml.Marshal(d)
+	dep, err := d.DeepCopy()
 	if err != nil {
-		return fmt.Errorf("marshalling deployment: %w", err)
+		return fmt.Errorf("failed creating a deployment deep copy: %w", err)
 	}
-
-	// Unmarshal it back for a deep copy
-	dep := &Deployment{}
-	_ = yaml.Unmarshal(data, dep)
 
 	// omit the device name as this is a runtime information which might
 	// not be consistent across reboots, there is no need to store it.
@@ -445,7 +459,7 @@ func (d Deployment) WriteDeploymentFile(s *sys.System, root string) error {
 	dep.CfgScript = ""
 	dep.Installer = LiveInstaller{}
 
-	data, err = yaml.Marshal(dep)
+	data, err := yaml.Marshal(dep)
 	if err != nil {
 		return fmt.Errorf("could not re-marshal deployment: %w", err)
 	}
