@@ -324,7 +324,7 @@ You should see the bootloader prompting you to start `openSUSE Tumbleweed`.
 Elemental supports creating installation media in the form of live ISOs or RAW disk images. In both cases they are almost the same.
 The difference is the ISO installs to a target disk device and the RAW disk resets to factory from a recovery partition.
 
-Content wise both supports include the same content, the ISO image includes an EFI binaries and bootloader setup, the OS image
+Content wise both supports include the same content, the ISO image includes EFI binaries and bootloader setup, the OS image
 (as a squashfs image) and the installation assets (configuration script and drop-in files overlayed over the OS). The RAW image
 includes the ESP partition with the EFI binaries and the bootloader setup and a recovery partition including the OS image
 (again as an squashfs image) together with the installation assets.
