@@ -102,6 +102,16 @@ func mergePtrSlice[T ~[]*E, E any](t *transformer) func(dest, src reflect.Value)
 				finalSlice = append(finalSlice, item)
 			}
 		}
+
+		// keep unmerged already existing items
+		if len(srcSlice) < len(destSlice) {
+			for _, item := range destSlice[loop:] {
+				if item == nil {
+					continue
+				}
+				finalSlice = append(finalSlice, item)
+			}
+		}
 		dest.Set(reflect.ValueOf(slices.Clip(finalSlice)))
 		return nil
 	}
