@@ -43,7 +43,11 @@ func Customize(ctx *cli.Context) error {
 
 	logger.Info("Customizing image")
 
-	media := installer.NewMedia(ctxCancel, s, installer.ISO)
+	mType, err := installer.StringToMediaType(args.Type)
+	if err != nil {
+		return fmt.Errorf("invalid media type for customize: %w", err)
+	}
+	media := installer.NewMedia(ctxCancel, s, mType)
 
 	digestCustomizeSetup(args, media)
 

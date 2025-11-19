@@ -32,6 +32,7 @@ type CustomizeFlags struct {
 	Overlay       string
 	Label         string
 	KernelCmdline string
+	Type          string
 }
 
 var CustomizeArgs CustomizeFlags
@@ -71,8 +72,9 @@ func NewCustomizeCommand(appName string, action func(*cli.Context) error) *cli.C
 			},
 			&cli.StringFlag{
 				Name:        "input",
-				Usage:       "Path to local image to customize",
+				Usage:       "Path to local ISO image to customize",
 				Destination: &CustomizeArgs.InputFile,
+				Required:    true,
 			},
 			&cli.StringFlag{
 				Name:        "config",
@@ -99,6 +101,12 @@ func NewCustomizeCommand(appName string, action func(*cli.Context) error) *cli.C
 				Name:        "cmdline",
 				Usage:       "Kernel command line to boot the installer media",
 				Destination: &CustomizeArgs.KernelCmdline,
+			},
+			&cli.StringFlag{
+				Name:        "type",
+				Usage:       "Type of the installer media, 'iso' or 'raw' (default: iso)",
+				Destination: &CustomizeArgs.Type,
+				Value:       "iso",
 			},
 		},
 	}

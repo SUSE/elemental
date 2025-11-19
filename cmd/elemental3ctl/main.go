@@ -37,6 +37,7 @@ func main() {
 		cmd.NewKernelModulesCommand(appName, action.ManageKernelModules),
 		cmd.NewUnpackImageCommand(appName, action.Unpack),
 		cmd.NewBuildInstallerCommand(appName, action.BuildInstaller),
+		cmd.NewResetCommand(appName, action.Reset),
 		cmd.NewVersionCommand(appName))
 
 	if err := application.Run(os.Args); err != nil {

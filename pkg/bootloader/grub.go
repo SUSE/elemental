@@ -143,29 +143,26 @@ func (g *Grub) Install(rootPath, espDir, espLabel, entryID, kernelCmdline, recKe
 	entry.CmdLine = kernelCmdline
 	entries := []*grubBootEntry{&entry}
 
-	if entryID != RecoveryBootID {
-		// append default entry
-		entry.DisplayName = fmt.Sprintf("%s (%s)", displayName, entryID)
-		defaultEntry := grubBootEntry{
+	// append default entry
+	entry.DisplayName = fmt.Sprintf("%s (%s)", displayName, entryID)
+	defaultEntry := grubBootEntry{
+		Linux:       entry.Linux,
+		Initrd:      entry.Initrd,
+		DisplayName: displayName,
+		CmdLine:     entry.CmdLine,
+		ID:          DefaultBootID,
+	}
+	entries = append(entries, &defaultEntry)
+
+	if recKernelCmdline != "" {
+		recoveryEntry := grubBootEntry{
 			Linux:       entry.Linux,
 			Initrd:      entry.Initrd,
-			DisplayName: displayName,
-			CmdLine:     entry.CmdLine,
-			ID:          DefaultBootID,
+			DisplayName: fmt.Sprintf("%s (%s)", displayName, RecoveryBootID),
+			CmdLine:     recKernelCmdline,
+			ID:          RecoveryBootID,
 		}
-		entries = append(entries, &defaultEntry)
-		if recKernelCmdline != "" {
-			recoveryEntry := grubBootEntry{
-				Linux:       entry.Linux,
-				Initrd:      entry.Initrd,
-				DisplayName: fmt.Sprintf("%s (%s)", displayName, RecoveryBootID),
-				CmdLine:     recKernelCmdline,
-				ID:          RecoveryBootID,
-			}
-			entries = append(entries, &recoveryEntry)
-		}
-	} else {
-		entry.DisplayName = fmt.Sprintf("%s (%s)", displayName, RecoveryBootID)
+		entries = append(entries, &recoveryEntry)
 	}
 
 	err = g.updateBootEntries(espDir, entries...)

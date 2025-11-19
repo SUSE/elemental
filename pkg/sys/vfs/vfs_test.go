@@ -78,6 +78,11 @@ var _ = Describe("FS", Label("fs"), func() {
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(usize).To(Equal(uint(2)))
 		})
+		It("Returns the expected size of a test file", func() {
+			size, err := vfs.DirSize(tfs, "/folder/subfolder/file2")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(size).To(Equal(int64(1 * 1024 * 1024)))
+		})
 		It("Returns the size of a test folder when skipping subdirectories", func() {
 			size, err := vfs.DirSize(tfs, "/folder", "/folder/subfolder")
 			Expect(err).ShouldNot(HaveOccurred())
