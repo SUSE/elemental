@@ -32,6 +32,7 @@ func main() {
 		cmd.Usage,
 		cmd.GlobalFlags(),
 		cmd.Setup,
+		cmd.Teardown,
 		cmd.NewBuildCommand(appName, action.Build),
 		cmd.NewCustomizeCommand(appName, action.Customize),
 		cmd.NewVersionCommand(appName))

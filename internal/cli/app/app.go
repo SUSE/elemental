@@ -28,7 +28,7 @@ func Name() string {
 	return filepath.Base(os.Args[0])
 }
 
-func New(usage string, globalFlags []cli.Flag, setupFunc cli.BeforeFunc, commands ...*cli.Command) *cli.App {
+func New(usage string, globalFlags []cli.Flag, setupFunc cli.BeforeFunc, teardownFunc cli.AfterFunc, commands ...*cli.Command) *cli.App {
 	app := cli.NewApp()
 
 	app.Flags = globalFlags
@@ -37,6 +37,7 @@ func New(usage string, globalFlags []cli.Flag, setupFunc cli.BeforeFunc, command
 	app.Usage = usage
 	app.Suggest = true
 	app.Before = setupFunc
+	app.After = teardownFunc
 
 	return app
 }

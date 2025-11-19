@@ -32,6 +32,7 @@ func main() {
 		cmd.Usage,
 		cmd.GlobalFlags(),
 		cmd.Setup,
+		cmd.Teardown,
 		cmd.NewInstallCommand(appName, action.Install),
 		cmd.NewUpgradeCommand(appName, action.Upgrade),
 		cmd.NewUnpackImageCommand(appName, action.Unpack),
