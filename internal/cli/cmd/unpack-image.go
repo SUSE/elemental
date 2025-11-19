@@ -19,6 +19,7 @@ package cmd
 
 import (
 	"fmt"
+	"runtime"
 
 	"github.com/urfave/cli/v2"
 )
@@ -57,17 +58,18 @@ func NewUnpackImageCommand(appName string, action func(*cli.Context) error) *cli
 				Name:        "platform",
 				Usage:       "OCI Image platform",
 				Destination: &UnpackArgs.Platform,
-			},
-			&cli.BoolFlag{
-				Name:        "local",
-				Usage:       "Use local image",
-				Destination: &UnpackArgs.Local,
+				Value:       fmt.Sprintf("linux/%s", runtime.GOARCH),
 			},
 			&cli.BoolFlag{
 				Name:        "verify",
 				Value:       true,
 				Usage:       "Verify ssl",
 				Destination: &UnpackArgs.Verify,
+			},
+			&cli.BoolFlag{
+				Name:        "local",
+				Usage:       "Use local image",
+				Destination: &UnpackArgs.Local,
 			},
 		},
 	}
