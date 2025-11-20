@@ -74,10 +74,17 @@ func WithRsyncFlagsOCI(flags ...string) OCIOpt {
 }
 
 func NewOCIUnpacker(s *sys.System, imageRef string, opts ...OCIOpt) *OCI {
-	unpacker := &OCI{s: s, imageRef: imageRef, platformRef: s.Platform().String()}
+	unpacker := &OCI{
+		s:           s,
+		verify:      true,
+		platformRef: s.Platform().String(),
+		imageRef:    imageRef,
+	}
+
 	for _, o := range opts {
 		o(unpacker)
 	}
+
 	return unpacker
 }
 
