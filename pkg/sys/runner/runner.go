@@ -64,8 +64,12 @@ func (r run) RunEnv(command string, env []string, args ...string) ([]byte, error
 	cmd.Env = env
 	out, err := cmd.Output()
 	if err != nil {
-		r.debug("'%s' command reported an error: %s", command, err.Error())
-		r.debug("'%s' command output: %s", command, out)
+		r.debug("%q command reported an error: %s", command, err.Error())
+		r.debug("%q command output: %s", command, out)
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) && len(exitErr.Stderr) > 0 {
+			r.debug("%q stderr: %s", command, string(exitErr.Stderr))
+		}
 	}
 	return out, err
 }

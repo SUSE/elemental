@@ -217,7 +217,6 @@ func runSystemdRepart(s *sys.System, target string, parts []Partition, flags ...
 	args = append(args, target)
 
 	out, err := s.Runner().RunEnv("systemd-repart", []string{"PATH=/sbin:/usr/sbin:/usr/bin:/bin"}, args...)
-	s.Logger().Debug("systemd-repart output:\n%s", string(out))
 	if err != nil {
 		return fmt.Errorf("failed partitioning disk '%s' with systemd-repart: %w", target, err)
 	}
