@@ -32,6 +32,8 @@ type ResetFlags struct {
 	KernelCmdline   string
 	EnableFips      bool
 	Snapshotter     string
+	Local           bool
+	Verify          bool
 }
 
 var ResetArgs ResetFlags
@@ -88,6 +90,17 @@ func NewResetCommand(appName string, action func(*cli.Context) error) *cli.Comma
 				Usage:       "Snapshotter [snapper, overwrite]",
 				Value:       "snapper",
 				Destination: &ResetArgs.Snapshotter,
+			},
+			&cli.BoolFlag{
+				Name:        "verify",
+				Value:       true,
+				Usage:       "Verify OCI ssl",
+				Destination: &ResetArgs.Verify,
+			},
+			&cli.BoolFlag{
+				Name:        "local",
+				Usage:       "Load OCI images from the local container storage instead of a remote registry",
+				Destination: &ResetArgs.Local,
 			},
 		},
 	}

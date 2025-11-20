@@ -35,6 +35,7 @@ import (
 	"github.com/suse/elemental/v3/pkg/installer"
 	"github.com/suse/elemental/v3/pkg/sys"
 	"github.com/suse/elemental/v3/pkg/transaction"
+	"github.com/suse/elemental/v3/pkg/unpack"
 	"github.com/suse/elemental/v3/pkg/upgrade"
 )
 
@@ -76,13 +77,16 @@ func Reset(ctx *cli.Context) error { //nolint:dupl
 		return err
 	}
 
+	unpackOpts := []unpack.Opt{unpack.WithVerify(args.Verify), unpack.WithLocal(args.Local)}
 	manager := firmware.NewEfiBootManager(s)
 	upgrader := upgrade.New(
 		ctxCancel, s, upgrade.WithBootManager(manager), upgrade.WithBootloader(bootloader),
 		upgrade.WithSnapshotter(snapshotter),
+		upgrade.WithUnpackOpts(unpackOpts...),
 	)
 	installer := install.New(
 		ctxCancel, s, install.WithUpgrader(upgrader),
+		install.WithUnpackOpts(unpackOpts...),
 		install.WithBootloader(bootloader),
 	)
 
