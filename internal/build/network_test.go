@@ -66,7 +66,7 @@ var _ = Describe("Network", func() {
 			System: system,
 		}
 
-		err := b.configureNetworkOnPartition(&image.Definition{}, "", nil)
+		err := b.configureNetworkOnFirstboot(&image.Definition{}, "")
 		Expect(err).NotTo(HaveOccurred())
 	})
 
@@ -81,10 +81,7 @@ var _ = Describe("Network", func() {
 			},
 		}
 
-		part := b.generatePreparePartition(def)
-		Expect(part).ToNot(BeNil())
-
-		err := b.configureNetworkOnPartition(def, buildDir, part)
+		err := b.configureNetworkOnFirstboot(def, buildDir)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("copying custom network script: stat"))
 		Expect(err.Error()).To(ContainSubstring("/etc/custom.sh: no such file or directory"))
@@ -101,14 +98,11 @@ var _ = Describe("Network", func() {
 			},
 		}
 
-		part := b.generatePreparePartition(def)
-		Expect(part).ToNot(BeNil())
-
-		err := b.configureNetworkOnPartition(def, buildDir, part)
+		err := b.configureNetworkOnFirstboot(def, buildDir)
 		Expect(err).NotTo(HaveOccurred())
 
 		// Verify script contents
-		netDir := filepath.Join(buildDir.OverlaysDir(), part.MountPoint, "network")
+		netDir := filepath.Join(buildDir.CatalystConfigDir(), "network")
 		scriptPath := filepath.Join(netDir, "configure-network.sh")
 		contents, err := fs.ReadFile(scriptPath)
 		Expect(err).NotTo(HaveOccurred())
@@ -129,16 +123,13 @@ var _ = Describe("Network", func() {
 			},
 		}
 
-		part := b.generatePreparePartition(def)
-		Expect(part).ToNot(BeNil())
-
-		err := b.configureNetworkOnPartition(def, buildDir, part)
+		err := b.configureNetworkOnFirstboot(def, buildDir)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("reading network directory: open"))
 		Expect(err.Error()).To(ContainSubstring("/etc/missing: no such file or directory"))
 
 		def.Network.ConfigDir = "/etc/network"
-		err = b.configureNetworkOnPartition(def, buildDir, part)
+		err = b.configureNetworkOnFirstboot(def, buildDir)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(Equal("directories under /etc/network are not supported"))
 	})
@@ -154,13 +145,10 @@ var _ = Describe("Network", func() {
 			},
 		}
 
-		part := b.generatePreparePartition(def)
-		Expect(part).ToNot(BeNil())
-
-		err := b.configureNetworkOnPartition(def, buildDir, part)
+		err := b.configureNetworkOnFirstboot(def, buildDir)
 		Expect(err).ToNot(HaveOccurred())
 
-		netDir := filepath.Join(buildDir.OverlaysDir(), part.MountPoint, "network")
+		netDir := filepath.Join(buildDir.CatalystConfigDir(), "network")
 
 		libvirt := filepath.Join(netDir, "libvirt.yaml")
 		contents, err := fs.ReadFile(libvirt)

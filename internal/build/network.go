@@ -22,17 +22,16 @@ import (
 	"path/filepath"
 
 	"github.com/suse/elemental/v3/internal/image"
-	"github.com/suse/elemental/v3/pkg/deployment"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
 
-func (b *Builder) configureNetworkOnPartition(def *image.Definition, buildDir image.BuildDir, p *deployment.Partition) error {
+func (b *Builder) configureNetworkOnFirstboot(def *image.Definition, buildDir image.BuildDir) error {
 	if def.Network.CustomScript == "" && def.Network.ConfigDir == "" {
 		b.System.Logger().Info("Network configuration not provided, skipping.")
 		return nil
 	}
 
-	netDir := filepath.Join(buildDir.OverlaysDir(), p.MountPoint, "network")
+	netDir := filepath.Join(buildDir.CatalystConfigDir(), "network")
 	if err := vfs.MkdirAll(b.System.FS(), netDir, vfs.DirPerm); err != nil {
 		return fmt.Errorf("creating network directory in overlays: %w", err)
 	}
