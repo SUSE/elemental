@@ -63,12 +63,9 @@ func (b *Builder) Run(ctx context.Context, d *image.Definition, buildDir image.B
 		return err
 	}
 
-	preparePart := b.generatePreparePartition(d)
-	if preparePart != nil {
-		if err := b.configureNetworkOnPartition(d, buildDir, preparePart); err != nil {
-			logger.Error("Configuring network failed")
-			return err
-		}
+	if err := b.configureNetworkOnFirstboot(d, buildDir); err != nil {
+		logger.Error("Configuring network failed")
+		return err
 	}
 
 	k8sScript, k8sConfScript, err := b.configureKubernetes(ctx, d, m, buildDir)
@@ -126,7 +123,6 @@ func (b *Builder) Run(ctx context.Context, d *image.Definition, buildDir image.B
 		m.CorePlatform.Components.OperatingSystem.Image,
 		&d.Installation,
 		buildDir,
-		preparePart,
 	)
 	if err != nil {
 		logger.Error("Preparing installation setup failed")
