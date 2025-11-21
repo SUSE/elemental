@@ -20,8 +20,10 @@ package repart
 import (
 	_ "embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -194,6 +196,13 @@ func runSystemdRepart(s *sys.System, target string, parts []Partition, flags ...
 	out, err := s.Runner().RunEnv("systemd-repart", []string{"PATH=/sbin:/usr/sbin:/usr/bin:/bin"}, args...)
 	s.Logger().Debug("systemd-repart output:\n%s", string(out))
 	if err != nil {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			s.Logger().Debug("systemd-repart failed with exit code: %d", exitErr.ExitCode())
+			if len(exitErr.Stderr) > 0 {
+				s.Logger().Debug("systemd-repart stderr: %s", string(exitErr.Stderr))
+			}
+		}
 		return fmt.Errorf("failed partitioning disk '%s' with systemd-repart: %w", target, err)
 	}
 	uuids := []struct {
