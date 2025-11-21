@@ -98,7 +98,7 @@ The following builds an extension image for the `elemental3ctl` command-line int
         ```
 
 4. Create the extension image from the `example-extension` directory:
-   > **NOTE:** Make sure you have `mkosi` installed on your system. If not, you can install it using `zypper -n install mkosi`.
+   > **NOTE:** Make sure you have `mkosi` installed on your system. If not, you can install it using `zypper install mkosi`.
 
     ```shell
     mkosi -C example-extension
@@ -263,7 +263,7 @@ sudo qemu-nbd -d /dev/nbd0
 To boot the image in a virtual machine, you can use either QEMU or libvirt utilities for creating the VM.
 
 *Using QEMU:*
-> **NOTE:** Make sure you have `qemu` installed on your system. If not, you can install it using `zypper -n install qemu-x86`.
+> **NOTE:** Make sure you have `qemu` installed on your system. If not, you can install it using `zypper install qemu-x86`.
 
 > **NOTE:** If you are using a different architecture, make sure to adjust the `qemu-system-x86_64` command accordingly.
 
