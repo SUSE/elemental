@@ -2,7 +2,7 @@ ARG GO_VERSION=1.25
 
 FROM --platform=$BUILDPLATFORM registry.opensuse.org/opensuse/bci/golang:${GO_VERSION} AS builder
 
-ARG TARGETOS 
+ARG TARGETOS
 ARG TARGETARCH
 
 WORKDIR /work
@@ -25,7 +25,7 @@ ARG TARGETARCH
 RUN ARCH=$(uname -m); \
     [[ "${ARCH}" == "aarch64" ]] && ARCH="arm64"; \
     zypper --non-interactive removerepo repo-update || true; \
-    zypper install -y --no-recommends xfsprogs \
+    zypper --non-interactive install --no-recommends xfsprogs \
         util-linux-systemd \
         e2fsprogs \
         udev \
@@ -40,7 +40,7 @@ RUN ARCH=$(uname -m); \
         btrfsmaintenance \
         snapper \
         lvm2 && \
-    zypper cc -a
+    zypper clean --all
 
 COPY --from=builder /work/build/elemental3ctl /usr/bin/elemental3ctl
 COPY --from=builder /work/build/elemental3 /usr/bin/elemental3
