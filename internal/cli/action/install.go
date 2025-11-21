@@ -18,6 +18,7 @@ limitations under the License.
 package action
 
 import (
+	"context"
 	"fmt"
 	"os/signal"
 	"syscall"
@@ -48,7 +49,8 @@ func Install(ctx *cli.Context) error {
 	}
 	s = ctx.App.Metadata["system"].(*sys.System)
 
-	s.Logger().Info("Starting install action with args: %+v", args)
+	s.Logger().Info("Starting install action")
+	s.Logger().Debug("Install action called with args: %+v", args)
 
 	d, err := digestInstallSetup(s, args)
 	if err != nil {
@@ -66,30 +68,10 @@ func Install(ctx *cli.Context) error {
 		stop()
 	}()
 
-	bootloader, err := bootloader.New(d.BootConfig.Bootloader, s)
+	installer, err := initInstaller(ctxCancel, s, d, args)
 	if err != nil {
-		s.Logger().Error("Parsing boot config failed")
-		return err
+		return fmt.Errorf("initiating installer components: %w", err)
 	}
-
-	snapshotter, err := transaction.New(ctxCancel, s, d, d.Snapshotter.Name)
-	if err != nil {
-		s.Logger().Error("Parsing snapshotter config failed")
-		return err
-	}
-
-	unpackOpts := []unpack.Opt{unpack.WithVerify(args.Verify), unpack.WithLocal(args.Local)}
-	manager := firmware.NewEfiBootManager(s)
-	upgrader := upgrade.New(
-		ctxCancel, s, upgrade.WithBootManager(manager), upgrade.WithBootloader(bootloader),
-		upgrade.WithSnapshotter(snapshotter),
-		upgrade.WithUnpackOpts(unpackOpts...),
-	)
-	installer := install.New(
-		ctxCancel, s, install.WithUpgrader(upgrader),
-		install.WithUnpackOpts(unpackOpts...),
-		install.WithBootloader(bootloader),
-	)
 
 	err = installer.Install(d)
 	if err != nil {
@@ -100,6 +82,34 @@ func Install(ctx *cli.Context) error {
 	s.Logger().Info("Installation complete")
 
 	return nil
+}
+
+func initInstaller(ctx context.Context, s *sys.System, d *deployment.Deployment, args *cmd.InstallFlags) (*install.Installer, error) {
+	bootloader, err := bootloader.New(d.BootConfig.Bootloader, s)
+	if err != nil {
+		s.Logger().Error("Parsing boot config failed")
+		return nil, err
+	}
+
+	snapshotter, err := transaction.New(ctx, s, d, d.Snapshotter.Name)
+	if err != nil {
+		s.Logger().Error("Parsing snapshotter config failed")
+		return nil, err
+	}
+
+	unpackOpts := []unpack.Opt{unpack.WithVerify(args.Verify), unpack.WithLocal(args.Local)}
+	manager := firmware.NewEfiBootManager(s)
+	upgrader := upgrade.New(
+		ctx, s, upgrade.WithBootManager(manager), upgrade.WithBootloader(bootloader),
+		upgrade.WithSnapshotter(snapshotter),
+		upgrade.WithUnpackOpts(unpackOpts...),
+	)
+	installer := install.New(
+		ctx, s, install.WithUpgrader(upgrader),
+		install.WithUnpackOpts(unpackOpts...),
+		install.WithBootloader(bootloader),
+	)
+	return installer, nil
 }
 
 // loadDescriptionFile reads the given deployment description file into the given deployment object
@@ -160,6 +170,15 @@ func digestInstallSetup(s *sys.System, flags *cmd.InstallFlags) (*deployment.Dep
 		}
 	}
 
+	err := applyInstallFlags(s, d, flags)
+	if err != nil {
+		return nil, fmt.Errorf("defining the deployment details: %w", err)
+	}
+
+	return d, nil
+}
+
+func applyInstallFlags(s *sys.System, d *deployment.Deployment, flags *cmd.InstallFlags) error {
 	disk := d.GetSystemDisk()
 	if flags.Target != "" && disk != nil {
 		disk.Device = flags.Target
@@ -168,7 +187,7 @@ func digestInstallSetup(s *sys.System, flags *cmd.InstallFlags) (*deployment.Dep
 	if flags.OperatingSystemImage != "" {
 		srcOS, err := deployment.NewSrcFromURI(flags.OperatingSystemImage)
 		if err != nil {
-			return nil, fmt.Errorf("failed parsing OS source URI ('%s'): %w", flags.OperatingSystemImage, err)
+			return fmt.Errorf("failed parsing OS source URI ('%s'): %w", flags.OperatingSystemImage, err)
 		}
 		d.SourceOS = srcOS
 	}
@@ -176,7 +195,7 @@ func digestInstallSetup(s *sys.System, flags *cmd.InstallFlags) (*deployment.Dep
 	if flags.Overlay != "" {
 		overlay, err := deployment.NewSrcFromURI(flags.Overlay)
 		if err != nil {
-			return nil, fmt.Errorf("failed parsing overlay source URI ('%s'): %w", flags.Overlay, err)
+			return fmt.Errorf("failed parsing overlay source URI ('%s'): %w", flags.Overlay, err)
 		}
 		d.OverlayTree = overlay
 	}
@@ -209,8 +228,7 @@ func digestInstallSetup(s *sys.System, flags *cmd.InstallFlags) (*deployment.Dep
 
 	err := d.Sanitize(s)
 	if err != nil {
-		return nil, fmt.Errorf("inconsistent deployment setup found: %w", err)
+		return fmt.Errorf("inconsistent deployment setup found: %w", err)
 	}
-
-	return d, nil
+	return nil
 }

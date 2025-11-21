@@ -97,7 +97,7 @@ func digestInstallerDeploymentSetup(s *sys.System, flags *cmd.InstallerFlags) (*
 	}
 	d.SourceOS = src
 
-	err = applyInstallFlags(s, d, flags.InstallSpec)
+	err = applyInstallSpec(s, d, flags.InstallSpec)
 	if err != nil {
 		return nil, fmt.Errorf("failed applying install flags to deployment description: %w", err)
 	}
@@ -134,7 +134,7 @@ func digestInstallerMedia(ctx context.Context, s *sys.System, flags *cmd.Install
 	return media, nil
 }
 
-func applyInstallFlags(s *sys.System, d *deployment.Deployment, flags cmd.InstallFlags) error {
+func applyInstallSpec(s *sys.System, d *deployment.Deployment, flags cmd.InstallFlags) error {
 	if flags.Description != "" {
 		err := loadDescriptionFile(s, flags.Description, d)
 		if err != nil {

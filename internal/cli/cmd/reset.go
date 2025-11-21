@@ -23,21 +23,6 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-type ResetFlags struct {
-	Description     string
-	ConfigScript    string
-	Overlay         string
-	CreateBootEntry bool
-	Bootloader      string
-	KernelCmdline   string
-	EnableFips      bool
-	Snapshotter     string
-	Local           bool
-	Verify          bool
-}
-
-var ResetArgs ResetFlags
-
 func NewResetCommand(appName string, action func(*cli.Context) error) *cli.Command {
 	return &cli.Command{
 		Name:      "reset",
@@ -48,23 +33,28 @@ func NewResetCommand(appName string, action func(*cli.Context) error) *cli.Comma
 			&cli.StringFlag{
 				Name:        "config",
 				Usage:       "Path to OS image post-commit script",
-				Destination: &ResetArgs.ConfigScript,
+				Destination: &InstallArgs.ConfigScript,
 			},
 			&cli.StringFlag{
 				Name:        "description",
 				Aliases:     []string{"d"},
 				Usage:       "Description file to read reset details",
-				Destination: &ResetArgs.Description,
+				Destination: &InstallArgs.Description,
+			},
+			&cli.StringFlag{
+				Name:        "os-image",
+				Usage:       "URI to the image containing the operating system",
+				Destination: &InstallArgs.OperatingSystemImage,
 			},
 			&cli.StringFlag{
 				Name:        "overlay",
 				Usage:       "URI of the overlay content for the OS image",
-				Destination: &ResetArgs.Overlay,
+				Destination: &InstallArgs.Overlay,
 			},
 			&cli.BoolFlag{
 				Name:        "create-boot-entry",
 				Usage:       "Create EFI boot entry",
-				Destination: &ResetArgs.CreateBootEntry,
+				Destination: &InstallArgs.CreateBootEntry,
 				Value:       true,
 			},
 			&cli.StringFlag{
@@ -72,35 +62,35 @@ func NewResetCommand(appName string, action func(*cli.Context) error) *cli.Comma
 				Aliases:     []string{"b"},
 				Value:       "grub",
 				Usage:       "Bundled bootloader to install to ESP",
-				Destination: &ResetArgs.Bootloader,
+				Destination: &InstallArgs.Bootloader,
 			},
 			&cli.StringFlag{
 				Name:        "cmdline",
 				Value:       "",
 				Usage:       "Kernel cmdline for installed system",
-				Destination: &ResetArgs.KernelCmdline,
+				Destination: &InstallArgs.KernelCmdline,
 			},
 			&cli.BoolFlag{
 				Name:        "enable-fips",
 				Usage:       "Enable FIPS",
-				Destination: &ResetArgs.EnableFips,
+				Destination: &InstallArgs.EnableFips,
 			},
 			&cli.StringFlag{
 				Name:        "snapshotter",
 				Usage:       "Snapshotter [snapper, overwrite]",
 				Value:       "snapper",
-				Destination: &ResetArgs.Snapshotter,
+				Destination: &InstallArgs.Snapshotter,
 			},
 			&cli.BoolFlag{
 				Name:        "verify",
 				Value:       true,
 				Usage:       "Verify OCI ssl",
-				Destination: &ResetArgs.Verify,
+				Destination: &InstallArgs.Verify,
 			},
 			&cli.BoolFlag{
 				Name:        "local",
 				Usage:       "Load OCI images from the local container storage instead of a remote registry",
-				Destination: &ResetArgs.Local,
+				Destination: &InstallArgs.Local,
 			},
 		},
 	}

@@ -96,7 +96,7 @@ var _ = Describe("Reset action", Label("reset"), func() {
 		Expect(action.Reset(ctx)).NotTo(Succeed())
 	})
 	It("fails to start installing if the configuration file can't be read", func() {
-		cmd.ResetArgs.Description = "doesntexist"
+		cmd.InstallArgs.Description = "doesntexist"
 		Expect(action.Reset(ctx)).To(MatchError(ContainSubstring("ReadFile doesntexist")))
 	})
 	It("fails if a live media is not detected", func() {
