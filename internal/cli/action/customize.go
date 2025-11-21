@@ -83,7 +83,7 @@ func digestCustomizeDeploymentSetup(s *sys.System, flags *cmd.CustomizeFlags) (*
 		d.Installer.KernelCmdline = flags.KernelCmdline
 	}
 
-	err := applyInstallFlags(s, d, flags.InstallSpec)
+	err := applyInstallSpec(s, d, flags.InstallSpec)
 	if err != nil {
 		return nil, fmt.Errorf("failed applying install flags to deployment description: %w", err)
 	}

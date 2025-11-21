@@ -44,6 +44,9 @@ const (
 	RecoveryLabel = "RECOVERY"
 	RecoverySize  = 0
 
+	RecoveryMark = "elm.recovery"
+	ResetMark    = "elm.reset"
+
 	SystemLabel          = "SYSTEM"
 	SystemMnt            = "/"
 	AllAvailableSize MiB = 0
@@ -388,7 +391,8 @@ func (d Deployment) RecoveryKernelCmdline() string {
 	if rec != nil {
 		label = rec.Label
 	}
-	return LiveKernelCmdline(label)
+	// elm.recovery is mark to identify it boots from recovery partition
+	return fmt.Sprintf("%s %s", LiveKernelCmdline(label), RecoveryMark)
 }
 
 // Sanitize checks the consistency of the current Disk structure. ExcludeChecks parameter

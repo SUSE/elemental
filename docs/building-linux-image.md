@@ -342,13 +342,21 @@ To create a self installer image, you should prepare and include a specific set 
 
 The installer media supports configurations through a script which will run in late initramfs in a writeable system root.
 
+There are some of relevant kernel parameters used by the installer to define the boot context. Those are not configurable
+and included by `elemental3ctl` when setting the bootloader.
+
+* `elm.recovery`: this flag is used to identify the current system is booting from a recovery partition.
+* `elm.reset`: this flag is used to identify the system is booting from installer RAW image requiring a reset to be fully installed.
+
+These kernel parameters can be easily used to handle automated actions at boot like in the example below.
 
 #### Example live configuration script
 
-In this example, we are going to prepare a configuration script that will set three aspects:
+In this example, we are going to prepare a configuration script that will set four aspects:
 
 * Autologin so the live ISO does not require a root password
 * An elemental-autoinstaller service to run the installation at boot
+* An elemental-reset service to run the reset at boot
 * A link between the extensions in the ISO filesystem and `/run/extensions` so that they are loaded at boot
 
 Create the script and make it executable:
@@ -398,6 +406,31 @@ WantedBy=multi-user.target
 EOF
 
 systemctl enable elemental-autoinstall.service
+
+# Set the elemental-reset service
+cat > /etc/systemd/system/elemental-reset.service << EOF
+[Unit]
+Description=Elemental Reset
+After=multi-user.target
+ConditionPathExists=/run/initramfs/live/Install/install.yaml
+ConditionFileIsExecutable=/usr/local/bin/elemental3ctl
+ConditionKernelCommandLine=elm.recovery
+ConditionKernelCommandLine=elm.reset
+OnSuccess=reboot.target
+StartLimitIntervalSec=600
+StartLimitBurst=3
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/elemental3ctl --debug reset
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl enable elemental-reset.service
 END
 
 chmod +x config-live.sh
@@ -447,6 +480,9 @@ sudo elemental3ctl --debug build-installer \
 
 In order to build a RAW disk image just use the same command as a above but switching to RAW type (`--type raw` flag).
 
+The RAW disk image only includes the ESP partition and a recovery partition. The recovery partition includes a
+squashfs OS image to boot from like a live ISO would.
+
 Note that:
 * The `overlays.tar.gz` tarball came from the system extension image [example configuration](#example-system-extension-image).
 * The `config.sh` script came from the [configuration script example](#example-configuration-script).
@@ -490,7 +526,8 @@ generated image.
 qemu-img resize build/installer.raw 16G
 ```
 
-Launch a virtual machine to boot the installer RAW:
+Launch a virtual machine to boot the installer RAW and verify, at boot, it self expands the partition table
+to fullfil the disk geometry and creates additional partitions.
 
 ```shell
 qemu-system-x86_64 -m 8G \

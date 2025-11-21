@@ -181,7 +181,7 @@ var _ = Describe("Install", Label("install"), func() {
 	})
 	It("fails if systemd-repart partitions do not match deployment", func() {
 		// systemd-repart reports a recovery partition that is not part of the deployment
-		Expect(i.Install(d)).To(MatchError(ContainSubstring("failed parsing systemd-repart JSON")))
+		Expect(i.Install(d)).To(MatchError(ContainSubstring("partitions mismatch")))
 	})
 	It("fails creating subvolumes", func() {
 		sideEffects["btrfs"] = func(args ...string) ([]byte, error) {
@@ -210,6 +210,14 @@ var _ = Describe("Install", Label("install"), func() {
 			{"systemd-repart"},
 			{"btrfs", "subvolume", "create"},
 			{"mksquashfs"},
+		}))
+	})
+	It("resets the given deployment", func() {
+		deployment.WithRecoveryPartition(0)(d)
+		Expect(i.Reset(d)).To(Succeed())
+		Expect(runner.MatchMilestones([][]string{
+			{"systemd-repart"},
+			{"btrfs", "subvolume", "create"},
 		}))
 	})
 })
