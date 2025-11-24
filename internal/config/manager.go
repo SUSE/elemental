@@ -88,8 +88,7 @@ func NewManager(sys *sys.System, helm helmConfigurator, opts ...Opts) *Manager {
 }
 
 // ConfigureComponents configures the components defined in the provided configuration
-// and outputs a report containing data that cannot easily be retrieved just by looking
-// at the output directory.
+// and returns the resolved release manifest from said configuration.
 func (m *Manager) ConfigureComponents(ctx context.Context, conf *image.Configuration, output OutputDir) (rm *resolver.ResolvedManifest, err error) {
 	if m.rmResolver == nil {
 		defaultResolver, err := defaultManifestResolver(m.system.FS(), output, m.local)
