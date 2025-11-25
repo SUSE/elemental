@@ -297,7 +297,7 @@ var sanitizers = []SanitizeDeployment{
 // returns nil if not found.
 func (d Disk) GetSystemPartition() *Partition {
 	for _, part := range d.Partitions {
-		if part.Role == System {
+		if part != nil && part.Role == System {
 			return part
 		}
 	}
@@ -308,8 +308,11 @@ func (d Disk) GetSystemPartition() *Partition {
 // returns nil if not found.
 func (d Deployment) GetSystemPartition() *Partition {
 	for _, disk := range d.Disks {
+		if disk == nil {
+			continue
+		}
 		for _, part := range disk.Partitions {
-			if part.Role == System {
+			if part != nil && part.Role == System {
 				return part
 			}
 		}
@@ -331,8 +334,11 @@ func (d Deployment) GetSystemLabel() string {
 // returns nil if not found
 func (d Deployment) GetSystemDisk() *Disk {
 	for _, disk := range d.Disks {
+		if disk == nil {
+			continue
+		}
 		for _, part := range disk.Partitions {
-			if part.Role == System {
+			if part != nil && part.Role == System {
 				return disk
 			}
 		}
@@ -344,8 +350,11 @@ func (d Deployment) GetSystemDisk() *Disk {
 // returns nil if not found
 func (d Deployment) GetEfiPartition() *Partition {
 	for _, disk := range d.Disks {
+		if disk == nil {
+			continue
+		}
 		for _, part := range disk.Partitions {
-			if part.Role == EFI {
+			if part != nil && part.Role == EFI {
 				return part
 			}
 		}
@@ -357,8 +366,11 @@ func (d Deployment) GetEfiPartition() *Partition {
 // returns nil if not found
 func (d Deployment) GetRecoveryPartition() *Partition {
 	for _, disk := range d.Disks {
+		if disk == nil {
+			continue
+		}
 		for _, part := range disk.Partitions {
-			if part.Role == Recovery {
+			if part != nil && part.Role == Recovery {
 				return part
 			}
 		}
@@ -370,8 +382,11 @@ func (d Deployment) GetRecoveryPartition() *Partition {
 // returns nil if not found
 func (d Deployment) GetEfiDisk() *Disk {
 	for _, disk := range d.Disks {
+		if disk == nil {
+			continue
+		}
 		for _, part := range disk.Partitions {
-			if part.Role == EFI {
+			if part != nil && part.Role == EFI {
 				return disk
 			}
 		}
