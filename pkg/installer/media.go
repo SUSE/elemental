@@ -278,6 +278,19 @@ func (i *Media) PrepareInstallerFS(rootDir, workDir string, d *deployment.Deploy
 		return fmt.Errorf("failed adding installation assets and configuration: %w", err)
 	}
 
+	recPart := d.GetRecoveryPartition()
+	if recPart != nil {
+		size, err := vfs.DirSizeMB(i.s.FS(), rootDir)
+		if err != nil {
+			return fmt.Errorf("failed to compute recovery partition size: %w", err)
+		}
+		recSize := deployment.MiB((size/128)*128 + 256)
+		if recPart.Size < recSize {
+			i.s.Logger().Debug("Increasing recovery partition size to %dMiB", recSize)
+			recPart.Size = recSize
+		}
+	}
+
 	return i.writeInstallDescription(filepath.Join(rootDir, installDir), d)
 }
 
@@ -600,17 +613,6 @@ func (i Media) addInstallationAssets(root string, d *deployment.Deployment) erro
 				d.OverlayTree = deployment.NewRawSrc(path)
 			}
 		}
-	}
-
-	recPart := d.GetRecoveryPartition()
-	if recPart != nil {
-		size, err := vfs.DirSizeMB(i.s.FS(), root)
-		if err != nil {
-			return fmt.Errorf("failed to compute recovery partition size: %w", err)
-		}
-		recSize := deployment.MiB((size/128)*128 + 256)
-		i.s.Logger().Debug("Setting recovery partition size to %dMiB", recSize)
-		recPart.Size = recSize
 	}
 
 	return nil
