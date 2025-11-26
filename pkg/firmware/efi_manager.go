@@ -80,7 +80,7 @@ func DefaultBootEntry(p *platform.Platform, disk string) *EfiBootEntry {
 
 	return &EfiBootEntry{
 		Label:  EfiBootEntryName,
-		Loader: filepath.Join(EfiFallbackPath, efiImgName),
+		Loader: filepath.Join(EfiEntryPath, efiImgName),
 		Disk:   disk,
 	}
 }
