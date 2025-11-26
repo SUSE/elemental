@@ -204,10 +204,11 @@ func applyInstallFlags(s *sys.System, d *deployment.Deployment, flags *cmd.Insta
 		d.CfgScript = flags.ConfigScript
 	}
 
-	if flags.EnableFips {
-		d.Security.CryptoPolicy = crypto.FIPSPolicy
-	} else {
-		d.Security.CryptoPolicy = crypto.DefaultPolicy
+	if flags.CryptoPolicy != "" {
+		cryptoPolicy := crypto.Policy(flags.CryptoPolicy)
+		if cryptoPolicy.IsValid() {
+			d.Security.CryptoPolicy = cryptoPolicy
+		}
 	}
 
 	setBootloader(s, d, flags.Bootloader, flags.KernelCmdline, flags.CreateBootEntry)

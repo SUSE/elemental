@@ -70,10 +70,10 @@ func NewResetCommand(appName string, action func(*cli.Context) error) *cli.Comma
 				Usage:       "Kernel cmdline for installed system",
 				Destination: &InstallArgs.KernelCmdline,
 			},
-			&cli.BoolFlag{
-				Name:        "enable-fips",
+			&cli.StringFlag{
+				Name:        "crypto-policy",
 				Usage:       "Enable FIPS",
-				Destination: &InstallArgs.EnableFips,
+				Destination: &InstallArgs.CryptoPolicy,
 			},
 			&cli.StringFlag{
 				Name:        "snapshotter",

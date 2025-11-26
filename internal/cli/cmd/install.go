@@ -34,7 +34,7 @@ type InstallFlags struct {
 	KernelCmdline        string
 	Verify               bool
 	Local                bool
-	EnableFips           bool
+	CryptoPolicy         string
 	Snapshotter          string
 }
 
@@ -103,10 +103,10 @@ func NewInstallCommand(appName string, action func(*cli.Context) error) *cli.Com
 				Usage:       "Load OCI images from the local container storage instead of a remote registry",
 				Destination: &InstallArgs.Local,
 			},
-			&cli.BoolFlag{
-				Name:        "enable-fips",
+			&cli.StringFlag{
+				Name:        "crypto-policy",
 				Usage:       "Enable FIPS",
-				Destination: &InstallArgs.EnableFips,
+				Destination: &InstallArgs.CryptoPolicy,
 			},
 			&cli.StringFlag{
 				Name:        "snapshotter",
