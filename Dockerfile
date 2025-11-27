@@ -45,4 +45,4 @@ RUN ARCH=$(uname -m); \
 COPY --from=builder /work/build/elemental3ctl /usr/bin/elemental3ctl
 COPY --from=builder /work/build/elemental3 /usr/bin/elemental3
 
-ENTRYPOINT ["/usr/bin/elemental3ctl"]
+ENTRYPOINT ["/usr/bin/elemental3"]
