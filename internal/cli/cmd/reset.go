@@ -72,7 +72,7 @@ func NewResetCommand(appName string, action func(*cli.Context) error) *cli.Comma
 			},
 			&cli.StringFlag{
 				Name:        "crypto-policy",
-				Usage:       "Enable FIPS",
+				Usage:       "Set the crypto policy of the installed system [default, fips]",
 				Destination: &InstallArgs.CryptoPolicy,
 			},
 			&cli.StringFlag{
