@@ -13,51 +13,81 @@
 ---
 
 .default_products: &default_products
-  distri: sle-micro
+  distri: sle
 
 .common_test_settings: &common_test_settings
   HDDSIZEGB: '30'
+  IMAGE_TYPE: disk
+  K8S: rke2
   QEMUCPUS: '4'
   QEMURAM: '4096'
-  IMAGE_TYPE: disk
   TEST_PASSWORD: Elemental@R00t
-  HDD_1: 'elemental-%BUILD%-%ARCH%.qcow2'
   YAML_SCHEDULE: schedule/elemental3/os_image.yaml
 
 .common_microos_boot_settings: &common_microos_boot_settings
-  HDDSIZEGB: '30'
   BOOT_HDD_IMAGE: '1'
   CONTAINER_RUNTIMES: podman
   DESKTOP: textmode
   EXCLUDE_MODULES: suseconnect_scc
-  HDD_1: 'openSUSE-MicroOS.%ARCH%-Updated.qcow2'
+  HDD_1: 'SL-Micro.%ARCH%-6.2-Default-Updated.qcow2'
+  HDDSIZEGB: '30'
   KEEP_GRUB_TIMEOUT: '0'
   VIDEOMODE: text
 
+.test_build_cmd_settings: &test_build_cmd_settings
+  <<: *common_microos_boot_settings
+  TEST_PASSWORD: Elemental@R00t
+  YAML_SCHEDULE: schedule/elemental3/support.yaml
+
 .generate_settings: &generate_settings
   <<: *common_microos_boot_settings
-  TEST_TYPE: generate_image
+  IMG_NAME: 'elemental-%BUILD%-%ARCH%-%TESTED_CMD%'
+  ISO_CMD_LINE: 'console=ttyS0 enforcing=0'
+  K8S: rke2
+  KERNEL_CMD_LINE: 'console=ttyS0'
   TEST_PASSWORD: Elemental@R00t
-  REPO_TO_TEST: https://dist.suse.de/ibs/Devel:/UnifiedCore:/Main:/ToTest/standard
-  SYSEXT_PATH: https://dist.suse.de/ibs/Devel:/UnifiedCore:/Main:/ToTest/sysexts
   YAML_SCHEDULE: schedule/elemental3/support.yaml
 
 .test_image_settings: &test_image_settings
   <<: *common_test_settings
   TEST_TYPE: test_image
-  START_AFTER_TEST: generate_image
+
+.test_iso_settings: &test_iso_settings
+  HDDSIZEGB: '30'
+  IMAGE_TYPE: iso
+  ISO: 'elemental-%BUILD%-%ARCH%-build_installer_iso.iso'
+  K8S: rke2
+  QEMUCPUS: '4'
+  QEMURAM: '4096'
+  TEST_PASSWORD: Elemental@R00t
+  TEST_TYPE: test_iso
+  YAML_SCHEDULE: schedule/elemental3/os_image.yaml
 
 .k8s_test_settings: &k8s_test_settings
   EXPECTED_NM_CONNECTIVITY: none
-  TESTS_TO_RUN: validatecluster,deployrancher
-  TEST_TYPE: k8s_validation
   NICTYPE: tap
   NODES_LIST: node01
+  TESTS_TO_RUN: validatecluster,deployrancher
+  TEST_TYPE: k8s_validation
 
 .node_k8s_validation_settings: &node_k8s_validation_settings
   <<: *common_test_settings
   <<: *k8s_test_settings
+  HDD_1: 'elemental-%BUILD%-%ARCH%-install.qcow2'
   PARALLEL_WITH: master
+
+.master_k8s_validation_settings: &master_k8s_validation_settings
+  <<: *common_microos_boot_settings
+  <<: *k8s_test_settings
+  CERTMANAGER_VERSION: v1.19.1
+  +DISTRI: sle-micro
+  +HDD_1: 'openSUSE-MicroOS.%ARCH%-Updated.qcow2'
+  HOSTNAME: master
+  K8S: rke2
+  QEMURAM: '4096'
+  RANCHER_VERSION: v2.13.0
+  TEST_FRAMEWORK_REPO: https://github.com/ldevulder/distros-test-framework@fix-support-uc-os-image
+  YAML_SCHEDULE: schedule/elemental3/support.yaml
 
 defaults:
   aarch64:
@@ -70,77 +100,93 @@ defaults:
       QEMUCPU: host
 
 products:
-  sl-micro-unifiedcore-image-6.2-aarch64:
+  sle-unifiedcore-image-16.0-aarch64:
     <<: *default_products
     flavor: UnifiedCore-Image
-    version : '6.2'
-  sl-micro-unifiedcore-image-6.2-x86_64:
+    version : '16.0'
+  sle-unifiedcore-image-16.0-x86_64:
     <<: *default_products
     flavor: UnifiedCore-Image
-    version : '6.2'
+    version : '16.0'
 
 scenarios:
   aarch64:
-    sl-micro-unifiedcore-image-6.2-aarch64:
-      - generate_image:
+    sle-unifiedcore-image-16.0-aarch64:
+      - generate_with_install_cmd:
           testsuite: null
           settings:
             <<: *generate_settings
-            K8S: rke2
-      - test_image:
+            TESTED_CMD: install
+      - generate_with_build_cmd:
           testsuite: null
           settings:
-            <<: *test_image_settings
-            K8S: rke2
-      - master:
-          testsuite: null
-          settings:
-            <<: *common_microos_boot_settings
-            <<: *k8s_test_settings
-            CERTMANAGER_VERSION: v1.19.0
-            RANCHER_VERSION: v2.12.2
-            K8S: rke2
-            QEMURAM: '4096'
-            HOSTNAME: master
-            TEST_FRAMEWORK_REPO: https://github.com/ldevulder/distros-test-framework@fix-support-uc-os-image
-            YAML_SCHEDULE: schedule/elemental3/support.yaml
-            START_AFTER_TEST: test_image
-      - node01:
-          testsuite: null
-          settings:
-            <<: *node_k8s_validation_settings
-            K8S: rke2
-            HOSTNAME: node01
-  x86_64:
-    sl-micro-unifiedcore-image-6.2-x86_64:
-      - generate_image:
+            <<: *generate_settings
+            TESTED_CMD: build
+      - generate_with_build_iso_cmd:
           machine: 64bit
           testsuite: null
           settings:
             <<: *generate_settings
-            K8S: rke2
-      - test_image:
+            TESTED_CMD: build_iso
+      - test_iso:
+          testsuite: null
+          settings:
+            <<: *test_iso_settings
+            START_AFTER_TEST: generate_with_build_installer_iso_cmd
+      - test_release_manifest:
           testsuite: null
           settings:
             <<: *test_image_settings
-            K8S: rke2
-            START_AFTER_TEST: generate_image@64bit
+            HDD_1: 'elemental-%BUILD%-%ARCH%-build.qcow2'
+            START_AFTER_TEST: generate_with_build_cmd
       - master:
           testsuite: null
           settings:
-            <<: *common_microos_boot_settings
-            <<: *k8s_test_settings
-            CERTMANAGER_VERSION: v1.19.0
-            RANCHER_VERSION: v2.12.2
-            K8S: rke2
-            QEMURAM: '4096'
-            HOSTNAME: master
-            TEST_FRAMEWORK_REPO: https://github.com/ldevulder/distros-test-framework@fix-support-uc-os-image
-            YAML_SCHEDULE: schedule/elemental3/support.yaml
-            START_AFTER_TEST: test_image
+            <<: *master_k8s_validation_settings
+            START_AFTER_TEST: generate_with_install_cmd
       - node01:
           testsuite: null
           settings:
             <<: *node_k8s_validation_settings
-            K8S: rke2
+            HOSTNAME: node01
+  x86_64:
+    sle-unifiedcore-image-16.0-x86_64:
+      - generate_with_install_cmd:
+          machine: 64bit
+          testsuite: null
+          settings:
+            <<: *generate_settings
+            TESTED_CMD: install
+      - generate_with_build_cmd:
+          machine: 64bit
+          testsuite: null
+          settings:
+            <<: *generate_settings
+            TESTED_CMD: build
+      - generate_with_build_installer_iso_cmd:
+          machine: 64bit
+          testsuite: null
+          settings:
+            <<: *generate_settings
+            TESTED_CMD: build_installer_iso
+      - test_iso:
+          testsuite: null
+          settings:
+            <<: *test_iso_settings
+            START_AFTER_TEST: generate_with_build_installer_iso_cmd@64bit
+      - test_release_manifest:
+          testsuite: null
+          settings:
+            <<: *test_image_settings
+            HDD_1: 'elemental-%BUILD%-%ARCH%-build.qcow2'
+            START_AFTER_TEST: generate_with_build_cmd@64bit
+      - master:
+          testsuite: null
+          settings:
+            <<: *master_k8s_validation_settings
+            START_AFTER_TEST: generate_with_install_cmd@64bit
+      - node01:
+          testsuite: null
+          settings:
+            <<: *node_k8s_validation_settings
             HOSTNAME: node01
