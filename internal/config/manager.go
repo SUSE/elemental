@@ -20,10 +20,11 @@ package config
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 
 	"github.com/suse/elemental/v3/internal/image"
-	"github.com/suse/elemental/v3/internal/manifest/extractor"
 
+	"github.com/suse/elemental/v3/pkg/extractor"
 	"github.com/suse/elemental/v3/pkg/http"
 	"github.com/suse/elemental/v3/pkg/manifest/resolver"
 	"github.com/suse/elemental/v3/pkg/manifest/source"
@@ -135,12 +136,21 @@ func (m *Manager) ConfigureComponents(ctx context.Context, conf *image.Configura
 }
 
 func defaultManifestResolver(fs vfs.FS, out OutputDir, local bool) (res *resolver.Resolver, err error) {
-	manifestsDir := out.ReleaseManifestsDir()
+	const (
+		globPattern = "release_manifest*.yaml"
+	)
+
+	searchPaths := []string{
+		globPattern,
+		filepath.Join("etc", "release-manifest", globPattern),
+	}
+
+	manifestsDir := out.ReleaseManifestsStoreDir()
 	if err := vfs.MkdirAll(fs, manifestsDir, 0700); err != nil {
 		return nil, fmt.Errorf("creating release manifest store '%s': %w", manifestsDir, err)
 	}
 
-	extr, err := extractor.New(extractor.WithStore(manifestsDir))
+	extr, err := extractor.New(searchPaths, extractor.WithStore(manifestsDir))
 	if err != nil {
 		return nil, fmt.Errorf("initialising OCI release manifest extractor: %w", err)
 	}

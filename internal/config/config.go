@@ -91,8 +91,12 @@ func (dir OutputDir) CatalystConfigDir() string {
 	return filepath.Join(dir.OverlaysDir(), deployment.ConfigMnt, "catalyst")
 }
 
-func (dir OutputDir) ReleaseManifestsDir() string {
-	return filepath.Join(string(dir), "release-manifests")
+func (dir OutputDir) ExtractedFilesStoreDir() string {
+	return filepath.Join(string(dir), "store")
+}
+
+func (dir OutputDir) ReleaseManifestsStoreDir() string {
+	return filepath.Join(dir.ExtractedFilesStoreDir(), "release-manifests")
 }
 
 func Parse(f vfs.FS, configDir Dir) (conf *image.Configuration, err error) {
