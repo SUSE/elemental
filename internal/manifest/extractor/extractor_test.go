@@ -35,132 +35,136 @@ import (
 )
 
 const (
-	unpackDirPrefix     = "release-manifest-unpack-"
-	dummyContent        = "dummy"
-	dummyOCI            = "registry.com/dummy/release-manifest:0.0.1"
-	releaseManifestName = "release_manifest.yaml"
+	dummyContent = "dummy"
+	dummyOCI     = "registry.com/dummy/file-img:0.0.1"
+	fileName     = "file.yaml"
 )
 
-func TestOCIReleaseManifestExtractor(t *testing.T) {
+func TestOCIFileExtractor(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Release Manifest OCI Extractor test suite")
+	RunSpecs(t, "OCI File Extractor test suite")
 }
 
-var _ = Describe("OCIReleaseManifestExtractor", Label("release-manifest"), func() {
+var _ = Describe("OCIFileExtractor", Label("file-extractor"), func() {
 	var unpacker *unpackerMock
 	var cleanup func()
 	var tfs vfs.FS
-	var extrOpts []extractor.Opts
+	var extrOpts []extractor.OCIFileExtractorOpts
+	var defaultSearchPaths []string
 	BeforeEach(func() {
 		var err error
 		tfs, cleanup, err = sysmock.TestFS(nil)
 		Expect(err).NotTo(HaveOccurred())
 
 		unpacker = &unpackerMock{
-			manifestAtPath: releaseManifestName,
-			digest:         "sha256:" + randomDigestEnc(64),
-			tfs:            tfs,
+			fileAtPath: fileName,
+			digest:     "sha256:" + randomDigestEnc(64),
+			tfs:        tfs,
 		}
 
-		extrOpts = []extractor.Opts{
+		extrOpts = []extractor.OCIFileExtractorOpts{
 			extractor.WithOCIUnpacker(unpacker),
 			extractor.WithFS(tfs),
 		}
+
+		defaultSearchPaths = []string{"file*.yaml"}
 	})
 
 	AfterEach(func() {
 		cleanup()
 	})
 
-	It("extracts release manifest to default store", func() {
+	It("extracts file to default store", func() {
 		digestEnc := randomDigestEnc(64)
 		unpacker.digest = "sha256:" + digestEnc
-		storePathPrefix := filepath.Join(os.TempDir(), "release-manifests-")
+		storePathPrefix := filepath.Join(os.TempDir(), "extracted-files-")
 		expectedStorePath := filepath.Join(storePathPrefix, digestEnc)
 
-		defaultStoreExtr, err := extractor.New(extrOpts...)
+		defaultStoreExtr, err := extractor.New(defaultSearchPaths, extrOpts...)
 		Expect(err).ToNot(HaveOccurred())
 
-		extractedManifest, err := defaultStoreExtr.ExtractFrom(dummyOCI, false)
+		extractedFile, err := defaultStoreExtr.ExtractFrom(dummyOCI, false)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(filepath.Dir(extractedManifest)).To(Equal(expectedStorePath))
-		validateExtractedManifestContent(tfs, extractedManifest)
+		Expect(filepath.Dir(extractedFile)).To(Equal(expectedStorePath))
+		validateExtractedFileContent(tfs, extractedFile)
 	})
 
-	It("extracts release manifest to custom store", func() {
+	It("extracts file to custom store", func() {
 		digestEnc := randomDigestEnc(128)
-		manifestStoreName := digestEnc[:64]
+		fileStoreName := digestEnc[:64]
 		unpacker.digest = "sha512:" + digestEnc
 
 		customStoreRoot, err := vfs.TempDir(tfs, "", "extractor-custom-store-")
 		Expect(err).ToNot(HaveOccurred())
 
-		expectedManifestStore := filepath.Join(customStoreRoot, manifestStoreName)
+		expectedFileStore := filepath.Join(customStoreRoot, fileStoreName)
 
 		extrOpts = append(extrOpts, extractor.WithStore(customStoreRoot))
-		customStoreExtr, err := extractor.New(extrOpts...)
+		customStoreExtr, err := extractor.New(defaultSearchPaths, extrOpts...)
 		Expect(err).ToNot(HaveOccurred())
 
-		extractedManifest, err := customStoreExtr.ExtractFrom(dummyOCI, false)
+		extractedFile, err := customStoreExtr.ExtractFrom(dummyOCI, false)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(strings.HasPrefix(extractedManifest, customStoreRoot)).To(BeTrue())
-		Expect(filepath.Dir(extractedManifest)).To(Equal(expectedManifestStore))
-		validateExtractedManifestContent(tfs, extractedManifest)
+		Expect(strings.HasPrefix(extractedFile, customStoreRoot)).To(BeTrue())
+		Expect(filepath.Dir(extractedFile)).To(Equal(expectedFileStore))
+		validateExtractedFileContent(tfs, extractedFile)
 	})
 
-	It("extracts release manifest using custom search paths", func() {
-		customManifestName := "release_manifest_foo.yaml"
-		searchPaths := []string{filepath.Join("dummy", "release_manifest*.yaml")}
-		unpacker.manifestAtPath = filepath.Join("dummy", customManifestName)
+	It("extracts first found file", func() {
+		digestEnc := randomDigestEnc(64)
+		unpacker.digest = "sha512:" + digestEnc
+		unpacker.multipleFiles = true
+		unpacker.fileAtPath = "file3.yaml"
 
-		extrOpts = append(extrOpts, extractor.WithSearchPaths(searchPaths))
-		customSearchPathExtr, err := extractor.New(extrOpts...)
+		storePathPrefix := filepath.Join(os.TempDir(), "extracted-files-")
+		expectedExtractedFile := filepath.Join(storePathPrefix, digestEnc, "file2.yaml")
+
+		customStoreExtr, err := extractor.New(defaultSearchPaths, extrOpts...)
 		Expect(err).ToNot(HaveOccurred())
 
-		extractedManifest, err := customSearchPathExtr.ExtractFrom(dummyOCI, false)
+		extractedFile, err := customStoreExtr.ExtractFrom(dummyOCI, false)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(filepath.Base(extractedManifest)).To(Equal(customManifestName))
-		validateExtractedManifestContent(tfs, extractedManifest)
+		Expect(extractedFile).To(Equal(expectedExtractedFile))
+		validateExtractedFileContent(tfs, extractedFile)
 	})
 
 	It("fails when unpacking an OCI image", func() {
 		unpacker.fail = true
 		expErr := "unpacking oci image: unpack failure"
 
-		defaultExtr, err := extractor.New(extrOpts...)
+		defaultExtr, err := extractor.New(defaultSearchPaths, extrOpts...)
 		Expect(err).ToNot(HaveOccurred())
 
-		manifest, err := defaultExtr.ExtractFrom(dummyOCI, false)
+		file, err := defaultExtr.ExtractFrom(dummyOCI, false)
 		Expect(err).To(HaveOccurred())
 		Expect(err).To(MatchError(expErr))
-		Expect(manifest).To(BeEmpty())
+		Expect(file).To(BeEmpty())
 	})
 
-	It("fails when release manifest is missing in the unpacked image", func() {
-		customSearchPath := filepath.Join("dummy", "release_manifest*.yaml")
-		expErr := "locating release manifest at unpacked OCI filesystem: failed to find file matching [dummy/release_manifest*.yaml] in /tmp/release-manifest-unpack-"
+	It("fails when file is missing in the unpacked image", func() {
+		customSearchPath := filepath.Join("dummy", "file*.yaml")
+		expErr := "locating file at unpacked OCI filesystem: failed to find file matching [dummy/file*.yaml] in /tmp/unpacked-oci-"
 
-		extrOpts = append(extrOpts, extractor.WithSearchPaths([]string{customSearchPath}))
-		extr, err := extractor.New(extrOpts...)
+		extr, err := extractor.New([]string{customSearchPath}, extrOpts...)
 		Expect(err).ToNot(HaveOccurred())
 
-		manifest, err := extr.ExtractFrom(dummyOCI, false)
+		file, err := extr.ExtractFrom(dummyOCI, false)
 		Expect(err).To(HaveOccurred())
 		Expect(err).To(MatchError(expErr))
-		Expect(manifest).To(BeEmpty())
+		Expect(file).To(BeEmpty())
 	})
 
 	It("fails when produced digest is not in an OCI format", func() {
 		unpacker.digest = "d41d8cd98f00b204e9800998ecf8427e"
-		expErr := fmt.Sprintf("generating manifest store based on digest: invalid digest format '%s', expected '<algorithm>:<hash>'", unpacker.digest)
+		expErr := fmt.Sprintf("generating file store based on digest: invalid digest format '%s', expected '<algorithm>:<hash>'", unpacker.digest)
 
-		extr, err := extractor.New(extrOpts...)
+		extr, err := extractor.New(defaultSearchPaths, extrOpts...)
 		Expect(err).ToNot(HaveOccurred())
 
-		manifest, err := extr.ExtractFrom(dummyOCI, false)
+		file, err := extr.ExtractFrom(dummyOCI, false)
 		Expect(err).To(HaveOccurred())
 		Expect(err).To(MatchError(expErr))
-		Expect(manifest).To(BeEmpty())
+		Expect(file).To(BeEmpty())
 	})
 
 	It("fails when custom store does not exist on filesystem", func() {
@@ -168,24 +172,24 @@ var _ = Describe("OCIReleaseManifestExtractor", Label("release-manifest"), func(
 		errSubstring := "store path '/missing' does not exist in provided filesystem"
 
 		extrOpts = append(extrOpts, extractor.WithStore(missing))
-		_, err := extractor.New(extrOpts...)
+		_, err := extractor.New(defaultSearchPaths, extrOpts...)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring(errSubstring))
 	})
 })
 
-func validateExtractedManifestContent(fs vfs.FS, manifest string) {
-	data, err := fs.ReadFile(manifest)
+func validateExtractedFileContent(fs vfs.FS, file string) {
+	data, err := fs.ReadFile(file)
 	Expect(err).ToNot(HaveOccurred())
 	Expect(string(data)).To(Equal(dummyContent))
 }
 
 type unpackerMock struct {
-	manifestAtPath   string
-	fail             bool
-	digest           string
-	multipleManifest bool
-	tfs              vfs.FS
+	fileAtPath    string
+	fail          bool
+	digest        string
+	multipleFiles bool
+	tfs           vfs.FS
 }
 
 func (u unpackerMock) Unpack(ctx context.Context, uri, dest string, local bool) (digest string, err error) {
@@ -193,18 +197,18 @@ func (u unpackerMock) Unpack(ctx context.Context, uri, dest string, local bool) 
 		return "", fmt.Errorf("unpack failure")
 	}
 
-	dir := filepath.Dir(filepath.Join(dest, u.manifestAtPath))
+	dir := filepath.Dir(filepath.Join(dest, u.fileAtPath))
 	if err := vfs.MkdirAll(u.tfs, dir, 0755); err != nil {
 		return "", err
 	}
 
-	if err := u.tfs.WriteFile(filepath.Join(dest, u.manifestAtPath), []byte(dummyContent), 0644); err != nil {
+	if err := u.tfs.WriteFile(filepath.Join(dest, u.fileAtPath), []byte(dummyContent), 0644); err != nil {
 		return "", err
 	}
 
-	if u.multipleManifest {
-		secondManifest := filepath.Join(filepath.Dir(u.manifestAtPath), "release_manifest2.yaml")
-		if err := u.tfs.WriteFile(filepath.Join(dest, secondManifest), []byte(dummyContent), 0644); err != nil {
+	if u.multipleFiles {
+		secondFile := filepath.Join(filepath.Dir(u.fileAtPath), "file2.yaml")
+		if err := u.tfs.WriteFile(filepath.Join(dest, secondFile), []byte(dummyContent), 0644); err != nil {
 			return "", err
 		}
 	}

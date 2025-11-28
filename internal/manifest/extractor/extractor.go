@@ -28,9 +28,6 @@ import (
 	"github.com/suse/elemental/v3/pkg/unpack"
 )
 
-// Default glob pattern used to search for a release manifest in an OCI image
-const globPattern = "release_manifest*.yaml"
-
 type OCIUnpacker interface {
 	// Unpack unpacks the file system of a given OCI image to the specified destination
 	// and returns its digest
@@ -46,16 +43,14 @@ func (o *ociUnpacker) Unpack(ctx context.Context, uri, dest string, local bool) 
 	return unpacker.Unpack(ctx, dest)
 }
 
-type OCIReleaseManifestExtractor struct {
-	// Location to search for the release manifest;
-	// both globs (e.g. "/foo/release_manifest*.yaml")
-	// and absolute paths (e.g. "/foo/release_manifest.yaml")
+type OCIFileExtractor struct {
+	// Location to search for the desired file;
+	// both globs (e.g. "/foo/file*.yaml")
+	// and absolute paths (e.g. "/foo/file.yaml")
 	// are supported.
-	//
-	// Defaults to '/release_manifest*.yaml' and '/etc/release-manifest/release_manifest*.yaml'.
 	searchPaths []string
-	// Location where all extracted release manifests will be stored.
-	// Each manifest will be stored in a separate directory within
+	// Location where all extracted files will be stored.
+	// Each file will be stored in a separate directory within
 	// this root store path.
 	//
 	// Defaults to the OS temporary directory.
@@ -65,46 +60,37 @@ type OCIReleaseManifestExtractor struct {
 	ctx      context.Context
 }
 
-type Opts func(o *OCIReleaseManifestExtractor)
+type OCIFileExtractorOpts func(o *OCIFileExtractor)
 
-func WithOCIUnpacker(u OCIUnpacker) Opts {
-	return func(r *OCIReleaseManifestExtractor) {
+func WithOCIUnpacker(u OCIUnpacker) OCIFileExtractorOpts {
+	return func(r *OCIFileExtractor) {
 		r.unpacker = u
 	}
 }
 
-func WithStore(store string) Opts {
-	return func(r *OCIReleaseManifestExtractor) {
+func WithStore(store string) OCIFileExtractorOpts {
+	return func(r *OCIFileExtractor) {
 		r.store = store
 	}
 }
 
-func WithSearchPaths(globs []string) Opts {
-	return func(r *OCIReleaseManifestExtractor) {
-		r.searchPaths = globs
-	}
-}
-
-func WithFS(fs vfs.FS) Opts {
-	return func(r *OCIReleaseManifestExtractor) {
+func WithFS(fs vfs.FS) OCIFileExtractorOpts {
+	return func(r *OCIFileExtractor) {
 		r.fs = fs
 	}
 }
 
-func WithContext(ctx context.Context) Opts {
-	return func(r *OCIReleaseManifestExtractor) {
+func WithContext(ctx context.Context) OCIFileExtractorOpts {
+	return func(r *OCIFileExtractor) {
 		r.ctx = ctx
 	}
 }
 
-func New(opts ...Opts) (*OCIReleaseManifestExtractor, error) {
-	extr := &OCIReleaseManifestExtractor{
-		searchPaths: []string{
-			globPattern,
-			filepath.Join("etc", "release-manifest", globPattern),
-		},
-		fs:  vfs.New(),
-		ctx: context.Background(),
+func New(searchPaths []string, opts ...OCIFileExtractorOpts) (*OCIFileExtractor, error) {
+	extr := &OCIFileExtractor{
+		searchPaths: searchPaths,
+		fs:          vfs.New(),
+		ctx:         context.Background(),
 	}
 
 	for _, o := range opts {
@@ -116,7 +102,7 @@ func New(opts ...Opts) (*OCIReleaseManifestExtractor, error) {
 			return nil, fmt.Errorf("store path '%s' does not exist in provided filesystem: %w", extr.store, err)
 		}
 	} else {
-		store, err := vfs.TempDir(extr.fs, "", "release-manifests-")
+		store, err := vfs.TempDir(extr.fs, "", "extracted-files-")
 		if err != nil {
 			return nil, fmt.Errorf("setting up default store directory: %w", err)
 		}
@@ -138,12 +124,12 @@ func New(opts ...Opts) (*OCIReleaseManifestExtractor, error) {
 	return extr, nil
 }
 
-// ExtractFrom locates and extracts a release manifest file from the given OCI image.
-// The first located release manifest will be extracted to the configured store directory
-// and its path will be returned, or an error if the manifest was not found.
+// ExtractFrom locates and extracts a file from the given OCI image.
+// The first located file will be extracted to the configured store directory
+// and its path will be returned, or an error if the file was not found.
 // The underlying OCI image is not retained.
-func (o *OCIReleaseManifestExtractor) ExtractFrom(uri string, local bool) (path string, err error) {
-	unpackDir, err := vfs.TempDir(o.fs, "", "release-manifest-unpack-")
+func (o *OCIFileExtractor) ExtractFrom(uri string, local bool) (path string, err error) {
+	unpackDir, err := vfs.TempDir(o.fs, "", "unpacked-oci-")
 	if err != nil {
 		return "", fmt.Errorf("creating oci image unpack directory: %w", err)
 	}
@@ -156,29 +142,29 @@ func (o *OCIReleaseManifestExtractor) ExtractFrom(uri string, local bool) (path 
 		return "", fmt.Errorf("unpacking oci image: %w", err)
 	}
 
-	manifestInOCI, err := vfs.FindFile(o.fs, unpackDir, o.searchPaths...)
+	fileInOCI, err := vfs.FindFile(o.fs, unpackDir, o.searchPaths...)
 	if err != nil {
-		return "", fmt.Errorf("locating release manifest at unpacked OCI filesystem: %w", err)
+		return "", fmt.Errorf("locating file at unpacked OCI filesystem: %w", err)
 	}
 
-	manifestStorePath, err := o.generateManifestStorePath(digest)
+	fileStorePath, err := o.generateFileStorePath(digest)
 	if err != nil {
-		return "", fmt.Errorf("generating manifest store based on digest: %w", err)
+		return "", fmt.Errorf("generating file store based on digest: %w", err)
 	}
 
-	if err := vfs.MkdirAll(o.fs, manifestStorePath, 0700); err != nil {
-		return "", fmt.Errorf("creating manifest store directory '%s': %w", manifestStorePath, err)
+	if err := vfs.MkdirAll(o.fs, fileStorePath, 0700); err != nil {
+		return "", fmt.Errorf("creating file store directory '%s': %w", fileStorePath, err)
 	}
 
-	manifestInStore := filepath.Join(manifestStorePath, filepath.Base(manifestInOCI))
-	if err := vfs.CopyFile(o.fs, manifestInOCI, manifestInStore); err != nil {
-		return "", fmt.Errorf("copying release manifest to store: %w", err)
+	fileInStore := filepath.Join(fileStorePath, filepath.Base(fileInOCI))
+	if err := vfs.CopyFile(o.fs, fileInOCI, fileInStore); err != nil {
+		return "", fmt.Errorf("copying file to store: %w", err)
 	}
 
-	return manifestInStore, nil
+	return fileInStore, nil
 }
 
-func (o *OCIReleaseManifestExtractor) generateManifestStorePath(digest string) (string, error) {
+func (o *OCIFileExtractor) generateFileStorePath(digest string) (string, error) {
 	const maxHashLen = 64
 	digestSplit := strings.Split(digest, ":")
 	if len(digestSplit) != 2 || digestSplit[0] == "" || digestSplit[1] == "" {
