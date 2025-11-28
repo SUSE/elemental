@@ -29,7 +29,8 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/suse/elemental/v3/internal/manifest/extractor"
+
+	"github.com/suse/elemental/v3/pkg/extractor"
 	sysmock "github.com/suse/elemental/v3/pkg/sys/mock"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
