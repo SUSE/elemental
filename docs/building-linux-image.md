@@ -325,9 +325,9 @@ Elemental supports creating installation media in the form of live ISOs or RAW d
 
 The ISO image includes EFI binaries and bootloader setup, the OS image (as a squashfs image) and the installation assets (configuration script and drop-in files overlayed over the OS). 
 
-The RAW image includes the ESP partition with the EFI binaries and the bootloader setup and a recovery partition including the OS image (again as an squashfs image) together with the installation assets.
+The RAW image includes the ESP partition with the EFI binaries, the bootloader setup and a recovery partition including the OS image (again as an squashfs image) together with the installation assets.
 
-For both, the ISO and RAW, the image boots like a live OS system based on tmpfs overlayfs. Boot relies on the `dmsquash-live` dracut module for live booting.
+Regardless of whether the artifact is an ISO or a RAW disk, the respective image boots like a live OS system based on tmpfs overlayfs. The boot process relies on the `dmsquash-live` dracut module for live booting.
 
 To create a self installer image, you should prepare and include a specific set of configuration assets. These include:
 
