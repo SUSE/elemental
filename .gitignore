@@ -1,9 +1,10 @@
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
 
-# build and vscode are not needed
+# build and IDE directories are not needed
 /build/
 .vscode/
+.idea/
 
 # Go workspace file
 go.work*
