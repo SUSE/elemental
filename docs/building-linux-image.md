@@ -321,16 +321,13 @@ You should see the bootloader prompting you to start `openSUSE Tumbleweed`.
 
 ## Create an Installer Media
 
-Elemental supports creating installation media in the form of live ISOs or RAW disk images. In both cases they are almost the same.
-The difference is the ISO installs to a target disk device and the RAW disk resets to factory from a recovery partition.
+Elemental supports creating installation media in the form of live ISOs or RAW disk images. Content-wise they both are almost the same. The difference is that ISO installs to a target disk device and the RAW disk resets to factory from a recovery partition.
 
-Content wise both supports include the same content, the ISO image includes EFI binaries and bootloader setup, the OS image
-(as a squashfs image) and the installation assets (configuration script and drop-in files overlayed over the OS). The RAW image
-includes the ESP partition with the EFI binaries and the bootloader setup and a recovery partition including the OS image
-(again as an squashfs image) together with the installation assets.
+The ISO image includes EFI binaries and bootloader setup, the OS image (as a squashfs image) and the installation assets (configuration script and drop-in files overlayed over the OS). 
 
-On both supports the image boots like a live OS system based on tmpfs overlayfs. Boot relies on the `dmsquash-live` dracut module
-for live booting.
+The RAW image includes the ESP partition with the EFI binaries, the bootloader setup and a recovery partition including the OS image (again as an squashfs image) together with the installation assets.
+
+Regardless of whether the artifact is an ISO or a RAW disk, the respective image boots like a live OS system based on tmpfs overlayfs. The boot process relies on the `dmsquash-live` dracut module for live booting.
 
 To create a self installer image, you should prepare and include a specific set of configuration assets. These include:
 
@@ -461,6 +458,11 @@ available and loaded at boot.
 
 ### Build the Installer Image
 
+If you do not have `mcopy` command on your system, install it using:
+```shell
+zypper in mtools
+```
+
 The command below creates an ISO image inside the `build` output directory.
 It will be using an `openSUSE Tumbleweed` image and will be configured to automatically self install to the target device (e.g. `dev/sda`) at boot.
 
@@ -499,6 +501,7 @@ Note that:
 Launch a virtual machine to boot the installer ISO and verify the automated installation:
 
 ```shell
+cp /usr/share/qemu/ovmf-x86_64-vars.bin .
 qemu-system-x86_64 -m 8G \
          -accel kvm \
          -cpu host \
@@ -523,6 +526,7 @@ In order to test the RAW installer image with QEMU we need to dump the image to 
 generated image.
 
 ```shell
+cp /usr/share/qemu/ovmf-x86_64-vars.bin .
 qemu-img resize build/installer.raw 16G
 ```
 
