@@ -214,7 +214,7 @@ passwd:
 		r, err := m.ConfigureComponents(context.Background(), conf, outputDir)
 		Expect(r).To(BeNil())
 		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("/_out/release-manifests: no such file or directory"))
+		Expect(err.Error()).To(ContainSubstring("/_out/store/release-manifests: no such file or directory"))
 
 		By("Using custom manifest resolver")
 		m = NewManager(
