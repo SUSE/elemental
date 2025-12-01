@@ -28,6 +28,7 @@ import (
 
 	"github.com/suse/elemental/v3/internal/image/install"
 	"github.com/suse/elemental/v3/internal/image/release"
+	"github.com/suse/elemental/v3/pkg/crypto"
 	sysmock "github.com/suse/elemental/v3/pkg/sys/mock"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
@@ -40,7 +41,11 @@ func TestConfigurationSuite(t *testing.T) {
 var installYAML = `
 bootloader: grub
 kernelCmdLine: "console=ttyS0 quiet loglevel=3"
-diskSize: 35G
+cryptoPolicy: fips
+raw:
+  diskSize: 35G
+iso:
+  device: /dev/sda
 `
 
 var butaneYAML = `
@@ -112,7 +117,9 @@ var _ = Describe("Configuration", Label("configuration"), func() {
 
 		Expect(conf.Installation.Bootloader).To(Equal("grub"))
 		Expect(conf.Installation.KernelCmdLine).To(Equal("console=ttyS0 quiet loglevel=3"))
-		Expect(conf.Installation.DiskSize).To(Equal(install.DiskSize("35G")))
+		Expect(conf.Installation.RAW.DiskSize).To(Equal(install.DiskSize("35G")))
+		Expect(conf.Installation.ISO.Device).To(Equal("/dev/sda"))
+		Expect(conf.Installation.CryptoPolicy).To(Equal(crypto.FIPSPolicy))
 
 		Expect(conf.Kubernetes.Config.AgentFilePath).To(Equal(filepath.Join(configDir.KubernetesConfigDir(), "agent.yaml")))
 		Expect(conf.Kubernetes.Config.ServerFilePath).To(Equal(filepath.Join(configDir.KubernetesConfigDir(), "server.yaml")))

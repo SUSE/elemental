@@ -32,6 +32,15 @@ func (d DiskSize) IsValid() bool {
 type Installation struct {
 	Bootloader    string        `yaml:"bootloader"`
 	KernelCmdLine string        `yaml:"kernelCmdLine"`
-	DiskSize      DiskSize      `yaml:"diskSize"`
+	RAW           RAW           `yaml:"raw"`
+	ISO           ISO           `yaml:"iso"`
 	CryptoPolicy  crypto.Policy `yaml:"cryptoPolicy"`
+}
+
+type RAW struct {
+	DiskSize DiskSize `yaml:"diskSize"`
+}
+
+type ISO struct {
+	Device string `yaml:"device"`
 }

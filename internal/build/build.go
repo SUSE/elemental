@@ -59,7 +59,7 @@ func (b *Builder) Run(ctx context.Context, d *image.Definition, outputDir config
 	}
 
 	logger.Info("Creating RAW disk image")
-	if err = createDisk(runner, d.Image, d.Configuration.Installation.DiskSize); err != nil {
+	if err = createDisk(runner, d.Image, d.Configuration.Installation.RAW.DiskSize); err != nil {
 		logger.Error("Creating RAW disk image failed")
 		return err
 	}
