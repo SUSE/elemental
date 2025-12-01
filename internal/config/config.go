@@ -99,6 +99,15 @@ func (dir OutputDir) ReleaseManifestsStoreDir() string {
 	return filepath.Join(dir.ExtractedFilesStoreDir(), "release-manifests")
 }
 
+func (dir OutputDir) ISOStoreDir() string {
+	return filepath.Join(dir.ExtractedFilesStoreDir(), "ISOs")
+}
+
+func CreateOutputDir(fs vfs.FS, dst, name string, perm fs.FileMode) (dir OutputDir, err error) {
+	outputDirPath := filepath.Join(dst, name)
+	return OutputDir(outputDirPath), vfs.MkdirAll(fs, outputDirPath, perm)
+}
+
 func Parse(f vfs.FS, configDir Dir) (conf *image.Configuration, err error) {
 	conf = &image.Configuration{}
 

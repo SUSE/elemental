@@ -65,7 +65,8 @@ func Build(ctx *cli.Context) error {
 
 	logger.Info("Validated image configuration")
 
-	outDir, err := createOutputDirectory(system.FS(), args.BuildDir)
+	buildOutput := fmt.Sprintf("build-%s", time.Now().UTC().Format("2006-01-02T15-04-05"))
+	outDir, err := config.CreateOutputDir(system.FS(), args.BuildDir, buildOutput, 0700)
 	if err != nil {
 		logger.Error("Creating build directory failed")
 		return err
@@ -150,10 +151,4 @@ func parseImageDefinition(f vfs.FS, args *cmd.BuildFlags) (*image.Definition, er
 		},
 		Configuration: conf,
 	}, nil
-}
-
-func createOutputDirectory(fs vfs.FS, rootOutputDir string) (config.OutputDir, error) {
-	outputDirName := fmt.Sprintf("build-%s", time.Now().UTC().Format("2006-01-02T15-04-05"))
-	outputDirPath := filepath.Join(rootOutputDir, outputDirName)
-	return config.OutputDir(outputDirPath), vfs.MkdirAll(fs, outputDirPath, 0700)
 }

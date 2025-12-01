@@ -112,7 +112,7 @@ func (r *Runner) Run(ctx context.Context, def *image.Definition, outputDir confi
 	// TODO(ipetrov117): Consider refactoring installer.Media, as right now
 	// it is hiding too much information when exposing the Customize() command.
 	// This makes abstracting the object behind an interface hard. Perhaps we should separate
-	// the disk-building logic from the disk-customizing logic, or move some of the values
+	// the disk-installer logic from the disk-customizing logic, or move some of the values
 	// currently set in installer.NewMedia into the appropriate functions as parameters.
 	if r.Media == nil {
 		media := installer.NewMedia(ctx, r.System, mediaType)
