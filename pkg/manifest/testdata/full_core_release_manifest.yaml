@@ -22,7 +22,9 @@ metadata:
 components:
   operatingSystem:
     version: "6.2"
-    image: "registry.com/foo/bar/sl-micro:6.2"
+    image:
+      base: "registry.com/foo/bar/os-base:6.2"
+      iso: "registry.com/foo/bar/installer-iso:6.2"
   systemd:
     extensions:
       - name: "elemental3ctl"

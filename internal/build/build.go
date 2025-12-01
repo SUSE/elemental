@@ -86,7 +86,7 @@ func (b *Builder) Run(ctx context.Context, d *image.Definition, outputDir config
 	dep, err := newDeployment(
 		b.System,
 		device,
-		rm.CorePlatform.Components.OperatingSystem.Image,
+		rm.CorePlatform.Components.OperatingSystem.Image.Base,
 		&d.Configuration.Installation,
 		outputDir,
 	)

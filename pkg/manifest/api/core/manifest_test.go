@@ -64,7 +64,8 @@ var _ = Describe("ReleaseManifest", Label("release-manifest"), func() {
 		Expect(rm.Components).ToNot(BeNil())
 		Expect(rm.Components.OperatingSystem).ToNot(BeNil())
 		Expect(rm.Components.OperatingSystem.Version).To(Equal("6.2"))
-		Expect(rm.Components.OperatingSystem.Image).To(Equal("registry.com/foo/bar/sl-micro:6.2"))
+		Expect(rm.Components.OperatingSystem.Image.Base).To(Equal("registry.com/foo/bar/os-base:6.2"))
+		Expect(rm.Components.OperatingSystem.Image.ISO).To(Equal("registry.com/foo/bar/installer-iso:6.2"))
 
 		Expect(rm.Components.Systemd.Extensions).To(HaveLen(2))
 		Expect(rm.Components.Systemd.Extensions[0].Name).To(Equal("elemental3ctl"))

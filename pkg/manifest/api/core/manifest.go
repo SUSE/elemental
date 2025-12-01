@@ -39,7 +39,12 @@ type Components struct {
 
 type OperatingSystem struct {
 	Version string `yaml:"version"`
-	Image   string `yaml:"image"`
+	Image   Image  `yaml:"image"`
+}
+
+type Image struct {
+	Base string `yaml:"base"`
+	ISO  string `yaml:"iso"`
 }
 
 func Parse(data []byte) (*ReleaseManifest, error) {
