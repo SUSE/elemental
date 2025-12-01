@@ -149,8 +149,8 @@ func extractISO(s *sys.System, iso, srcPath, destPath string) error {
 	return nil
 }
 
-// loadISOInstallDesc extracts the install description file form the given ISO and parses it into a new deployment
-func loadISOInstallDesc(s *sys.System, tempDir, iso string) (*deployment.Deployment, error) {
+// LoadISOInstallDesc extracts the install description file form the given ISO and parses it into a new deployment
+func LoadISOInstallDesc(s *sys.System, tempDir, iso string) (*deployment.Deployment, error) {
 	installDst := filepath.Join(tempDir, installCfg)
 	installSrc := filepath.Join(installDir, installCfg)
 
@@ -310,7 +310,7 @@ func (i *Media) Customize(d *deployment.Deployment) (err error) {
 	}
 	cleanup.Push(func() error { return i.s.FS().RemoveAll(tempDir) })
 
-	installDesc, err := loadISOInstallDesc(i.s, tempDir, i.InputFile)
+	installDesc, err := LoadISOInstallDesc(i.s, tempDir, i.InputFile)
 	if err != nil {
 		return fmt.Errorf("failed extracting install description from '%s': %w", i.InputFile, err)
 	}
