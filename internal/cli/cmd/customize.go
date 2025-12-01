@@ -19,20 +19,19 @@ package cmd
 
 import (
 	"fmt"
+	"runtime"
 
+	"github.com/suse/elemental/v3/pkg/installer"
 	"github.com/urfave/cli/v2"
 )
 
 type CustomizeFlags struct {
-	InstallSpec   InstallFlags
-	InputFile     string
-	OutputDir     string
-	Name          string
-	ConfigScript  string
-	Overlay       string
-	Label         string
-	KernelCmdline string
-	Type          string
+	ConfigDir       string
+	OutputPath      string
+	Platform        string
+	CustomizeOutput string
+	MediaType       string
+	Local           bool
 }
 
 var CustomizeArgs CustomizeFlags
@@ -45,68 +44,38 @@ func NewCustomizeCommand(appName string, action func(*cli.Context) error) *cli.C
 		Action:    action,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
-				Name:        "install-config",
-				Usage:       "Path to OS image post-commit script",
-				Destination: &CustomizeArgs.InstallSpec.ConfigScript,
+				Name:        "type",
+				Usage:       "Type of the installer media, 'iso' or 'raw' (default: iso)",
+				Destination: &CustomizeArgs.MediaType,
+				Value:       installer.ISO.String(),
 			},
 			&cli.StringFlag{
-				Name:        "install-description",
-				Usage:       "Description file to read installation details",
-				Destination: &CustomizeArgs.InstallSpec.Description,
-			},
-			&cli.StringFlag{
-				Name:        "install-overlay",
-				Usage:       "URI of the overlay content for the OS image",
-				Destination: &CustomizeArgs.InstallSpec.Overlay,
-			},
-			&cli.StringFlag{
-				Name:        "install-target",
-				Usage:       "Target device for the installation process",
-				Destination: &CustomizeArgs.InstallSpec.Target,
-			},
-			&cli.StringFlag{
-				Name:        "install-cmdline",
-				Value:       "",
-				Usage:       "Kernel cmdline for installed system",
-				Destination: &CustomizeArgs.InstallSpec.KernelCmdline,
-			},
-			&cli.StringFlag{
-				Name:        "input",
-				Usage:       "Path to local ISO image to customize",
-				Destination: &CustomizeArgs.InputFile,
-				Required:    true,
-			},
-			&cli.StringFlag{
-				Name:        "config",
-				Usage:       "Path to installer media config script",
-				Destination: &CustomizeArgs.ConfigScript,
+				Name:        "config-dir",
+				Usage:       "Full path to the image configuration directory",
+				Destination: &CustomizeArgs.ConfigDir,
 			},
 			&cli.StringFlag{
 				Name:        "output",
-				Usage:       "Location for the temporary builtime files and the resulting image",
-				Destination: &CustomizeArgs.OutputDir,
-				Required:    true,
+				Usage:       "Filepath for the output image",
+				Destination: &CustomizeArgs.OutputPath,
+				DefaultText: "image-<timestamp>.<image-type>",
 			},
 			&cli.StringFlag{
-				Name:        "name",
-				Usage:       "Name of the resulting image file",
-				Destination: &CustomizeArgs.Name,
+				Name:        "platform",
+				Usage:       "Target platform",
+				Destination: &CustomizeArgs.Platform,
+				Value:       fmt.Sprintf("linux/%s", runtime.GOARCH),
 			},
 			&cli.StringFlag{
-				Name:        "overlay",
-				Usage:       "URI of the data to include in installer media",
-				Destination: &CustomizeArgs.Overlay,
+				Name:        "customize-output",
+				Usage:       "Full path to the directory to store customize artifacts",
+				Destination: &CustomizeArgs.CustomizeOutput,
+				Value:       "_customize",
 			},
-			&cli.StringFlag{
-				Name:        "cmdline",
-				Usage:       "Kernel command line to boot the installer media",
-				Destination: &CustomizeArgs.KernelCmdline,
-			},
-			&cli.StringFlag{
-				Name:        "type",
-				Usage:       "Type of the installer media, 'iso' or 'raw' (default: iso)",
-				Destination: &CustomizeArgs.Type,
-				Value:       "iso",
+			&cli.BoolFlag{
+				Name:        "local",
+				Usage:       "Load OCI images from the local container storage instead of a remote registry",
+				Destination: &CustomizeArgs.Local,
 			},
 		},
 	}
