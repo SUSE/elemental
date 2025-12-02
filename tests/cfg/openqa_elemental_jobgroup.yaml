@@ -122,12 +122,11 @@ scenarios:
           settings:
             <<: *generate_settings
             TESTED_CMD: build
-      - generate_with_build_iso_cmd:
-          machine: 64bit
+      - generate_with_build_installer_iso_cmd:
           testsuite: null
           settings:
             <<: *generate_settings
-            TESTED_CMD: build_iso
+            TESTED_CMD: build_installer_iso
       - test_iso:
           testsuite: null
           settings:
