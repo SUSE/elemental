@@ -40,7 +40,7 @@ import (
 
 func TestCustomizeSuite(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Build test suite")
+	RunSpecs(t, "Customize test suite")
 }
 
 var _ = Describe("Customize runner", Label("customize"), func() {
