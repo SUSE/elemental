@@ -70,7 +70,7 @@ func (r *Runner) Run(ctx context.Context, def *image.Definition, outputDir confi
 	logger.Info("Configuring image components")
 	rm, err := r.ConfigManager.ConfigureComponents(ctx, def.Configuration, outputDir)
 	if err != nil {
-		logger.Error("Configuring image components")
+		logger.Error("Configuring image components failed")
 		return err
 	}
 
@@ -78,21 +78,21 @@ func (r *Runner) Run(ctx context.Context, def *image.Definition, outputDir confi
 	logger.Info("Extracting ISO from container image %s", containerImage)
 	iso, err := r.FileExtractor.ExtractFrom(containerImage, local)
 	if err != nil {
-		logger.Error("Extracting ISO from container image %s", containerImage)
+		logger.Error("Extracting ISO from container image '%s' failed", containerImage)
 		return err
 	}
 
 	logger.Info("Loading ISO install description")
 	installerDeployment, err := loadISOInstallDesc(r.System, iso, string(outputDir))
 	if err != nil {
-		logger.Error("Loading ISO install description")
+		logger.Error("Loading ISO install description failed")
 		return err
 	}
 
 	logger.Info("Parsing media type")
 	mediaType, err := installer.StringToMediaType(def.Image.ImageType)
 	if err != nil {
-		logger.Error("Parsing media type")
+		logger.Error("Parsing media type failed")
 		return err
 	}
 
@@ -105,7 +105,7 @@ func (r *Runner) Run(ctx context.Context, def *image.Definition, outputDir confi
 	)
 
 	if err != nil {
-		logger.Error("Parsing customization deployment")
+		logger.Error("Parsing customization deployment failed")
 		return err
 	}
 
@@ -125,14 +125,14 @@ func (r *Runner) Run(ctx context.Context, def *image.Definition, outputDir confi
 
 	logger.Info("Customizing image media")
 	if err = r.Media.Customize(dep); err != nil {
-		logger.Error("Customizing image media")
+		logger.Error("Customizing image media failed")
 		return err
 	}
 
 	if mediaType == installer.Disk {
 		logger.Info("Resizing built installer media")
 		if err = resizeDisk(r.System.Runner(), def.Image.OutputImageName, def.Configuration.Installation.RAW.DiskSize); err != nil {
-			logger.Error("Resizing built installer media")
+			logger.Error("Resizing built installer media failed")
 			return err
 		}
 	}

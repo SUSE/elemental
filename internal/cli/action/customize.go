@@ -64,25 +64,25 @@ func Customize(ctx *cli.Context) (err error) {
 		logger.Debug("Cleaning up customize-dir %s", outDir)
 		rmErr := system.FS().RemoveAll(string(outDir))
 		if rmErr != nil {
-			logger.Error("Cleaning up customize-dir %s", outDir)
+			logger.Error("Cleaning up customize-dir '%s' failed", outDir)
 			err = errors.Join(err, rmErr)
 		}
 	}()
 
 	def, err := digestCustomizeDefinition(system.FS(), args)
 	if err != nil {
-		logger.Error("Digesting image definition from customize flags")
+		logger.Error("Digesting image definition from customize flags failed")
 		return err
 	}
 
 	customizeRunner, err := setupCustomizeRunner(ctxCancel, system, args, outDir)
 	if err != nil {
-		logger.Error("Setting up customization runner")
+		logger.Error("Setting up customization runner failed")
 		return err
 	}
 
 	if err = customizeRunner.Run(ctxCancel, def, outDir, args.Local); err != nil {
-		logger.Error("Failed customizing installer media")
+		logger.Error("Customizing installer media failed")
 		return err
 	}
 
