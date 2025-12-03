@@ -55,7 +55,7 @@ func Customize(ctx *cli.Context) error {
 	customizeDir := fmt.Sprintf("customize-%s", time.Now().UTC().Format("2006-01-02T15-04-05"))
 	outDir, err := config.CreateOutputDir(system.FS(), args.CustomizeOutput, customizeDir, 0700)
 	if err != nil {
-		logger.Error("Creating customize directory failed")
+		logger.Error("Creating customize directory '%s' failed", outDir)
 		return err
 	}
 
