@@ -19,6 +19,7 @@ package action
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os/signal"
 	"path/filepath"
@@ -39,7 +40,7 @@ import (
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
 
-func Customize(ctx *cli.Context) error {
+func Customize(ctx *cli.Context) (err error) {
 	if ctx.App.Metadata == nil || ctx.App.Metadata["system"] == nil {
 		return fmt.Errorf("error setting up initial configuration")
 	}
@@ -61,9 +62,10 @@ func Customize(ctx *cli.Context) error {
 
 	defer func() {
 		logger.Debug("Cleaning up customize-dir %s", outDir)
-		err = system.FS().RemoveAll(string(outDir))
-		if err != nil {
+		rmErr := system.FS().RemoveAll(string(outDir))
+		if rmErr != nil {
 			logger.Error("Cleaning up customize-dir %s", outDir)
+			err = errors.Join(err, rmErr)
 		}
 	}()
 

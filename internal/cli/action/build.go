@@ -18,6 +18,7 @@ limitations under the License.
 package action
 
 import (
+	"errors"
 	"fmt"
 	"os/signal"
 	"path/filepath"
@@ -38,7 +39,7 @@ import (
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
 
-func Build(ctx *cli.Context) error {
+func Build(ctx *cli.Context) (err error) {
 	args := &cmd.BuildArgs
 
 	if ctx.App.Metadata == nil || ctx.App.Metadata["system"] == nil {
@@ -74,9 +75,10 @@ func Build(ctx *cli.Context) error {
 
 	defer func() {
 		logger.Debug("Cleaning up build-dir %s", outDir)
-		err = system.FS().RemoveAll(string(outDir))
-		if err != nil {
+		rmErr := system.FS().RemoveAll(string(outDir))
+		if rmErr != nil {
 			logger.Error("Cleaning up build-dir %s", outDir)
+			err = errors.Join(err, rmErr)
 		}
 	}()
 
