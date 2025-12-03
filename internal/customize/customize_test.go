@@ -111,7 +111,6 @@ disks:
 			}
 			return sysRunner.ReturnValue, sysRunner.ReturnError
 		}
-		Expect(err).ToNot(HaveOccurred())
 		Expect(vfs.MkdirAll(fs, string(outputDir), vfs.DirPerm)).To(Succeed())
 
 		customizeRunner = &customize.Runner{
