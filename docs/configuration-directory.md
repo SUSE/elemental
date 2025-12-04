@@ -136,13 +136,17 @@ The directory's structure is as follows:
     ├── helm
     │   └── values
     │       └── rancher.yaml
-    └── manifests
-        └── local-manifest.yaml
+    ├── manifests
+    │   └── local-manifest.yaml
+    └── config
+        ├── agent.yaml
+        └── server.yaml
 ```
 
 * `helm` - Optional; Contains locally provided Helm chart configurations
   * `values` - Optional; Contains [Helm values files](https://helm.sh/docs/chart_template_guide/values_files/). Helm charts that require specified values must have a values file included in this directory.
 * `manifests` - Optional; Contains locally provided Kubernetes manifests which will be applied to the cluster. Can be used separately or in combination with the manifests provided in the `kubernetes.yaml` file.
+* `config` - Optional; Contains locally provided Kubernetes configuration files, `server.yaml` for control-plane nodes and `agent.yaml` for workers.
 
 ## Network
 
