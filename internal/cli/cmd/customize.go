@@ -39,7 +39,7 @@ var CustomizeArgs CustomizeFlags
 func NewCustomizeCommand(appName string, action func(*cli.Context) error) *cli.Command {
 	return &cli.Command{
 		Name:      "customize",
-		Usage:     "Customize an image based on a product release",
+		Usage:     "Customize an image based on a release",
 		UsageText: fmt.Sprintf("%s customize", appName),
 		Action:    action,
 		Flags: []cli.Flag{
