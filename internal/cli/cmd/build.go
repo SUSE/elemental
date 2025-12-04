@@ -38,8 +38,8 @@ var BuildArgs BuildFlags
 func NewBuildCommand(appName string, action func(*cli.Context) error) *cli.Command {
 	return &cli.Command{
 		Name:      "build",
-		Usage:     "Build new image",
-		UsageText: fmt.Sprintf("%s build [OPTIONS]", appName),
+		Usage:     "[DEPRECATED] Build new image",
+		UsageText: fmt.Sprintf("[DEPRECATED] %s build [OPTIONS]", appName),
 		Action:    action,
 		Hidden:    true,
 		Flags: []cli.Flag{
