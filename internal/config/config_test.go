@@ -240,6 +240,16 @@ var _ = Describe("Configuration", Label("configuration"), func() {
 		Expect(err).To(HaveOccurred())
 		Expect(err).To(MatchError("parsing custom directory: directory \"/tmp/config-dir/custom/files\" is empty"))
 	})
+
+	It("Parses {server,agent}.yaml without manifests subdir", func() {
+		Expect(fs.RemoveAll(configDir.KubernetesManifestsDir())).To(Succeed())
+
+		cfg, err := Parse(fs, configDir)
+		Expect(err).ToNot(HaveOccurred())
+
+		Expect(cfg.Kubernetes.Config.ServerFilePath).To(Equal("/tmp/config-dir/kubernetes/config/server.yaml"))
+		Expect(cfg.Kubernetes.Config.AgentFilePath).To(Equal("/tmp/config-dir/kubernetes/config/agent.yaml"))
+	})
 })
 
 func containsChart(name string, charts []release.HelmChart) bool {

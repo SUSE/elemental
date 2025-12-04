@@ -26,13 +26,14 @@ import (
 	"slices"
 	"strings"
 
+	"go.yaml.in/yaml/v3"
+
 	"github.com/suse/elemental/v3/internal/image"
 	"github.com/suse/elemental/v3/internal/image/kubernetes"
 	"github.com/suse/elemental/v3/internal/image/release"
 	"github.com/suse/elemental/v3/pkg/deployment"
 	"github.com/suse/elemental/v3/pkg/manifest/source"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
-	"go.yaml.in/yaml/v3"
 )
 
 type Dir string
@@ -199,10 +200,7 @@ func parseKubernetes(f vfs.FS, configDir Dir, k *kubernetes.Kubernetes, r *relea
 
 func parseKubernetesDir(f vfs.FS, configDir Dir, k *kubernetes.Kubernetes) error {
 	entries, err := f.ReadDir(configDir.KubernetesManifestsDir())
-	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return nil
-		}
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return fmt.Errorf("reading %s: %w", configDir.KubernetesManifestsDir(), err)
 	}
 
