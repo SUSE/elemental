@@ -41,6 +41,7 @@ func NewBuildCommand(appName string, action func(*cli.Context) error) *cli.Comma
 		Usage:     "Build new image",
 		UsageText: fmt.Sprintf("%s build [OPTIONS]", appName),
 		Action:    action,
+		Hidden:    true,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:        "image-type",
