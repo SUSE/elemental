@@ -50,7 +50,7 @@ func Build(ctx *cli.Context) error {
 	ctxCancel, cancelFunc := signal.NotifyContext(ctx.Context, syscall.SIGTERM, syscall.SIGINT)
 	defer cancelFunc()
 
-	logger.Info("Validating input args")
+	logger.Warn("Warning: build is deprecated. Switch to customize going forward.")
 	if err := validateArgs(system.FS(), args); err != nil {
 		logger.Error("Input args are invalid")
 		return err
