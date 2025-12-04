@@ -35,150 +35,32 @@ This section provides an overview of how you build a Linux image that can includ
 
 ### Configuring through a system extension image
 
-System extension images can be disk image files or simple folders that get loaded by the `systemd-sysext.service`. They allow you to dynamically extend the operating system. For more information, refer to the [man systemd-sysext](https://www.freedesktop.org/software/systemd/man/latest/systemd-sysext.html) documentation.
+While we recommend reading through the complete document to understand system extensions in the context of elemental 
+project, please refer to the
+["Create system extension images"](./systemd-system-extensions.md#create-system-extension-images) section for specific
+steps. After that continue further with the
+["Configuring through a configuration script"](#configuring-through-a-configuration-script) section below.
 
-Using Elemental's toolset, you can wrap any number of these extension images inside a tarball and provide that tarball during [OS installation](#install-operating-system-on-a-target-device).
+### Preparing the system extension image as an overlay
 
-> **IMPORTANT:** To be compliant with Elemental's standards, system extension images should always be added under the `/var/lib/extensions` directory of the underlying operating system.
-
-#### Example system extension image
-
-You have multiple options to create a system extension image. Below are some common methods, with the `mkosi` tool being the most prevalent. This tool allows you to build an image from a set of configuration files.
-
-You can create a system extension from a binary or from a set of packages available in the distribution. The following example demonstrates how to create a system extension from a binary.
-
-##### Embed a binary in a system extension image
-
-This example demonstrates how you can create a system extension image and wrap it inside a tarball that will be later provided during OS installation.
-
-The following builds an extension image for the `elemental3ctl` command-line interface.
-
-> **NOTE:** The below steps use the `mkosi` tool. For more information on the tool, refer to the [upstream repository](https://github.com/systemd/mkosi).
-
-*Prepare the `elemental3ctl` extension image:*
-
-1. Create the root extension directory:
-
-    ```shell
-    mkdir example-extension
-    ```
-
-2. Prepare a configuration file called `mkosi.conf` that the `mkosi` tool will follow:
-
-    ```shell
-    cat <<- END > example-extension/mkosi.conf
-    [Distribution]
-    Distribution=opensuse
-    Release=tumbleweed
-
-    [Build]
-    Environment=SYSTEMD_REPART_OVERRIDE_FSTYPE_ROOT=squashfs
-
-    [Output]
-    Format=sysext
-    OutputDirectory=mkosi.output
-    Output=elemental3ctl-3.0.%a
-    END
-    ```
-
-3. Prepare the `mkosi.extra` directory inside the `example-extension`:
-
-    * Create the directory structure for `elemental3ctl`:
-
-        ```shell
-        mkdir -p example-extension/mkosi.extra/usr/local/bin
-        ```
-
-    * Copy the `elemental3ctl` binary from the `build/` directory of the `SUSE/elemental` repository:
-
-        > **NOTE:** If you have not yet built your binaries, run the `make all` command from the root of the `SUSE/elemental` repository.
-
-        ```shell
-        cp <path_to_elemental_repo>/build/elemental3ctl <path_to_example_extension>/example-extension/mkosi.extra/usr/local/bin
-        ```
-
-4. Create the extension image from the `example-extension` directory:
-   > **NOTE:** Make sure you have `mkosi` installed on your system. If not, you can install it using `zypper install mkosi`.
-
-    ```shell
-    mkosi -C example-extension
-    ```
-
-5. Your final directory structure should look similar to:
-
-    ```shell
-    example-extension/
-    ├── mkosi.conf
-    ├── mkosi.extra
-    │   └── usr
-    │       └── local
-    │           └── bin
-    │               └── elemental3ctl
-    └── mkosi.output
-        ├── elemental3ctl-3.0.x86-64 -> elemental3ctl-3.0.x86-64.raw
-        └── elemental3ctl-3.0.x86-64.raw
-    ```
-
-6. The `mkosi.output/elemental3ctl-3.0.x86-64.raw` file is the system extension image that can be used during the OS installation process following the steps in [Prepare the system extension image as an overlay](#prepare-the-system-extension-image-as-an-overlay).
-
-
-##### Install RPMs in a system extension image
-
-There are 3 `mkosi.conf` configurations needed:
-
-* [mkosi.conf in the base directory](../examples/tools-sysext/mkosi.conf)
-* [base/mkosi.conf defining the base layer](../examples/tools-sysext/mkosi.images/base/mkosi.conf)
-* [tools/mkosi.conf defining the tools layer](../examples/tools-sysext/mkosi.images/tools/mkosi.conf)
-
-Creating the tools system extension requires "subtracting" the tools layer from the base layer. The base layer hence needs to include any of the files that are already available on the host operating system, and the tools definition defines the extensions over that. This approach ensures that the tools layer does not overwrite any files on the operating system.
-
-You can build the system extension by invoking `mkosi` in the `examples/tools-sysext` directory. This will create a base image and a tools image, and then assemble them into a system extension.
-
-```shell
-cd examples/tools-sysext
-mkosi --directory $PWD
-```
-
-This will produce the base and extension images and assemble it into a system extension:
-
-```text
-Block level copying and synchronization of partition 0 complete in 4.776ms.
-Adding new partition 0 to partition table.
-Writing new partition table.
-All done.
-Running post-output script mkosi.images/tools/mkosi.postoutput…
-mkosi.postoutput tools-1.0
-tools-sysext/mkosi.output/tools-1.0.x86-64.raw size is 11.0M, consumes 1.6M.
-```
-
-The resulting system extension will be available in the `mkosi.output/` directory as `tools-1.0.x86-64.raw`.
-
-This system extension can be used as an overlay during the OS installation process, following the steps in the next section.
-
-
-#### Prepare the system extension image as an overlay
-
-The following steps prepare the example `elemental3ctl-3.0.x86-64.raw` extension image as an overlay:
+Overlay is the way of merging contents of a system extension onto the host system such that it all looks like a part
+of the host system.
 
 1. On the same level as `example-extension/`, create an `overlays/var/lib/extensions` directory:
-
     ```shell
     mkdir -p overlays/var/lib/extensions
     ```
 
-2. Move the `elemental3ctl-3.0.x86-64.raw` extension image to this directory:
-
-    ```shell
-    mv example-extension/mkosi.output/elemental3ctl-3.0.x86-64.raw overlays/var/lib/extensions
-    ```
-
-3. Create an archive from the overlay directory:
-
+1. Based on the section you follow above, copy either the `kubectl.x86-64.raw` or the `tools-1.0_1.0_x86-64.raw` file
+   to this directory.
+1. Create an archive from the overlay directory:
     ```shell
     tar -cavzf overlays.tar.gz -C overlays .
     ```
 
-You have now prepared an archive containing a system extension image for use during the installation process. This adds the `elemental3ctl` binary to the operating system after boot.
+You have now prepared an archive containing a system extension image for use during the installation process. This
+adds the `kubectl` binary or `strace` package to the operating system after boot.
+
 
 ### Configuring through a configuration script
 
