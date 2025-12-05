@@ -1,6 +1,7 @@
 [Unit]
 Description=Kubernetes Resources Installer
 After=rke2-server.service
+ConditionHost={{ .InitHostname }}
 
 [Service]
 Type=oneshot
