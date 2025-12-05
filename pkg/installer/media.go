@@ -450,6 +450,10 @@ func (i Media) increaseRecoverySize(mappedFiles map[string]string, d *deployment
 		}
 		recovery.Size += deployment.MiB(size)
 	}
+
+	// Align recovery partition size to 128MiB blocks, this adds between 128MiB and 256MiB to the original size
+	recovery.Size = deployment.MiB((recovery.Size/128)*128 + 256)
+	i.s.Logger().Debug("Recovery partition resized to %dMiB", recovery.Size)
 	return nil
 }
 
