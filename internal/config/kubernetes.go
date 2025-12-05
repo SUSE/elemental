@@ -43,7 +43,7 @@ var k8sResDeployScriptTpl string
 var k8sConfDeployScriptTpl string
 
 func needsManifestsSetup(conf *image.Configuration) bool {
-	return len(conf.Kubernetes.RemoteManifests) > 0 || len(conf.Kubernetes.LocalManifests) > 0
+	return len(conf.Kubernetes.RemoteManifests) > 0 || len(conf.Kubernetes.LocalManifests) > 0 || conf.Kubernetes.Network.IsHA()
 }
 
 func needsHelmChartsSetup(conf *image.Configuration) bool {

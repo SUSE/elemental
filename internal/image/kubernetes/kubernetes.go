@@ -132,3 +132,7 @@ type Network struct {
 	APIVIP4 string `yaml:"apiVIP"`
 	APIVIP6 string `yaml:"apiVIP6"`
 }
+
+func (n Network) IsHA() bool {
+	return n.APIVIP4 != "" || n.APIVIP6 != ""
+}
