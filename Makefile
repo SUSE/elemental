@@ -83,20 +83,19 @@ elemental-image:
 
 .PHONY: build-disk
 build-disk: $(BUILD_DIR) elemental-image
-	qemu-img create -f raw $(IMG).raw $(DISKSIZE)
-	TARGET=$$(sudo losetup -f --show $(IMG).raw)
-	cp examples/elemental/install/config.sh $(BUILD_DIR)
 	$(DOCKER) run --rm \
+		--volume /var/lib/ca-certificates:/var/lib/ca-certificates:ro \
 		--volume $(DOCKER_SOCK):$(DOCKER_SOCK) \
-		--volume $(BUILD_DIR):/build \
+		--volume $(ROOT_DIR):/work \
 		--volume /dev:/dev \
 		--volume /run/udev:/run/udev:ro \
 		--privileged \
+		--workdir /work \
+		--network host \
 		$(ELEMENTAL_IMAGE_REPO):$(VERSION) \
-		--debug install --os-image $(OS_REPO):$(OS_VERSION) --target $${TARGET} --cmdline "console=ttyS0,115200" --config /build/config.sh
+		--debug build --config-dir=examples/elemental/build --image-type=raw --build-dir=$(BUILD_DIR) --output=$(IMG).raw
 	BUILD_ERR=$$?
 	test $${BUILD_ERR} -eq 0 && qemu-img convert -c -p -O qcow2 $(IMG).raw $(IMG).qcow2
-	sudo losetup -d $${TARGET}
 	exit $${BUILD_ERR}
 
 .PHONY: unit-tests
