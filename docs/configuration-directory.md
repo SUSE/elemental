@@ -54,13 +54,19 @@ The `install.yaml` file enables users to configure the OS installation process b
 ```yaml
 bootloader: grub
 kernelCmdLine: "console=ttyS0"
-diskSize: 35G
+raw:
+  diskSize: 8G
+iso:
+  device: "/dev/sda"
 ```
 
 * `bootloader` - Required; Specifies the bootloader that will load the operating system.
 * `kernelCmdLine` - Optional; Parameters to add to the kernel when the operating system boots up. The tool itself defines the essential parameters to boot (e.g. `root=LABEL=SYSTEM`),
    the string provided here is simply concatenated after them in order to provide a mechanism to include additional custom parameters.
-* `diskSize` - Required; Specifies the size of the resulting disk image.
+* `raw` - Required for RAW images; Specifies RAW disk image configurations.
+  * `diskSize` - Required; Specifies the size of the resulting disk image.
+* `iso` - Required for ISO images; Specifies ISO image configurations.
+  * `device` - Required; Specifies the disk that will be used as the install device.
 
 ### butane.yaml
 
@@ -109,6 +115,20 @@ helm:
   repositories:
     - name: "rancher"
       url: "https://releases.rancher.com/server-charts/stable"
+nodes:
+- hostname: node1.example
+  type: server
+  init: true
+- hostname: node2.example
+  type: server
+- hostname: node3.example
+  type: server
+- hostname: node4.example
+  type: agent
+network:
+    apiVIP: 192.168.122.100
+    apiHost: api.cluster01.example.com
+    apiVIP6: fd12:3456:789a::21
 ```
 
 * `manifests` - Optional; Defines remote Kubernetes manifests to be deployed on the cluster.
@@ -123,6 +143,14 @@ helm:
     * `name` - Required; Defines the name for this repository. This name doesn't have to match the name of the actual
     repository, but must correspond with the `repositoryName` of one or more charts.
     * `url` - Required; Defines the URL where this chart repository can be reached.
+* `nodes` - Required for multi-node clusters; Defines a list of all nodes that form the cluster.
+  * `hostname` -  Required; Indicates the fully qualified domain name (FQDN) to identify the particular node on which the remainder of these attributes will be applied.
+  * `type` - Required; Selects the Kubernetes node type, either server (for control plane nodes) or agent (for worker nodes).
+  * `init` - Optional; Indicates which node should function as the cluster initializer. The initializer node is the server node which bootstraps the cluster and allows other nodes to join it. If unset, the first server in the node list will be selected as the initializer.
+* `network`:
+  * `apiVIP` - Required for multi-node clusters if not using `apiVIP6`; Specifies the IPv4 address which will serve as the cluster LoadBalancer, backed by MetalLB.
+  * `apiVIP6` -  Required for multi-node clusters if not using `apiVIP`; Specifies the IPv6 address which will serve as the cluster LoadBalancer, backed by MetalLB.
+  * `apiHost` - Optional; Specifies the domain address for accessing the cluster.
 
 ### Kubernetes Directory
 
