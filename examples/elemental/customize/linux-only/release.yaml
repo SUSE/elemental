@@ -1,0 +1,2 @@
+name: suse-product
+manifestURI: oci://registry.suse.de/devel/unifiedcore/releases/0.5/containers/suse/uc/release-manifest:0.5_rke2_1.34

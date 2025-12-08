@@ -1,0 +1,7 @@
+bootloader: grub
+kernelCmdLine: "console=ttyS0 quiet loglevel=3 enforcing=0"
+raw:
+  diskSize: 35G
+# Alternatively if type of media specified is ISO
+# iso:
+#   device: "/dev/sda"

@@ -1,16 +1,15 @@
-# This configuration represents a fictional SUSE Product and is meant for example purposes only.
 metadata:
   name: "suse-product"
   version: "4.2.0"
-  creationDate: "2025-07-10"
+  creationDate: "2025-12-08"
 corePlatform:
-  # Release manifest OCI image of the Core Platform that this SUSE Product extends
-  image: "registry.suse.de/devel/unifiedcore/releases/0.6/containers/suse/uc/release-manifest:0.6_rke2_1.34"
+  # Registry path to the release manifest OCI image of the Core Platform that this SUSE Product extends
+  image: "registry.suse.de/devel/unifiedcore/releases/0.5/containers/suse/uc/release-manifest:0.5_rke2_1.34"
 components:
   systemd:
     extensions:
       - name: "longhorn"
-        image: "registry.suse.de/devel/unifiedcore/releases/0.6/containers/suse/uc/longhorn:4.5-1.21"
+        image: "registry.suse.de/devel/unifiedcore/releases/0.5/containers/suse/uc/longhorn:4.2-1.17"
   helm:
     charts:
       - chart: "cert-manager"

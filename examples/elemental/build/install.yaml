@@ -1,3 +1,0 @@
-bootloader: grub
-kernelCmdLine: "console=ttyS0 quiet loglevel=3"
-diskSize: 35G

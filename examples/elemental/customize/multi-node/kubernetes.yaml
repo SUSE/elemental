@@ -1,0 +1,28 @@
+manifests:
+  - https://raw.githubusercontent.com/rancher/local-path-provisioner/v0.0.31/deploy/local-path-storage.yaml
+helm:
+  charts:
+    - name: "neuvector-crd"
+      version: "106.0.0+up2.8.5"
+      targetNamespace: "neuvector-system"
+      repositoryName: "rancher-charts"
+    - name: "neuvector"
+      version: "106.0.0+up2.8.5"
+      targetNamespace: "neuvector-system"
+      repositoryName: "rancher-charts"
+  repositories:
+    - name: "rancher-charts"
+      url: "https://charts.rancher.io"
+nodes:
+- hostname: node1.example
+  type: server
+  init: true
+- hostname: node2.example
+  type: server
+- hostname: node3.example
+  type: server
+- hostname: node4.example
+  type: agent
+network:
+    apiVIP: 192.168.122.100
+    apiHost: 192.168.122.100.sslip.io

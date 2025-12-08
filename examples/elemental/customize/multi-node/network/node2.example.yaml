@@ -2,7 +2,7 @@ routes:
   config:
     - destination: 0.0.0.0/0
       metric: 100
-      next-hop-address: 192.168.122.2
+      next-hop-address: 192.168.122.1
       next-hop-interface: eth0
       table-id: 254
     - destination: 192.168.122.0/24
@@ -13,16 +13,16 @@ routes:
 dns-resolver:
   config:
     server:
-      - 192.168.122.3
+      - 192.168.122.1
       - 8.8.8.8
 interfaces:
   - name: eth0
     type: ethernet
     state: up
-    mac-address: FE:C4:05:42:8B:AA
+    mac-address: FE:C4:05:42:8B:AC
     ipv4:
       address:
-        - ip: 192.168.122.250
+        - ip: 192.168.122.251
           prefix-length: 24
       enabled: true
     ipv6:
