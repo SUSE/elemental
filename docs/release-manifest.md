@@ -23,12 +23,9 @@ Consumers who wish to create a release manifest for their product should refer t
 metadata:
   name: "SUSE Product"
   version: "4.2.0"
-  upgradePathsFrom:
-  - "4.1.9"
   creationDate: "2025-07-10"
 corePlatform:
-  image: "registry.suse.com/unifiedcore/release-manifest"
-  version: "0.0.1"
+  image: "registry.suse.com/uc/release-manifest:0.0.1"
 components:
   helm:
     charts:
@@ -60,11 +57,9 @@ components:
 * `metadata` - Optional; General information about the product version that this manifest describes.
   * `name` - Required; Name of the product that this manifest describes.
   * `version` - Required; Version of the product release that this manifest describes.
-  * `upgradePathsFrom` - Optional; Previous versions from which an upgrade to this release manifest version is supported.
   * `creationDate` - Optional; Defines the release date for the specified version.
 * `corePlatform` - Required; Defines the `Core Platform` release version that this product wishes to be based upon and extend.
   * `image` - Required; Container image pointing to the desired `Core Platform` release manifest.
-  * `version` - Required; Version of the release manifest that you wish to use. The version of the manifest matches the version of the `Core Platform`.
 * `components` - Optional; Components with which to extend the `Core Platform`.
   * `helm` - Optional; Defines Helm components with which to extend the `Core Platform`.
     * `charts` - Required; Defines a list of Helm charts to be deployed alongside any `Core Platform` defined Helm charts.
@@ -110,17 +105,17 @@ Defines the set of components that make up a specific `Core Platform` release ve
 metadata:
   name: "SUSE Core Platform"
   version: "0.0.2"
-  upgradePathsFrom: 
-  - "0.0.1"
   creationDate: "2025-07-14"
 components:
   operatingSystem:
-    version: "6.2"
-    image: "registry.suse.com/unifiedcore/uc-base-os-kernel-default:0.0.1"
-  kubernetes:
-    rke2:
-      version: "1.32"
-      image: "https://download.foo.com/unifiedcore/rke2-1.32.x86-64.raw"
+    image:
+      base: "registry.suse.com/uc/uc-base-os-kernel-default:0.0.1"
+      iso: "registry.suse.com/uc/uc-base-kernel-default-iso:0.0.1"
+  systemd:
+    extensions:
+    - name: rke2
+      image: registry.suse.com/uc/rke2:1.34_6.3-2.20
+      required: false
   helm:
     charts:
     - name: "MetalLB"
@@ -138,10 +133,12 @@ The manifest's structure is similar to that of the [Product Release Manifest](#p
 This reference focuses only on the unique to the Core Platform component APIs. Any components not mentioned here share the same description as those in the `Product Release Manifest`.
 
 * `components` - Components described by the Core Platform release manifest.
-  * `operatingSystem` - Describes the base operating system version and location.
-    * `version` - Version of the base operating system.
-    * `image` - Location for the container image hosting the base operating system.
-  * `kubernetes` - Describes the Kubernetes distributions that are supported with this Core Platform release.
-    * `rke2` - Describes the RKE2 Kubernetes distribution version and location.
-      * `version` - Version for the RKE2 Kubernetes distribution.
-      * `image` - Location for the `systemd-sysext` image that hosts the RKE2 Kubernetes distribution. **Currently, this property refers to the RAW image file location, but the end goal is for it to refer to a container image.**
+  * `operatingSystem` - Operating system related components.
+    * `image` - Location to different operating system container images.
+      * `base` - Location to the base container image from which all other images defined here are built.
+      * `iso` - Location to the installer media ISO that is used during the customization process.
+  * `systemd` - Systemd related components.
+    * `extensions` - List of systemd extension images.
+      * `name` - Name by which the extension can be identified and possibly later enabled from the [product release reference](./configuration-directory.md#product-release-reference).
+      * `image` - Location to the extenstion image itself.
+      * `required` - Whether this extension should be included by default or not. If omitted defaults to `false`.
