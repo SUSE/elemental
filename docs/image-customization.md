@@ -168,12 +168,6 @@ The examples will showcase how you can use the `elemental3` container image to a
 * A server or virtual machine running Tumbleweed, Leap 16.0, Leap Micro 6.2, SLES 16 or SUSE Linux Micro 6.2, with a minimum x86_64-v2 instruction set.
 * Some other packages can also be needed if you want to compile the binaries yourself: `git-core go make mtools squashfs xorriso`.
 
-#### Workaround for SELinux
-
-SELinux should be set in `permissive` mode to be able to execute the `customize*` command on the host. This is a workaround that we are working on fixing.
-
-This workaround will not impact the resulting OS image. Unless set otherwise, the resulting OS image will have its SELinux configuration set to `enforcing` by default.
-
 ### Linux only image
 
 #### Use case
