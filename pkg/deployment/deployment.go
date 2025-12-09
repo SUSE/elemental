@@ -544,7 +544,7 @@ func DefaultDeployment() *Deployment {
 						{Path: "/var", NoCopyOnWrite: true, MountOpts: []string{"x-initrd.mount"}},
 						{Path: "/root", MountOpts: []string{"x-initrd.mount"}},
 						{Path: "/etc", Snapshotted: true, MountOpts: []string{"x-initrd.mount"}},
-						{Path: "/opt"}, {Path: "/srv"}, {Path: "/home"},
+						{Path: "/opt"}, {Path: "/srv"}, {Path: "/home"}, {Path: "/usr/local"},
 					},
 				},
 			},
