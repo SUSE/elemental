@@ -93,12 +93,13 @@ type Media struct {
 	Label     string
 	InputFile string
 
-	mType      MediaType
-	s          *sys.System
-	ctx        context.Context
-	unpackOpts []unpack.Opt
-	bl         bootloader.Bootloader
-	outputFile string
+	mType       MediaType
+	s           *sys.System
+	ctx         context.Context
+	unpackOpts  []unpack.Opt
+	bl          bootloader.Bootloader
+	outputFile  string
+	rawDiskSize deployment.MiB
 }
 
 // WithBootloader allows to create an ISO object with the given bootloader interface instance
@@ -112,6 +113,12 @@ func WithBootloader(bootloader bootloader.Bootloader) Option {
 func WithUnpackOpts(opts ...unpack.Opt) Option {
 	return func(i *Media) {
 		i.unpackOpts = opts
+	}
+}
+
+func WithRawDiskSize(size deployment.MiB) Option {
+	return func(i *Media) {
+		i.rawDiskSize = size
 	}
 }
 
@@ -729,7 +736,7 @@ func (i Media) customizeDisk(tempDir string, d *deployment.Deployment, mappedFil
 			Excludes:  []string{filepath.Join(isoDir, "boot"), filepath.Join(isoDir, "EFI")},
 		},
 	}
-	return repart.CreateDiskImage(i.s, i.outputFile, 0, parts)
+	return repart.CreateDiskImage(i.s, i.outputFile, i.rawDiskSize, parts)
 }
 
 // buildDisk creates an installer disk image from the prepared root

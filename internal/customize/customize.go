@@ -109,13 +109,25 @@ func (r *Runner) Run(ctx context.Context, def *image.Definition, outputDir confi
 		return err
 	}
 
+	diskSizeStr := def.Configuration.Installation.RAW.DiskSize
+	if diskSizeStr == "" {
+		diskSizeStr = "12G"
+	}
+	if !diskSizeStr.IsValid() {
+		return fmt.Errorf("invalid disk size definition '%s'", diskSizeStr)
+	}
+	diskMiB, err := diskSizeStr.ToMiB()
+	if err != nil {
+		return fmt.Errorf("could not parse disk size '%s': %w", diskSizeStr, err)
+	}
+
 	// TODO(ipetrov117): Consider refactoring installer.Media, as right now
 	// it is hiding too much information when exposing the Customize() command.
 	// This makes abstracting the object behind an interface hard. Perhaps we should separate
 	// the disk-installer logic from the disk-customizing logic, or move some of the values
 	// currently set in installer.NewMedia into the appropriate functions as parameters.
 	if r.Media == nil {
-		media := installer.NewMedia(ctx, r.System, mediaType)
+		media := installer.NewMedia(ctx, r.System, mediaType, installer.WithRawDiskSize(deployment.MiB(diskMiB)))
 		media.InputFile = iso
 		media.OutputDir = filepath.Dir(def.Image.OutputImageName)
 		imageName := filepath.Base(def.Image.OutputImageName)
@@ -127,14 +139,6 @@ func (r *Runner) Run(ctx context.Context, def *image.Definition, outputDir confi
 	if err = r.Media.Customize(dep); err != nil {
 		logger.Error("Customizing image media failed")
 		return err
-	}
-
-	if mediaType == installer.Disk {
-		logger.Info("Resizing built installer media")
-		if err = resizeDisk(r.System.Runner(), def.Image.OutputImageName, def.Configuration.Installation.RAW.DiskSize); err != nil {
-			logger.Error("Resizing built installer media failed")
-			return err
-		}
 	}
 
 	logger.Info("Customize complete")
@@ -274,19 +278,6 @@ func prepareDeploymentPartitions(src, add []*deployment.Partition) []*deployment
 	// we will get the following merged result:
 	// mergedPartitions = [EFI, RECOVERY, add..., SYSTEM]
 	return append(preparedPartitionSlice, src[len(src)-1])
-}
-
-func resizeDisk(runner sys.Runner, disk string, diskSize install.DiskSize) error {
-	const defaultSize = "10G"
-
-	if diskSize == "" {
-		diskSize = defaultSize
-	} else if !diskSize.IsValid() {
-		return fmt.Errorf("invalid disk size definition '%s'", diskSize)
-	}
-
-	_, err := runner.Run("truncate", "-s", string(diskSize), disk)
-	return err
 }
 
 func writeAutoInstaller(fs vfs.FS, out string, mediaType installer.MediaType) (string, error) {
