@@ -130,25 +130,35 @@ The customized image can be booted as any other regular image. Below you can fin
 
 * ISO media:
 
-   ```shell
-   virt-install --name customized-iso \
-                --ram 16000 \
-                --vcpus 10 \
-                --import \
-                --disk path=disk.img,format=raw \
-                --cdrom "customized.iso" \
-                --boot loader=/usr/share/qemu/ovmf-x86_64-code.bin,loader.readonly=yes,loader.type=pflash,nvram=ovmf-x86_64-vars.bin \
-                --graphics none \
-                --console pty,target_type=serial \
-                --network network=default,model=virtio,mac=FE:C4:05:42:8B:AB \
-                --osinfo detect=on,name=sle-unknown \
-                --virt-type kvm
-   ```
+   * Create an empty `disk.img` disk image that will be used as a storage device:
+     
+     ```shell
+     truncate -s 20G disk.img
+     ```
+
+   * Create a local copy of the EFI variable store:
+     
+     > **NOTE:** This is needed in order to persist any new EFI entries included during the ISO installer boot.
+     ```shell
+     cp /usr/share/qemu/ovmf-x86_64-vars.bin .
+     ```
+
+   * Boot a VM using the previously created resources, namely the `customized.iso`, `disk.img` and local EFI store:
    
-   > **NOTE:** 
-   > The above command runs with the following assumptions:
-   > 1. `disk.img` is an empty disk image file created beforehand with the `qemu-img create` command.
-   > 2. A local copy of the EFI variable store is present in the directory where the command is running -  This is needed in order to persist any new EFI entries included during the ISO installer boot.
+      ```shell
+      virt-install --name customized-iso \
+                  --ram 16000 \
+                  --vcpus 10 \
+                  --import \
+                  --disk path=disk.img,format=raw \
+                  --cdrom "customized.iso" \
+                  --boot loader=/usr/share/qemu/ovmf-x86_64-code.bin,loader.readonly=yes,loader.type=pflash,nvram=ovmf-x86_64-vars.bin \
+                  --graphics none \
+                  --console pty,target_type=serial \
+                  --network network=default,model=virtio,mac=FE:C4:05:42:8B:AB \
+                  --osinfo detect=on,name=sle-unknown \
+                  --virt-type kvm
+      ```
 
 ## Examples
 
