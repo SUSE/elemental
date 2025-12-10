@@ -1,6 +1,6 @@
 [Unit]
 Description=Kubernetes Resources Installer
-After=rke2-server.service
+After=k8s-config-installer.service
 ConditionHost={{ .InitHostname }}
 
 [Service]
