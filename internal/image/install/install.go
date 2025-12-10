@@ -18,8 +18,13 @@ limitations under the License.
 package install
 
 import (
+	"math/bits"
 	"regexp"
+	"strconv"
+	"strings"
+	"unicode"
 
+	"github.com/docker/go-units"
 	"github.com/suse/elemental/v3/pkg/crypto"
 )
 
@@ -27,6 +32,29 @@ type DiskSize string
 
 func (d DiskSize) IsValid() bool {
 	return regexp.MustCompile(`^[1-9]\d*[KMGT]$`).MatchString(string(d))
+}
+
+// returns the size in MiB
+func (d DiskSize) ToMiB() (uint, error) {
+	size := strings.TrimSpace(string(d))
+	dimension := uint(1)
+	switch unicode.ToUpper(rune(size[len(size)-1])) {
+	case 'K':
+		dimension = units.KiB
+	case 'M':
+		dimension = units.MiB
+	case 'G':
+		dimension = units.GiB
+	case 'T':
+		dimension = units.TiB
+	}
+
+	value, err := strconv.ParseUint(size[:len(size)-1], 10, bits.UintSize)
+	if err != nil {
+		return 0, err
+	}
+
+	return uint(value) * dimension / units.MiB, nil
 }
 
 type Installation struct {
