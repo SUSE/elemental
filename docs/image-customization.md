@@ -192,10 +192,10 @@ The user creates a [configuration directory](../examples/elemental/customize/lin
 
 The contents of this directory include:
 
-* [install.yaml](../examples/elemental/customize/linux-only/install.yaml) - specifies which `bootloader` and `kernel command line` arguments to use during the OS installation process and define the actual `disk size` of the image.
-* [butane.yaml](../examples/elemental/customize/linux-only/butane.yaml) - specifies a [butane](https://coreos.github.io/butane/) configuration that describes the user that will be used for to login, as well as the custom systemd service that is required by the example use case.
+* [install.yaml](../examples/elemental/customize/linux-only/install.yaml) - specifies which `bootloader` and `kernel command line` arguments to apply during the OS installation process, and defines the actual `disk size` of the image.
+* [butane.yaml](../examples/elemental/customize/linux-only/butane.yaml) - specifies a [butane](https://coreos.github.io/butane/) configuration that describes the user that will be created and used for login, as well as the custom systemd service that is required by the example use case.
 * [release.yaml](../examples/elemental/customize/linux-only/release.yaml) - specifies the desired `Core Platform` release that will be customized and extended.
-* [example-libvirt.yaml](../examples/elemental/customize/linux-only/network/example-libvirt.yaml) - specifies custom network configuration that ensures that a machine with a given MAC will be assigned a statically defined IP address.
+* [network/example-libvirt.yaml](../examples/elemental/customize/linux-only/network/example-libvirt.yaml) - specifies custom network configuration that ensures that a machine with a given MAC will be assigned a statically defined IP address.
 
 #### Producing the customized image
 
@@ -296,16 +296,16 @@ The user creates a [configuration directory](../examples/elemental/customize/sin
 
 The contents of this directory include:
 
-* [install.yaml](../examples/elemental/customize/single-node/install.yaml) - specifies which `bootloader` and `kernel command line` arguments to use during the OS installation process and define the actual `disk size` of the image.
+* [install.yaml](../examples/elemental/customize/single-node/install.yaml) - specifies which `bootloader` and `kernel command line` arguments to apply during the OS installation process and defines the actual `disk size` of the image.
 * [butane.yaml](../examples/elemental/customize/single-node/butane.yaml) - specifies a [butane](https://coreos.github.io/butane/) configuration that defines the user that will be used to log into the booted system.
 * [kubernetes.yaml](../examples/elemental/customize/single-node/kubernetes.yaml) - specifies the user-desired `NeuVector` Helm chart as well as a remote manifest for the [local-path-provisioner](https://github.com/rancher/local-path-provisioner).
 * [release.yaml](../examples/elemental/customize/single-node/release.yaml) - specifies the reference to the desired product. From this product release, enable the desired Kubernetes distribution, as well as `Rancher` and `MetalLB`.
 * [suse-product-manifest.yaml](../examples/elemental/customize/single-node/suse-product-manifest.yaml) - example for a `Product` release manifest that the user has referred in the `release.yaml` configuration file.
-* [rancher.yaml](../examples/elemental/customize/single-node/kubernetes/helm/values/rancher.yaml) - custom values for the `Rancher` Helm chart that the user has enabled from the `Product` release manifest.
-* [ip-pool.yaml](../examples/elemental/customize/single-node/kubernetes/manifests/ip-pool.yaml) - local manifest to apply to the cluster and have the enabled `MetalLB` component setup an `IPAddressPool`.
-* [l2-adv.yaml](../examples/elemental/customize/single-node/kubernetes/manifests/l2-adv.yaml) - local manifest to apply to the cluster and have the enabled `MetalLB` component setup a `L2Advertisement`.
-* [rke2-ingress-config.yaml](../examples/elemental/customize/single-node/kubernetes/manifests/rke2-ingress-config.yaml) - local manifest that will edit the existing `rke2-ingress-nginx` Helm chart and will enable its service to be of type `LoadBalancer`.
-* [single-node-example.yaml](../examples/elemental/customize/single-node/network/single-node-example.yaml) - custom network configuration that sets up a static IP for machines with the `FE:C4:05:42:8B:AB` MAC address.
+* [kubernetes/helm/values/rancher.yaml](../examples/elemental/customize/single-node/kubernetes/helm/values/rancher.yaml) - custom values for the `Rancher` Helm chart that the user has enabled from the `Product` release manifest.
+* [kubernetes/manifests/ip-pool.yaml](../examples/elemental/customize/single-node/kubernetes/manifests/ip-pool.yaml) - local manifest to apply to the cluster and have the enabled `MetalLB` component setup an `IPAddressPool`.
+* [kubernetes/manifests/l2-adv.yaml](../examples/elemental/customize/single-node/kubernetes/manifests/l2-adv.yaml) - local manifest to apply to the cluster and have the enabled `MetalLB` component setup a `L2Advertisement`.
+* [kubernetes/manifests/rke2-ingress-config.yaml](../examples/elemental/customize/single-node/kubernetes/manifests/rke2-ingress-config.yaml) - local manifest that will edit the existing `rke2-ingress-nginx` Helm chart and will enable its service to be of type `LoadBalancer`.
+* [network/single-node-example.yaml](../examples/elemental/customize/single-node/network/single-node-example.yaml) - custom network configuration that sets up a static IP for machines with the `FE:C4:05:42:8B:AB` MAC address.
 
 #### Producing the customized image
 
@@ -494,7 +494,7 @@ Furthermore, using this image, the user wants to setup a multi-node Kubernetes c
 
 The user creates a [configuration directory](../examples/elemental/customize/multi-node/) that describes the desired configurations that needs to be applied over the desired `Product` release.
 
-The contents of the directory are the same as the contents for a [singel-node Kubernetes setup](#configuration-directory-setup-1), with the following additions:
+The contents of the directory are the same as the contents for a [single-node Kubernetes setup](#configuration-directory-setup-1), with the following additions:
 
 - [network/](../examples/elemental/customize/multi-node/network/) - add network configuration for each desired node. This example configures the static IPs `192.168.122.250`, `192.168.122.251`, `192.168.122.252` and `192.168.122.253` for machines with the respective `FE:C4:05:42:8B:AB`, `FE:C4:05:42:8B:AC`, `FE:C4:05:42:8B:AD` and `FE:C4:05:42:8B:AE` MAC addresses.
 - [kubernetes/config/agent.yaml](../examples/elemental/customize/multi-node/kubernetes/config/agent.yaml) - add configuration for the agent node.
