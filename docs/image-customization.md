@@ -278,6 +278,11 @@ Once the machine has successfully been booted with the customized image, you can
 
    ```shell
    fips-mode-setup --check
+
+   # Example output
+   FIPS mode is enabled.
+   Initramfs fips module is enabled.
+   The current crypto policy (FIPS) is based on the FIPS policy
    ```
 
 1. Verify that the custom systemd service has been executed:
