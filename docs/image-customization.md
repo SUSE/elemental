@@ -184,7 +184,7 @@ The examples will showcase how you can use the `elemental3` container image to a
 
 A user wants to customize and produce a RAW image that is based on a specific `Core Platform` version.
 
-Additionally, the user wants to configure the image’s network and extend the environment with a custom systemd service tailored to their specific use case.
+Additionally, the user wants to enable compliance with FIPS, configure the image’s network and extend the environment with a custom systemd service tailored to their specific use case.
 
 #### Configuration directory setup
 
@@ -274,6 +274,12 @@ Once the machine has successfully been booted with the customized image, you can
    df -Th
    ```
 
+1. Verify the environment is FIPS compliant:
+
+   ```shell
+   fips-mode-setup --check
+   ```
+
 1. Verify that the custom systemd service has been executed:
 
    ```shell
@@ -288,7 +294,7 @@ A consumer has created a release manifest for their product that extends a speci
 
 A user wants to customize and produce a RAW image that will be running an operating system, Kubernetes distribution and Rancher version that are supported by the aforementioned consumer product.
 
-Furthermore, using this image, the user wants to setup a single-node Kubernetes cluster that will be extended with the `NeuVector` Helm chart along with a specific set of Kubernetes manifests that will enable access to the Rancher UI.
+Furthermore, using this image, the user wants to enable compliance with FIPS and setup a single-node Kubernetes cluster that will be extended with the `NeuVector` Helm chart along with a specific set of Kubernetes manifests that will enable access to the Rancher UI.
 
 #### Configuration directory setup
 
@@ -377,6 +383,17 @@ Once the machine has successfully been booted with the customized image, you can
 
    ```shell
    cat /etc/hostname
+   ```
+
+1. Verify the environment is FIPS compliant:
+
+   ```shell
+   fips-mode-setup --check
+
+   # Example output
+   FIPS mode is enabled.
+   Initramfs fips module is enabled.
+   The current crypto policy (FIPS) is based on the FIPS policy
    ```
 
 1. Setup `kubectl`:
@@ -488,7 +505,7 @@ A consumer has created a release manifest for their product that extends a speci
 
 A user wants to customize and produce a RAW image that will be running an operating system, Kubernetes distribution and Rancher version that are supported by the aforementioned consumer product.
 
-Furthermore, using this image, the user wants to setup a multi-node Kubernetes cluster that will be extended with the `NeuVector` Helm chart along with a specific set of Kubernetes manifests that will enable access to the Rancher UI.
+Furthermore, using this image, the user wants to enable compliance with FIPS and setup a multi-node Kubernetes cluster that will be extended with the `NeuVector` Helm chart along with a specific set of Kubernetes manifests that will enable access to the Rancher UI.
 
 #### Configuration directory setup
 
