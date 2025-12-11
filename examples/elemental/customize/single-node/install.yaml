@@ -1,5 +1,6 @@
 bootloader: grub
 kernelCmdLine: "console=ttyS0 loglevel=3"
+cryptoPolicy: fips
 raw:
   diskSize: 35G
 # Alternatively if type of media specified is ISO
