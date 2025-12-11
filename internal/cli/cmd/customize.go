@@ -56,9 +56,9 @@ func NewCustomizeCommand(appName string, action func(*cli.Context) error) *cli.C
 			},
 			&cli.StringFlag{
 				Name:        "output",
-				Usage:       "Filepath for the output image",
+				Usage:       "Filepath for the output image without extension, this is added based on type",
 				Destination: &CustomizeArgs.OutputPath,
-				DefaultText: "image-<timestamp>.<image-type>",
+				DefaultText: "image-<timestamp>",
 			},
 			&cli.StringFlag{
 				Name:        "platform",

@@ -139,6 +139,7 @@ disks:
 				customizeFunc: func(d *deployment.Deployment) error {
 					return nil
 				},
+				outputFileFunc: func() string { return "customized-image" },
 			},
 		}
 		sideEffects["xorriso"] = func(args ...string) ([]byte, error) {
@@ -235,6 +236,7 @@ disks:
 				customizeDeployment = d
 				return nil
 			},
+			outputFileFunc: func() string { return "customized.raw" },
 		}
 		sideEffects["truncate"] = func(args ...string) ([]byte, error) {
 			// args = [-s 35G customized.raw]
@@ -246,7 +248,7 @@ disks:
 		def := &image.Definition{
 			Image: image.Image{
 				ImageType:       "raw",
-				OutputImageName: "customized.raw",
+				OutputImageName: "customized",
 			},
 			Configuration: &image.Configuration{
 				Installation: install.Installation{
@@ -406,12 +408,21 @@ func (f *fileExtractorMock) ExtractFrom(uri string, local bool) (path string, er
 }
 
 type mediaMock struct {
-	customizeFunc func(d *deployment.Deployment) error
+	customizeFunc  func(d *deployment.Deployment) error
+	outputFileFunc func() string
 }
 
 func (m *mediaMock) Customize(d *deployment.Deployment) error {
 	if m.customizeFunc != nil {
 		return m.customizeFunc(d)
+	}
+
+	panic("not implemented")
+}
+
+func (m *mediaMock) OutputFile() string {
+	if m.outputFileFunc != nil {
+		return m.outputFileFunc()
 	}
 
 	panic("not implemented")

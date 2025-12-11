@@ -98,7 +98,6 @@ type Media struct {
 	ctx        context.Context
 	unpackOpts []unpack.Opt
 	bl         bootloader.Bootloader
-	outputFile string
 }
 
 // WithBootloader allows to create an ISO object with the given bootloader interface instance
@@ -382,7 +381,7 @@ func (i *Media) Customize(d *deployment.Deployment) (err error) {
 
 	switch i.mType {
 	case ISO:
-		err = i.customizeISO(i.InputFile, i.outputFile, m)
+		err = i.customizeISO(i.InputFile, i.OutputFile(), m)
 	case Disk:
 		err = i.customizeDisk(tempDir, installDesc, m)
 	default:
@@ -395,16 +394,20 @@ func (i *Media) Customize(d *deployment.Deployment) (err error) {
 	return i.writeChecksum()
 }
 
+func (i Media) OutputFile() string {
+	return filepath.Join(i.OutputDir, fmt.Sprintf("%s.%s", i.Name, i.mType.String()))
+}
+
 // writeChecksum computes the checksum for the current media output file and writes
 // the checksum file to the same output file path, but with the *.sha256 suffix
 func (i Media) writeChecksum() error {
-	checksum, err := calcFileChecksum(i.s.FS(), i.outputFile)
+	checksum, err := calcFileChecksum(i.s.FS(), i.OutputFile())
 	if err != nil {
 		return fmt.Errorf("could not compute image checksum: %w", err)
 	}
 
-	checksumFile := fmt.Sprintf("%s.sha256", i.outputFile)
-	err = i.s.FS().WriteFile(checksumFile, fmt.Appendf(nil, "%s %s\n", checksum, filepath.Base(i.outputFile)), vfs.FilePerm)
+	checksumFile := fmt.Sprintf("%s.sha256", i.OutputFile())
+	err = i.s.FS().WriteFile(checksumFile, fmt.Appendf(nil, "%s %s\n", checksum, filepath.Base(i.OutputFile())), vfs.FilePerm)
 	if err != nil {
 		return fmt.Errorf("failed writing image checksum file %s: %w", checksumFile, err)
 	}
@@ -485,9 +488,8 @@ func (i *Media) sanitize() error {
 		}
 	}
 
-	i.outputFile = filepath.Join(i.OutputDir, fmt.Sprintf("%s.%s", i.Name, i.mType.String()))
-	if ok, _ := vfs.Exists(i.s.FS(), i.outputFile); ok {
-		return fmt.Errorf("target output file %s is an already existing file", i.outputFile)
+	if ok, _ := vfs.Exists(i.s.FS(), i.OutputFile()); ok {
+		return fmt.Errorf("target output file %s is an already existing file", i.OutputFile())
 	}
 
 	return nil
@@ -729,7 +731,7 @@ func (i Media) customizeDisk(tempDir string, d *deployment.Deployment, mappedFil
 			Excludes:  []string{filepath.Join(isoDir, "boot"), filepath.Join(isoDir, "EFI")},
 		},
 	}
-	return repart.CreateDiskImage(i.s, i.outputFile, 0, parts)
+	return repart.CreateDiskImage(i.s, i.OutputFile(), 0, parts)
 }
 
 // buildDisk creates an installer disk image from the prepared root
@@ -762,7 +764,7 @@ func (i Media) buildDisk(tempDir, liveRoot, osRoot string, d *deployment.Deploym
 			CopyFiles: []string{fmt.Sprintf("%s:/", liveRoot)},
 		},
 	}
-	err = repart.CreateDiskImage(i.s, i.outputFile, 0, parts)
+	err = repart.CreateDiskImage(i.s, i.OutputFile(), 0, parts)
 	if err != nil {
 		return fmt.Errorf("failed creating disk image: %w", err)
 	}
@@ -795,7 +797,7 @@ func (i Media) buildISO(tempDir, isoDir, osRoot, kernelCmdline string) error {
 
 	args := []string{
 		"-volid", "LIVE", "-padding", "0",
-		"-outdev", i.outputFile, "-map", isoDir, "/", "-chmod", "0755", "--",
+		"-outdev", i.OutputFile(), "-map", isoDir, "/", "-chmod", "0755", "--",
 	}
 	args = append(args, xorrisoBootloaderArgs(efiImg)...)
 

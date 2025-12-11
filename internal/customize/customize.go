@@ -22,7 +22,6 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
-	"strings"
 
 	_ "embed"
 
@@ -55,6 +54,7 @@ type ociFileExtractor interface {
 
 type media interface {
 	Customize(d *deployment.Deployment) error
+	OutputFile() string
 }
 
 type Runner struct {
@@ -118,8 +118,7 @@ func (r *Runner) Run(ctx context.Context, def *image.Definition, outputDir confi
 		media := installer.NewMedia(ctx, r.System, mediaType)
 		media.InputFile = iso
 		media.OutputDir = filepath.Dir(def.Image.OutputImageName)
-		imageName := filepath.Base(def.Image.OutputImageName)
-		media.Name = strings.TrimSuffix(imageName, filepath.Ext(imageName))
+		media.Name = filepath.Base(def.Image.OutputImageName)
 		r.Media = media
 	}
 
@@ -131,7 +130,7 @@ func (r *Runner) Run(ctx context.Context, def *image.Definition, outputDir confi
 
 	if mediaType == installer.Disk {
 		logger.Info("Resizing built installer media")
-		if err = resizeDisk(r.System.Runner(), def.Image.OutputImageName, def.Configuration.Installation.RAW.DiskSize); err != nil {
+		if err = resizeDisk(r.System.Runner(), r.Media.OutputFile(), def.Configuration.Installation.RAW.DiskSize); err != nil {
 			logger.Error("Resizing built installer media failed")
 			return err
 		}
