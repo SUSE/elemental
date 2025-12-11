@@ -323,7 +323,7 @@ You should see the bootloader prompting you to start `openSUSE Tumbleweed`.
 
 Elemental supports creating installation media in the form of live ISOs or RAW disk images. Content-wise they both are almost the same. The difference is that ISO installs to a target disk device and the RAW disk resets to factory from a recovery partition.
 
-The ISO image includes EFI binaries and bootloader setup, the OS image (as a squashfs image) and the installation assets (configuration script and drop-in files overlayed over the OS). 
+The ISO image includes EFI binaries and bootloader setup, the OS image (as a squashfs image) and the installation assets (configuration script and drop-in files overlayed over the OS).
 
 The RAW image includes the ESP partition with the EFI binaries, the bootloader setup and a recovery partition including the OS image (again as an squashfs image) together with the installation assets.
 
@@ -349,7 +349,7 @@ These kernel parameters can be easily used to handle automated actions at boot l
 
 #### Example live configuration script
 
-In this example, we are going to prepare a configuration script that will set four aspects:
+In this example, you prepare a configuration script that sets four aspects:
 
 * Autologin so the live ISO does not require a root password
 * An elemental-autoinstaller service to run the installation at boot
@@ -522,7 +522,7 @@ Note that:
 > **NOTE:** Make sure you have `qemu` installed on your system. If not, you can install it using `zypper -n install qemu-x86`.
 > If you are using a different architecture, ensure the package name and respective command below are adjusted accordingly.
 
-In order to test the RAW installer image with QEMU we need to dump the image to a bigger image or either expand the
+To test the RAW installer image with QEMU, you need to either dump the image to a bigger image or expand the
 generated image.
 
 ```shell
@@ -531,7 +531,7 @@ qemu-img resize build/installer.raw 16G
 ```
 
 Launch a virtual machine to boot the installer RAW and verify, at boot, it self expands the partition table
-to fullfil the disk geometry and creates additional partitions.
+to fulfill the disk geometry and creates additional partitions.
 
 ```shell
 qemu-system-x86_64 -m 8G \
