@@ -162,6 +162,8 @@ The customized image can be booted as any other regular image. Below you can fin
 
 ## Examples
 
+> **NOTE:** All examples in this section run with FIPS enabled by default. To disable it, simply remove the `cryptoPolicy` configuration from the corresponding `install.yaml` file.
+
 This section aims at providing real-life examples of the image customization process, as described in the "[Customization Process](#customization-process)" section.
 
 > **IMPORTANT:** Before proceeding with the examples below, make sure you have familiarized yourself with the necessary [prerequisites](#prerequisites).
@@ -192,7 +194,7 @@ The user creates a [configuration directory](../examples/elemental/customize/lin
 
 The contents of this directory include:
 
-* [install.yaml](../examples/elemental/customize/linux-only/install.yaml) - specifies which `bootloader` and `kernel command line` arguments to apply during the OS installation process, and defines the actual `disk size` of the image.
+* [install.yaml](../examples/elemental/customize/linux-only/install.yaml) - specifies which `bootloader` and `kernel command line` arguments to apply during the OS installation process, along with the image's `disk size` and desired FIPS policy setting.
 * [butane.yaml](../examples/elemental/customize/linux-only/butane.yaml) - specifies a [butane](https://coreos.github.io/butane/) configuration that describes the user that will be created and used for login, as well as the custom systemd service that is required by the example use case.
 * [release.yaml](../examples/elemental/customize/linux-only/release.yaml) - specifies the desired `Core Platform` release that will be customized and extended.
 * [network/example-libvirt.yaml](../examples/elemental/customize/linux-only/network/example-libvirt.yaml) - specifies custom network configuration that ensures that a machine with a given MAC will be assigned a statically defined IP address.
@@ -307,7 +309,7 @@ The user creates a [configuration directory](../examples/elemental/customize/sin
 
 The contents of this directory include:
 
-* [install.yaml](../examples/elemental/customize/single-node/install.yaml) - specifies which `bootloader` and `kernel command line` arguments to apply during the OS installation process and defines the actual `disk size` of the image.
+* [install.yaml](../examples/elemental/customize/single-node/install.yaml) - specifies which `bootloader` and `kernel command line` arguments to apply during the OS installation process, along with the image's `disk size` and desired FIPS policy setting.
 * [butane.yaml](../examples/elemental/customize/single-node/butane.yaml) - specifies a [butane](https://coreos.github.io/butane/) configuration that defines the user that will be used to log into the booted system.
 * [kubernetes.yaml](../examples/elemental/customize/single-node/kubernetes.yaml) - specifies the user-desired `NeuVector` Helm chart as well as a remote manifest for the [local-path-provisioner](https://github.com/rancher/local-path-provisioner).
 * [release.yaml](../examples/elemental/customize/single-node/release.yaml) - specifies the reference to the desired product. From this product release, enable the desired Kubernetes distribution, as well as `Rancher` and `MetalLB`.
@@ -510,7 +512,7 @@ A consumer has created a release manifest for their product that extends a speci
 
 A user wants to customize and produce a RAW image that will be running an operating system, Kubernetes distribution and Rancher version that are supported by the aforementioned consumer product.
 
-Furthermore, using this image, the user wants to enable compliance with FIPS and setup a multi-node Kubernetes cluster that will be extended with the `NeuVector` Helm chart along with a specific set of Kubernetes manifests that will enable access to the Rancher UI.
+Furthermore, using this image, the user intends to set up a multi-node Kubernetes cluster in which all nodes, both control-plane and worker, are FIPS compliant. The cluster will also be extended with the `NeuVector` Helm chart, along with a set of Kubernetes manifests that enable access to the Rancher UI.
 
 #### Configuration directory setup
 

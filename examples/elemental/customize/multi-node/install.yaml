@@ -1,5 +1,7 @@
 bootloader: grub
 kernelCmdLine: "console=ttyS0 quiet loglevel=3"
+# If you are using this configuration outside of the example documentation,
+# ensure that all cluster nodes (both control-plane and worker) are FIPS-ready. Otherwise, remove this property.
 cryptoPolicy: fips
 raw:
   diskSize: 35G

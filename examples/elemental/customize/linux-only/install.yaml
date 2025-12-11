@@ -1,5 +1,7 @@
 bootloader: grub
 kernelCmdLine: "console=ttyS0 loglevel=3"
+# If you are using this configuration outside of the example documentation,
+# ensure that your operating system is FIPS-ready. Otherwise, remove this property.
 cryptoPolicy: fips
 raw:
   diskSize: 8G
