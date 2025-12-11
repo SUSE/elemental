@@ -109,16 +109,20 @@ func (r *Runner) Run(ctx context.Context, def *image.Definition, outputDir confi
 		return err
 	}
 
-	diskSizeStr := def.Configuration.Installation.RAW.DiskSize
-	if diskSizeStr == "" {
-		diskSizeStr = "12G"
-	}
-	if !diskSizeStr.IsValid() {
-		return fmt.Errorf("invalid disk size definition '%s'", diskSizeStr)
-	}
-	diskMiB, err := diskSizeStr.ToMiB()
-	if err != nil {
-		return fmt.Errorf("could not parse disk size '%s': %w", diskSizeStr, err)
+	mediaOpts := []installer.Option{}
+	if mediaType == installer.Disk {
+		diskSizeStr := def.Configuration.Installation.RAW.DiskSize
+		if diskSizeStr == "" {
+			diskSizeStr = "12G"
+		}
+		if mediaType == installer.Disk && !diskSizeStr.IsValid() {
+			return fmt.Errorf("invalid disk size definition '%s'", diskSizeStr)
+		}
+		diskMiB, err := diskSizeStr.ToMiB()
+		if err != nil {
+			return fmt.Errorf("could not parse disk size '%s': %w", diskSizeStr, err)
+		}
+		mediaOpts = append(mediaOpts, installer.WithRawDiskSize(deployment.MiB(diskMiB)))
 	}
 
 	// TODO(ipetrov117): Consider refactoring installer.Media, as right now
@@ -127,7 +131,7 @@ func (r *Runner) Run(ctx context.Context, def *image.Definition, outputDir confi
 	// the disk-installer logic from the disk-customizing logic, or move some of the values
 	// currently set in installer.NewMedia into the appropriate functions as parameters.
 	if r.Media == nil {
-		media := installer.NewMedia(ctx, r.System, mediaType, installer.WithRawDiskSize(deployment.MiB(diskMiB)))
+		media := installer.NewMedia(ctx, r.System, mediaType, mediaOpts...)
 		media.InputFile = iso
 		media.OutputDir = filepath.Dir(def.Image.OutputImageName)
 		imageName := filepath.Base(def.Image.OutputImageName)
