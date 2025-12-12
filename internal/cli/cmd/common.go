@@ -52,5 +52,5 @@ const (
 
 	// --output flag name and description
 	outputFlg  = "output"
-	outputDesc = "Filepath for the generated files"
+	outputDesc = "File/Path for the generated files"
 )
