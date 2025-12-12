@@ -217,7 +217,7 @@ A script named `configure-network.sh` will be executed on first boot during the 
 
 > **NOTE:** If available, the default network is set up before the `configure-network.sh` runs. This ensures that the script is able to retrieve relevant configurations also from remote locations.
 
-> **IMPORTANT:** The `configure-network.sh` script will run in a restricted environment. To apply the desired network state, you **must** provide your configurations through a set of helper tools available to the `configure-network.sh` script during execution. For a complete list of the avaiable tools, see the [Helper tools](#helper-tools) section.
+> **IMPORTANT:** The `configure-network.sh` script will run in a restricted environment. To apply the desired network state, you **must** provide your configurations through a set of helper tools available to the `configure-network.sh` script during execution. For a complete list of the available tools, see the [Helper tools](#helper-tools) section.
 
 #### Helper tools
 

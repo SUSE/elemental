@@ -22,7 +22,7 @@ Elemental is a tool for installing, configuring and updating operating system im
 * [Building a Linux Image](./docs/building-linux-image.md) - for users and/or consumers interested in building Linux images.
 * [Image Customization](./docs/image-customization.md) - for users and/or consumers interested in customizing images that are based on a specific release.
 * [Release Manifest Guide](./docs/release-manifest.md) - for consumers interested in creating a release manifest for their product.
-* [Elemental and Ignition Integration](./docs/ignition-integration.md) - for consumers interested in understanding the nuances and capabalities of Ignition in the scope of Elemental.
+* [Elemental and Ignition Integration](./docs/ignition-integration.md) - for consumers interested in understanding the nuances and capabilities of Ignition in the scope of Elemental.
 
 ## Building from Source
 
@@ -43,4 +43,4 @@ Please make sure to follow these guidelines with regards to logging and error-ha
 * Error logging must include at least one piece of detail, never a log without details
 * Prefer logging in multiple lines rather than wrapping it into a single line
 
-PRs will be reviewed by the maintainers and require two reviews without outstanding change-request to pass and become mergable.
+PRs will be reviewed by the maintainers and require two reviews without outstanding change-request to pass and become mergeable.

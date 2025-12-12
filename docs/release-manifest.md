@@ -140,5 +140,5 @@ This reference focuses only on the unique to the Core Platform component APIs. A
   * `systemd` - Systemd related components.
     * `extensions` - List of systemd extension images.
       * `name` - Name by which the extension can be identified and possibly later enabled from the [product release reference](./configuration-directory.md#product-release-reference).
-      * `image` - Location to the extenstion image itself.
+      * `image` - Location to the extension image itself.
       * `required` - Whether this extension should be included by default or not. If omitted defaults to `false`.
