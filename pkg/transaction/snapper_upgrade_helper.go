@@ -284,7 +284,7 @@ func (sc snapperContext) applyCustomChanges(status, rwVolPath string, merge *Mer
 	}
 	defer func() {
 		e := statusF.Close()
-		if err != nil {
+		if err == nil && e != nil {
 			err = fmt.Errorf("failed closing status file: %w", e)
 		}
 	}()
