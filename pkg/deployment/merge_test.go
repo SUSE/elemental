@@ -36,7 +36,7 @@ var _ = Describe("Deployment merge", Label("deployment"), func() {
 		newPartition := &deployment.Partition{
 			Label:      deployment.ConfigLabel,
 			MountPoint: deployment.ConfigMnt,
-			Role:       deployment.Data,
+			Role:       deployment.Config,
 			FileSystem: deployment.Btrfs,
 			Size:       deployment.MiB(1024),
 			Hidden:     true,
