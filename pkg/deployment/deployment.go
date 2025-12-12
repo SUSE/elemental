@@ -66,6 +66,7 @@ const (
 	System
 	Recovery
 	Data
+	Config
 )
 
 type FileSystem int
@@ -143,6 +144,8 @@ func ParseRole(function string) (PartRole, error) {
 		return Recovery, nil
 	case "data":
 		return Data, nil
+	case "config":
+		return Config, nil
 	default:
 		return PartRole(0), fmt.Errorf("unknown partition function: %s", function)
 	}
@@ -158,6 +161,8 @@ func (p PartRole) String() string {
 		return "recovery"
 	case Data:
 		return "data"
+	case Config:
+		return "config"
 	default:
 		return Unknown
 	}
@@ -591,7 +596,7 @@ func WithConfigPartition(size MiB) Opt {
 	part := &Partition{
 		Label:      ConfigLabel,
 		MountPoint: ConfigMnt,
-		Role:       Data,
+		Role:       Config,
 		FileSystem: Ext4,
 		Size:       size,
 		Hidden:     true,
