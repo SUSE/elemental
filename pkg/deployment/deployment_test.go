@@ -90,7 +90,7 @@ var _ = Describe("Deployment", Label("deployment"), func() {
 		})
 		It("does not create a deployment including out of range partitions", func() {
 			d := deployment.New(deployment.WithPartitions(
-				5, &deployment.Partition{Role: deployment.Data},
+				5, &deployment.Partition{Role: deployment.Generic},
 			))
 			d.SourceOS = deployment.NewDirSrc("/some/dir")
 			Expect(d.Sanitize(s, deployment.CheckDiskDevice)).To(Succeed())
@@ -122,7 +122,7 @@ var _ = Describe("Deployment", Label("deployment"), func() {
 		})
 		It("fails if non last partition is set to use all space available", func() {
 			d := deployment.New(deployment.WithPartitions(
-				0, &deployment.Partition{Role: deployment.Data, Size: deployment.AllAvailableSize},
+				0, &deployment.Partition{Role: deployment.Generic, Size: deployment.AllAvailableSize},
 			))
 			err = d.Sanitize(s)
 			Expect(err).To(HaveOccurred())
@@ -131,7 +131,7 @@ var _ = Describe("Deployment", Label("deployment"), func() {
 		It("fails if no system partition is defined", func() {
 			d := &deployment.Deployment{
 				Disks: []*deployment.Disk{
-					{Partitions: []*deployment.Partition{{Role: deployment.Data}}},
+					{Partitions: []*deployment.Partition{{Role: deployment.Generic}}},
 				},
 			}
 			err = d.Sanitize(s)
@@ -154,7 +154,7 @@ var _ = Describe("Deployment", Label("deployment"), func() {
 				{Partitions: []*deployment.Partition{
 					{Role: deployment.System, Size: 1024},
 					{Role: deployment.EFI, RWVolumes: []deployment.RWVolume{{Path: "/some/path"}}},
-					{Role: deployment.Data, Size: deployment.AllAvailableSize},
+					{Role: deployment.Generic, Size: deployment.AllAvailableSize},
 				}},
 			}
 			d.SourceOS = deployment.NewDirSrc("/some/dir")
@@ -243,7 +243,7 @@ var _ = Describe("Deployment", Label("deployment"), func() {
 			Expect(err).To(HaveOccurred())
 		})
 		It("Un/marshals PartRole", func() {
-			roles := []string{"efi", "system", "recovery", "data"}
+			roles := []string{"efi", "system", "recovery", "config", "generic"}
 			var r deployment.PartRole
 
 			for _, role := range roles {

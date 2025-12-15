@@ -35,9 +35,9 @@ import (
 
 const (
 	// Recognized identifier types by systemd-repart based on UAPI's Discoverable Partitions Specification (DPS)
-	rootType = "root"
-	dataType = "linux-generic"
-	espType  = "esp"
+	rootType    = "root"
+	genericType = "linux-generic"
+	espType     = "esp"
 
 	// Custom types defined by Elemental as none of the predefined types is a clear match to those partition roles
 	// Do not change these values as this could break backward compatibility on already installed systems (e.g. reseting a system)
@@ -257,8 +257,8 @@ func runSystemdRepart(s *sys.System, target string, parts []Partition, flags ...
 
 func roleToType(role deployment.PartRole) string {
 	switch role {
-	case deployment.Data:
-		return dataType
+	case deployment.Generic:
+		return genericType
 	case deployment.EFI:
 		return espType
 	case deployment.System:

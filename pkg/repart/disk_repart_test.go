@@ -232,7 +232,7 @@ var _ = Describe("Systemd-repart tests", Label("systemd-repart"), func() {
 			MatchError(ContainSubstring("invalid partition role")),
 		)
 
-		part.Role = deployment.Data
+		part.Role = deployment.Generic
 		Expect(repart.CreatePartitionConf(
 			&buffer, repart.Partition{
 				Partition: part,

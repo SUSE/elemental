@@ -65,7 +65,7 @@ const (
 	EFI PartRole = iota + 1
 	System
 	Recovery
-	Data
+	Generic
 	Config
 )
 
@@ -142,8 +142,8 @@ func ParseRole(function string) (PartRole, error) {
 		return System, nil
 	case "recovery":
 		return Recovery, nil
-	case "data":
-		return Data, nil
+	case "generic":
+		return Generic, nil
 	case "config":
 		return Config, nil
 	default:
@@ -159,8 +159,8 @@ func (p PartRole) String() string {
 		return "system"
 	case Recovery:
 		return "recovery"
-	case Data:
-		return "data"
+	case Generic:
+		return "generic"
 	case Config:
 		return "config"
 	default:

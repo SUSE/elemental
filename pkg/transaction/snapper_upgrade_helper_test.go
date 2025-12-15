@@ -186,7 +186,7 @@ var _ = Describe("SnapperUpgradeHelper", Label("transaction"), func() {
 				},
 				{"rsync"},
 				{
-					"snapper", "--no-dbus", "--root", "/tmp/elemental_data/.snapshots/4/snapshot",
+					"snapper", "--no-dbus", "--root", "/tmp/elemental_generic/.snapshots/4/snapshot",
 					"-c", "home", "status", "--output", "/tmp/snapStatus/snap_status_home", "1..5",
 				},
 				{"rsync"},

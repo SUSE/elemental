@@ -220,7 +220,7 @@ func snapperContextMock() {
 	d.Disks[0].Partitions = append(d.Disks[0].Partitions, &deployment.Partition{
 		Label:      "DATA",
 		FileSystem: deployment.Btrfs,
-		Role:       deployment.Data,
+		Role:       deployment.Generic,
 		UUID:       "2443e92c-ddb3-48a2-8ecc-34a8abb87510",
 		RWVolumes: []deployment.RWVolume{{
 			Path:        "/home",
@@ -229,7 +229,7 @@ func snapperContextMock() {
 	}, &deployment.Partition{
 		Label:      "HIDDEN",
 		FileSystem: deployment.Btrfs,
-		Role:       deployment.Data,
+		Role:       deployment.Generic,
 		UUID:       "d7dd841f-aeaa-4fe3-a383-8913f4e8d4de",
 		MountPoint: "/run/hidden",
 		Hidden:     true,
@@ -330,7 +330,7 @@ func startUpgradeTransaction() *transaction.Transaction {
 	Expect(runner.MatchMilestones([][]string{
 		{"snapper", "--no-dbus", "--root", "/.snapshots/4/snapshot", "-c", "etc", "--jsonout", "list"},
 		{"btrfs", "subvolume", "snapshot"},
-		{"snapper", "--no-dbus", "--root", "/tmp/elemental_data/.snapshots/4/snapshot", "-c", "home", "--jsonout", "list"},
+		{"snapper", "--no-dbus", "--root", "/tmp/elemental_generic/.snapshots/4/snapshot", "-c", "home", "--jsonout", "list"},
 		{"btrfs", "subvolume", "snapshot"},
 	})).To(Succeed())
 	runner.ClearCmds()
