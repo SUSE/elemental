@@ -95,8 +95,9 @@ var _ = Describe("Systemd-repart tests", Label("systemd-repart"), func() {
 			Role:  deployment.System,
 		}
 
-		Expect(repart.CreatePartitionConf(&buffer, repart.Partition{Partition: part})).To(Succeed())
-		Expect(buffer.String()).To(ContainSubstring("Type=root"))
+		s.Platform().Arch = "aarch64"
+		Expect(repart.CreatePartitionConf(s, &buffer, repart.Partition{Partition: part})).To(Succeed())
+		Expect(buffer.String()).To(ContainSubstring("Type=root-aarch64"))
 		Expect(buffer.String()).ToNot(ContainSubstring("Format"))
 		Expect(buffer.String()).ToNot(ContainSubstring("CopyFiles"))
 		Expect(buffer.String()).ToNot(ContainSubstring("ExcludeFiles"))
@@ -109,15 +110,16 @@ var _ = Describe("Systemd-repart tests", Label("systemd-repart"), func() {
 		part.FileSystem = deployment.Btrfs
 		part.MountOpts = []string{"ro=vfs"}
 
+		s.Platform().Arch = "x86_64"
 		Expect(repart.CreatePartitionConf(
-			&buffer, repart.Partition{
+			s, &buffer, repart.Partition{
 				Partition: part,
 				CopyFiles: []string{"/some/root:/", "/some/other/root"},
 				Excludes:  []string{"/some/root/excludeme"},
 			},
 		)).To(Succeed())
 
-		Expect(buffer.String()).To(ContainSubstring("Type=root"))
+		Expect(buffer.String()).To(ContainSubstring("Type=root-x86_64"))
 		Expect(buffer.String()).To(ContainSubstring("SizeMinBytes=1024M"))
 		Expect(buffer.String()).To(ContainSubstring("SizeMaxBytes=1024M"))
 		Expect(buffer.String()).To(ContainSubstring("Format=btrfs"))
@@ -228,13 +230,13 @@ var _ = Describe("Systemd-repart tests", Label("systemd-repart"), func() {
 		part := &deployment.Partition{
 			Label: "SYSTEM",
 		}
-		Expect(repart.CreatePartitionConf(&buffer, repart.Partition{Partition: part})).To(
+		Expect(repart.CreatePartitionConf(s, &buffer, repart.Partition{Partition: part})).To(
 			MatchError(ContainSubstring("invalid partition role")),
 		)
 
 		part.Role = deployment.Generic
 		Expect(repart.CreatePartitionConf(
-			&buffer, repart.Partition{
+			s, &buffer, repart.Partition{
 				Partition: part,
 				CopyFiles: []string{"relative/path:/"},
 			},
