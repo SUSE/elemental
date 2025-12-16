@@ -134,7 +134,7 @@ disks:
 				},
 			},
 			FileExtractor: &fileExtractorMock{
-				extractFunc: func(uri string, local bool) (path string, err error) {
+				extractFunc: func(uri string) (path string, err error) {
 					return "", nil
 				},
 			},
@@ -157,7 +157,7 @@ disks:
 
 	It("passes deployment object for ISO media with additional partitions", func() {
 		customizeRunner.FileExtractor = &fileExtractorMock{
-			extractFunc: func(uri string, local bool) (path string, err error) {
+			extractFunc: func(uri string) (path string, err error) {
 				Expect(uri).To(Equal(expectedISO))
 				return "", nil
 			},
@@ -189,7 +189,7 @@ disks:
 		// Simulate first boot configuration
 		Expect(vfs.MkdirAll(fs, output.FirstbootConfigDir(), vfs.DirPerm)).To(Succeed())
 
-		err := customizeRunner.Run(context.Background(), def, output, true)
+		err := customizeRunner.Run(context.Background(), def, output)
 		Expect(err).ToNot(HaveOccurred())
 		defaultCustomizeDeploymentValidation(customizeDeployment)
 
@@ -226,7 +226,7 @@ disks:
 
 	It("passes deployment object for RAW media without additional partitions", func() {
 		customizeRunner.FileExtractor = &fileExtractorMock{
-			extractFunc: func(uri string, local bool) (path string, err error) {
+			extractFunc: func(uri string) (path string, err error) {
 				Expect(uri).To(Equal(expectedISO))
 				return "", nil
 			},
@@ -263,7 +263,7 @@ disks:
 			},
 		}
 
-		err := customizeRunner.Run(context.Background(), def, output, true)
+		err := customizeRunner.Run(context.Background(), def, output)
 		Expect(err).ToNot(HaveOccurred())
 		defaultCustomizeDeploymentValidation(customizeDeployment)
 		Expect(customizeDeployment.Disks[0].Device).To(BeEmpty())
@@ -277,19 +277,19 @@ disks:
 			},
 		}
 
-		err := customizeRunner.Run(context.Background(), &image.Definition{}, output, true)
+		err := customizeRunner.Run(context.Background(), &image.Definition{}, output)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(Equal("missing manifest"))
 	})
 
 	It("fails to extract iso from container", func() {
 		customizeRunner.FileExtractor = &fileExtractorMock{
-			extractFunc: func(uri string, local bool) (path string, err error) {
+			extractFunc: func(uri string) (path string, err error) {
 				return "", fmt.Errorf("extract error")
 			},
 		}
 
-		err := customizeRunner.Run(context.Background(), &image.Definition{}, output, true)
+		err := customizeRunner.Run(context.Background(), &image.Definition{}, output)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(Equal("extract error"))
 	})
@@ -300,12 +300,12 @@ disks:
 		}
 
 		customizeRunner.FileExtractor = &fileExtractorMock{
-			extractFunc: func(uri string, local bool) (path string, err error) {
+			extractFunc: func(uri string) (path string, err error) {
 				return "missing.iso", nil
 			},
 		}
 
-		err := customizeRunner.Run(context.Background(), &image.Definition{}, output, true)
+		err := customizeRunner.Run(context.Background(), &image.Definition{}, output)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("'missing.iso': xorriso command failed"))
 	})
@@ -317,7 +317,7 @@ disks:
 			},
 		}
 
-		err := customizeRunner.Run(context.Background(), def, output, true)
+		err := customizeRunner.Run(context.Background(), def, output)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(Equal("unsupported media type foo: unsupported operation"))
 	})
@@ -332,7 +332,7 @@ disks:
 			},
 		}
 
-		err := customizeRunner.Run(context.Background(), def, output, true)
+		err := customizeRunner.Run(context.Background(), def, output)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(Equal("missing device configuration for ISO image type"))
 
@@ -358,7 +358,7 @@ disks:
 			},
 		}
 
-		err := customizeRunner.Run(context.Background(), def, output, true)
+		err := customizeRunner.Run(context.Background(), def, output)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(Equal("customization error"))
 	})
@@ -377,7 +377,7 @@ disks:
 			},
 		}
 
-		err := customizeRunner.Run(context.Background(), def, output, true)
+		err := customizeRunner.Run(context.Background(), def, output)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(Equal("invalid disk size definition '35Invalid'"))
 
@@ -397,12 +397,12 @@ func (c *configManagerMock) ConfigureComponents(ctx context.Context, conf *image
 }
 
 type fileExtractorMock struct {
-	extractFunc func(uri string, local bool) (path string, err error)
+	extractFunc func(uri string) (path string, err error)
 }
 
-func (f *fileExtractorMock) ExtractFrom(uri string, local bool) (path string, err error) {
+func (f *fileExtractorMock) ExtractFrom(uri string) (path string, err error) {
 	if f.extractFunc != nil {
-		return f.extractFunc(uri, local)
+		return f.extractFunc(uri)
 	}
 
 	panic("not implemented")

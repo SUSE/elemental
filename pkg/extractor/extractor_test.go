@@ -84,7 +84,7 @@ var _ = Describe("OCIFileExtractor", Label("file-extractor"), func() {
 		defaultStoreExtr, err := extractor.New(defaultSearchPaths, extrOpts...)
 		Expect(err).ToNot(HaveOccurred())
 
-		extractedFile, err := defaultStoreExtr.ExtractFrom(dummyOCI, false)
+		extractedFile, err := defaultStoreExtr.ExtractFrom(dummyOCI)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(filepath.Dir(extractedFile)).To(Equal(expectedStorePath))
 		validateExtractedFileContent(tfs, extractedFile)
@@ -104,7 +104,7 @@ var _ = Describe("OCIFileExtractor", Label("file-extractor"), func() {
 		customStoreExtr, err := extractor.New(defaultSearchPaths, extrOpts...)
 		Expect(err).ToNot(HaveOccurred())
 
-		extractedFile, err := customStoreExtr.ExtractFrom(dummyOCI, false)
+		extractedFile, err := customStoreExtr.ExtractFrom(dummyOCI)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(strings.HasPrefix(extractedFile, customStoreRoot)).To(BeTrue())
 		Expect(filepath.Dir(extractedFile)).To(Equal(expectedFileStore))
@@ -123,7 +123,7 @@ var _ = Describe("OCIFileExtractor", Label("file-extractor"), func() {
 		customStoreExtr, err := extractor.New(defaultSearchPaths, extrOpts...)
 		Expect(err).ToNot(HaveOccurred())
 
-		extractedFile, err := customStoreExtr.ExtractFrom(dummyOCI, false)
+		extractedFile, err := customStoreExtr.ExtractFrom(dummyOCI)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(extractedFile).To(Equal(expectedExtractedFile))
 		validateExtractedFileContent(tfs, extractedFile)
@@ -136,7 +136,7 @@ var _ = Describe("OCIFileExtractor", Label("file-extractor"), func() {
 		defaultExtr, err := extractor.New(defaultSearchPaths, extrOpts...)
 		Expect(err).ToNot(HaveOccurred())
 
-		file, err := defaultExtr.ExtractFrom(dummyOCI, false)
+		file, err := defaultExtr.ExtractFrom(dummyOCI)
 		Expect(err).To(HaveOccurred())
 		Expect(err).To(MatchError(expErr))
 		Expect(file).To(BeEmpty())
@@ -149,7 +149,7 @@ var _ = Describe("OCIFileExtractor", Label("file-extractor"), func() {
 		extr, err := extractor.New([]string{customSearchPath}, extrOpts...)
 		Expect(err).ToNot(HaveOccurred())
 
-		file, err := extr.ExtractFrom(dummyOCI, false)
+		file, err := extr.ExtractFrom(dummyOCI)
 		Expect(err).To(HaveOccurred())
 		Expect(err).To(MatchError(expErr))
 		Expect(file).To(BeEmpty())
@@ -162,7 +162,7 @@ var _ = Describe("OCIFileExtractor", Label("file-extractor"), func() {
 		extr, err := extractor.New(defaultSearchPaths, extrOpts...)
 		Expect(err).ToNot(HaveOccurred())
 
-		file, err := extr.ExtractFrom(dummyOCI, false)
+		file, err := extr.ExtractFrom(dummyOCI)
 		Expect(err).To(HaveOccurred())
 		Expect(err).To(MatchError(expErr))
 		Expect(file).To(BeEmpty())

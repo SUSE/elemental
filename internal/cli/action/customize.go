@@ -81,7 +81,7 @@ func Customize(ctx *cli.Context) error {
 		return err
 	}
 
-	if err = customizeRunner.Run(ctxCancel, def, output, args.Local); err != nil {
+	if err = customizeRunner.Run(ctxCancel, def, output); err != nil {
 		logger.Error("Customizing installer media failed")
 		return err
 	}
@@ -115,7 +115,7 @@ func setupCustomizeRunner(
 	args *cmd.CustomizeFlags,
 	output config.Output,
 ) (*customize.Runner, error) {
-	extr, err := setupFileExtractor(ctx, s, output)
+	extr, err := setupFileExtractor(ctx, s, output, args.Local)
 	if err != nil {
 		return nil, fmt.Errorf("setting up file extractor: %w", err)
 	}
@@ -140,7 +140,7 @@ func setupConfigManager(s *sys.System, configDir string, output config.Output, l
 		config.WithLocal(local),
 	)
 }
-func setupFileExtractor(ctx context.Context, s *sys.System, outDir config.Output) (extr *extractor.OCIFileExtractor, err error) {
+func setupFileExtractor(ctx context.Context, s *sys.System, outDir config.Output, local bool) (extr *extractor.OCIFileExtractor, err error) {
 	const isoSearchGlob = "/iso/uc-base-kernel-default-iso*.iso"
 
 	if err := vfs.MkdirAll(s.FS(), outDir.ISOStoreDir(), vfs.DirPerm); err != nil {
@@ -152,6 +152,7 @@ func setupFileExtractor(ctx context.Context, s *sys.System, outDir config.Output
 		extractor.WithStore(outDir.ISOStoreDir()),
 		extractor.WithFS(s.FS()),
 		extractor.WithContext(ctx),
+		extractor.WithLocal(local),
 	)
 }
 

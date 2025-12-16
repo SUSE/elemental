@@ -58,6 +58,7 @@ type OCIFileExtractor struct {
 	unpacker OCIUnpacker
 	fs       vfs.FS
 	ctx      context.Context
+	local    bool
 }
 
 type OCIFileExtractorOpts func(o *OCIFileExtractor)
@@ -83,6 +84,12 @@ func WithFS(fs vfs.FS) OCIFileExtractorOpts {
 func WithContext(ctx context.Context) OCIFileExtractorOpts {
 	return func(r *OCIFileExtractor) {
 		r.ctx = ctx
+	}
+}
+
+func WithLocal(local bool) OCIFileExtractorOpts {
+	return func(r *OCIFileExtractor) {
+		r.local = local
 	}
 }
 
@@ -128,7 +135,7 @@ func New(searchPaths []string, opts ...OCIFileExtractorOpts) (*OCIFileExtractor,
 // The first located file will be extracted to the configured store directory
 // and its path will be returned, or an error if the file was not found.
 // The underlying OCI image is not retained.
-func (o *OCIFileExtractor) ExtractFrom(uri string, local bool) (path string, err error) {
+func (o *OCIFileExtractor) ExtractFrom(uri string) (path string, err error) {
 	unpackDir, err := vfs.TempDir(o.fs, "", "unpacked-oci-")
 	if err != nil {
 		return "", fmt.Errorf("creating oci image unpack directory: %w", err)
@@ -137,7 +144,7 @@ func (o *OCIFileExtractor) ExtractFrom(uri string, local bool) (path string, err
 		_ = o.fs.RemoveAll(unpackDir)
 	}()
 
-	digest, err := o.unpacker.Unpack(o.ctx, uri, unpackDir, local)
+	digest, err := o.unpacker.Unpack(o.ctx, uri, unpackDir, o.local)
 	if err != nil {
 		return "", fmt.Errorf("unpacking oci image: %w", err)
 	}
