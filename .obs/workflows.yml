@@ -1,0 +1,43 @@
+---
+pr:
+  steps:
+  - configure_repositories:
+      project: devel:UnifiedCore:Tumbleweed:PRs
+      repositories:
+        - name: containers
+          paths:
+            - target_project: devel:UnifiedCore:Tumbleweed:PRs
+              target_repository: standard
+          architectures:
+            - aarch64
+            - x86_64
+  - branch_package:
+      source_project: devel:UnifiedCore:Tumbleweed
+      source_package: elemental
+      target_project: devel:UnifiedCore:Tumbleweed:PRs
+  - trigger_services:
+      project: devel:UnifiedCore:Tumbleweed
+      package: elemental
+  - link_package:
+      source_project: devel:UnifiedCore:Tumbleweed
+      source_package: elemental-base-os
+      target_project: devel:UnifiedCore:Tumbleweed:PRs
+  - link_package:
+      source_project: devel:UnifiedCore:Tumbleweed
+      source_package: elemental3ctl-sysext
+      target_project: devel:UnifiedCore:Tumbleweed:PRs
+  - link_package:
+      source_project: devel:UnifiedCore:Tumbleweed
+      source_package: elemental3ctl-sysext-image
+      target_project: devel:UnifiedCore:Tumbleweed:PRs
+  - link_package:
+      source_project: devel:UnifiedCore:Tumbleweed
+      source_package: release-manifest-image
+      target_project: devel:UnifiedCore:Tumbleweed:PRs
+  - set_flags:
+      flags:
+      - type: publish
+        status: enable
+        project: devel:UnifiedCore:Tumbleweed:PRs
+  filters:
+    event: pull_request
