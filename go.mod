@@ -5,7 +5,7 @@ go 1.25
 require (
 	dario.cat/mergo v1.0.2
 	github.com/cenkalti/backoff/v4 v4.3.0
-	github.com/containerd/containerd/v2 v2.2.0
+	github.com/containerd/containerd/v2 v2.2.1
 	github.com/coreos/butane v0.25.1
 	github.com/coreos/ignition/v2 v2.25.0
 	github.com/distribution/reference v0.6.0
@@ -31,7 +31,7 @@ require (
 	github.com/Microsoft/hcsshim v0.14.0-rc.1 // indirect
 	github.com/aws/aws-sdk-go-v2 v1.40.1 // indirect
 	github.com/clarketm/json v1.17.1 // indirect
-	github.com/containerd/cgroups/v3 v3.1.0 // indirect
+	github.com/containerd/cgroups/v3 v3.1.2 // indirect
 	github.com/containerd/continuity v0.4.5 // indirect
 	github.com/containerd/errdefs v1.0.0 // indirect
 	github.com/containerd/errdefs/pkg v0.3.0 // indirect
