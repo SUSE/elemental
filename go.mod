@@ -1,6 +1,6 @@
 module github.com/suse/elemental/v3
 
-go 1.25
+go 1.25.0
 
 require (
 	dario.cat/mergo v1.0.2
@@ -21,7 +21,7 @@ require (
 	github.com/urfave/cli/v2 v2.27.7
 	go.yaml.in/yaml/v3 v3.0.4
 	golang.org/x/crypto v0.46.0
-	k8s.io/mount-utils v0.34.3
+	k8s.io/mount-utils v0.35.0
 )
 
 require (
@@ -88,5 +88,5 @@ require (
 	google.golang.org/protobuf v1.36.10 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
-	k8s.io/utils v0.0.0-20250604170112-4c0f3b243397 // indirect
+	k8s.io/utils v0.0.0-20251002143259-bc988d571ff4 // indirect
 )
