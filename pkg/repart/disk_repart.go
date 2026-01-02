@@ -80,7 +80,7 @@ func ReconcileDevicePartitions(s *sys.System, d *deployment.Disk) error {
 
 // CreateDiskImage creates a disk image file with the given size and partitions
 func CreateDiskImage(s *sys.System, filename string, size deployment.MiB, partitions []Partition) error {
-	s.Logger().Info("Partitioning image '%s'", filename)
+	s.Logger().Info("Partitioning image %q", filename)
 
 	var sizeFlag string
 	if size == 0 {
@@ -180,7 +180,7 @@ func repartDisk(s *sys.System, d *deployment.Disk, empty string) (err error) {
 	return runSystemdRepart(s, d.Device, parts, flags...)
 }
 
-// runSystemdRepart runs systemd-repart for the given partitions and target device. It appends to the generated command the
+// runSystemdRepart runs systemd-repart for the given partitions and target device. It appends to the generated command
 // the optional given flags. On success it parses systemd-repart output to get the generated partition UUIDs and update the
 // given partitions list with them.
 func runSystemdRepart(s *sys.System, target string, parts []Partition, flags ...string) error {

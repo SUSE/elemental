@@ -26,6 +26,7 @@ import (
 	"github.com/suse/elemental/v3/pkg/manifest/api"
 )
 
+// ReleaseManifest TODO (dharmit): why not call this CoreManifest?
 type ReleaseManifest struct {
 	Metadata   *api.Metadata `yaml:"metadata"`
 	Components Components    `yaml:"components"`

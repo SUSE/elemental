@@ -98,11 +98,19 @@ Run the customization process:
 >
 > 1. Start Podman socket:
 >   ```shell
->   systemctl enable --now podman.socket
+>   sudo systemctl enable --now podman.socket
+>   ```
+>   or, for rootless containers with Podman:
+>   ```shell
+>   systemctl --user enable --now podman.socket
 >   ```
 > 2. Run the `elemental3` container with the mounted podman socket:
 >   ```shell
->   podman run -it -v <PATH_TO_CONFIG_DIR>:/config -v /run/podman/podman.sock:/var/run/docker.sock $ELEMENTAL_IMAGE customize --type <raw/iso> --local
+>   sudo podman run -it -v <PATH_TO_CONFIG_DIR>:/config -v /run/podman/podman.sock:/var/run/docker.sock $ELEMENTAL_IMAGE customize --type <raw/iso> --local
+>   ```
+>   or, if using rootless containers with Podman:
+>   ```shell
+>   podman run -it -v <PATH_TO_CONFIG_DIR>:/config -v /run/$XDG_RUNTIME_DIR/podman.sock:/var/run/docker.sock $ELEMENTAL_IMAGE customize --type <raw/iso> --local
 >   ```
 
 Unless configured otherwise, the above process will produce a customized RAW or ISO image under the specified `<PATH_TO_CONFIG_DIR>` directory.
@@ -151,7 +159,7 @@ The customized image can be booted as any other regular image. Below you can fin
                   --ram 16000 \
                   --vcpus 10 \
                   --import \
-                  --disk path=disk.img,format=raw \
+                  --disk path=disk.img,format=iso \
                   --cdrom "customized.iso" \
                   --boot loader=/usr/share/qemu/ovmf-x86_64-code.bin,loader.readonly=yes,loader.type=pflash,nvram=ovmf-x86_64-vars.bin \
                   --graphics none \

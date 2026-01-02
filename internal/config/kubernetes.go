@@ -59,7 +59,7 @@ func (m *Manager) configureKubernetes(
 	conf *image.Configuration,
 	manifest *resolver.ResolvedManifest,
 	output Output,
-) (k8sResourceScript, k8sConfScript string, err error) {
+) (string, string, error) {
 	if !isKubernetesEnabled(conf) {
 		m.system.Logger().Info("Kubernetes is not enabled, skipping configuration")
 
@@ -67,6 +67,7 @@ func (m *Manager) configureKubernetes(
 	}
 
 	var runtimeHelmCharts []string
+	var err error
 	if needsHelmChartsSetup(conf) {
 		m.system.Logger().Info("Configuring Helm charts")
 
@@ -86,6 +87,7 @@ func (m *Manager) configureKubernetes(
 		}
 	}
 
+	var k8sResourceScript string
 	if len(runtimeHelmCharts) > 0 || runtimeManifestsDir != "" {
 		k8sResourceScript, err = writeK8sResDeployScript(m.system.FS(), output, runtimeManifestsDir, runtimeHelmCharts)
 		if err != nil {
@@ -93,7 +95,7 @@ func (m *Manager) configureKubernetes(
 		}
 	}
 
-	k8sConfScript, err = writeK8sConfigDeployScript(m.system.FS(), output, conf.Kubernetes)
+	k8sConfScript, err := writeK8sConfigDeployScript(m.system.FS(), output, conf.Kubernetes)
 	if err != nil {
 		return "", "", fmt.Errorf("writing kubernetes resource deployment script: %w", err)
 	}

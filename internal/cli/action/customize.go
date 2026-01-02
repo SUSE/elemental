@@ -140,7 +140,8 @@ func setupConfigManager(s *sys.System, configDir string, output config.Output, l
 		config.WithLocal(local),
 	)
 }
-func setupFileExtractor(ctx context.Context, s *sys.System, outDir config.Output) (extr *extractor.OCIFileExtractor, err error) {
+
+func setupFileExtractor(ctx context.Context, s *sys.System, outDir config.Output) (*extractor.OCIFileExtractor, error) {
 	const isoSearchGlob = "/iso/uc-base-kernel-default-iso*.iso"
 
 	if err := vfs.MkdirAll(s.FS(), outDir.ISOStoreDir(), vfs.DirPerm); err != nil {

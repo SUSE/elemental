@@ -19,7 +19,6 @@ package cmd
 
 import (
 	"fmt"
-	"runtime"
 	"slices"
 
 	"github.com/suse/elemental/v3/pkg/installer"
@@ -82,7 +81,7 @@ func NewCustomizeCommand(appName string, action func(*cli.Context) error) *cli.C
 				Name:        "platform",
 				Usage:       "Target platform",
 				Destination: &CustomizeArgs.Platform,
-				Value:       fmt.Sprintf("linux/%s", runtime.GOARCH),
+				Value:       "linux/amd64",
 			},
 			&cli.BoolFlag{
 				Name:        "local",

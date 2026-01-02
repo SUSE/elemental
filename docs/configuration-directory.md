@@ -1,6 +1,6 @@
 # Configuration Directory Guide
 
-The configuration directory is the place where users define the desired state of the image they intend to build by using the [elemental3 build](image-build-and-customization.md#elemental3-build) command.
+The configuration directory is the place where users define the desired state of the image they intend to build by using the [elemental3 customize](image-customization.md) command.
 
 Generally, the available configuration areas that this directory supports are the following:
 

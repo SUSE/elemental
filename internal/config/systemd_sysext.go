@@ -186,7 +186,7 @@ func enabledExtensions(rm *resolver.ResolvedManifest, conf *image.Configuration,
 			isDependency(ext.Name) {
 			enabled = append(enabled, ext)
 		} else {
-			logger.Debug("Extension '%s' not enabled", ext.Name)
+			logger.Debug("Extension %q not enabled", ext.Name)
 		}
 	}
 

@@ -586,7 +586,7 @@ func (i Media) prepareEFI(isoDir, efiDir string) error {
 	return r.SyncData(filepath.Join(isoDir, "EFI"), filepath.Join(efiDir, "EFI"))
 }
 
-// addInstallationAssets adds to the ISO directory three the configuration and files required for
+// addInstallationAssets adds to the ISO directory tree the configuration and files required for
 // the installation from the current media
 func (i Media) addInstallationAssets(root string, d *deployment.Deployment) error {
 	var err error

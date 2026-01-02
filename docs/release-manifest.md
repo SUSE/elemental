@@ -128,7 +128,7 @@ components:
       url: "https://metallb.github.io/metallb"
 ```
 
-The manifest's structure is similar to that of the [Product Release Manifest](#product-release-manifest-api), with the key difference being the inclusion of components unique to the Core Platform (e.g. `operatingSystem` and `kubernetes`). 
+The manifest's structure is similar to that of the [Product Release Manifest](#product-release-manifest-api), with the key difference being the inclusion of components unique to the Core Platform (e.g. `operatingSystem` and `systemd`).
 
 This reference focuses only on the unique to the Core Platform component APIs. Any components not mentioned here share the same description as those in the `Product Release Manifest`.
 
