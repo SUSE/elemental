@@ -77,12 +77,16 @@ $(BUILD_DIR)/elemental3: $(GO_FILES)
 $(BUILD_DIR)/elemental3ctl: $(GO_FILES)
 	go build $(GO_BUILD_ARGS) -o $@ ./cmd/elemental3ctl
 
-.PHONY: elemental-image
-elemental-image:
-	$(DOCKER) build --platform $(PLATFORM) --target runner --tag $(ELEMENTAL_IMAGE_REPO):$(VERSION) .
+.PHONY: image
+image: VALID_RUNNERS := runner-elemental3 runner-elemental3ctl
+image:
+	$(if $(filter $(RUNNER),$(VALID_RUNNERS)),,\
+	  $(error Invalid RUNNER '$(RUNNER)'. Must be one of: $(VALID_RUNNERS)))
+	$(DOCKER) build --platform $(PLATFORM) --target $(RUNNER) --tag $(ELEMENTAL_IMAGE_REPO):$(VERSION) .
 
 .PHONY: build-disk
-build-disk: $(BUILD_DIR) elemental-image
+build-disk: RUNNER := runner-elemental3ctl
+build-disk: $(BUILD_DIR) image
 	qemu-img create -f raw $(IMG).raw $(DISKSIZE)
 	TARGET=$$(sudo losetup -f --show $(IMG).raw)
 	cp examples/elemental/install/config.sh $(BUILD_DIR)
