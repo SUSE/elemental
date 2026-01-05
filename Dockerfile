@@ -18,10 +18,9 @@ ADD Makefile .
 ADD .git .
 RUN GOOS=$TARGETOS GOARCH=$TARGETARCH make all
 
-FROM registry.opensuse.org/opensuse/tumbleweed:latest AS runner
+FROM registry.opensuse.org/opensuse/tumbleweed:latest AS runner-base
 
 ARG TARGETARCH
-
 RUN ARCH=$(uname -m); \
     [[ "${ARCH}" == "aarch64" ]] && ARCH="arm64"; \
     zypper --non-interactive removerepo repo-update || true; \
@@ -45,4 +44,15 @@ RUN ARCH=$(uname -m); \
 COPY --from=builder /work/build/elemental3ctl /usr/bin/elemental3ctl
 COPY --from=builder /work/build/elemental3 /usr/bin/elemental3
 
+FROM runner-base AS runner-elemental3ctl
 ENTRYPOINT ["/usr/bin/elemental3ctl"]
+
+FROM runner-base AS runner-elemental3
+
+RUN ARCH=$(uname -m); \
+    [[ "${ARCH}" == "aarch64" ]] && ARCH="arm64"; \
+    zypper --non-interactive removerepo repo-update || true; \
+    zypper --non-interactive install --no-recommends xorriso && \
+    zypper clean --all
+
+ENTRYPOINT ["/usr/bin/elemental3"]
