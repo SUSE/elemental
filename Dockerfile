@@ -49,9 +49,7 @@ ENTRYPOINT ["/usr/bin/elemental3ctl"]
 
 FROM runner-base AS runner-elemental3
 
-RUN ARCH=$(uname -m); \
-    [[ "${ARCH}" == "aarch64" ]] && ARCH="arm64"; \
-    zypper --non-interactive removerepo repo-update || true; \
+RUN zypper --non-interactive removerepo repo-update || true; \
     zypper --non-interactive install --no-recommends xorriso && \
     zypper clean --all
 
