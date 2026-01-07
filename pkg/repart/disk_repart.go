@@ -66,7 +66,7 @@ func PartitionAndFormatDevice(s *sys.System, d *deployment.Disk) error {
 }
 
 // ReconcileDevicePartitions attempts to match the given disk layout with the current device.
-// It attemps to extend an existing partition table or create a new one if none exists. It does not
+// It attempts to extend an existing partition table or create a new one if none exists. It does not
 // remove any pre-existing partition.
 func ReconcileDevicePartitions(s *sys.System, d *deployment.Disk) error {
 	err := repartDisk(s, d, "allow")

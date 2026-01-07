@@ -91,7 +91,7 @@ func NewOCIUnpacker(s *sys.System, imageRef string, opts ...OCIOpt) *OCI {
 // SynchedUnpack for OCI images will extract OCI contents to a destination sibling directory first and
 // after that it will sync it to the destination directory. Ideally the destination path should
 // not be mountpoint to a different filesystem of the sibling directories in order to benefit of
-// copy on write features of the underlaying filesystem.
+// copy on write features of the base filesystem.
 func (o OCI) SynchedUnpack(ctx context.Context, destination string, excludes []string, deleteExcludes []string) (digest string, err error) {
 	tempDir := filepath.Clean(destination) + workDirSuffix
 	err = vfs.MkdirAll(o.s.FS(), tempDir, vfs.DirPerm)

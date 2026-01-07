@@ -65,7 +65,7 @@ var _ = Describe("System", Label("system"), func() {
 		Expect(s.Syscall()).To(BeIdenticalTo(syscall))
 		Expect(s.Platform()).To(Equal(platform))
 	})
-	It("It is initalized with all defaults", func() {
+	It("It is initialized with all defaults", func() {
 		platform, err := platform.NewFromArch(runtime.GOARCH)
 		Expect(err).NotTo(HaveOccurred())
 		s, err := sys.NewSystem()

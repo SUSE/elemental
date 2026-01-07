@@ -61,7 +61,7 @@ var _ = Describe("Elemental Installer tests", func() {
 			Expect(s.GetOSRelease("NAME")).To(Equal("openSUSE Tumbleweed"))
 		})
 
-		It("Extract informations from booted OS", func() {
+		It("Extract information from booted OS", func() {
 			osVersion := s.GetOSRelease("VERSION_ID")
 			Expect(osVersion).ToNot(BeEmpty())
 

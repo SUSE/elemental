@@ -44,7 +44,7 @@ var _ = Describe("Bootloader tests", Label("bootloader", "grub", "none"), func()
 		)
 		Expect(err).NotTo(HaveOccurred())
 	})
-	It("Successsfully creates a new bootloader", func() {
+	It("Successfully creates a new bootloader", func() {
 		for _, name := range []string{"none", "grub"} {
 			b, err := bootloader.New(name, s)
 			Expect(err).NotTo(HaveOccurred())

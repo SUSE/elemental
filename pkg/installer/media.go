@@ -248,7 +248,7 @@ func (i *Media) PrepareInstallerFS(rootDir, workDir string, d *deployment.Deploy
 
 	switch {
 	case d.SourceOS.IsRaw():
-		// We assume this is comming from a ready to be used installer media
+		// We assume this is coming from a ready to be used installer media
 		// no need to unpack and repack
 		err = vfs.CopyFile(i.s.FS(), d.SourceOS.URI(), squashImg)
 		if err != nil {
@@ -278,7 +278,7 @@ func (i *Media) PrepareInstallerFS(rootDir, workDir string, d *deployment.Deploy
 			append(i.unpackOpts, unpack.WithRsyncFlags(rsync.OverlayTreeSyncFlags()...))...,
 		)
 		if err != nil {
-			return fmt.Errorf("could not initate overlay unpacker: %w", err)
+			return fmt.Errorf("could not initiate overlay unpacker: %w", err)
 		}
 		_, err = unpacker.Unpack(i.ctx, rootDir, reservedPaths()...)
 		if err != nil {
@@ -356,7 +356,7 @@ func (i *Media) Customize(d *deployment.Deployment) (err error) {
 				append(i.unpackOpts, unpack.WithRsyncFlags(rsync.OverlayTreeSyncFlags()...))...,
 			)
 			if err != nil {
-				return fmt.Errorf("could not initate overlay unpacker: %w", err)
+				return fmt.Errorf("could not initiate overlay unpacker: %w", err)
 			}
 			_, err = unpacker.Unpack(i.ctx, ovDir, reservedPaths()...)
 			if err != nil {
@@ -547,7 +547,7 @@ func (i Media) prepareOSRoot(sourceOS *deployment.ImageSource, rootDir string) e
 
 	unpacker, err := unpack.NewUnpacker(i.s, sourceOS, i.unpackOpts...)
 	if err != nil {
-		return fmt.Errorf("could not initate OS unpacker: %w", err)
+		return fmt.Errorf("could not initiate OS unpacker: %w", err)
 	}
 	digest, err := unpacker.Unpack(i.ctx, rootDir)
 	if err != nil {
@@ -857,7 +857,7 @@ func calcFileChecksum(fs vfs.FS, fileName string) (string, error) {
 	return fmt.Sprintf("%x", h.Sum(nil)), nil
 }
 
-// reservedPaths returns an array of the paths which can't be overlayed in installer media
+// reservedPaths returns an array of the paths which can't be overlaid in installer media
 func reservedPaths() []string {
 	return []string{liveDir, installDir, "EFI", "boot"}
 }

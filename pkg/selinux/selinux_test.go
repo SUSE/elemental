@@ -113,7 +113,7 @@ var _ = Describe("Selinux", Label("selinux"), func() {
 	})
 	It("fails to relabel in a chroot env if chroot mounts fail", func() {
 		Expect(fs.WriteFile(selinux.SelinuxTargetedContextFile, []byte{}, vfs.FilePerm)).To(Succeed())
-		// /partion/var does not exist
+		// /partition/var does not exist
 		Expect(selinux.ChrootedRelabel(
 			context.Background(), s, root, map[string]string{"/partition/var": "/var"}),
 		).NotTo(Succeed())

@@ -38,7 +38,7 @@ if sed --version >/dev/null 2>&1; then
   # Linux specific option
   SED_INPLACE=(-i)
 else
-  # Mac specific opiton
+  # Mac specific option
   SED_INPLACE=(-i '')
 fi
 

@@ -106,14 +106,14 @@ func (r run) RunContextParseOutput(ctx context.Context, stdoutH, stderrH func(st
 	if stdoutH != nil {
 		stdoutP, err = cmd.StdoutPipe()
 		if err != nil {
-			r.debug("cound not pipe stdout for command '%s': %s", command, err.Error())
+			r.debug("could not pipe stdout for command '%s': %s", command, err.Error())
 			return err
 		}
 	}
 	if stderrH != nil {
 		stderrP, err = cmd.StderrPipe()
 		if err != nil {
-			r.debug("cound not pipe stderr for command '%s': %s", command, err.Error())
+			r.debug("could not pipe stderr for command '%s': %s", command, err.Error())
 			_ = closePipes()
 			return err
 		}

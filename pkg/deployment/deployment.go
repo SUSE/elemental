@@ -584,7 +584,7 @@ func WithPartitions(num int, parts ...*Partition) Opt {
 
 // WithConfigPartition inserts a configuration partition as the second partition
 // to the systemd disk. The given size is the amount of data expected to store in
-// the partition, then the partition is sized to be alined with 128MiB and to ensure
+// the partition, then the partition is sized to be aligned with 128MiB and to ensure
 // at least 128MiB of free space is available.
 func WithConfigPartition(size MiB) Opt {
 	size = (size/128)*128 + 256
@@ -601,7 +601,7 @@ func WithConfigPartition(size MiB) Opt {
 
 // WithRecoveryPartition inserts a recovery partition as the second partition
 // to the systemd disk. The given size is the amount of data expected to store in
-// the partition, then the partition is sized to be alined with 128MiB and to ensure
+// the partition, then the partition is sized to be aligned with 128MiB and to ensure
 // at least 128MiB of free space is available.
 func WithRecoveryPartition(size MiB) Opt {
 	size = (size/128)*128 + 256

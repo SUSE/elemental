@@ -32,7 +32,7 @@ var _ = Describe("Deployment merge", Label("deployment"), func() {
 		)
 	})
 
-	It("merges a new partiton to dst deployment", func() {
+	It("merges a new partition to dst deployment", func() {
 		newPartition := &deployment.Partition{
 			Label:      deployment.ConfigLabel,
 			MountPoint: deployment.ConfigMnt,

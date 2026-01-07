@@ -89,8 +89,8 @@ var _ = Describe("TarUnpacker", Label("tar"), func() {
 		ok, _ := vfs.Exists(tfs, "/root/var")
 		Expect(ok).To(BeFalse())
 
-		// exclude 'etc/os' does not exlude os-release file
-		// exludes require a full directory or file path to be effective
+		// exclude 'etc/os' does not exclude os-release file
+		// exclude requires a full directory or file path to be effective
 		ok, _ = vfs.Exists(tfs, "/root/etc/os-release")
 		Expect(ok).To(BeTrue())
 	})

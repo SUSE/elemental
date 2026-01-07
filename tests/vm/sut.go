@@ -171,7 +171,7 @@ func (s *SUT) EventuallyConnects(t ...int) {
 	}
 	Eventually(func() (string, error) {
 		if !s.IsVMRunning() {
-			return "", StopTrying("Underlaying VM is no longer running!")
+			return "", StopTrying("VM is no longer running!")
 		}
 		return s.command("echo -n ping")
 	}, time.Duration(time.Duration(dur)*time.Second), time.Duration(5*time.Second)).Should(Equal("ping"))
@@ -187,7 +187,7 @@ func (s *SUT) EventuallyDisconnects(t ...int) {
 	s.EventuallyConnects(10)
 	Eventually(func() (string, error) {
 		if !s.IsVMRunning() {
-			return "", StopTrying("Underlaying VM is no longer running!")
+			return "", StopTrying("VM is no longer running!")
 		}
 		out, _ := s.command("sleep 30 && echo -n ping")
 		return out, nil

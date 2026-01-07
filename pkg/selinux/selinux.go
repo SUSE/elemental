@@ -62,7 +62,7 @@ func Relabel(ctx context.Context, s *sys.System, rootDir string, extraPaths ...s
 	return nil
 }
 
-// ChrootedRelabel relables with setfiles the given root in a chroot env. Additionaly after the first
+// ChrootedRelabel relables with setfiles the given root in a chroot env. Additionally after the first
 // chrooted call it runs a non chrooted call to relabel any mountpoint used within the chroot.
 func ChrootedRelabel(ctx context.Context, s *sys.System, rootDir string, bind map[string]string) (err error) {
 	extraPaths := []string{}

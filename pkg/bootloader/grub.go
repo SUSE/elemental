@@ -331,7 +331,7 @@ func (g Grub) writeGrubConfig(targetDir string, cfgTemplate []byte, data any) er
 
 	err = f.Close()
 	if err != nil {
-		return fmt.Errorf("falied closing bootloader config file %s: %w", gCfg, err)
+		return fmt.Errorf("failed closing bootloader config file %s: %w", gCfg, err)
 	}
 	return nil
 }
@@ -435,7 +435,7 @@ func (g *Grub) installGrub(rootPath, espDir string) error {
 
 // readIDAndName parses OS ID and OS name from os-relese file. Returns error of no OS ID is found.
 func (g *Grub) readIDAndName(rootPath string) (osID string, displayName string, err error) {
-	g.s.Logger().Info("Reading OS Relese")
+	g.s.Logger().Info("Reading OS Release")
 
 	osVars, err := vfs.LoadEnvFile(g.s.FS(), filepath.Join(rootPath, OsReleasePath))
 	if err != nil {

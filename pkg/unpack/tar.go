@@ -58,7 +58,7 @@ func (t Tar) Unpack(ctx context.Context, destination string, excludes ...string)
 // SynchedUnpack for tarball files will extract tar contents to a destination sibling directory first and
 // after that it will sync it to the destination directory. Ideally the destination path should
 // not be mountpoint to a different filesystem of the sibling directories in order to benefit of
-// copy on write features of the underlaying filesystem.
+// copy on write features of the base filesystem.
 func (t Tar) SynchedUnpack(ctx context.Context, destination string, excludes []string, deleteExcludes []string) (digest string, err error) {
 	tempDir := filepath.Clean(destination) + workDirSuffix
 	err = vfs.MkdirAll(t.s.FS(), tempDir, vfs.DirPerm)
