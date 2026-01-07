@@ -325,7 +325,7 @@ Elemental supports creating installation media in the form of live ISOs or RAW d
 
 The ISO image includes EFI binaries and bootloader setup, the OS image (as a squashfs image) and the installation assets (configuration script and drop-in files overlayed over the OS).
 
-The RAW image includes the ESP partition with the EFI binaries, the bootloader setup and a recovery partition including the OS image (again as an squashfs image) together with the installation assets.
+The RAW image includes the ESP partition with the EFI binaries, the bootloader setup and a recovery partition including the OS image (again as a squashfs image) together with the installation assets.
 
 Regardless of whether the artifact is an ISO or a RAW disk, the respective image boots like a live OS system based on tmpfs overlayfs. The boot process relies on the `dmsquash-live` dracut module for live booting.
 
@@ -464,7 +464,7 @@ zypper in mtools
 ```
 
 The command below creates an ISO image inside the `build` output directory.
-It will be using an `openSUSE Tumbleweed` image and will be configured to automatically self install to the target device (e.g. `dev/sda`) at boot.
+It will be using an `openSUSE Tumbleweed` image and will be configured to automatically self install to the target device (e.g. `/dev/sda`) at boot.
 
 ```shell
 sudo elemental3ctl --debug build-installer \
@@ -480,7 +480,7 @@ sudo elemental3ctl --debug build-installer \
     --install-cmdline "console=ttyS0"
 ```
 
-In order to build a RAW disk image just use the same command as a above but switching to RAW type (`--type raw` flag).
+In order to build a RAW disk image just use the same command as above but switching to RAW type (`--type raw` flag).
 
 The RAW disk image only includes the ESP partition and a recovery partition. The recovery partition includes a
 squashfs OS image to boot from like a live ISO would.

@@ -104,7 +104,7 @@ an ignition failure which translates into a non-booting system.
 
 The Ignition configuration file can be provided in a variety of ways depending on the platform (e.g. some
 public cloud provider) the system is running, however a common and easy way to provide the configuration is by using a
-volume with a filesystem labeled `IGNITION` (not key sensitive), containing a configuration file stored at the
+volume with a filesystem labeled `IGNITION` (not case sensitive), containing a configuration file stored at the
 `/ignition/config.ign` path. This can be achieved by adding an extra block device,
 such as a USB stick, to the machine, or by installing a system including a partition with a filesystem labeled as `IGNITION`.
 
