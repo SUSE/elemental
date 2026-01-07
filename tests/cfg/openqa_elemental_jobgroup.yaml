@@ -25,7 +25,7 @@
   YAML_SCHEDULE: schedule/elemental3/os_image.yaml
 
 .common_microos_boot_settings: &common_microos_boot_settings
-  BOOT_HDD_IMAGE: '1'
+  BOOTFROM: disk
   CONTAINER_RUNTIMES: podman
   DESKTOP: textmode
   EXCLUDE_MODULES: suseconnect_scc
@@ -42,7 +42,7 @@
 .generate_settings: &generate_settings
   <<: *common_microos_boot_settings
   IMG_NAME: 'elemental-%BUILD%-%ARCH%-%TESTED_CMD%'
-  ISO_CMD_LINE: 'console=ttyS0 enforcing=0'
+  ISO_CMD_LINE: 'console=ttyS0'
   K8S: rke2
   KERNEL_CMD_LINE: 'console=ttyS0'
   TEST_PASSWORD: Elemental@R00t
@@ -53,6 +53,7 @@
   TEST_TYPE: test_image
 
 .test_iso_settings: &test_iso_settings
+  BOOTFROM: disk
   HDDSIZEGB: '30'
   IMAGE_TYPE: iso
   ISO: 'elemental-%BUILD%-%ARCH%-build_installer_iso.iso'
