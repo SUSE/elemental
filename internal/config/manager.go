@@ -150,10 +150,10 @@ func defaultManifestResolver(fs vfs.FS, out Output, local bool) (res *resolver.R
 		return nil, fmt.Errorf("creating release manifest store '%s': %w", manifestsDir, err)
 	}
 
-	extr, err := extractor.New(searchPaths, extractor.WithStore(manifestsDir))
+	extr, err := extractor.New(searchPaths, extractor.WithStore(manifestsDir), extractor.WithLocal(local))
 	if err != nil {
 		return nil, fmt.Errorf("initialising OCI release manifest extractor: %w", err)
 	}
 
-	return resolver.New(source.NewReader(extr, local)), nil
+	return resolver.New(source.NewReader(extr)), nil
 }

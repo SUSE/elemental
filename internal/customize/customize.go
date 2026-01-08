@@ -49,7 +49,7 @@ type configManager interface {
 }
 
 type ociFileExtractor interface {
-	ExtractFrom(uri string, local bool) (path string, err error)
+	ExtractFrom(uri string) (path string, err error)
 }
 
 type media interface {
@@ -63,7 +63,7 @@ type Runner struct {
 	Media         media
 }
 
-func (r *Runner) Run(ctx context.Context, def *image.Definition, output config.Output, local bool) (err error) {
+func (r *Runner) Run(ctx context.Context, def *image.Definition, output config.Output) (err error) {
 	logger := r.System.Logger()
 
 	logger.Info("Configuring image components")
@@ -75,7 +75,7 @@ func (r *Runner) Run(ctx context.Context, def *image.Definition, output config.O
 
 	containerImage := rm.CorePlatform.Components.OperatingSystem.Image.ISO
 	logger.Info("Extracting ISO from container image %s", containerImage)
-	iso, err := r.FileExtractor.ExtractFrom(containerImage, local)
+	iso, err := r.FileExtractor.ExtractFrom(containerImage)
 	if err != nil {
 		logger.Error("Extracting ISO from container image '%s' failed", containerImage)
 		return err
