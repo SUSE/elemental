@@ -14,6 +14,8 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      INTEGRATION_TESTS: "true"
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -37,9 +39,9 @@ jobs:
           make build-disk
       - name: Run installer test
         run: |
-          make INTEGRATION_TESTS=true VERBOSE=true ELMNTL_FIRMWARE=/usr/share/OVMF/OVMF_CODE_4M.fd test-installer
+          make VERBOSE=true ELMNTL_FIRMWARE=/usr/share/OVMF/OVMF_CODE_4M.fd test-installer
       - name: Clean test
         if: ${{ always() }}
         run: |
-          make INTEGRATION_TESTS=true test-stop || true
-          make INTEGRATION_TESTS=true test-clean || true
+          make test-stop || true
+          make test-clean || true
