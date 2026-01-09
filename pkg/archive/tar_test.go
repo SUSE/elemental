@@ -51,7 +51,7 @@ var _ = Describe("Archive", Label("archive"), func() {
 		var gzData []byte
 
 		buffer = &bytes.Buffer{}
-		gzData, err = os.ReadFile("../../tests/assets/test.tar.gz")
+		gzData, err = os.ReadFile("../../tests/testdata/test.tar.gz")
 		Expect(err).NotTo(HaveOccurred())
 
 		// Include tarballs in test environment
