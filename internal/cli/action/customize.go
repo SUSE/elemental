@@ -49,9 +49,9 @@ func Customize(ctx *cli.Context) error {
 	fs := system.FS()
 	args := &cmd.CustomizeArgs
 
-	logger.Info("Customizing image started")
+	imagePath, configPath := resolveOutputPaths(fs, args)
 
-	imagePath, configPath := resolveOutputPaths(args)
+	logger.Info("Customizing image at %s", imagePath)
 
 	output, err := config.NewOutput(fs, "", configPath)
 	if err != nil {
@@ -89,21 +89,21 @@ func Customize(ctx *cli.Context) error {
 	return nil
 }
 
-func resolveOutputPaths(args *cmd.CustomizeFlags) (imagePath, configPath string) {
+func resolveOutputPaths(fs vfs.FS, args *cmd.CustomizeFlags) (imagePath, configPath string) {
 	imagePath = args.OutputPath
-	if imagePath == "" {
-		timestamp := time.Now().UTC().Format("2006-01-02T15-04-05")
-		imageName := fmt.Sprintf("image-%s.%s", timestamp, args.MediaType)
+	imageName := fmt.Sprintf("image-%s.%s", time.Now().UTC().Format("2006-01-02T15-04-05"), args.MediaType)
 
+	if imagePath == "" {
 		imagePath = filepath.Join(args.ConfigDir, imageName)
+	} else if isDir, err := vfs.IsDir(fs, imagePath); err == nil && isDir {
+		imagePath = filepath.Join(imagePath, imageName)
 	}
 
 	if args.Mode == "split" {
-		outputDir := filepath.Dir(imagePath)
-		filename := filepath.Base(imagePath)
-		baseName := strings.TrimSuffix(filename, filepath.Ext(filename))
+		imagePathBase := filepath.Base(imagePath)
+		baseName := strings.TrimSuffix(imagePathBase, filepath.Ext(imagePathBase))
 
-		configPath = filepath.Join(outputDir, baseName+"-config")
+		configPath = filepath.Join(filepath.Dir(imagePath), baseName+"-config")
 	}
 
 	return imagePath, configPath
