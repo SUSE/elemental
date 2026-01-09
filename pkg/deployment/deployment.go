@@ -65,7 +65,8 @@ const (
 	EFI PartRole = iota + 1
 	System
 	Recovery
-	Data
+	Generic
+	Config
 )
 
 type FileSystem int
@@ -141,8 +142,10 @@ func ParseRole(function string) (PartRole, error) {
 		return System, nil
 	case "recovery":
 		return Recovery, nil
-	case "data":
-		return Data, nil
+	case "generic":
+		return Generic, nil
+	case "config":
+		return Config, nil
 	default:
 		return PartRole(0), fmt.Errorf("unknown partition function: %s", function)
 	}
@@ -156,8 +159,10 @@ func (p PartRole) String() string {
 		return "system"
 	case Recovery:
 		return "recovery"
-	case Data:
-		return "data"
+	case Generic:
+		return "generic"
+	case Config:
+		return "config"
 	default:
 		return Unknown
 	}
@@ -591,7 +596,7 @@ func WithConfigPartition(size MiB) Opt {
 	part := &Partition{
 		Label:      ConfigLabel,
 		MountPoint: ConfigMnt,
-		Role:       Data,
+		Role:       Config,
 		FileSystem: Btrfs,
 		Size:       size,
 		Hidden:     true,

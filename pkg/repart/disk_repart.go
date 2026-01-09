@@ -34,9 +34,15 @@ import (
 )
 
 const (
-	rootType = "root"
-	dataType = "linux-generic"
-	espType  = "esp"
+	// Recognized identifier types by systemd-repart based on UAPI's Discoverable Partitions Specification (DPS)
+	rootArchType = "root-%s"
+	genericType  = "linux-generic"
+	espType      = "esp"
+
+	// Custom types defined by Elemental as none of the predefined types is a clear match to those partition roles
+	// Do not change these values as this could break backward compatibility on already installed systems (e.g. reseting a system)
+	configType   = "2ecf8b13-6846-4e8a-9bc3-284ff5e2ac22"
+	recoveryType = "3265f37b-3105-4777-bd97-cfcd9cc7cf99"
 )
 
 //go:embed templates/partition.conf.tpl
@@ -98,7 +104,7 @@ func CreatePartitionConfFile(s *sys.System, filename string, p Partition) error 
 	if err != nil {
 		return fmt.Errorf("failed creating systemd-repart configuration file '%s': %w", filename, err)
 	}
-	err = CreatePartitionConf(file, p)
+	err = CreatePartitionConf(s, file, p)
 	if err != nil {
 		return fmt.Errorf("failed generation of '%s' systemd-repart configuration file: %w", filename, err)
 	}
@@ -110,8 +116,8 @@ func CreatePartitionConfFile(s *sys.System, filename string, p Partition) error 
 }
 
 // CreatePartitionConf writes a partition configuration for systemd-repart for the given partition into the given io.Writer
-func CreatePartitionConf(wr io.Writer, p Partition) error {
-	pType := roleToType(p.Partition.Role)
+func CreatePartitionConf(s *sys.System, wr io.Writer, p Partition) error {
+	pType := roleToType(s, p.Partition.Role)
 	if pType == deployment.Unknown {
 		return fmt.Errorf("invalid partition role: %s", p.Partition.Role.String())
 	}
@@ -249,14 +255,18 @@ func runSystemdRepart(s *sys.System, target string, parts []Partition, flags ...
 	return nil
 }
 
-func roleToType(role deployment.PartRole) string {
+func roleToType(s *sys.System, role deployment.PartRole) string {
 	switch role {
-	case deployment.Data, deployment.Recovery:
-		return dataType
+	case deployment.Generic:
+		return genericType
 	case deployment.EFI:
 		return espType
 	case deployment.System:
-		return rootType
+		return fmt.Sprintf(rootArchType, s.Platform().Arch)
+	case deployment.Recovery:
+		return recoveryType
+	case deployment.Config:
+		return configType
 	default:
 		return deployment.Unknown
 	}
