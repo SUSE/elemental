@@ -87,5 +87,4 @@ jobs:
       - name: Clean test
         if: ${{ always() }}
         run: |
-          make test-stop || true
-          make test-clean || true
+          make clean-test || true
