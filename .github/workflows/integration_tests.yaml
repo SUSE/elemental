@@ -16,6 +16,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       INTEGRATION_TESTS: "true"
+      ELMNTL_FIRMWARE: "/usr/share/OVMF/OVMF_CODE_4M.fd"
+      VERBOSE: "true"
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -83,8 +85,22 @@ jobs:
           make build-disk
       - name: Run installer test
         run: |
-          make VERBOSE=true ELMNTL_FIRMWARE=/usr/share/OVMF/OVMF_CODE_4M.fd test-installer
-      - name: Clean test
+          make test-installer
+      - name: Clean installer test
+        if: ${{ always() }}
+        run: |
+          make clean-test || true
+      - name: Run customize ISO test
+        run: |
+          make test-customize-iso
+      - name: Clean customize ISO test
+        if: ${{ always() }}
+        run: |
+          make clean-test || true
+      - name: Run customize RAW test
+        run: |
+          make test-customize-raw
+      - name: Clean customize RAW test
         if: ${{ always() }}
         run: |
           make clean-test || true
