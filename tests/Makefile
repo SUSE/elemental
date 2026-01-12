@@ -71,13 +71,21 @@ customize-iso: MEDIA_TYPE := iso
 customize-iso: image prepare-config-dir
 	$(CUSTOMIZE)
 
-.PHONY: test-clean
-test-clean: test-stop
+.PHONY: clean-test
+clean-test: clean-test-vm clean-config-dir
+
+.PHONY: clean-test-vm
+clean-test-vm: stop-test-vm
 	@scripts/run_vm.sh clean
 
-.PHONY: test-stop
-test-stop:
+.PHONY: stop-test-vm
+stop-test-vm:
 	@scripts/run_vm.sh stop
+
+.PHONY: clean-config-dir
+clean-config-dir:
+	@rm -rf "$(CUSTOMIZED_WORKDIR_PATH)"
+	rm -f  "$(CONFIG_DIR)/release.yaml"
 
 .PHONY: test-installer
 test-installer: build-disk
