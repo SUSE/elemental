@@ -592,7 +592,7 @@ func WithConfigPartition(size MiB) Opt {
 		Label:      ConfigLabel,
 		MountPoint: ConfigMnt,
 		Role:       Data,
-		FileSystem: Btrfs,
+		FileSystem: Ext4,
 		Size:       size,
 		Hidden:     true,
 	}
@@ -608,7 +608,7 @@ func WithRecoveryPartition(size MiB) Opt {
 	part := &Partition{
 		Label:      RecoveryLabel,
 		Role:       Recovery,
-		FileSystem: Btrfs,
+		FileSystem: Ext4,
 		Size:       size,
 		Hidden:     true,
 	}
@@ -698,7 +698,7 @@ func checkRecoveryPart(s *sys.System, d *Deployment) error {
 					part.RWVolumes = []RWVolume{}
 				}
 				if part.FileSystem.String() == Unknown {
-					part.FileSystem = Ext2
+					part.FileSystem = Ext4
 				}
 				if part.Label == "" {
 					part.Label = RecoveryLabel

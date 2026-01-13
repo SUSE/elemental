@@ -297,7 +297,10 @@ func (i *Media) PrepareInstallerFS(rootDir, workDir string, d *deployment.Deploy
 		if err != nil {
 			return fmt.Errorf("failed to compute recovery partition size: %w", err)
 		}
-		recSize := deployment.MiB((size/128)*128 + 256)
+		// Align recovery partition size to 256MiB blocks and add between
+		// 256~512MiB of extra space, this is relevant for filesystem types such
+		// as Btrfs which duplicates metadata to protect against data corruption
+		recSize := deployment.MiB((size/256)*256 + 512)
 		if recPart.Size < recSize {
 			i.s.Logger().Debug("Increasing recovery partition size to %dMiB", recSize)
 			recPart.Size = recSize
@@ -464,8 +467,8 @@ func (i Media) increaseRecoverySize(mappedFiles map[string]string, d *deployment
 		recovery.Size += deployment.MiB(size)
 	}
 
-	// Align recovery partition size to 128MiB blocks, this adds between 128MiB and 256MiB to the original size
-	recovery.Size = deployment.MiB((recovery.Size/128)*128 + 256)
+	// Align recovery partition size to 128MiB blocks
+	recovery.Size = deployment.MiB((recovery.Size/128)*128 + 128)
 	i.s.Logger().Debug("Recovery partition resized to %dMiB", recovery.Size)
 	return nil
 }
