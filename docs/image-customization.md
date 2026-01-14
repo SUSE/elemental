@@ -111,7 +111,7 @@ Unless configured otherwise, the above process will produce a customized RAW or 
 
 > **NOTE:** The below RAM and vCPU resources are just reference values, feel free to tweak them based on what your environment needs.
 
-The customized image can be booted as any other regular image. Below you can find an example of how this can be done by using Libvirt to setup a virtual machine from a customized image that has a static network configured for machines with the `FE:C4:05:42:8B:AB` MAC address.
+The customized image can be booted as any other regular image. Below you can find an example of how this can be done by using Libvirt to setup a virtual machine from a customized image that has a static network configured for machines with the `FE:C4:05:42:8B:01` MAC address.
 
 * RAW disk image:
 
@@ -123,7 +123,7 @@ The customized image can be booted as any other regular image. Below you can fin
                --osinfo detect=on,name=sle-unknown \
                --graphics none \
                --console pty,target_type=serial \
-               --network network=default,model=virtio,mac=FE:C4:05:42:8B:AB \
+               --network network=default,model=virtio,mac=FE:C4:05:42:8B:01 \
                --virt-type kvm \
                --import \
                --boot uefi,loader=/usr/share/qemu/ovmf-x86_64-ms-code.bin,nvram.template=/usr/share/qemu/ovmf-x86_64-ms-vars.bin
@@ -146,20 +146,20 @@ The customized image can be booted as any other regular image. Below you can fin
 
    * Boot a VM using the previously created resources, namely the `customized.iso`, `disk.img` and local EFI store:
 
-      ```shell
-      virt-install --name customized-iso \
-                  --ram 16000 \
-                  --vcpus 10 \
-                  --import \
-                  --disk path=disk.img,format=raw \
-                  --cdrom "customized.iso" \
-                  --boot loader=/usr/share/qemu/ovmf-x86_64-code.bin,loader.readonly=yes,loader.type=pflash,nvram=ovmf-x86_64-vars.bin \
-                  --graphics none \
-                  --console pty,target_type=serial \
-                  --network network=default,model=virtio,mac=FE:C4:05:42:8B:AB \
-                  --osinfo detect=on,name=sle-unknown \
-                  --virt-type kvm
-      ```
+    ```shell
+    virt-install --name customized-iso \
+                --ram 16000 \
+                --vcpus 10 \
+                --import \
+                --disk path=disk.img,format=raw \
+                --cdrom "customized.iso" \
+                --boot loader=/usr/share/qemu/ovmf-x86_64-code.bin,loader.readonly=yes,loader.type=pflash,nvram=ovmf-x86_64-vars.bin \
+                --graphics none \
+                --console pty,target_type=serial \
+                --network network=default,model=virtio,mac=FE:C4:05:42:8B:01 \
+                --osinfo detect=on,name=sle-unknown \
+                --virt-type kvm
+    ```
 
 ## Examples
 
@@ -239,13 +239,13 @@ virt-install --name linux-only-example \
              --osinfo detect=on,name=sle-unknown \
              --graphics none \
              --console pty,target_type=serial \
-             --network network=default,model=virtio,mac=FE:C4:05:42:8B:AB \
+             --network network=default,model=virtio,mac=FE:C4:05:42:8B:01 \
              --virt-type kvm \
              --import \
              --boot uefi,loader=/usr/share/qemu/ovmf-x86_64-ms-code.bin,nvram.template=/usr/share/qemu/ovmf-x86_64-ms-vars.bin
 ```
 
-> **NOTE:** Based on the `FE:C4:05:42:8B:AB` MAC address, during first boot this will apply the network configuration defined in the [network/example-libvirt.yaml](../examples/elemental/customize/linux-only/network/example-libvirt.yaml) file on the machine.
+> **NOTE:** Based on the `FE:C4:05:42:8B:01` MAC address, during first boot this will apply the network configuration defined in the [network/example-libvirt.yaml](../examples/elemental/customize/linux-only/network/example-libvirt.yaml) file on the machine.
 
 #### Environment overview
 
@@ -319,7 +319,7 @@ The contents of this directory include:
 * [kubernetes/manifests/ip-pool.yaml](../examples/elemental/customize/single-node/kubernetes/manifests/ip-pool.yaml) - local manifest to apply to the cluster and have the enabled `MetalLB` component setup an `IPAddressPool`.
 * [kubernetes/manifests/l2-adv.yaml](../examples/elemental/customize/single-node/kubernetes/manifests/l2-adv.yaml) - local manifest to apply to the cluster and have the enabled `MetalLB` component setup a `L2Advertisement`.
 * [kubernetes/manifests/rke2-ingress-config.yaml](../examples/elemental/customize/single-node/kubernetes/manifests/rke2-ingress-config.yaml) - local manifest that will edit the existing `rke2-ingress-nginx` Helm chart and will enable its service to be of type `LoadBalancer`.
-* [network/single-node-example.yaml](../examples/elemental/customize/single-node/network/single-node-example.yaml) - custom network configuration that sets up a static IP for machines with the `FE:C4:05:42:8B:AB` MAC address.
+* [network/single-node-example.yaml](../examples/elemental/customize/single-node/network/single-node-example.yaml) - custom network configuration that sets up a static IP for machines with the `FE:C4:05:42:8B:01` MAC address.
 
 #### Producing the customized image
 
@@ -363,13 +363,13 @@ virt-install --name single-node-example \
              --osinfo detect=on,name=sle-unknown \
              --graphics none \
              --console pty,target_type=serial \
-             --network network=default,model=virtio,mac=FE:C4:05:42:8B:AB \
+             --network network=default,model=virtio,mac=FE:C4:05:42:8B:01 \
              --virt-type kvm \
              --import \
              --boot uefi,loader=/usr/share/qemu/ovmf-x86_64-ms-code.bin,nvram.template=/usr/share/qemu/ovmf-x86_64-ms-vars.bin
 ```
 
-> **NOTE:** Based on the `FE:C4:05:42:8B:AB` MAC address, during first boot this will apply the network configuration defined in the [network/single-node-example.yaml](../examples/elemental/customize/single-node/network/single-node-example.yaml) file on the machine.
+> **NOTE:** Based on the `FE:C4:05:42:8B:01` MAC address, during first boot this will apply the network configuration defined in the [network/single-node-example.yaml](../examples/elemental/customize/single-node/network/single-node-example.yaml) file on the machine.
 
 #### Environment overview
 
@@ -521,7 +521,7 @@ The user creates a [configuration directory](../examples/elemental/customize/mul
 
 The contents of the directory are the same as the contents for a [single-node Kubernetes setup](#configuration-directory-setup-1), with the following additions:
 
-- [network/](../examples/elemental/customize/multi-node/network/) - add network configuration for each desired node. This example configures the static IPs `192.168.122.250`, `192.168.122.251`, `192.168.122.252` and `192.168.122.253` for machines with the respective `FE:C4:05:42:8B:AB`, `FE:C4:05:42:8B:AC`, `FE:C4:05:42:8B:AD` and `FE:C4:05:42:8B:AE` MAC addresses.
+- [network/](../examples/elemental/customize/multi-node/network/) - add network configuration for each desired node. This example configures the static IPs `192.168.122.250`, `192.168.122.251`, `192.168.122.252` and `192.168.122.253` for machines with the respective `FE:C4:05:42:8B:01`, `FE:C4:05:42:8B:02`, `FE:C4:05:42:8B:03` and `FE:C4:05:42:8B:04` MAC addresses.
 - [kubernetes/config/agent.yaml](../examples/elemental/customize/multi-node/kubernetes/config/agent.yaml) - add configuration for the agent node.
 - [kubernetes.yaml](../examples/elemental/customize/multi-node/kubernetes.yaml) - add multi-node cluster configuration that specifies the node's roles as well as the cluster's network setup.
 
