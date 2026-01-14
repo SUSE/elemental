@@ -469,7 +469,7 @@ Once the machine has successfully been booted with the customized image, you can
 
    # Example output
    bootstrapPassword: admin1234
-   hostname: 192.168.76.15.sslip.io
+   hostname: 192.168.122.15.sslip.io
    replicas: 1
    ```
 
@@ -480,10 +480,10 @@ Once the machine has successfully been booted with the customized image, you can
       ```shell
       kubectl get ipaddresspools -A
 
-      # Example output
-      NAMESPACE        NAME             AUTO ASSIGN   AVOID BUGGY IPS   ADDRESSES
-      metallb-system   ingress-ippool   true          false             ["192.168.76.15/32"]
-      ```
+     # Example output
+     NAMESPACE        NAME             AUTO ASSIGN   AVOID BUGGY IPS   ADDRESSES
+     metallb-system   ingress-ippool   true          false             ["192.168.122.15/32"]
+     ```
 
    * MetalLB `L2Advertisement` resource:
 
@@ -495,15 +495,15 @@ Once the machine has successfully been booted with the customized image, you can
       metallb-system   ingress-l2-adv   ["ingress-ippool"]
       ```
 
-   * RKE2 NGINX Ingress controller service is available, of type `LoadBalancer` and running on the `192.168.76.15` IP:
+   - RKE2 NGINX Ingress controller service is available, of type `LoadBalancer` and running on the `192.168.122.15` IP:
 
       ```shell
       kubectl get svc rke2-ingress-nginx-controller -n kube-system
 
-      # Example output
-      NAME                            TYPE           CLUSTER-IP     EXTERNAL-IP     PORT(S)                      AGE
-      rke2-ingress-nginx-controller   LoadBalancer   10.43.117.57   192.168.76.15   80:30594/TCP,443:32133/TCP   42m
-      ```
+     # Example output
+     NAME                            TYPE           CLUSTER-IP     EXTERNAL-IP     PORT(S)                      AGE
+     rke2-ingress-nginx-controller   LoadBalancer   10.43.117.57   192.168.122.15   80:30594/TCP,443:32133/TCP   42m
+     ```
 
 ### Multi-node Kubernetes cluster
 
