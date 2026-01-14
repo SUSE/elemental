@@ -41,7 +41,7 @@ func BuildInstaller(ctx *cli.Context) error {
 	}
 	s = ctx.App.Metadata["system"].(*sys.System)
 
-	s.Logger().Info("Starting build ISO action with args: %+v", args)
+	s.Logger().Info("Starting build installer action with args: %+v", args)
 
 	ctxCancel, stop := signal.NotifyContext(ctx.Context, syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
