@@ -36,7 +36,7 @@ This section provides an overview of how you build a Linux image that can includ
 ### Configuring through a system extension image
 
 While we recommend reading through the complete document to understand system extensions in the context of elemental 
-project, you could refer the
+project, please refer to the
 ["Create system extension images"](./systemd-system-extensions.md#create-system-extension-images) section for specific
 steps. After that continue further with the
 ["Configuring through a configuration script"](#configuring-through-a-configuration-script) section below.
