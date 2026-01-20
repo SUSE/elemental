@@ -27,8 +27,8 @@ jobs:
       - name: QEMU/Libvirt installation and configuration
         run: |
           # Install QEMU/Libvirt packages
-          sudo apt update
-          sudo apt install -y qemu-kvm libvirt-daemon-system libvirt-clients bridge-utils virt-manager
+          sudo apt-get update
+          sudo apt-get install -y qemu-kvm libvirt-daemon-system libvirt-clients bridge-utils virt-manager
 
           # Configure udev
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
