@@ -18,9 +18,10 @@ limitations under the License.
 package cmd
 
 import (
+	"context"
 	"fmt"
 
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 )
 
 type InstallFlags struct {
@@ -40,7 +41,7 @@ type InstallFlags struct {
 
 var InstallArgs InstallFlags
 
-func NewInstallCommand(appName string, action func(*cli.Context) error) *cli.Command {
+func NewInstallCommand(appName string, action func(context.Context, *cli.Command) error) *cli.Command {
 	return &cli.Command{
 		Name:      "install",
 		Usage:     "Install an OCI image on a target system",

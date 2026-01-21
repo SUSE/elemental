@@ -18,10 +18,11 @@ limitations under the License.
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"runtime"
 
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 )
 
 type UnpackFlags struct {
@@ -34,7 +35,7 @@ type UnpackFlags struct {
 
 var UnpackArgs UnpackFlags
 
-func NewUnpackImageCommand(appName string, action func(*cli.Context) error) *cli.Command {
+func NewUnpackImageCommand(appName string, action func(context.Context, *cli.Command) error) *cli.Command {
 	return &cli.Command{
 		Name:      "unpack-image",
 		Usage:     "Unpacks an image to the specified location",

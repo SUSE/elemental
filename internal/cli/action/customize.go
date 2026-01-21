@@ -26,9 +26,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 
-	"github.com/suse/elemental/v3/internal/cli/cmd"
+	cmdpkg "github.com/suse/elemental/v3/internal/cli/cmd"
 	"github.com/suse/elemental/v3/internal/config"
 	"github.com/suse/elemental/v3/internal/customize"
 	"github.com/suse/elemental/v3/internal/image"
@@ -40,14 +40,14 @@ import (
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
 
-func Customize(ctx *cli.Context) error {
-	if ctx.App.Metadata == nil || ctx.App.Metadata["system"] == nil {
+func Customize(ctx context.Context, cmd *cli.Command) error {
+	if cmd.Root().Metadata == nil || cmd.Root().Metadata["system"] == nil {
 		return fmt.Errorf("error setting up initial configuration")
 	}
-	system := ctx.App.Metadata["system"].(*sys.System)
+	system := cmd.Root().Metadata["system"].(*sys.System)
 	logger := system.Logger()
 	fs := system.FS()
-	args := &cmd.CustomizeArgs
+	args := &cmdpkg.CustomizeArgs
 
 	logger.Info("Customizing image started")
 
@@ -72,7 +72,7 @@ func Customize(ctx *cli.Context) error {
 		return err
 	}
 
-	ctxCancel, cancelFunc := signal.NotifyContext(ctx.Context, syscall.SIGTERM, syscall.SIGINT)
+	ctxCancel, cancelFunc := signal.NotifyContext(ctx, syscall.SIGTERM, syscall.SIGINT)
 	defer cancelFunc()
 
 	customizeRunner, err := setupCustomizeRunner(ctxCancel, system, args, output)
@@ -89,7 +89,7 @@ func Customize(ctx *cli.Context) error {
 	return nil
 }
 
-func resolveOutputPaths(args *cmd.CustomizeFlags) (imagePath, configPath string) {
+func resolveOutputPaths(args *cmdpkg.CustomizeFlags) (imagePath, configPath string) {
 	imagePath = args.OutputPath
 	if imagePath == "" {
 		timestamp := time.Now().UTC().Format("2006-01-02T15-04-05")
@@ -112,7 +112,7 @@ func resolveOutputPaths(args *cmd.CustomizeFlags) (imagePath, configPath string)
 func setupCustomizeRunner(
 	ctx context.Context,
 	s *sys.System,
-	args *cmd.CustomizeFlags,
+	args *cmdpkg.CustomizeFlags,
 	output config.Output,
 ) (*customize.Runner, error) {
 	extr, err := setupFileExtractor(ctx, s, output, args.Local)
@@ -157,7 +157,7 @@ func setupFileExtractor(ctx context.Context, s *sys.System, outDir config.Output
 	)
 }
 
-func digestCustomizeDefinition(f vfs.FS, args *cmd.CustomizeFlags, imagePath string) (*image.Definition, error) {
+func digestCustomizeDefinition(f vfs.FS, args *cmdpkg.CustomizeFlags, imagePath string) (*image.Definition, error) {
 	p, err := platform.Parse(args.Platform)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing platform %s", args.Platform)

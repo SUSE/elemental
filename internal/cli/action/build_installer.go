@@ -23,9 +23,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 
-	"github.com/suse/elemental/v3/internal/cli/cmd"
+	cmdpkg "github.com/suse/elemental/v3/internal/cli/cmd"
 	"github.com/suse/elemental/v3/pkg/bootloader"
 	"github.com/suse/elemental/v3/pkg/deployment"
 	"github.com/suse/elemental/v3/pkg/installer"
@@ -33,17 +33,17 @@ import (
 	"github.com/suse/elemental/v3/pkg/unpack"
 )
 
-func BuildInstaller(ctx *cli.Context) error {
+func BuildInstaller(ctx context.Context, cmd *cli.Command) error {
 	var s *sys.System
-	args := &cmd.InstallerArgs
-	if ctx.App.Metadata == nil || ctx.App.Metadata["system"] == nil {
+	args := &cmdpkg.InstallerArgs
+	if cmd.Root().Metadata == nil || cmd.Root().Metadata["system"] == nil {
 		return fmt.Errorf("error setting up initial configuration")
 	}
-	s = ctx.App.Metadata["system"].(*sys.System)
+	s = cmd.Root().Metadata["system"].(*sys.System)
 
 	s.Logger().Info("Starting build installer action with args: %+v", args)
 
-	ctxCancel, stop := signal.NotifyContext(ctx.Context, syscall.SIGTERM, syscall.SIGINT)
+	ctxCancel, stop := signal.NotifyContext(ctx, syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
 
 	go func() {
@@ -73,7 +73,7 @@ func BuildInstaller(ctx *cli.Context) error {
 	return nil
 }
 
-func digestInstallerDeploymentSetup(s *sys.System, flags *cmd.InstallerFlags) (*deployment.Deployment, error) {
+func digestInstallerDeploymentSetup(s *sys.System, flags *cmdpkg.InstallerFlags) (*deployment.Deployment, error) {
 	// Recovery partition size will be determined during the build
 	d := deployment.New(deployment.WithRecoveryPartition(0))
 	if flags.Overlay != "" {
@@ -109,7 +109,7 @@ func digestInstallerDeploymentSetup(s *sys.System, flags *cmd.InstallerFlags) (*
 	return d, err
 }
 
-func digestInstallerMedia(ctx context.Context, s *sys.System, flags *cmd.InstallerFlags) (*installer.Media, error) {
+func digestInstallerMedia(ctx context.Context, s *sys.System, flags *cmdpkg.InstallerFlags) (*installer.Media, error) {
 	mType, err := installer.StringToMediaType(flags.Type)
 	if err != nil {
 		return nil, err
@@ -134,7 +134,7 @@ func digestInstallerMedia(ctx context.Context, s *sys.System, flags *cmd.Install
 	return media, nil
 }
 
-func applyInstallSpec(s *sys.System, d *deployment.Deployment, flags cmd.InstallFlags) error {
+func applyInstallSpec(s *sys.System, d *deployment.Deployment, flags cmdpkg.InstallFlags) error {
 	if flags.Description != "" {
 		err := loadDescriptionFile(s, flags.Description, d)
 		if err != nil {

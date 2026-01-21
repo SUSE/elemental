@@ -18,10 +18,11 @@ limitations under the License.
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 
 	"github.com/suse/elemental/v3/pkg/log"
 	"github.com/suse/elemental/v3/pkg/sys"
@@ -47,28 +48,28 @@ func GlobalFlags() []cli.Flag {
 	}
 }
 
-func Setup(ctx *cli.Context) error {
+func Setup(ctx context.Context, cmd *cli.Command) (context.Context, error) {
 	s, err := sys.NewSystem()
 	if err != nil {
-		return err
+		return ctx, err
 	}
 
-	if ctx.Bool("debug") {
+	if cmd.Bool("debug") {
 		s.Logger().SetLevel(log.DebugLevel())
 	}
 
-	if err = SetLoggerTarget(s, ctx); err != nil {
-		return err
+	if err = SetLoggerTarget(s, cmd); err != nil {
+		return ctx, err
 	}
 
-	if ctx.App.Metadata == nil {
-		ctx.App.Metadata = map[string]any{}
+	if cmd.Root().Metadata == nil {
+		cmd.Root().Metadata = map[string]any{}
 	}
-	ctx.App.Metadata["system"] = s
-	return nil
+	cmd.Root().Metadata["system"] = s
+	return ctx, nil
 }
 
-func Teardown(_ *cli.Context) error {
+func Teardown(_ context.Context, _ *cli.Command) error {
 	if logFile != nil {
 		return logFile.Close()
 	}
@@ -76,8 +77,8 @@ func Teardown(_ *cli.Context) error {
 	return nil
 }
 
-func SetLoggerTarget(s *sys.System, ctx *cli.Context) error {
-	logPath := ctx.String("log-file")
+func SetLoggerTarget(s *sys.System, cmd *cli.Command) error {
+	logPath := cmd.String("log-file")
 	switch logPath {
 	case "":
 		break

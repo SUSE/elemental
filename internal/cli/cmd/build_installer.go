@@ -18,9 +18,10 @@ limitations under the License.
 package cmd
 
 import (
+	"context"
 	"fmt"
 
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 )
 
 type InstallerFlags struct {
@@ -39,7 +40,7 @@ type InstallerFlags struct {
 
 var InstallerArgs InstallerFlags
 
-func NewBuildInstallerCommand(appName string, action func(*cli.Context) error) *cli.Command {
+func NewBuildInstallerCommand(appName string, action func(context.Context, *cli.Command) error) *cli.Command {
 	return &cli.Command{
 		Name:      "build-installer",
 		Usage:     "Build an installer media",

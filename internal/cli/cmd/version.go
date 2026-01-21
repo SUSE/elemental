@@ -18,9 +18,10 @@ limitations under the License.
 package cmd
 
 import (
+	"context"
 	"fmt"
 
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 )
 
 var (
@@ -35,7 +36,7 @@ func NewVersionCommand(appName string) *cli.Command {
 		Aliases:   []string{"v"},
 		Usage:     "Inspect program version",
 		UsageText: fmt.Sprintf("%s version", appName),
-		Action: func(*cli.Context) error {
+		Action: func(_ context.Context, _ *cli.Command) error {
 			commit := gitCommit
 			if len(commit) > 7 {
 				commit = gitCommit[:7]

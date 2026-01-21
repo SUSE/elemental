@@ -18,10 +18,11 @@ limitations under the License.
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"runtime"
 
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 )
 
 type BuildFlags struct {
@@ -35,7 +36,7 @@ type BuildFlags struct {
 
 var BuildArgs BuildFlags
 
-func NewBuildCommand(appName string, action func(*cli.Context) error) *cli.Command {
+func NewBuildCommand(appName string, action func(context.Context, *cli.Command) error) *cli.Command {
 	return &cli.Command{
 		Name:      "build",
 		Usage:     "[DEPRECATED] Build new image",

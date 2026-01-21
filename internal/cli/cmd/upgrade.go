@@ -18,9 +18,10 @@ limitations under the License.
 package cmd
 
 import (
+	"context"
 	"fmt"
 
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 )
 
 type UpgradeFlags struct {
@@ -34,7 +35,7 @@ type UpgradeFlags struct {
 
 var UpgradeArgs UpgradeFlags
 
-func NewUpgradeCommand(appName string, action func(*cli.Context) error) *cli.Command {
+func NewUpgradeCommand(appName string, action func(context.Context, *cli.Command) error) *cli.Command {
 	return &cli.Command{
 		Name:      "upgrade",
 		Usage:     "Upgrade system from an OS image",
