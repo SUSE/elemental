@@ -40,6 +40,7 @@ function start {
   local disk_arg="-drive file=${ELMNTL_TESTDISK},if=none,id=disk,format=qcow2,media=disk -device virtio-blk-pci,drive=disk,bootindex=1"
   local serial_arg="-serial file:${ELMNTL_LOGFILE}"
   local pidfile_arg="-pidfile ${ELMNTL_PIDFILE}"
+  local rngdev_arg="-device virtio-rng-pci"
   local display_arg="-display ${ELMNTL_DISPLAY}"
   local machine_arg="-machine type=${ELMNTL_MACHINETYPE}"
   local cdrom_arg
@@ -106,7 +107,7 @@ function start {
   # Generate the command line
   cmdline="qemu-system-${ELMNTL_TARGETARCH} ${kvm_arg} ${disk_arg} ${cdrom_arg} ${global_arg} ${firmware_arg} \
              ${net_arg} ${memory_arg} ${graphics_arg} ${serial_arg} ${pidfile_arg} \
-             ${display_arg} ${machine_arg} ${accel_arg} ${cpu_arg} ${smp_arg}"
+             ${display_arg} ${machine_arg} ${accel_arg} ${rngdev_arg} ${cpu_arg} ${smp_arg}"
 
   # Start the VM
   eval ${cmdline} ${out}
