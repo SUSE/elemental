@@ -18,27 +18,29 @@ limitations under the License.
 package action
 
 import (
+	"context"
 	"fmt"
 	"os/signal"
 	"path/filepath"
 	"syscall"
 
-	"github.com/suse/elemental/v3/internal/cli/cmd"
+	"github.com/urfave/cli/v3"
+
+	cmdpkg "github.com/suse/elemental/v3/internal/cli/cmd"
 	"github.com/suse/elemental/v3/internal/kmod"
 	"github.com/suse/elemental/v3/pkg/sys"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
-	"github.com/urfave/cli/v2"
 )
 
-func ManageKernelModules(c *cli.Context) error {
-	args := &cmd.KernelModulesArgs
+func ManageKernelModules(ctx context.Context, cmd *cli.Command) error {
+	args := &cmdpkg.KernelModulesArgs
 
-	if c.App.Metadata == nil || c.App.Metadata["system"] == nil {
+	if cmd.Root().Metadata == nil || cmd.Root().Metadata["system"] == nil {
 		return fmt.Errorf("error setting up initial configuration")
 	}
-	system := c.App.Metadata["system"].(*sys.System)
+	system := cmd.Root().Metadata["system"].(*sys.System)
 
-	ctx, cancelFunc := signal.NotifyContext(c.Context, syscall.SIGTERM, syscall.SIGINT)
+	ctxCancel, cancelFunc := signal.NotifyContext(ctx, syscall.SIGTERM, syscall.SIGINT)
 	defer cancelFunc()
 
 	logger := system.Logger()
@@ -60,7 +62,7 @@ func ManageKernelModules(c *cli.Context) error {
 			Config: config,
 		}
 
-		return unloader.Unload(ctx, kernelModules)
+		return unloader.Unload(ctxCancel, kernelModules)
 	}
 
 	kernel, _, err := vfs.FindKernel(system.FS(), "/")
@@ -81,5 +83,5 @@ func ManageKernelModules(c *cli.Context) error {
 		KernelDir: kernelDir,
 	}
 
-	return reloader.Reload(ctx, kernelModules)
+	return reloader.Reload(ctxCancel, kernelModules)
 }

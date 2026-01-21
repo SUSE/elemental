@@ -18,13 +18,14 @@ limitations under the License.
 package action
 
 import (
+	"context"
 	"fmt"
 	"os/signal"
 	"syscall"
 
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 
-	"github.com/suse/elemental/v3/internal/cli/cmd"
+	cmdpkg "github.com/suse/elemental/v3/internal/cli/cmd"
 	"github.com/suse/elemental/v3/pkg/block"
 	"github.com/suse/elemental/v3/pkg/block/lsblk"
 	"github.com/suse/elemental/v3/pkg/deployment"
@@ -33,13 +34,13 @@ import (
 	"github.com/suse/elemental/v3/pkg/sys"
 )
 
-func Reset(ctx *cli.Context) error {
+func Reset(ctx context.Context, cmd *cli.Command) error {
 	var s *sys.System
-	args := &cmd.InstallArgs
-	if ctx.App.Metadata == nil || ctx.App.Metadata["system"] == nil {
+	args := &cmdpkg.InstallArgs
+	if cmd.Root().Metadata == nil || cmd.Root().Metadata["system"] == nil {
 		return fmt.Errorf("error setting up initial configuration")
 	}
-	s = ctx.App.Metadata["system"].(*sys.System)
+	s = cmd.Root().Metadata["system"].(*sys.System)
 
 	s.Logger().Info("Starting reset action")
 	s.Logger().Debug("Reset action called with args: %+v", args)
@@ -50,7 +51,7 @@ func Reset(ctx *cli.Context) error {
 		return err
 	}
 
-	ctxCancel, stop := signal.NotifyContext(ctx.Context, syscall.SIGTERM, syscall.SIGINT)
+	ctxCancel, stop := signal.NotifyContext(ctx, syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
 
 	go func() {
@@ -77,7 +78,7 @@ func Reset(ctx *cli.Context) error {
 }
 
 // disgestResetSetup produces the Deployment object required to describe the installation parameters
-func digestResetSetup(s *sys.System, flags *cmd.InstallFlags) (*deployment.Deployment, error) {
+func digestResetSetup(s *sys.System, flags *cmdpkg.InstallFlags) (*deployment.Deployment, error) {
 	d := &deployment.Deployment{}
 
 	if !install.IsRecovery(s) {

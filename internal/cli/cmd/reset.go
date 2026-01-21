@@ -18,12 +18,13 @@ limitations under the License.
 package cmd
 
 import (
+	"context"
 	"fmt"
 
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 )
 
-func NewResetCommand(appName string, action func(*cli.Context) error) *cli.Command {
+func NewResetCommand(appName string, action func(context.Context, *cli.Command) error) *cli.Command {
 	return &cli.Command{
 		Name:      "reset",
 		Usage:     "Factory resets the current host",

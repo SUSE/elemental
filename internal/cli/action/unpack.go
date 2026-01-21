@@ -18,24 +18,25 @@ limitations under the License.
 package action
 
 import (
+	"context"
 	"fmt"
 	"os/signal"
 	"syscall"
 
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 
-	"github.com/suse/elemental/v3/internal/cli/cmd"
+	cmdpkg "github.com/suse/elemental/v3/internal/cli/cmd"
 	"github.com/suse/elemental/v3/pkg/sys"
 	"github.com/suse/elemental/v3/pkg/unpack"
 )
 
-func Unpack(ctx *cli.Context) error {
+func Unpack(ctx context.Context, cmd *cli.Command) error {
 	var s *sys.System
-	args := &cmd.UnpackArgs
-	if ctx.App.Metadata == nil || ctx.App.Metadata["system"] == nil {
+	args := &cmdpkg.UnpackArgs
+	if cmd.Root().Metadata == nil || cmd.Root().Metadata["system"] == nil {
 		return fmt.Errorf("error setting up initial configuration")
 	}
-	s = ctx.App.Metadata["system"].(*sys.System)
+	s = cmd.Root().Metadata["system"].(*sys.System)
 
 	s.Logger().Info("Starting unpack action with args: %+v", args)
 
@@ -44,7 +45,7 @@ func Unpack(ctx *cli.Context) error {
 		unpack.WithPlatformRefOCI(args.Platform),
 		unpack.WithVerifyOCI(args.Verify))
 
-	ctxSignal, stop := signal.NotifyContext(ctx.Context, syscall.SIGTERM, syscall.SIGINT)
+	ctxSignal, stop := signal.NotifyContext(ctx, syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
 
 	go func() {

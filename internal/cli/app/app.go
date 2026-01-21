@@ -18,26 +18,28 @@ limitations under the License.
 package app
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 )
 
 func Name() string {
 	return filepath.Base(os.Args[0])
 }
 
-func New(usage string, globalFlags []cli.Flag, setupFunc cli.BeforeFunc, teardownFunc cli.AfterFunc, commands ...*cli.Command) *cli.App {
-	app := cli.NewApp()
-
-	app.Flags = globalFlags
-	app.Name = Name()
-	app.Commands = commands
-	app.Usage = usage
-	app.Suggest = true
-	app.Before = setupFunc
-	app.After = teardownFunc
-
-	return app
+func New(usage string, globalFlags []cli.Flag, setupFunc cli.BeforeFunc, teardownFunc cli.AfterFunc, commands ...*cli.Command) *cli.Command {
+	return &cli.Command{
+		Flags:    globalFlags,
+		Name:     Name(),
+		Commands: commands,
+		Usage:    usage,
+		Suggest:  true,
+		Before:   setupFunc,
+		After:    teardownFunc,
+	}
 }
+
+// ActionFunc is the type for command action functions in v3
+type ActionFunc func(context.Context, *cli.Command) error

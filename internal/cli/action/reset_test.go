@@ -19,11 +19,12 @@ package action_test
 
 import (
 	"bytes"
+	"context"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 
 	"github.com/suse/elemental/v3/internal/cli/action"
 	"github.com/suse/elemental/v3/internal/cli/cmd"
@@ -56,7 +57,7 @@ var _ = Describe("Reset action", Label("reset"), func() {
 	var tfs vfs.FS
 	var cleanup func()
 	var err error
-	var ctx *cli.Context
+	var cliCmd *cli.Command
 	var buffer *bytes.Buffer
 	var mounter *sysmock.Mounter
 	var runner *sysmock.Runner
@@ -79,11 +80,11 @@ var _ = Describe("Reset action", Label("reset"), func() {
 			sys.WithRunner(runner),
 		)
 		Expect(err).NotTo(HaveOccurred())
-		ctx = cli.NewContext(cli.NewApp(), nil, &cli.Context{})
-		if ctx.App.Metadata == nil {
-			ctx.App.Metadata = map[string]any{}
+		cliCmd = &cli.Command{
+			Metadata: map[string]any{
+				"system": s,
+			},
 		}
-		ctx.App.Metadata["system"] = s
 		// Reset requires a live media mounted
 		Expect(mounter.Mount("/dev/device", installer.LiveMountPoint, "auto", []string{})).To(Succeed())
 	})
@@ -92,19 +93,19 @@ var _ = Describe("Reset action", Label("reset"), func() {
 		cleanup()
 	})
 	It("fails if no sys.System instance is in metadata", func() {
-		ctx.App.Metadata["system"] = nil
-		Expect(action.Reset(ctx)).NotTo(Succeed())
+		cliCmd.Metadata["system"] = nil
+		Expect(action.Reset(context.Background(), cliCmd)).NotTo(Succeed())
 	})
 	It("fails to start installing if the configuration file can't be read", func() {
 		cmd.InstallArgs.Description = "doesntexist"
-		Expect(action.Reset(ctx)).To(MatchError(ContainSubstring("ReadFile doesntexist")))
+		Expect(action.Reset(context.Background(), cliCmd)).To(MatchError(ContainSubstring("ReadFile doesntexist")))
 	})
 	It("fails if a live media is not detected", func() {
 		tfs.RemoveAll(installer.SquashfsPath)
-		Expect(action.Reset(ctx)).To(MatchError(ContainSubstring("requires booting from recovery system")))
+		Expect(action.Reset(context.Background(), cliCmd)).To(MatchError(ContainSubstring("requires booting from recovery system")))
 	})
 	It("recovery partition not found", func() {
-		Expect(action.Reset(ctx)).To(MatchError(ContainSubstring("live mount point not found")))
+		Expect(action.Reset(context.Background(), cliCmd)).To(MatchError(ContainSubstring("live mount point not found")))
 	})
 	It("fails if the setup is inconsistent", func() {
 		// Ensure recovery partition is found
@@ -114,6 +115,6 @@ var _ = Describe("Reset action", Label("reset"), func() {
 			}
 			return []byte{}, runner.ReturnError
 		}
-		Expect(action.Reset(ctx)).To(MatchError(ContainSubstring("no system partition found in deployment")))
+		Expect(action.Reset(context.Background(), cliCmd)).To(MatchError(ContainSubstring("no system partition found in deployment")))
 	})
 })

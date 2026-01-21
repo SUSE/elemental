@@ -18,6 +18,7 @@ limitations under the License.
 package action
 
 import (
+	"context"
 	"fmt"
 	"os/signal"
 	"path/filepath"
@@ -25,10 +26,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 
 	"github.com/suse/elemental/v3/internal/build"
-	"github.com/suse/elemental/v3/internal/cli/cmd"
+	cmdpkg "github.com/suse/elemental/v3/internal/cli/cmd"
 	"github.com/suse/elemental/v3/internal/config"
 	"github.com/suse/elemental/v3/internal/image"
 	"github.com/suse/elemental/v3/pkg/helm"
@@ -38,16 +39,16 @@ import (
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
 
-func Build(ctx *cli.Context) error {
-	args := &cmd.BuildArgs
+func Build(ctx context.Context, cmd *cli.Command) error {
+	args := &cmdpkg.BuildArgs
 
-	if ctx.App.Metadata == nil || ctx.App.Metadata["system"] == nil {
+	if cmd.Root().Metadata == nil || cmd.Root().Metadata["system"] == nil {
 		return fmt.Errorf("error setting up initial configuration")
 	}
-	system := ctx.App.Metadata["system"].(*sys.System)
+	system := cmd.Root().Metadata["system"].(*sys.System)
 	logger := system.Logger()
 
-	ctxCancel, cancelFunc := signal.NotifyContext(ctx.Context, syscall.SIGTERM, syscall.SIGINT)
+	ctxCancel, cancelFunc := signal.NotifyContext(ctx, syscall.SIGTERM, syscall.SIGINT)
 	defer cancelFunc()
 
 	logger.Warn("Warning: build is deprecated. Switch to customize going forward.")
@@ -108,7 +109,7 @@ func Build(ctx *cli.Context) error {
 	return nil
 }
 
-func validateArgs(fs vfs.FS, args *cmd.BuildFlags) error {
+func validateArgs(fs vfs.FS, args *cmdpkg.BuildFlags) error {
 	_, err := fs.Stat(args.ConfigDir)
 	if err != nil {
 		return fmt.Errorf("reading config directory: %w", err)
@@ -126,7 +127,7 @@ func validateArgs(fs vfs.FS, args *cmd.BuildFlags) error {
 	return nil
 }
 
-func parseImageDefinition(f vfs.FS, args *cmd.BuildFlags) (*image.Definition, error) {
+func parseImageDefinition(f vfs.FS, args *cmdpkg.BuildFlags) (*image.Definition, error) {
 	outputPath := args.OutputPath
 	if outputPath == "" {
 		imageName := fmt.Sprintf("image-%s.%s", time.Now().UTC().Format("2006-01-02T15-04-05"), args.ImageType)

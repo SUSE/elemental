@@ -18,12 +18,13 @@ limitations under the License.
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"runtime"
 	"slices"
 
 	"github.com/suse/elemental/v3/pkg/installer"
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 )
 
 type CustomizeFlags struct {
@@ -37,18 +38,18 @@ type CustomizeFlags struct {
 
 var CustomizeArgs CustomizeFlags
 
-func NewCustomizeCommand(appName string, action func(*cli.Context) error) *cli.Command {
+func NewCustomizeCommand(appName string, action func(context.Context, *cli.Command) error) *cli.Command {
 	return &cli.Command{
 		Name:      "customize",
 		Usage:     "Customize an image based on a release",
 		UsageText: fmt.Sprintf("%s customize", appName),
-		Before: func(*cli.Context) error {
+		Before: func(ctx context.Context, _ *cli.Command) (context.Context, error) {
 			modes := []string{"", "embedded", "split"}
 			if !slices.Contains(modes, CustomizeArgs.Mode) {
-				return cli.Exit("Error: Unsupported --mode option.", 1)
+				return ctx, cli.Exit("Error: Unsupported --mode option.", 1)
 			}
 
-			return nil
+			return ctx, nil
 		},
 		Action: action,
 		Flags: []cli.Flag{

@@ -18,9 +18,10 @@ limitations under the License.
 package cmd
 
 import (
+	"context"
 	"fmt"
 
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 )
 
 type KernelModulesFlags struct {
@@ -30,21 +31,21 @@ type KernelModulesFlags struct {
 
 var KernelModulesArgs KernelModulesFlags
 
-func NewKernelModulesCommand(appName string, action func(*cli.Context) error) *cli.Command {
+func NewKernelModulesCommand(appName string, action func(context.Context, *cli.Command) error) *cli.Command {
 	return &cli.Command{
 		Name:      "kmod",
 		Usage:     "Manage kernel modules on the system",
 		UsageText: fmt.Sprintf("%s kmod [OPTIONS]", appName),
-		Before: func(*cli.Context) error {
+		Before: func(ctx context.Context, _ *cli.Command) (context.Context, error) {
 			if KernelModulesArgs.Reload && KernelModulesArgs.Unload {
-				return cli.Exit("Error: Both --reload and --unload flags cannot be used together.", 1)
+				return ctx, cli.Exit("Error: Both --reload and --unload flags cannot be used together.", 1)
 			}
 
 			if !KernelModulesArgs.Reload && !KernelModulesArgs.Unload {
-				return cli.Exit("Error: At least one of --reload or --unload flags must be specified.", 1)
+				return ctx, cli.Exit("Error: At least one of --reload or --unload flags must be specified.", 1)
 			}
 
-			return nil
+			return ctx, nil
 		},
 		Action: action,
 		Flags: []cli.Flag{

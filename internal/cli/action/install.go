@@ -23,10 +23,10 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 	"go.yaml.in/yaml/v3"
 
-	"github.com/suse/elemental/v3/internal/cli/cmd"
+	cmdpkg "github.com/suse/elemental/v3/internal/cli/cmd"
 	"github.com/suse/elemental/v3/pkg/bootloader"
 	"github.com/suse/elemental/v3/pkg/crypto"
 	"github.com/suse/elemental/v3/pkg/deployment"
@@ -41,13 +41,13 @@ import (
 	"github.com/suse/elemental/v3/pkg/upgrade"
 )
 
-func Install(ctx *cli.Context) error {
+func Install(ctx context.Context, cmd *cli.Command) error {
 	var s *sys.System
-	args := &cmd.InstallArgs
-	if ctx.App.Metadata == nil || ctx.App.Metadata["system"] == nil {
+	args := &cmdpkg.InstallArgs
+	if cmd.Root().Metadata == nil || cmd.Root().Metadata["system"] == nil {
 		return fmt.Errorf("error setting up initial configuration")
 	}
-	s = ctx.App.Metadata["system"].(*sys.System)
+	s = cmd.Root().Metadata["system"].(*sys.System)
 
 	s.Logger().Info("Starting install action")
 	s.Logger().Debug("Install action called with args: %+v", args)
@@ -60,7 +60,7 @@ func Install(ctx *cli.Context) error {
 
 	s.Logger().Info("Checked configuration, running installation process")
 
-	ctxCancel, stop := signal.NotifyContext(ctx.Context, syscall.SIGTERM, syscall.SIGINT)
+	ctxCancel, stop := signal.NotifyContext(ctx, syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
 
 	go func() {
@@ -84,7 +84,7 @@ func Install(ctx *cli.Context) error {
 	return nil
 }
 
-func initInstaller(ctx context.Context, s *sys.System, d *deployment.Deployment, args *cmd.InstallFlags) (*install.Installer, error) {
+func initInstaller(ctx context.Context, s *sys.System, d *deployment.Deployment, args *cmdpkg.InstallFlags) (*install.Installer, error) {
 	bootloader, err := bootloader.New(d.BootConfig.Bootloader, s)
 	if err != nil {
 		s.Logger().Error("Parsing boot config failed")
@@ -152,7 +152,7 @@ func setBootloader(s *sys.System, d *deployment.Deployment, bootloaderType, cmdl
 }
 
 // digestInstallSetup produces the Deployment object required to describe the installation parameters
-func digestInstallSetup(s *sys.System, flags *cmd.InstallFlags) (*deployment.Deployment, error) {
+func digestInstallSetup(s *sys.System, flags *cmdpkg.InstallFlags) (*deployment.Deployment, error) {
 	d := deployment.DefaultDeployment()
 
 	// Given flags always have precedence compared to in place configuration of live media
@@ -178,7 +178,7 @@ func digestInstallSetup(s *sys.System, flags *cmd.InstallFlags) (*deployment.Dep
 	return d, nil
 }
 
-func applyInstallFlags(s *sys.System, d *deployment.Deployment, flags *cmd.InstallFlags) error {
+func applyInstallFlags(s *sys.System, d *deployment.Deployment, flags *cmdpkg.InstallFlags) error {
 	disk := d.GetSystemDisk()
 	if flags.Target != "" && disk != nil {
 		disk.Device = flags.Target

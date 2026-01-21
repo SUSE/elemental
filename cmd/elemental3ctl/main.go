@@ -18,6 +18,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"log"
 	"os"
 
@@ -41,7 +42,7 @@ func main() {
 		cmd.NewResetCommand(appName, action.Reset),
 		cmd.NewVersionCommand(appName))
 
-	if err := application.Run(os.Args); err != nil {
+	if err := application.Run(context.Background(), os.Args); err != nil {
 		log.Fatal(err)
 	}
 }
