@@ -20,6 +20,7 @@ package fips
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/suse/elemental/v3/pkg/chroot"
 	"github.com/suse/elemental/v3/pkg/deployment"
@@ -41,5 +42,11 @@ func AppendCommandLine(cmdline string) string {
 	bootFlag := fmt.Sprintf("boot=LABEL=%s", deployment.EfiLabel)
 	fipsFlag := "fips=1"
 
-	return fmt.Sprintf("%s %s %s", cmdline, fipsFlag, bootFlag)
+	if !strings.Contains(cmdline, fipsFlag) {
+		cmdline = fmt.Sprintf("%s %s", cmdline, fipsFlag)
+	}
+	if !strings.Contains(cmdline, bootFlag) {
+		cmdline = fmt.Sprintf("%s %s", cmdline, bootFlag)
+	}
+	return cmdline
 }
