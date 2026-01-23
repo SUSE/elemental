@@ -13,7 +13,7 @@ OS_VERSION?=latest
 DOCKER_SOCK?=/var/run/docker.sock
 
 ### Elemental customize specific variables ###
-RELEASE_MANIFEST?=registry.opensuse.org/devel/unifiedcore/tumbleweed/containers/release-manifest:latest
+RELEASE_MANIFEST?=$(IMG_REPO)/release-manifest:latest
 CONFIG_DIR?=$(abspath ./tests/testdata/config-dir)
 CUSTOMIZED_WORKDIR_NAME=customized
 CUSTOMIZED_WORKDIR_PATH?=$(CONFIG_DIR)/$(CUSTOMIZED_WORKDIR_NAME)
