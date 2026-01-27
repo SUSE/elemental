@@ -9,7 +9,7 @@ components:
   systemd:
     extensions:
       - name: "longhorn"
-        image: "registry.suse.de/devel/unifiedcore/releases/0.6/containers/suse/uc/longhorn:5.32-1.82"
+        image: "registry.suse.de/devel/unifiedcore/releases/0.6/containers/suse/uc/longhorn:5.36-1.88"
   helm:
     charts:
       - chart: "cert-manager"
