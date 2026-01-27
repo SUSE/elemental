@@ -2,12 +2,13 @@ GINKGO       ?= github.com/onsi/ginkgo/v2/ginkgo
 GINKGO_ARGS  ?= -v --fail-fast -r --timeout=3h
 
 IMG_NAME?=elemental-os-image-$(ARCH)
+IMG_REPO?=registry.opensuse.org/devel/unifiedcore/tumbleweed/containers
 
 ### Elemental install specific variables ###
 IMG?=$(BUILD_DIR)/$(IMG_NAME)
 DISK?=$(realpath $(IMG).qcow2)
 DISKSIZE?=20G
-OS_REPO?=registry.opensuse.org/devel/unifiedcore/tumbleweed/containers/uc-base-os-kernel-default
+OS_IMG?=$(IMG_REPO)/uc-base-os-kernel-default
 OS_VERSION?=latest
 DOCKER_SOCK?=/var/run/docker.sock
 
@@ -27,7 +28,7 @@ build-disk: $(BUILD_DIR) image
 		--volume /run/udev:/run/udev:ro \
 		--privileged \
 		$(ELEMENTAL_IMAGE_REPO):$(VERSION) \
-		--debug install --os-image $(OS_REPO):$(OS_VERSION) --target $${TARGET} --cmdline "console=ttyS0,115200" --config /build/config.sh
+		--debug install --os-image $(OS_IMG):$(OS_VERSION) --target $${TARGET} --cmdline "console=ttyS0,115200" --config /build/config.sh
 	BUILD_ERR=$$?
 	test $${BUILD_ERR} -eq 0 && qemu-img convert -c -p -O qcow2 $(IMG).raw $(IMG).qcow2
 	sudo losetup -d $${TARGET}
