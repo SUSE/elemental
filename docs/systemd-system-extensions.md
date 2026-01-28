@@ -1,6 +1,6 @@
-# systemd system extensions (sysext) in elemental
+# System extensions (systemd-sysext) in Elemental
 
-This chapter covers what a system extension (a.k.a. sysext) is, why it's relevant for elemental, and how elemental 
+This chapter covers what a system extension (a.k.a. sysext) is, why it's relevant for Elemental, and how Elemental 
 uses it to provide extensibility in the immutable OS image.
 
 ## What is a system extension?
@@ -12,9 +12,9 @@ combined via "overlayfs" with the same hierarchies of the host OS. This causes "
 `/usr` and `/opt` contents of the system extension image with that of the underlying host system.
 
 When a system extension image is deactivated, the `/usr` and `/opt` mountpoints are disassembled, thus revealing the 
-unmodified original host version of hierarchy.
+unmodified original host version of the filesystem hierarchy.
 
-Merging or activating makes the system extension's resources suddenly appear below `/usr` and `/opt` as if they were 
+Merging or activating makes the system extension's resources appear below `/usr` and `/opt` as if they were 
 included in the base OS image itself. Unmerging or deactivating makes them disappear again, leaving in place only 
 the files that were shipped with the base OS image itself.
 
@@ -38,15 +38,15 @@ The elemental project mainly consists of two binaries:
 - `elemental3`
 - `elemental3ctl`
 
-`elemental3` is a higher-level tool that takes as its input an OCI image containing ISO artifact, adds payloads
-like system extensions, Kubernetes definitions and firstboot configs, and generates an ISO or RAW file which can be 
+`elemental3` is a higher-level tool that takes as its input an OCI image containing an ISO artifact, adds payloads
+such as system extensions, Kubernetes definitions, first-boot configs, and generates an ISO or RAW file which can be 
 used to boot a VM.
 
-`elemental3ctl` is a lower-level tool that can do various things like installing an OS (packaged as an OCI image) on 
+`elemental3ctl` is a lower-level tool that can do various things like installing an OS (packaged as an OCI image) on a
 target system, upgrading such OS from an OCI image, manage kernel modules on a system, unpack an OCI image, build 
 an installation media (generally an ISO file) from an OS image (packaged as OCI image), and more.
 
-Think of `elemental3ctl` as a Linux-only tool in the sense that it helps do operations on a Linux OS image, whereas 
+`elemental3ctl` is a runtime management tool that helps deploy an OS image on disk, as well as helps manage such an installation by performing upgrades, managing kernel modules, perform factory reset, etc.
 `elemental3` complements it by building and configuring an OS image that could have additional artifacts and 
 capabilities, making it a platform to build and deploy cloud-native applications.
 
@@ -65,9 +65,9 @@ In this guide, we will see two approaches to create a system extension image:
 1. By embedding a binary
 2. By installing an RPM
 
-### Embedding a binary in system extension image
+### Embedding a binary in a system extension image
 
-In this section, we will install the `kubectl` binary as system extension on an existing ISO package as OCI image.
+In this section, we will install the `kubectl` binary as a system extension on an existing ISO package as OCI image.
 
 1. Create the root extension directory:
     ```shell
@@ -143,9 +143,9 @@ examples/tools-sysext
 ```
 The presence of the `mkosi.images` directory indicates that the configuration is meant for multiple images.
 
-Here there are three `mkosi.conf` files. Relative to `examples/tools-sysext` below is the brief purpose of each of 
+Here there are three `mkosi.conf` files, relative to `examples/tools-sysext`. Below is a brief summary of the purpose of each of 
 these files:
-- `mkosi.conf`: This is the global `mkosi` configuration file which contains distribution level configuration. 
+- `mkosi.conf`: This is the global `mkosi` configuration file which contains distribution-level configuration. 
 - `base/mkosi.conf`: This file is for the base layer that's used to install package(s) upon.
 - `tools/mkosi.conf`: This is the configuration for the tools layer.
 
