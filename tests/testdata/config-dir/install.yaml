@@ -1,0 +1,7 @@
+bootloader: grub
+kernelCmdLine: "console=ttyS0 loglevel=3"
+cryptoPolicy: fips
+raw:
+  diskSize: 8G
+iso:
+  device: "/dev/vda"
