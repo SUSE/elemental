@@ -112,8 +112,6 @@ func (r Rsync) rsyncWrapper(source string, target string, flags []string) error 
 		target = fmt.Sprintf("%s/", target)
 	}
 
-	log.Info("Starting rsync...")
-
 	args := flags
 	args = append(args, source, target)
 
@@ -130,7 +128,6 @@ func (r Rsync) rsyncWrapper(source string, target string, flags []string) error 
 		return err
 	}
 
-	log.Info("Finished syncing")
 	return nil
 }
 
