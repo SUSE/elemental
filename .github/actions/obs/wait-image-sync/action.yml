@@ -1,0 +1,53 @@
+name: Waits for the latest available images state to be synced with their corresponding OBS source
+description: |
+  Waits for images under <image_repo> to have checksums that match the latest OBS artefact
+  for the corresponding container source in <obs_project>.
+
+  By default the following image-source mappings will be used:
+    - <image_repo>/uc-base-os-kernel-default:latest  = <obs_project>/elemental-base-os:default
+    - <image_repo>/uc-base-kernel-default-iso:latest = <obs_project>/elemental-base-os:default-iso
+    - <image_repo>/release-manifest:latest           = <obs_project>/release-manifest-image
+inputs:
+  image_repo:
+    description: |
+      Full path to the repository where the image resides
+      (e.g. registry.opensuse.org/devel/unifiedcore/tumbleweed/prs/suse/elemental/pr-<number>/containers)
+    required: true
+  obs_project:
+    description: |
+      Full path (as seen in OBS) to the project that contains the package from which the container image has been built
+      (e.g. devel:UnifiedCore:Tumbleweed:PRs:SUSE:elemental:PR-<number>)
+    required: true
+  image_to_source_mapping:
+    description: |
+      A map between tagged image references and their source OBS packages. Overrides the default source mapping.
+      (e.g. override_source_mapping: |
+              uc-base-os-kernel-default:latest  = elemental-base-os:default
+              uc-base-kernel-default-iso:latest = elemental-base-os:default-iso
+      )
+    required: false
+    default: |
+      uc-base-os-kernel-default:latest  = elemental-base-os:default
+      uc-base-kernel-default-iso:latest = elemental-base-os:default-iso
+      release-manifest:latest           = release-manifest-image
+runs:
+  using: composite
+  steps:
+    - name: Wait for necessary image state to match source OBS package
+      if: ${{ github.event_name == 'pull_request' }}
+      shell: bash
+      run: |
+        obs_project="${{ inputs.obs_project }}"
+        image_repo="${{ inputs.image_repo }}"
+        mapping="${{ inputs.image_to_source_mapping }}"
+
+        source scripts/obs_wait_lib.sh
+
+        while IFS='=' read -r image source; do
+          [[ -z "$image" || -z "$source" ]] && continue
+          image=$(printf '%s' "$image" | tr -d '[:space:]')
+          source=$(printf '%s' "$source" | tr -d '[:space:]')
+          
+          wait_image_to_source_match "$image_repo/$image" "$obs_project/$source"
+        done <<< "$mapping"
+
