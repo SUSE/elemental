@@ -17,7 +17,6 @@
 
 .common_test_settings: &common_test_settings
   HDDSIZEGB: '30'
-  IMAGE_TYPE: disk
   K8S: rke2
   QEMUCPUS: '4'
   QEMURAM: '4096'
@@ -34,35 +33,27 @@
   KEEP_GRUB_TIMEOUT: '0'
   VIDEOMODE: text
 
-.test_build_cmd_settings: &test_build_cmd_settings
-  <<: *common_microos_boot_settings
-  TEST_PASSWORD: Elemental@R00t
-  YAML_SCHEDULE: schedule/elemental3/support.yaml
-
 .generate_settings: &generate_settings
   <<: *common_microos_boot_settings
   IMG_NAME: 'elemental-%BUILD%-%ARCH%-%TESTED_CMD%'
-  ISO_CMD_LINE: 'console=ttyS0'
   K8S: rke2
   KERNEL_CMD_LINE: 'console=ttyS0'
+  QEMURAM: '2048'
   TEST_PASSWORD: Elemental@R00t
-  YAML_SCHEDULE: schedule/elemental3/support.yaml
+  YAML_SCHEDULE: schedule/elemental3/generate.yaml
 
-.test_image_settings: &test_image_settings
+.test_raw_settings: &test_raw_settings
   <<: *common_test_settings
+  HDD_1: 'elemental-%BUILD%-%ARCH%-%TESTED_CMD%.qcow2'
+  IMAGE_TYPE: raw
   TEST_TYPE: test_image
 
 .test_iso_settings: &test_iso_settings
+  <<: *common_test_settings
   BOOTFROM: disk
-  HDDSIZEGB: '30'
   IMAGE_TYPE: iso
-  ISO: 'elemental-%BUILD%-%ARCH%-build_installer_iso.iso'
-  K8S: rke2
-  QEMUCPUS: '4'
-  QEMURAM: '4096'
-  TEST_PASSWORD: Elemental@R00t
+  ISO: 'elemental-%BUILD%-%ARCH%-%TESTED_CMD%.iso'
   TEST_TYPE: test_iso
-  YAML_SCHEDULE: schedule/elemental3/os_image.yaml
 
 .k8s_test_settings: &k8s_test_settings
   EXPECTED_NM_CONNECTIVITY: none
@@ -74,7 +65,7 @@
 .node_k8s_validation_settings: &node_k8s_validation_settings
   <<: *common_test_settings
   <<: *k8s_test_settings
-  HDD_1: 'elemental-%BUILD%-%ARCH%-install.qcow2'
+  HDD_1: 'elemental-%BUILD%-%ARCH%-%TESTED_CMD%.qcow2'
   PARALLEL_WITH: master
 
 .master_k8s_validation_settings: &master_k8s_validation_settings
@@ -86,9 +77,9 @@
   HOSTNAME: master
   K8S: rke2
   QEMURAM: '4096'
-  RANCHER_VERSION: v2.13.0
+  RANCHER_VERSION: v2.13.2
   TEST_FRAMEWORK_REPO: https://github.com/ldevulder/distros-test-framework@fix-support-uc-os-image
-  YAML_SCHEDULE: schedule/elemental3/support.yaml
+  YAML_SCHEDULE: schedule/elemental3/master.yaml
 
 defaults:
   aarch64:
@@ -113,80 +104,115 @@ products:
 scenarios:
   aarch64:
     sle-unifiedcore-image-16.0-aarch64:
-      - generate_with_install_cmd:
+      - generate_with_install:
           testsuite: null
           settings:
             <<: *generate_settings
             TESTED_CMD: install
-      - generate_with_build_cmd:
+      - generate_iso_with_customize:
           testsuite: null
           settings:
             <<: *generate_settings
-            TESTED_CMD: build
-      - generate_with_build_installer_iso_cmd:
+            IMAGE_TYPE: iso
+            TESTED_CMD: customize
+      - generate_raw_with_customize:
           testsuite: null
           settings:
             <<: *generate_settings
+            IMAGE_TYPE: raw
+            TESTED_CMD: customize
+      - generate_with_build_installer_iso:
+          testsuite: null
+          settings:
+            <<: *generate_settings
+            ISO_CMD_LINE: 'console=ttyS0 enforcing=0'
             TESTED_CMD: build_installer_iso
       - test_iso:
           testsuite: null
           settings:
             <<: *test_iso_settings
-            START_AFTER_TEST: generate_with_build_installer_iso_cmd
-      - test_release_manifest:
+            TESTED_CMD: build_installer_iso
+            START_AFTER_TEST: generate_with_%TESTED_CMD%
+      - test_release_manifest_iso:
           testsuite: null
           settings:
-            <<: *test_image_settings
-            HDD_1: 'elemental-%BUILD%-%ARCH%-build.qcow2'
-            START_AFTER_TEST: generate_with_build_cmd
+            <<: *test_iso_settings
+            TESTED_CMD: customize
+            START_AFTER_TEST: generate_iso_with_%TESTED_CMD%
+      - test_release_manifest_raw:
+          testsuite: null
+          settings:
+            <<: *test_raw_settings
+            TESTED_CMD: customize
+            START_AFTER_TEST: generate_raw_with_%TESTED_CMD%
       - master:
           testsuite: null
           settings:
             <<: *master_k8s_validation_settings
-            START_AFTER_TEST: generate_with_install_cmd
+            TESTED_CMD: customize
+            START_AFTER_TEST: generate_raw_with_%TESTED_CMD%
       - node01:
           testsuite: null
           settings:
             <<: *node_k8s_validation_settings
             HOSTNAME: node01
+            TESTED_CMD: customize
   x86_64:
     sle-unifiedcore-image-16.0-x86_64:
-      - generate_with_install_cmd:
+      - generate_with_install:
           machine: 64bit
           testsuite: null
           settings:
             <<: *generate_settings
             TESTED_CMD: install
-      - generate_with_build_cmd:
+      - generate_iso_with_customize:
           machine: 64bit
           testsuite: null
           settings:
             <<: *generate_settings
-            TESTED_CMD: build
-      - generate_with_build_installer_iso_cmd:
+            IMAGE_TYPE: iso
+            TESTED_CMD: customize
+      - generate_raw_with_customize:
           machine: 64bit
           testsuite: null
           settings:
             <<: *generate_settings
+            IMAGE_TYPE: raw
+            TESTED_CMD: customize
+      - generate_with_build_installer_iso:
+          machine: 64bit
+          testsuite: null
+          settings:
+            <<: *generate_settings
+            ISO_CMD_LINE: 'console=ttyS0 enforcing=0'
             TESTED_CMD: build_installer_iso
       - test_iso:
           testsuite: null
           settings:
             <<: *test_iso_settings
-            START_AFTER_TEST: generate_with_build_installer_iso_cmd@64bit
-      - test_release_manifest:
+            TESTED_CMD: build_installer_iso
+            START_AFTER_TEST: generate_with_%TESTED_CMD%@64bit
+      - test_release_manifest_iso:
           testsuite: null
           settings:
-            <<: *test_image_settings
-            HDD_1: 'elemental-%BUILD%-%ARCH%-build.qcow2'
-            START_AFTER_TEST: generate_with_build_cmd@64bit
+            <<: *test_iso_settings
+            TESTED_CMD: customize
+            START_AFTER_TEST: generate_iso_with_%TESTED_CMD%@64bit
+      - test_release_manifest_raw:
+          testsuite: null
+          settings:
+            <<: *test_raw_settings
+            TESTED_CMD: customize
+            START_AFTER_TEST: generate_raw_with_%TESTED_CMD%@64bit
       - master:
           testsuite: null
           settings:
             <<: *master_k8s_validation_settings
-            START_AFTER_TEST: generate_with_install_cmd@64bit
+            TESTED_CMD: customize
+            START_AFTER_TEST: generate_raw_with_%TESTED_CMD%@64bit
       - node01:
           testsuite: null
           settings:
             <<: *node_k8s_validation_settings
             HOSTNAME: node01
+            TESTED_CMD: customize
