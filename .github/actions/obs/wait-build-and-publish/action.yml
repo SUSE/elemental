@@ -1,0 +1,39 @@
+name: Wait for OBS project artefacts build and publish
+description: |
+  Waits for OBS project artefacts to be successfully built and published. To ensure this, the action
+  monitors all packages under the "standard", "sysexts" and "containers" repositories by default.
+  Only when all packages for all repositories are built and published, will the action be considered successful.
+inputs:
+  obs_project:
+    description: Full path (as seen in OBS) to the project that will be monitored
+    required: true
+  repositories:
+    description: | 
+      Comma separated list of repositories to monitor (e.g. "foo, bar, baz").
+      Overrides the default repository list - "standard,sysexts,containers".
+      Repositories are monitored in the sequence that they are defined in.
+    required: false
+    default: "standard,sysexts,containers"
+runs:
+  using: composite
+  steps:
+    - name: Wait for OBS repositories package build
+      shell: bash
+      run: |
+        source scripts/obs_wait_lib.sh
+        
+        repos="${{ inputs.repositories }}"
+        for repo in ${repos//,/ }; do
+          repo=$(printf '%s' "$repo" | tr -d '[:space:]')
+          wait_for_repo_pkg_build "${{ inputs.obs_project }}" "$repo"
+        done
+    - name: Wait for OBS repositories artefact publish
+      shell: bash
+      run: |
+        source scripts/obs_wait_lib.sh
+
+        repos="${{ inputs.repositories }}"
+        for repo in ${repos//,/ }; do
+          repo=$(printf '%s' "$repo" | tr -d '[:space:]')
+          wait_for_repo_publish "${{ inputs.obs_project }}" "$repo"
+        done 
