@@ -41,40 +41,17 @@ jobs:
           # Used by the workflow jobs responsible for polling the state of the OBS project
           # that was created in relation to this pull request
           echo "OBS_PROJ=devel:UnifiedCore:Tumbleweed:PRs:SUSE:elemental:PR-${{ github.event.pull_request.number }}" >> "$GITHUB_ENV"
-      # Ensure that all OBS repository packages related to this
-      # pull request (or any subsequent commits in the pull request)
-      # are successfully built
-      - name: Wait for OBS repositories package build
+      - name: Wait for OBS project artefacts build and publish
         if: ${{ github.event_name == 'pull_request' }}
-        run: |
-          source scripts/obs_wait_lib.sh
-          wait_for_repo_pkg_build "$OBS_PROJ" "standard"
-          wait_for_repo_pkg_build "$OBS_PROJ" "sysexts"
-          wait_for_repo_pkg_build "$OBS_PROJ" "containers"
-      # Ensure that all OBS repository artefacts related to this
-      # pull request (or any subsequent commits in the pull request)
-      # have been published
-      - name: Wait for OBS repositories artefact publish
+        uses: ./.github/actions/obs/wait-build-and-publish
+        with:
+          obs_project: ${{ env.OBS_PROJ }}
+      - name: Wait for available images to be synced with latest OBS artefact state
         if: ${{ github.event_name == 'pull_request' }}
-        run: |
-          source scripts/obs_wait_lib.sh
-          wait_for_repo_publish "$OBS_PROJ" "standard"
-          wait_for_repo_publish "$OBS_PROJ" "sysexts"
-          wait_for_repo_publish "$OBS_PROJ" "containers"
-      # Ensure that all pushed container images related to this
-      # pull request (or any subsequent commits in the pull request)
-      # match the SHA256 of the last "published" OBS container artefact
-      - name: Wait for necessary image state to match source OBS package
-        if: ${{ github.event_name == 'pull_request' }}
-        run: |
-          DEFAULT_IMG="$IMG_REPO/uc-base-os-kernel-default:latest"
-          ISO_IMG="$IMG_REPO/uc-base-kernel-default-iso:latest"
-          RM_IMG="$IMG_REPO/release-manifest:latest"
-          
-          source scripts/obs_wait_lib.sh
-          wait_image_to_source_match "$DEFAULT_IMG" "$OBS_PROJ/elemental-base-os:default"
-          wait_image_to_source_match "$ISO_IMG" "$OBS_PROJ/elemental-base-os:default-iso"
-          wait_image_to_source_match "$RM_IMG" "$OBS_PROJ/release-manifest-image"
+        uses: ./.github/actions/obs/wait-image-sync
+        with:
+          obs_project: ${{ env.OBS_PROJ }}
+          image_repo: ${{ env.IMG_REPO }}
       - name: Generate OS disk image
         run: |
           make build-disk
