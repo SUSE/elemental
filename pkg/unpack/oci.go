@@ -19,13 +19,11 @@ package unpack
 
 import (
 	"context"
-	"io"
 	"net/http"
 	"path/filepath"
 	"time"
 
 	"github.com/schollz/progressbar/v3"
-	"golang.org/x/sync/errgroup"
 
 	"github.com/suse/elemental/v3/pkg/sys"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
@@ -162,24 +160,10 @@ func (o OCI) Unpack(ctx context.Context, destination string, excludes ...string)
 	bar := progressbar.DefaultBytes(-1, "Extracting")
 	defer bar.Close()
 
-	r, w := io.Pipe()
-	defer r.Close()
+	r := progressbar.NewReader(reader, bar)
 
-	wg, ctx := errgroup.WithContext(ctx)
-
-	wg.Go(func() error {
-		defer w.Close()
-		_, err := io.Copy(io.MultiWriter(w, bar), reader)
-		return err
-	})
-
-	wg.Go(func() error {
-		filter := excludesFilter(destination, excludes...)
-		_, err := archive.Apply(ctx, destination, r, archive.WithFilter(filter))
-		return err
-	})
-
-	err = wg.Wait()
+	filter := excludesFilter(destination, excludes...)
+	_, err = archive.Apply(ctx, destination, &r, archive.WithFilter(filter))
 
 	return digest.String(), err
 }
