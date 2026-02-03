@@ -13,6 +13,8 @@ jobs:
       INTEGRATION_TESTS: "true"
       ELMNTL_FIRMWARE: "/usr/share/OVMF/OVMF_CODE_4M.fd"
       VERBOSE: "true"
+      IMG_REPO: "registry.opensuse.org/devel/unifiedcore/tumbleweed/prs/suse/elemental/pr-${{ github.event.pull_request.number }}/containers"
+      OBS_PROJ: "devel:UnifiedCore:Tumbleweed:PRs:SUSE:elemental:PR-${{ github.event.pull_request.number }}"
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -31,23 +33,11 @@ jobs:
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
-      # If event is a pull request, set global variables
-      # that will be used throughout the workflow jobs
-      - name: Set pull_request event variables
-        if: ${{ github.event_name == 'pull_request' }}
-        run: |
-          # Used by the workflow jobs responsible for doing the actual integration testing
-          echo "IMG_REPO=registry.opensuse.org/devel/unifiedcore/tumbleweed/prs/suse/elemental/pr-${{ github.event.pull_request.number }}/containers" >> "$GITHUB_ENV"
-          # Used by the workflow jobs responsible for polling the state of the OBS project
-          # that was created in relation to this pull request
-          echo "OBS_PROJ=devel:UnifiedCore:Tumbleweed:PRs:SUSE:elemental:PR-${{ github.event.pull_request.number }}" >> "$GITHUB_ENV"
       - name: Wait for OBS project artefacts build and publish
-        if: ${{ github.event_name == 'pull_request' }}
         uses: ./.github/actions/obs/wait-build-and-publish
         with:
           obs_project: ${{ env.OBS_PROJ }}
       - name: Wait for available images to be synced with latest OBS artefact state
-        if: ${{ github.event_name == 'pull_request' }}
         uses: ./.github/actions/obs/wait-image-sync
         with:
           obs_project: ${{ env.OBS_PROJ }}
