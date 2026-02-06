@@ -24,7 +24,7 @@ runs:
         
         repos="${{ inputs.repositories }}"
         for repo in ${repos//,/ }; do
-          repo=$(printf '%s' "$repo" | tr -d '[:space:]')
+          repo="${repo//[[:space:]]/}"
           wait_for_repo_pkg_build "${{ inputs.obs_project }}" "$repo"
         done
     - name: Wait for OBS repositories artefact publish
@@ -34,6 +34,6 @@ runs:
 
         repos="${{ inputs.repositories }}"
         for repo in ${repos//,/ }; do
-          repo=$(printf '%s' "$repo" | tr -d '[:space:]')
+          repo="${repo//[[:space:]]/}"
           wait_for_repo_publish "${{ inputs.obs_project }}" "$repo"
         done 
