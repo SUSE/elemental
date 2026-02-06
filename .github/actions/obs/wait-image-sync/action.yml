@@ -44,8 +44,8 @@ runs:
 
         while IFS='=' read -r image source; do
           [[ -z "$image" || -z "$source" ]] && continue
-          image=$(printf '%s' "$image" | tr -d '[:space:]')
-          source=$(printf '%s' "$source" | tr -d '[:space:]')
+          image="${image//[[:space:]]/}"
+          source="${source//[[:space:]]/}"
           
           wait_image_to_source_match "$image_repo/$image" "$obs_project/$source"
         done <<< "$mapping"
