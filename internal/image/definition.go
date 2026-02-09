@@ -35,12 +35,12 @@ type Definition struct {
 }
 
 type Configuration struct {
-	Installation install.Installation
-	Release      release.Release
-	Kubernetes   kubernetes.Kubernetes
-	Network      Network
-	Custom       Custom
-	ButaneConfig map[string]any
+	Installation install.Installation  `validate:"required"`
+	Release      release.Release       `validate:"required"`
+	Kubernetes   kubernetes.Kubernetes `validate:"omitempty"`
+	Network      Network               `validate:"omitempty"`
+	Custom       Custom                `validate:"omitempty"`
+	ButaneConfig map[string]any        `validate:"omitempty"`
 }
 
 type Image struct {

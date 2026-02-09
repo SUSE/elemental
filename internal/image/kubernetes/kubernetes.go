@@ -30,12 +30,12 @@ const (
 
 type Kubernetes struct {
 	// RemoteManifests - manifest URLs specified under config/kubernetes.yaml
-	RemoteManifests []string `yaml:"manifests,omitempty"`
+	RemoteManifests []string `yaml:"manifests,omitempty" validate:"dive,required,url"`
 	// Helm - charts specified under config/kubernetes.yaml
-	Helm *Helm `yaml:"helm,omitempty"`
+	Helm *Helm `yaml:"helm,omitempty" validate:"omitempty"`
 	// LocalManifests - local manifest files specified under config/kubernetes/manifests
 	LocalManifests []string
-	Nodes          Nodes   `yaml:"nodes,omitempty"`
+	Nodes          Nodes   `yaml:"nodes,omitempty" validate:"dive"`
 	Network        Network `yaml:"network,omitempty"`
 	Config         Config  `yaml:"-"`
 }
@@ -48,8 +48,8 @@ type Config struct {
 }
 
 type Helm struct {
-	Charts       []*HelmChart      `yaml:"charts"`
-	Repositories []*HelmRepository `yaml:"repositories"`
+	Charts       []*HelmChart      `yaml:"charts" validate:"dive"`
+	Repositories []*HelmRepository `yaml:"repositories" validate:"dive"`
 }
 
 func (h *Helm) ChartRepositories() map[string]string {
@@ -71,10 +71,10 @@ func (h *Helm) ValueFiles() map[string]string {
 }
 
 type HelmChart struct {
-	Name            string `yaml:"name"`
-	RepositoryName  string `yaml:"repositoryName"`
-	Version         string `yaml:"version"`
-	TargetNamespace string `yaml:"targetNamespace"`
+	Name            string `yaml:"name" validate:"required"`
+	RepositoryName  string `yaml:"repositoryName" validate:"required"`
+	Version         string `yaml:"version" validate:"required"`
+	TargetNamespace string `yaml:"targetNamespace" validate:"required"`
 	ValuesFile      string `yaml:"valuesFile"`
 }
 
@@ -95,13 +95,13 @@ func (c *HelmChart) ToCRD(values []byte, repository string) *helm.CRD {
 }
 
 type HelmRepository struct {
-	Name string `yaml:"name"`
-	URL  string `yaml:"url"`
+	Name string `yaml:"name" validate:"required"`
+	URL  string `yaml:"url" validate:"required,url"`
 }
 
 type Node struct {
-	Hostname string `yaml:"hostname"`
-	Type     string `yaml:"type"`
+	Hostname string `yaml:"hostname" validate:"required,hostname"`
+	Type     string `yaml:"type" validate:"required,oneof=server agent"`
 	Init     bool   `yaml:"init"`
 }
 
@@ -129,8 +129,8 @@ func FindInitNode(nodes Nodes) (*Node, error) {
 
 type Network struct {
 	APIHost string `yaml:"apiHost"`
-	APIVIP4 string `yaml:"apiVIP"`
-	APIVIP6 string `yaml:"apiVIP6"`
+	APIVIP4 string `yaml:"apiVIP" validate:"omitempty"`
+	APIVIP6 string `yaml:"apiVIP6" validate:"omitempty,ipv6"`
 }
 
 func (n Network) IsHA() bool {
