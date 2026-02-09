@@ -19,12 +19,12 @@ package release
 
 type Release struct {
 	Name        string     `yaml:"name,omitempty"`
-	ManifestURI string     `yaml:"manifestURI"`
+	ManifestURI string     `yaml:"manifestURI" validate:"required"`
 	Components  Components `yaml:"components,omitempty"`
 }
 type Components struct {
-	SystemdExtensions []SystemdExtension `yaml:"systemd,omitempty"`
-	HelmCharts        []HelmChart        `yaml:"helm,omitempty"`
+	SystemdExtensions []SystemdExtension `yaml:"systemd,omitempty" validate:"dive"`
+	HelmCharts        []HelmChart        `yaml:"helm,omitempty" validate:"dive"`
 }
 
 func (c *Components) HelmValueFiles() map[string]string {
@@ -37,10 +37,10 @@ func (c *Components) HelmValueFiles() map[string]string {
 }
 
 type SystemdExtension struct {
-	Name string `yaml:"extension"`
+	Name string `yaml:"extension" validate:"required"`
 }
 
 type HelmChart struct {
-	Name       string `yaml:"chart"`
+	Name       string `yaml:"chart" validate:"required"`
 	ValuesFile string `yaml:"valuesFile,omitempty"`
 }

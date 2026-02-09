@@ -188,6 +188,10 @@ func Parse(f vfs.FS, configDir Dir) (conf *image.Configuration, err error) {
 		return nil, fmt.Errorf("reading config file: %w", err)
 	}
 
+	if err = Validate(conf); err != nil {
+		return nil, fmt.Errorf("validating configuration: %w", err)
+	}
+
 	return conf, nil
 }
 

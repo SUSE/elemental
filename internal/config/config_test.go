@@ -257,6 +257,32 @@ var _ = Describe("Configuration", Label("configuration"), func() {
 		Expect(cfg.Kubernetes.Config.ServerFilePath).To(Equal("/tmp/config-dir/kubernetes/config/server.yaml"))
 		Expect(cfg.Kubernetes.Config.AgentFilePath).To(Equal("/tmp/config-dir/kubernetes/config/agent.yaml"))
 	})
+
+	It("Fails on invalid configuration", func() {
+		installFile := filepath.Join(string(configDir), "install.yaml")
+		invalidInstallYAML := `
+bootloader: invalid
+raw:
+  diskSize: 35X
+`
+		Expect(fs.WriteFile(installFile, []byte(invalidInstallYAML), 0644)).To(Succeed())
+
+		_, err := Parse(fs, configDir)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("validating configuration"))
+		Expect(err.Error()).To(ContainSubstring("field \"Configuration.Installation.Bootloader\" must be one of [grub none], but got \"invalid\""))
+		Expect(err.Error()).To(ContainSubstring("field \"Configuration.Installation.RAW.DiskSize\" must be a valid disk size (e.g., 10G, 500M), but got \"35X\""))
+	})
+
+	It("Fails on missing required release configuration", func() {
+		releaseFile := filepath.Join(string(configDir), "release.yaml")
+		Expect(fs.Remove(releaseFile)).To(Succeed())
+
+		_, err := Parse(fs, configDir)
+		Expect(err).To(HaveOccurred())
+		// Parse will fail first on reading the file
+		Expect(err.Error()).To(ContainSubstring("reading config file"))
+	})
 })
 
 func containsChart(name string, charts []release.HelmChart) bool {

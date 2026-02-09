@@ -58,15 +58,15 @@ func (d DiskSize) ToMiB() (uint, error) {
 }
 
 type Installation struct {
-	Bootloader    string        `yaml:"bootloader"`
+	Bootloader    string        `yaml:"bootloader" validate:"omitempty,oneof=grub none"`
 	KernelCmdLine string        `yaml:"kernelCmdLine"`
 	RAW           RAW           `yaml:"raw"`
 	ISO           ISO           `yaml:"iso"`
-	CryptoPolicy  crypto.Policy `yaml:"cryptoPolicy"`
+	CryptoPolicy  crypto.Policy `yaml:"cryptoPolicy" validate:"omitempty,oneof=fips default"`
 }
 
 type RAW struct {
-	DiskSize DiskSize `yaml:"diskSize"`
+	DiskSize DiskSize `yaml:"diskSize" validate:"omitempty,disksize"`
 }
 
 type ISO struct {
