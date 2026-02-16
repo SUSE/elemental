@@ -18,6 +18,8 @@ limitations under the License.
 package deployment
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"reflect"
@@ -26,12 +28,20 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/go-playground/validator/v10"
 	"go.yaml.in/yaml/v3"
 
 	"github.com/suse/elemental/v3/pkg/crypto"
 	"github.com/suse/elemental/v3/pkg/firmware"
 	"github.com/suse/elemental/v3/pkg/sys"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
+)
+
+type contextKey string
+
+const (
+	contextKeySystem               contextKey = "system"
+	contextKeySkipDiskDeviceExists contextKey = "skip_disk_device_exists"
 )
 
 type MiB uint
@@ -188,7 +198,7 @@ func (p *PartRole) UnmarshalYAML(data *yaml.Node) (err error) {
 }
 
 type RWVolume struct {
-	Path          string   `yaml:"path"`
+	Path          string   `yaml:"path" validate:"required,abspath"`
 	Snapshotted   bool     `yaml:"snapshotted,omitempty"`
 	NoCopyOnWrite bool     `yaml:"noCopyOnWrite,omitempty"`
 	MountOpts     []string `yaml:"mountOpts,omitempty"`
@@ -201,9 +211,9 @@ type Partition struct {
 	FileSystem FileSystem `yaml:"fileSystem,omitempty"`
 	Size       MiB        `yaml:"size,omitempty"`
 	Role       PartRole   `yaml:"role"`
-	MountPoint string     `yaml:"mountPoint,omitempty"`
+	MountPoint string     `yaml:"mountPoint,omitempty" validate:"recovery_mountpoint"`
 	MountOpts  []string   `yaml:"mountOpts,omitempty"`
-	RWVolumes  RWVolumes  `yaml:"rwVolumes,omitempty"`
+	RWVolumes  RWVolumes  `yaml:"rwVolumes,omitempty" validate:"excluded_unless=FileSystem 1,dive"` // FileSystem 1 = btrfs
 	UUID       string     `yaml:"uuid,omitempty"`
 	Hidden     bool       `yaml:"hidden,omitempty"`
 }
@@ -211,8 +221,8 @@ type Partition struct {
 type Partitions []*Partition
 
 type Disk struct {
-	Device     string     `yaml:"target,omitempty"`
-	Partitions Partitions `yaml:"partitions"`
+	Device     string     `yaml:"target,omitempty" validate:"disk_device_required,disk_device_exists"`
+	Partitions Partitions `yaml:"partitions" validate:"required,min=1,dive"`
 }
 
 type BootConfig struct {
@@ -225,7 +235,7 @@ type FirmwareConfig struct {
 }
 
 type SecurityConfig struct {
-	CryptoPolicy crypto.Policy `yaml:"cryptoPolicy"`
+	CryptoPolicy crypto.Policy `yaml:"cryptoPolicy" validate:"crypto_policy"`
 }
 
 type SnapshotterConfig struct {
@@ -239,15 +249,287 @@ type LiveInstaller struct {
 }
 
 type Deployment struct {
-	SourceOS    *ImageSource       `yaml:"sourceOS"`
-	Disks       []*Disk            `yaml:"disks"`
+	SourceOS    *ImageSource       `yaml:"sourceOS" validate:"required,not_empty_source"`
+	Disks       []*Disk            `yaml:"disks" validate:"required,min=1,dive,system_partition,multiple_system_partitions,efi_partition,multiple_efi_partitions,recovery_partition,last_partition_size,rw_volumes"`
 	Firmware    *FirmwareConfig    `yaml:"firmware"`
 	BootConfig  *BootConfig        `yaml:"bootloader"`
-	Security    *SecurityConfig    `yaml:"security"`
+	Security    *SecurityConfig    `yaml:"security" validate:"required"`
 	Snapshotter *SnapshotterConfig `yaml:"snapshotter"`
 	OverlayTree *ImageSource       `yaml:"overlayTree,omitempty"`
 	CfgScript   string             `yaml:"configScript,omitempty"`
 	Installer   LiveInstaller      `yaml:"installer,omitempty"`
+}
+
+var validate = validator.New()
+
+func init() {
+	_ = validate.RegisterValidation("not_empty_source", validateNotEmptySource)
+	_ = validate.RegisterValidation("system_partition", validateSystemPartition)
+	_ = validate.RegisterValidation("multiple_system_partitions", validateMultipleSystemPartitions)
+	_ = validate.RegisterValidation("efi_partition", validateEFIPartition)
+	_ = validate.RegisterValidation("multiple_efi_partitions", validateMultipleEFIPartitions)
+	_ = validate.RegisterValidation("recovery_partition", validateRecoveryPartition)
+	_ = validate.RegisterValidation("last_partition_size", validateLastPartitionSize)
+	_ = validate.RegisterValidation("rw_volumes", validateRWVolumes)
+	_ = validate.RegisterValidation("crypto_policy", validateCryptoPolicy)
+	_ = validate.RegisterValidation("abspath", validateAbsPath)
+	_ = validate.RegisterValidationCtx("disk_device_exists", validateDiskDeviceExists)
+	_ = validate.RegisterValidationCtx("disk_device_required", validateDiskDeviceRequired)
+	_ = validate.RegisterValidationCtx("recovery_mountpoint", validateRecoveryMountPoint)
+}
+
+func validateNotEmptySource(fl validator.FieldLevel) bool {
+	src, ok := fl.Field().Interface().(*ImageSource)
+	if !ok {
+		srcVal, ok := fl.Field().Interface().(ImageSource)
+		if !ok {
+			return false
+		}
+		src = &srcVal
+	}
+	if src == nil {
+		return false
+	}
+	return !src.IsEmpty()
+}
+
+func validateSystemPartition(fl validator.FieldLevel) bool {
+	disks, ok := fl.Field().Interface().([]*Disk)
+	if !ok {
+		disk, ok := fl.Field().Interface().(Disk)
+		if !ok {
+			return false
+		}
+		disks = []*Disk{&disk}
+	}
+	var count int
+	for _, disk := range disks {
+		if disk == nil {
+			continue
+		}
+		for _, part := range disk.Partitions {
+			if part != nil && part.Role == System {
+				count++
+			}
+		}
+	}
+	return count >= 1
+}
+
+func validateMultipleSystemPartitions(fl validator.FieldLevel) bool {
+	disks, ok := fl.Field().Interface().([]*Disk)
+	if !ok {
+		disk, ok := fl.Field().Interface().(Disk)
+		if !ok {
+			return false
+		}
+		disks = []*Disk{&disk}
+	}
+	var count int
+	for _, disk := range disks {
+		if disk == nil {
+			continue
+		}
+		for _, part := range disk.Partitions {
+			if part != nil && part.Role == System {
+				count++
+			}
+		}
+	}
+	return count <= 1
+}
+
+func validateEFIPartition(fl validator.FieldLevel) bool {
+	disks, ok := fl.Field().Interface().([]*Disk)
+	if !ok {
+		disk, ok := fl.Field().Interface().(Disk)
+		if !ok {
+			return false
+		}
+		disks = []*Disk{&disk}
+	}
+	var count int
+	for _, disk := range disks {
+		if disk == nil {
+			continue
+		}
+		for _, part := range disk.Partitions {
+			if part != nil && part.Role == EFI {
+				count++
+			}
+		}
+	}
+	return count >= 1
+}
+
+func validateMultipleEFIPartitions(fl validator.FieldLevel) bool {
+	disks, ok := fl.Field().Interface().([]*Disk)
+	if !ok {
+		disk, ok := fl.Field().Interface().(Disk)
+		if !ok {
+			return false
+		}
+		disks = []*Disk{&disk}
+	}
+	var count int
+	for _, disk := range disks {
+		if disk == nil {
+			continue
+		}
+		for _, part := range disk.Partitions {
+			if part != nil && part.Role == EFI {
+				count++
+			}
+		}
+	}
+	return count <= 1
+}
+
+func validateRecoveryPartition(fl validator.FieldLevel) bool {
+	disks, ok := fl.Field().Interface().([]*Disk)
+	if !ok {
+		disk, ok := fl.Field().Interface().(Disk)
+		if !ok {
+			return false
+		}
+		disks = []*Disk{&disk}
+	}
+	var count int
+	for _, disk := range disks {
+		if disk == nil {
+			continue
+		}
+		for _, part := range disk.Partitions {
+			if part != nil && part.Role == Recovery {
+				count++
+			}
+		}
+	}
+	return count <= 1
+}
+
+func validateLastPartitionSize(fl validator.FieldLevel) bool {
+	disks, ok := fl.Field().Interface().([]*Disk)
+	if !ok {
+		disk, ok := fl.Field().Interface().(Disk)
+		if !ok {
+			return false
+		}
+		disks = []*Disk{&disk}
+	}
+	for _, disk := range disks {
+		if disk == nil {
+			continue
+		}
+		pNum := len(disk.Partitions)
+		for i, part := range disk.Partitions {
+			if part == nil {
+				continue
+			}
+			if i < pNum-1 && part.Size == 0 {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func validateRWVolumes(fl validator.FieldLevel) bool {
+	disks, ok := fl.Field().Interface().([]*Disk)
+	if !ok {
+		disk, ok := fl.Field().Interface().(Disk)
+		if !ok {
+			return false
+		}
+		disks = []*Disk{&disk}
+	}
+	pathMap := map[string]bool{}
+	for _, disk := range disks {
+		if disk == nil {
+			continue
+		}
+		for _, part := range disk.Partitions {
+			if part == nil {
+				continue
+			}
+			if part.FileSystem != Btrfs && len(part.RWVolumes) > 0 {
+				return false
+			}
+			for _, rwVol := range part.RWVolumes {
+				if !filepath.IsAbs(rwVol.Path) {
+					return false
+				}
+				if _, ok := pathMap[rwVol.Path]; ok {
+					return false
+				}
+				pathMap[rwVol.Path] = true
+			}
+		}
+	}
+	paths := []string{}
+	for k := range pathMap {
+		paths = append(paths, k)
+	}
+	sort.Strings(paths)
+	for i := range len(paths) - 1 {
+		if strings.HasPrefix(paths[i+1], paths[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func validateCryptoPolicy(fl validator.FieldLevel) bool {
+	policy, ok := fl.Field().Interface().(crypto.Policy)
+	if !ok {
+		return false
+	}
+	return policy.IsValid()
+}
+
+func validateAbsPath(fl validator.FieldLevel) bool {
+	return filepath.IsAbs(fl.Field().String())
+}
+
+func validateDiskDeviceExists(ctx context.Context, fl validator.FieldLevel) bool {
+	if skip, ok := ctx.Value(contextKeySkipDiskDeviceExists).(bool); ok && skip {
+		return true
+	}
+	s, ok := ctx.Value(contextKeySystem).(*sys.System)
+	if !ok {
+		return true
+	}
+	device := fl.Field().String()
+	if device == "" {
+		return true
+	}
+	exists, _ := vfs.Exists(s.FS(), device)
+	return exists
+}
+
+func validateDiskDeviceRequired(ctx context.Context, fl validator.FieldLevel) bool {
+	if skip, ok := ctx.Value(contextKeySkipDiskDeviceExists).(bool); ok && skip {
+		return true
+	}
+	return fl.Field().String() != ""
+}
+
+func validateRecoveryMountPoint(_ context.Context, fl validator.FieldLevel) bool {
+	// This needs to be on the Partition struct level or we need to access the Role field.
+	// Since it's on the MountPoint field, we use Parent().
+	part, ok := fl.Parent().Interface().(Partition)
+	if !ok {
+		// Try pointer
+		partPtr, ok := fl.Parent().Interface().(*Partition)
+		if !ok {
+			return true
+		}
+		part = *partPtr
+	}
+	if part.Role == Recovery && fl.Field().String() != "" {
+		return false
+	}
+	return true
 }
 
 type Opt func(d *Deployment)
@@ -284,18 +566,6 @@ func (s SanitizeDeployment) name() string {
 	}
 
 	return fullName[lastDotIndex+1:]
-}
-
-var sanitizers = []SanitizeDeployment{
-	checkSystemPart,
-	checkEFIPart,
-	checkRecoveryPart,
-	checkAllAvailableSize,
-	checkPartitionsFS,
-	checkRWVolumes,
-	CheckSourceOS,
-	CheckDiskDevice,
-	checkCryptoPolicy,
 }
 
 // GetSystemPartition returns the system partition from the disk.
@@ -415,24 +685,170 @@ func (d Deployment) RecoveryKernelCmdline() string {
 	return fmt.Sprintf("%s %s", LiveKernelCmdline(label), RecoveryMark)
 }
 
+func (d *Deployment) setDefaults(s *sys.System) {
+	for _, disk := range d.Disks {
+		if disk == nil {
+			continue
+		}
+		for _, part := range disk.Partitions {
+			if part == nil {
+				continue
+			}
+			if part.Role == System {
+				if part.MountPoint != SystemMnt {
+					s.Logger().Warn("custom mountpoints for the system partition are not supported")
+					s.Logger().Info("system partition mountpoint set to default '%s'", SystemMnt)
+					part.MountPoint = SystemMnt
+				}
+				if part.Label == "" {
+					part.Label = SystemLabel
+				}
+			}
+			if part.Role == EFI {
+				if part.FileSystem != VFat {
+					s.Logger().Warn("filesystem types different to vfat are not supported for the efi partition")
+					s.Logger().Info("efi partition set to be formatted with vfat")
+					part.FileSystem = VFat
+				}
+				if part.MountPoint != EfiMnt {
+					s.Logger().Warn("custom mountpoints for the efi partition are not supported")
+					s.Logger().Info("efi partition mountpoint set to default '%s'", EfiMnt)
+					part.MountPoint = EfiMnt
+				}
+				if part.Label == "" {
+					part.Label = EfiLabel
+				}
+				if part.Size < EfiSize {
+					s.Logger().Warn("efi partition size cannot be less than %dMiB", EfiSize)
+					s.Logger().Info("efi partition size set to %dMiB", EfiSize)
+					part.Size = EfiSize
+				}
+				if len(part.RWVolumes) > 0 {
+					s.Logger().Warn("efi partition does not support volumes")
+					s.Logger().Info("cleared read-write volumes for efi")
+					part.RWVolumes = nil
+				}
+			}
+			if part.Role == Recovery {
+				if len(part.RWVolumes) > 0 {
+					s.Logger().Warn("recovery partition does not support volumes")
+					s.Logger().Info("cleared read-write volumes for recovery")
+					part.RWVolumes = []RWVolume{}
+				}
+				if part.FileSystem.String() == Unknown {
+					part.FileSystem = Ext4
+				}
+				if part.Label == "" {
+					part.Label = RecoveryLabel
+				}
+			}
+			if part.FileSystem.String() == Unknown {
+				part.FileSystem = Btrfs
+			}
+		}
+	}
+}
+
 // Sanitize checks the consistency of the current Disk structure. ExcludeChecks parameter
 // is used to disable any given SanitizeDeployment method. Only public sanitizers can be
 // disabled from other packages.
 func (d *Deployment) Sanitize(s *sys.System, excludeChecks ...SanitizeDeployment) error {
-	var excluded []string
+	d.setDefaults(s)
+
+	ctx := context.WithValue(context.Background(), contextKeySystem, s)
 	for _, exclude := range excludeChecks {
-		excluded = append(excluded, exclude.name())
-	}
-	for _, sanitize := range sanitizers {
-		if slices.Contains(excluded, sanitize.name()) {
-			continue
+		if exclude.name() == CheckDiskDevice.name() {
+			ctx = context.WithValue(ctx, contextKeySkipDiskDeviceExists, true)
 		}
-		if err := sanitize(s, d); err != nil {
-			return err
+	}
+
+	err := validate.StructCtx(ctx, d)
+	if err != nil {
+		var errs validator.ValidationErrors
+		if errors.As(err, &errs) {
+			return d.formatValidationErrors(s, errs)
+		}
+		return err
+	}
+	return nil
+}
+
+// formatValidationErrors takes validator.ValidationErrors and the deployment object
+// to return a formatted error message.
+func (d *Deployment) formatValidationErrors(s *sys.System, errs validator.ValidationErrors) error {
+	for _, e := range errs {
+		switch e.Tag() {
+		case "system_partition":
+			return fmt.Errorf("no 'system' partition defined")
+		case "multiple_system_partitions":
+			return fmt.Errorf("multiple 'system' partitions defined, there must be only one")
+		case "efi_partition":
+			return fmt.Errorf("no 'efi' partition defined")
+		case "multiple_efi_partitions":
+			return fmt.Errorf("multiple 'efi' partitions defined, there must be only one")
+		case "recovery_partition":
+			return fmt.Errorf("multiple 'recovery' partitions defined, there can be only one")
+		case "recovery_mountpoint":
+			return fmt.Errorf("custom mountpoints for the recovery partition are not supported")
+		case "last_partition_size":
+			return fmt.Errorf("only last partition can be defined to be as big as available size in disk")
+		case "rw_volumes":
+			return d.checkRWVolumes()
+		case "crypto_policy":
+			return fmt.Errorf("invalid crypto policy: %s", d.Security.CryptoPolicy)
+		case "not_empty_source":
+			return fmt.Errorf("no OS image defined in deployment")
+		case "disk_device_required":
+			for i, disk := range d.Disks {
+				if disk.Device == "" {
+					return fmt.Errorf("no device associated with disk %d: %+v", i, disk)
+				}
+			}
+		case "disk_device_exists":
+			for i, disk := range d.Disks {
+				if ok, _ := vfs.Exists(s.FS(), disk.Device); !ok {
+					return fmt.Errorf("device '%s' for disk %d not found", disk.Device, i)
+				}
+			}
+		}
+	}
+	return errs[0] // Fallback to the first error if no specific tag is matched
+}
+
+// checkRWVolumes is kept as a helper for specific error messages when validator fails
+func (d *Deployment) checkRWVolumes() error {
+	pathMap := map[string]bool{}
+	for _, disk := range d.Disks {
+		for _, part := range disk.Partitions {
+			if part.FileSystem != Btrfs && len(part.RWVolumes) > 0 {
+				return fmt.Errorf("RW volumes are only supported in partitions formatted with btrfs")
+			}
+			for _, rwVol := range part.RWVolumes {
+				if _, ok := pathMap[rwVol.Path]; ok {
+					return fmt.Errorf("rw volume paths must be unique. Duplicated '%s'", rwVol.Path)
+				}
+				pathMap[rwVol.Path] = true
+			}
+		}
+	}
+
+	paths := []string{}
+	for k := range pathMap {
+		paths = append(paths, k)
+	}
+	sort.Strings(paths)
+	for i := range len(paths) - 1 {
+		if strings.HasPrefix(paths[i+1], paths[i]) {
+			return fmt.Errorf("nested rw volumes is not supported")
 		}
 	}
 	return nil
 }
+
+// Dummy function to keep compatibility with existing code using these variables
+var (
+	CheckDiskDevice SanitizeDeployment = func(*sys.System, *Deployment) error { return nil }
+)
 
 // IsFipsEnabled returns true if FIPS is enabled for the deployment, otherwise false.
 func (d *Deployment) IsFipsEnabled() bool {
@@ -558,7 +974,9 @@ func DefaultDeployment() *Deployment {
 		BootConfig: &BootConfig{
 			Bootloader: "none",
 		},
-		Security: &SecurityConfig{},
+		Security: &SecurityConfig{
+			CryptoPolicy: "default",
+		},
 		Snapshotter: &SnapshotterConfig{
 			Name: "snapper",
 		},
@@ -618,199 +1036,4 @@ func WithRecoveryPartition(size MiB) Opt {
 		Hidden:     true,
 	}
 	return WithPartitions(1, part)
-}
-
-// checkSystemPart verifies the system partition is properly defined and forces mandatory values
-func checkSystemPart(s *sys.System, d *Deployment) error {
-	var found bool
-	for _, disk := range d.Disks {
-		for _, part := range disk.Partitions {
-			if part.Role == System && !found {
-				found = true
-				if part.MountPoint != SystemMnt {
-					s.Logger().Warn("custom mountpoints for the system partition are not supported")
-					s.Logger().Info("system partition mountpoint set to default '%s'", SystemMnt)
-					part.MountPoint = SystemMnt
-				}
-				if part.Label == "" {
-					part.Label = SystemLabel
-				}
-			} else if part.Role == System {
-				return fmt.Errorf("multiple 'system' partitions defined, there must be only one")
-			}
-		}
-	}
-	if !found {
-		return fmt.Errorf("no 'system' partition defined")
-	}
-	return nil
-}
-
-// checkEFIPart verifies the EFI partition is properly defined and forces mandatory values
-func checkEFIPart(s *sys.System, d *Deployment) error {
-	var found bool
-	for _, disk := range d.Disks {
-		for _, part := range disk.Partitions {
-			if part.Role == EFI && !found {
-				found = true
-				if part.FileSystem != VFat {
-					s.Logger().Warn("filesystem types different to vfat are not supported for the efi partition")
-					s.Logger().Info("efi partition set to be formatted with vfat")
-					part.FileSystem = VFat
-				}
-				if part.MountPoint != EfiMnt {
-					s.Logger().Warn("custom mountpoints for the efi partition are not supported")
-					s.Logger().Info("efi partition mountpoint set to default '%s'", EfiMnt)
-					part.MountPoint = EfiMnt
-				}
-				if part.Label == "" {
-					part.Label = EfiLabel
-				}
-				if part.Size < EfiSize {
-					s.Logger().Warn("efi partition size cannot be less than %dMiB", EfiSize)
-					s.Logger().Info("efi partition size set to %dMiB", EfiSize)
-					part.Size = EfiSize
-				}
-				if len(part.RWVolumes) > 0 {
-					s.Logger().Warn("efi partition does not support volumes")
-					s.Logger().Info("cleared read-write volumes for efi")
-					part.RWVolumes = []RWVolume{}
-				}
-			} else if part.Role == EFI {
-				return fmt.Errorf("multiple 'efi' partitions defined, there must be only one")
-			}
-		}
-	}
-	if !found {
-		return fmt.Errorf("no 'efi' partition defined")
-	}
-	return nil
-}
-
-// checkRecoveryPart verifies Recovery partition is properly defined if any
-func checkRecoveryPart(s *sys.System, d *Deployment) error {
-	var found bool
-	for _, disk := range d.Disks {
-		for _, part := range disk.Partitions {
-			if part.Role == Recovery && !found {
-				found = true
-				if part.MountPoint != "" {
-					return fmt.Errorf("custom mountpoints for the recovery partition are not supported")
-				}
-				if len(part.RWVolumes) > 0 {
-					s.Logger().Warn("recovery partition does not support volumes")
-					s.Logger().Info("cleared read-write volumes for recovery")
-					part.RWVolumes = []RWVolume{}
-				}
-				if part.FileSystem.String() == Unknown {
-					part.FileSystem = Ext4
-				}
-				if part.Label == "" {
-					part.Label = RecoveryLabel
-				}
-			} else if part.Role == Recovery {
-				return fmt.Errorf("multiple 'recovery' partitions defined, there can be only one")
-			}
-		}
-	}
-	return nil
-}
-
-// checkAllAvailableSize ensures only the last partition is eventually set to be as big as all
-// available size in disk
-func checkAllAvailableSize(_ *sys.System, d *Deployment) error {
-	for _, disk := range d.Disks {
-		pNum := len(disk.Partitions)
-		for i, part := range disk.Partitions {
-			if i < pNum-1 && part.Size == 0 {
-				return fmt.Errorf("only last partition can be defined to be as big as available size in disk")
-			}
-		}
-	}
-	return nil
-}
-
-// checkPartitionsFS ensures all partitions have a filesystem defined
-func checkPartitionsFS(_ *sys.System, d *Deployment) error {
-	for _, disk := range d.Disks {
-		for _, part := range disk.Partitions {
-			if part.FileSystem.String() == Unknown {
-				part.FileSystem = Btrfs
-			}
-		}
-	}
-	return nil
-}
-
-// checkRWVolumes ensures all rw volumes are at a unique absolute path, not
-// nested and defined on a btrfs partition
-func checkRWVolumes(_ *sys.System, d *Deployment) error {
-	pathMap := map[string]bool{}
-	for _, disk := range d.Disks {
-		for _, part := range disk.Partitions {
-			if part.FileSystem != Btrfs && len(part.RWVolumes) > 0 {
-				return fmt.Errorf("RW volumes are only supported in partitions formatted with btrfs")
-			}
-			for _, rwVol := range part.RWVolumes {
-				if !filepath.IsAbs(rwVol.Path) {
-					return fmt.Errorf("rw volume paths must be absolute")
-				}
-				if _, ok := pathMap[rwVol.Path]; !ok {
-					pathMap[rwVol.Path] = true
-					continue
-				}
-				return fmt.Errorf("rw volume paths must be unique. Duplicated '%s'", rwVol.Path)
-			}
-		}
-	}
-
-	paths := []string{}
-	for k := range pathMap {
-		paths = append(paths, k)
-	}
-	sort.Strings(paths)
-	for i := range len(paths) - 1 {
-		if strings.HasPrefix(paths[i+1], paths[i]) {
-			return fmt.Errorf("nested rw volumes is not supported")
-		}
-	}
-	return nil
-}
-
-func checkCryptoPolicy(s *sys.System, d *Deployment) error {
-	if d.Security == nil {
-		d.Security = &SecurityConfig{}
-	}
-
-	if d.Security.CryptoPolicy == "" {
-		s.Logger().Info("Crypto policy not set, proceeding with default")
-		d.Security.CryptoPolicy = crypto.DefaultPolicy
-	}
-
-	if !d.Security.CryptoPolicy.IsValid() {
-		return fmt.Errorf("invalid crypto policy: %s", d.Security.CryptoPolicy)
-	}
-
-	return nil
-}
-
-// CheckSourceOS ensures the deployment includes an OS image
-func CheckSourceOS(_ *sys.System, d *Deployment) error {
-	if d.SourceOS == nil || d.SourceOS.IsEmpty() {
-		return fmt.Errorf("no OS image defined in deployment")
-	}
-	return nil
-}
-
-// CheckDiskDevice ensures the device is defined and it exists
-func CheckDiskDevice(s *sys.System, d *Deployment) error {
-	for i, disk := range d.Disks {
-		if disk.Device == "" {
-			return fmt.Errorf("no device associated with disk %d: %+v", i, disk)
-		}
-		if ok, _ := vfs.Exists(s.FS(), disk.Device); !ok {
-			return fmt.Errorf("device '%s' for disk %d not found", disk.Device, i)
-		}
-	}
-	return nil
 }
