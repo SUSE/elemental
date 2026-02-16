@@ -77,7 +77,7 @@ func Reset(ctx context.Context, cmd *cli.Command) error {
 	return nil
 }
 
-// disgestResetSetup produces the Deployment object required to describe the installation parameters
+// digestResetSetup produces the Deployment object required to describe the installation parameters
 func digestResetSetup(s *sys.System, flags *cmdpkg.InstallFlags) (*deployment.Deployment, error) {
 	d := &deployment.Deployment{}
 
