@@ -40,7 +40,7 @@ type Config struct {
 	Systemd  base.Systemd  `yaml:"systemd"`
 }
 
-// MegerInlineIgnition adds the given in line ignition configuration as a new merge in butane
+// MergeInlineIgnition adds the given inline ignition configuration as a new merge in butane
 func (c *Config) MergeInlineIgnition(ignitionConf string) {
 	var merge base.Resource
 
@@ -49,7 +49,7 @@ func (c *Config) MergeInlineIgnition(ignitionConf string) {
 	c.Ignition.Config.Merge = append(c.Ignition.Config.Merge, merge)
 }
 
-// AddUnit adds an inline unit object in butane configuration
+// AddSystemdUnit adds an inline unit object in butane configuration
 func (c *Config) AddSystemdUnit(name, contents string, enabled bool) {
 	var unit base.Unit
 
@@ -60,7 +60,7 @@ func (c *Config) AddSystemdUnit(name, contents string, enabled bool) {
 	c.Systemd.Units = append(c.Systemd.Units, unit)
 }
 
-// WriteIngitionFile writes an ingition file for the current butane configuration to the given path
+// WriteIgnitionFile writes an ignition file for the current butane configuration to the given path
 func WriteIgnitionFile(s *sys.System, butane any, ignitionFile string) error {
 	ignitionBytes, err := TranslateBytes(s, butane)
 	if err != nil {
