@@ -317,7 +317,7 @@ func (sc snapperContext) applyCustomChanges(status, rwVolPath string, merge *Mer
 				return err
 			}
 		default:
-			_, err = fmt.Fprintln(syncF, strings.TrimPrefix(match[3], rwVolPath))
+			_, err = fmt.Fprintln(syncF, strings.TrimPrefix(match[3], rwVolPath)) // #nosec G705
 			if err != nil {
 				_ = syncF.Close()
 				return err

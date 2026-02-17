@@ -128,7 +128,7 @@ func updateFstabLines(lines []Line, oldLines, newLines []Line) []Line {
 func writeFstabLines(w io.Writer, fstabLines []Line) error {
 	tw := tabwriter.NewWriter(w, 1, 4, 1, ' ', 0)
 	for _, fLine := range fstabLines {
-		_, err := fmt.Fprintf(
+		_, err := fmt.Fprintf( // #nosec G705
 			tw, "%s\t%s\t%s\t%s\t%d\t%d\n",
 			fLine.Device, fLine.MountPoint, fLine.FileSystem,
 			strings.Join(fLine.Options, ","), fLine.DumpFreq, fLine.FsckOrder,
