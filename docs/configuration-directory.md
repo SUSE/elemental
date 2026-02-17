@@ -1,6 +1,6 @@
 # Configuration Directory Guide
 
-The configuration directory is the place where users define the desired state of the image they intend to build by using the [elemental3 build](image-build-and-customization.md#elemental3-build) command.
+The configuration directory is the place where users define the desired state of the image they intend to build by using the [`elemental3 customize`](image-customization.md#customization-process) command.
 
 Generally, the available configuration areas that this directory supports are the following:
 
@@ -71,7 +71,7 @@ iso:
 ### butane.yaml
 
 The `butane.yaml` optional file enables users to configure the actual operating system by allowing them to provide their own [Butane](https://coreos.github.io/butane/) configuration.
-During the build or customization processes, this will be translated into an [Ignition](https://coreos.github.io/ignition/) configuration which will be included in the image and executed at first boot.
+During the customization processes, this will be translated into an [Ignition](https://coreos.github.io/ignition/) configuration which will be included in the image and executed at first boot.
 The example below shows how it can be used to set up users:
 
 ```yaml
@@ -195,7 +195,7 @@ These files will be processed by the NetworkManager Configurator (`nmc`), a CLI 
 
 You can define the configurations for multiple hosts by creating files named after the hostname that would be set. Thereby allowing multiple different nodes to be spawned from the same built image, with each node self-identifying during the first boot process based on MAC address matching of the network card(s).
 
-Examples for this type of configurations can be viewed under the [examples](../examples/elemental/build/network) directory.
+Examples for this type of configurations can be viewed under the `examples` directory — [single-node](../examples/elemental/customize/single-node/network) setup and [multi-node](../examples/elemental/customize/multi-node/network) setup.
 
 For more information on the `nmstate` library, refer to the [upstream documentation](https://nmstate.io).
 
