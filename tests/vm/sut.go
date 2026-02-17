@@ -46,7 +46,7 @@ const (
 type SUT struct {
 	Host          string
 	Username      string
-	Password      string
+	Password      string // #nosec G117
 	SSHKey        []byte
 	Timeout       int
 	artifactsRepo string
@@ -78,7 +78,7 @@ func NewSUT() *SUT {
 	}
 
 	// Not useful here to check for a reading error, skip it!
-	sshKey, _ = os.ReadFile(sshKeyFile)
+	sshKey, _ = os.ReadFile(sshKeyFile) //nolint:gosec
 
 	if pass = os.Getenv("SSH_PASS"); pass == "" {
 		pass = "linux"

@@ -35,7 +35,7 @@ func DownloadFile(ctx context.Context, fs vfs.FS, url, path string) error {
 	}
 
 	httpClient := &http.Client{Timeout: 90 * time.Second}
-	resp, err := httpClient.Do(req)
+	resp, err := httpClient.Do(req) // #nosec G704 -- url is assumed to be trusted.
 	if err != nil {
 		return fmt.Errorf("executing request: %w", err)
 	}
