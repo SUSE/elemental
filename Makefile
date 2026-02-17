@@ -91,3 +91,7 @@ endif
 clean:
 	@rm -rfv $(BUILD_DIR)
 	@find . -type f -executable -name '*.test' -exec rm -f {} \+
+
+.PHONY: lint
+lint:
+	@golangci-lint run -c $(ROOT_DIR)/.golangci.yml
