@@ -25,6 +25,7 @@ import (
 	"unicode"
 
 	"github.com/docker/go-units"
+
 	"github.com/suse/elemental/v3/pkg/crypto"
 )
 
@@ -58,6 +59,7 @@ func (d DiskSize) ToMiB() (uint, error) {
 }
 
 type Installation struct {
+	SchemaVersion string        `yaml:"schema"`
 	Bootloader    string        `yaml:"bootloader" validate:"omitempty,oneof=grub none"`
 	KernelCmdLine string        `yaml:"kernelCmdLine"`
 	RAW           RAW           `yaml:"raw"`

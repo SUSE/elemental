@@ -30,6 +30,7 @@ import (
 
 	cmdpkg "github.com/suse/elemental/v3/internal/cli/cmd"
 	"github.com/suse/elemental/v3/internal/config"
+	v0 "github.com/suse/elemental/v3/internal/config/v0"
 	"github.com/suse/elemental/v3/internal/customize"
 	"github.com/suse/elemental/v3/internal/image"
 	"github.com/suse/elemental/v3/pkg/extractor"
@@ -129,8 +130,8 @@ func setupCustomizeRunner(
 
 func setupConfigManager(s *sys.System, configDir string, output config.Output, local bool) *config.Manager {
 	valuesResolver := &helm.ValuesResolver{
-		ValuesDir: config.Dir(configDir).HelmValuesDir(),
 		FS:        s.FS(),
+		ValuesDir: v0.Dir(configDir).HelmValuesDir(),
 	}
 
 	return config.NewManager(
@@ -163,7 +164,7 @@ func digestCustomizeDefinition(f vfs.FS, args *cmdpkg.CustomizeFlags, imagePath 
 		return nil, fmt.Errorf("error parsing platform %s", args.Platform)
 	}
 
-	conf, err := config.Parse(f, config.Dir(args.ConfigDir))
+	conf, err := config.Parse(f, args.ConfigDir)
 	if err != nil {
 		return nil, fmt.Errorf("parsing configuration directory %s: %w", args.ConfigDir, err)
 	}

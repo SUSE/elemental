@@ -21,9 +21,12 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
+	v0 "github.com/suse/elemental/v3/internal/config/v0"
 	"github.com/suse/elemental/v3/internal/image"
 	"github.com/suse/elemental/v3/internal/image/kubernetes"
 	"github.com/suse/elemental/v3/internal/image/release"
@@ -35,6 +38,23 @@ import (
 	sysmock "github.com/suse/elemental/v3/pkg/sys/mock"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
+
+func TestConfigurationSuite(t *testing.T) {
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "Configuration test suite")
+}
+
+type helmConfiguratorMock struct {
+	configureFunc func(*image.Configuration, *resolver.ResolvedManifest) ([]string, error)
+}
+
+func (h *helmConfiguratorMock) Configure(conf *image.Configuration, manifest *resolver.ResolvedManifest) ([]string, error) {
+	if h.configureFunc != nil {
+		return h.configureFunc(conf, manifest)
+	}
+
+	panic("not implemented")
+}
 
 type resolverMock struct {
 	resolveFunc func(uri string) (*resolver.ResolvedManifest, error)
@@ -52,7 +72,7 @@ var _ = Describe("Manager", func() {
 	var output = Output{
 		RootPath: "/_out",
 	}
-	var configDir Dir = "/config"
+	var configDir v0.Dir = "/config"
 	var fs vfs.FS
 	var cleanup func()
 	var err error
@@ -145,7 +165,7 @@ passwd:
 
 	It("Successfully applies configurations to output directory", func() {
 		var butane map[string]any
-		Expect(parseAny([]byte(butaneConfigString), &butane)).To(Succeed())
+		Expect(v0.ParseAny([]byte(butaneConfigString), &butane)).To(Succeed())
 
 		conf := activeConfig
 		conf.ButaneConfig = butane
@@ -318,7 +338,7 @@ passwd:
 	It("Fails to configure ignition", func() {
 		var butane map[string]any
 		butaneConfigString := "breaking: breaking"
-		Expect(parseAny([]byte(butaneConfigString), &butane)).To(Succeed())
+		Expect(v0.ParseAny([]byte(butaneConfigString), &butane)).To(Succeed())
 
 		m := NewManager(
 			system,

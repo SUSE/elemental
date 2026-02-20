@@ -31,6 +31,7 @@ import (
 	"github.com/suse/elemental/v3/internal/build"
 	cmdpkg "github.com/suse/elemental/v3/internal/cli/cmd"
 	"github.com/suse/elemental/v3/internal/config"
+	v0 "github.com/suse/elemental/v3/internal/config/v0"
 	"github.com/suse/elemental/v3/internal/image"
 	"github.com/suse/elemental/v3/pkg/helm"
 	"github.com/suse/elemental/v3/pkg/http"
@@ -82,8 +83,8 @@ func Build(ctx context.Context, cmd *cli.Command) error {
 	}()
 
 	valuesResolver := &helm.ValuesResolver{
-		ValuesDir: config.Dir(args.ConfigDir).HelmValuesDir(),
 		FS:        system.FS(),
+		ValuesDir: v0.Dir(args.ConfigDir).HelmValuesDir(),
 	}
 
 	configManager := config.NewManager(
@@ -139,7 +140,7 @@ func parseImageDefinition(f vfs.FS, args *cmdpkg.BuildFlags) (*image.Definition,
 		return nil, fmt.Errorf("error parsing platform %s", args.Platform)
 	}
 
-	conf, err := config.Parse(f, config.Dir(args.ConfigDir))
+	conf, err := config.Parse(f, args.ConfigDir)
 	if err != nil {
 		return nil, fmt.Errorf("parsing configuration directory %s: %w", args.ConfigDir, err)
 	}

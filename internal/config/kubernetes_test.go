@@ -35,18 +35,6 @@ import (
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
 
-type helmConfiguratorMock struct {
-	configureFunc func(*image.Configuration, *resolver.ResolvedManifest) ([]string, error)
-}
-
-func (h *helmConfiguratorMock) Configure(conf *image.Configuration, manifest *resolver.ResolvedManifest) ([]string, error) {
-	if h.configureFunc != nil {
-		return h.configureFunc(conf, manifest)
-	}
-
-	panic("not implemented")
-}
-
 var _ = Describe("Kubernetes", func() {
 	Describe("Resources trigger", func() {
 		It("Skips manifests setup if manifests are not provided", func() {

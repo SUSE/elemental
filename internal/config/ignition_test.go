@@ -24,6 +24,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	v0 "github.com/suse/elemental/v3/internal/config/v0"
 	"github.com/suse/elemental/v3/internal/image"
 	"github.com/suse/elemental/v3/pkg/log"
 	"github.com/suse/elemental/v3/pkg/manifest/api"
@@ -89,7 +90,7 @@ passwd:
     password_hash: $y$j9T$aUmgEDoFIDPhGxEe2FUjc/$C5A...
 `
 
-		Expect(parseAny([]byte(butaneConfigString), &butaneConf)).To(Succeed())
+		Expect(v0.ParseAny([]byte(butaneConfigString), &butaneConf)).To(Succeed())
 
 		conf := &image.Configuration{
 			ButaneConfig: butaneConf,
@@ -165,7 +166,7 @@ passwd:
 		k8sScript := filepath.Join(output.OverlaysDir(), "path/to/k8s/script.sh")
 		k8sConfScript := filepath.Join(output.OverlaysDir(), "path/to/k8s/conf_script.sh")
 
-		Expect(parseAny([]byte(butaneConfigString), &butane)).To(Succeed())
+		Expect(v0.ParseAny([]byte(butaneConfigString), &butane)).To(Succeed())
 		conf := &image.Configuration{
 			ButaneConfig: butane,
 		}
@@ -191,7 +192,7 @@ passwd:
   - name: pipo
     password_hash: $y$j9T$aUmgEDoFIDPhGxEe2FUjc/$C5A...
 `
-		Expect(parseAny([]byte(butaneConfigString), &butane)).To(Succeed())
+		Expect(v0.ParseAny([]byte(butaneConfigString), &butane)).To(Succeed())
 		conf := &image.Configuration{
 			ButaneConfig: butane,
 		}

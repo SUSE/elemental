@@ -1,3 +1,4 @@
+schema: v0
 bootloader: grub
 kernelCmdLine: "console=ttyS0 loglevel=3"
 cryptoPolicy: fips

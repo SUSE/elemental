@@ -76,8 +76,10 @@ var _ = Describe("Custom", func() {
 		tfs, err := sysmock.ReadOnlyTestFS(fs)
 		Expect(err).NotTo(HaveOccurred())
 
-		m.system, err = sys.NewSystem(sys.WithFS(tfs), sys.WithLogger(log.New(log.WithDiscardAll())))
+		sys, err := sys.NewSystem(sys.WithFS(tfs), sys.WithLogger(log.New(log.WithDiscardAll())))
 		Expect(err).NotTo(HaveOccurred())
+
+		manager := NewManager(sys, nil)
 
 		conf := &image.Configuration{
 			Custom: image.Custom{
@@ -85,7 +87,7 @@ var _ = Describe("Custom", func() {
 			},
 		}
 
-		err = m.configureCustomScripts(conf, output)
+		err = manager.configureCustomScripts(conf, output)
 		Expect(err).To(HaveOccurred())
 		Expect(err).To(MatchError(ContainSubstring("creating catalyst directory in overlays:")))
 

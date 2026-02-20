@@ -199,7 +199,6 @@ func enabledHelmCharts(rm *resolver.ResolvedManifest, enabled []release.HelmChar
 			if !ok {
 				return fmt.Errorf("helm chart does not exist")
 			}
-
 			source = "core"
 		}
 
