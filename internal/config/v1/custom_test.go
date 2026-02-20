@@ -15,7 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package config
+package v1_test
 
 import (
 	"os"
@@ -24,6 +24,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"github.com/suse/elemental/v3/internal/config"
 	"github.com/suse/elemental/v3/internal/image"
 	"github.com/suse/elemental/v3/pkg/log"
 	"github.com/suse/elemental/v3/pkg/sys"
@@ -32,11 +33,11 @@ import (
 )
 
 var _ = Describe("Custom", func() {
-	var output = Output{
+	var output = image.Output{
 		RootPath: "/_out",
 	}
 
-	var m *Manager
+	var m *config.Manager
 	var system *sys.System
 	var fs vfs.FS
 	var cleanup func()
@@ -58,7 +59,7 @@ var _ = Describe("Custom", func() {
 		)
 		Expect(err).ToNot(HaveOccurred())
 
-		m = NewManager(system, nil)
+		m = config.NewManager(system, nil)
 	})
 
 	AfterEach(func() {
@@ -66,7 +67,7 @@ var _ = Describe("Custom", func() {
 	})
 
 	It("Skips configuration", func() {
-		err := m.configureCustomScripts(&image.Configuration{}, Output{})
+		err := m.ConfigureCustomScripts(&image.Configuration{}, image.Output{})
 		Expect(err).NotTo(HaveOccurred())
 
 		Expect(vfs.Exists(fs, catalystScriptPath)).To(BeFalse())
@@ -76,8 +77,10 @@ var _ = Describe("Custom", func() {
 		tfs, err := sysmock.ReadOnlyTestFS(fs)
 		Expect(err).NotTo(HaveOccurred())
 
-		m.system, err = sys.NewSystem(sys.WithFS(tfs), sys.WithLogger(log.New(log.WithDiscardAll())))
+		sys, err := sys.NewSystem(sys.WithFS(tfs), sys.WithLogger(log.New(log.WithDiscardAll())))
 		Expect(err).NotTo(HaveOccurred())
+
+		manager := config.NewManager(sys, nil)
 
 		conf := &image.Configuration{
 			Custom: image.Custom{
@@ -85,7 +88,7 @@ var _ = Describe("Custom", func() {
 			},
 		}
 
-		err = m.configureCustomScripts(conf, output)
+		err = manager.ConfigureCustomScripts(conf, output)
 		Expect(err).To(HaveOccurred())
 		Expect(err).To(MatchError(ContainSubstring("creating catalyst directory in overlays:")))
 
@@ -99,7 +102,7 @@ var _ = Describe("Custom", func() {
 			},
 		}
 
-		err := m.configureCustomScripts(conf, output)
+		err := m.ConfigureCustomScripts(conf, output)
 		Expect(err).To(HaveOccurred())
 		Expect(err).To(MatchError(ContainSubstring("/etc/non-existing: no such file or directory")))
 
@@ -116,7 +119,7 @@ var _ = Describe("Custom", func() {
 			},
 		}
 
-		err = m.configureCustomScripts(conf, output)
+		err = m.ConfigureCustomScripts(conf, output)
 		Expect(err).To(HaveOccurred())
 		Expect(err).To(MatchError("directories under /etc/custom/scripts are not supported"))
 
@@ -131,7 +134,7 @@ var _ = Describe("Custom", func() {
 			},
 		}
 
-		err := m.configureCustomScripts(conf, output)
+		err := m.ConfigureCustomScripts(conf, output)
 		Expect(err).To(HaveOccurred())
 		Expect(err).To(MatchError(ContainSubstring("/etc/non-existing: no such file or directory")))
 
@@ -146,7 +149,7 @@ var _ = Describe("Custom", func() {
 			},
 		}
 
-		Expect(m.configureCustomScripts(conf, output)).To(Succeed())
+		Expect(m.ConfigureCustomScripts(conf, output)).To(Succeed())
 
 		contents, err := fs.ReadFile(catalystScriptPath)
 		Expect(err).NotTo(HaveOccurred())

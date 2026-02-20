@@ -30,6 +30,7 @@ import (
 
 	cmdpkg "github.com/suse/elemental/v3/internal/cli/cmd"
 	"github.com/suse/elemental/v3/internal/config"
+	v1 "github.com/suse/elemental/v3/internal/config/v1"
 	"github.com/suse/elemental/v3/internal/customize"
 	"github.com/suse/elemental/v3/internal/image"
 	"github.com/suse/elemental/v3/pkg/extractor"
@@ -53,7 +54,7 @@ func Customize(ctx context.Context, cmd *cli.Command) error {
 
 	imagePath, configPath := resolveOutputPaths(args)
 
-	output, err := config.NewOutput(fs, "", configPath)
+	output, err := image.NewOutput(fs, "", configPath)
 	if err != nil {
 		logger.Error("Creating working directory failed")
 		return err
@@ -113,7 +114,7 @@ func setupCustomizeRunner(
 	ctx context.Context,
 	s *sys.System,
 	args *cmdpkg.CustomizeFlags,
-	output config.Output,
+	output image.Output,
 ) (*customize.Runner, error) {
 	extr, err := setupFileExtractor(ctx, s, output, args.Local)
 	if err != nil {
@@ -127,10 +128,10 @@ func setupCustomizeRunner(
 	}, nil
 }
 
-func setupConfigManager(s *sys.System, configDir string, output config.Output, local bool) *config.Manager {
+func setupConfigManager(s *sys.System, configDir string, output image.Output, local bool) *config.Manager {
 	valuesResolver := &helm.ValuesResolver{
-		ValuesDir: config.Dir(configDir).HelmValuesDir(),
 		FS:        s.FS(),
+		ValuesDir: v1.Dir(configDir).HelmValuesDir(),
 	}
 
 	return config.NewManager(
@@ -141,7 +142,7 @@ func setupConfigManager(s *sys.System, configDir string, output config.Output, l
 	)
 }
 
-func setupFileExtractor(ctx context.Context, s *sys.System, outDir config.Output, local bool) (extr *extractor.OCIFileExtractor, err error) {
+func setupFileExtractor(ctx context.Context, s *sys.System, outDir image.Output, local bool) (extr *extractor.OCIFileExtractor, err error) {
 	const isoSearchGlob = "/iso/uc-base-kernel-default-iso*.iso"
 
 	if err := vfs.MkdirAll(s.FS(), outDir.ISOStoreDir(), vfs.DirPerm); err != nil {
@@ -163,7 +164,7 @@ func digestCustomizeDefinition(f vfs.FS, args *cmdpkg.CustomizeFlags, imagePath 
 		return nil, fmt.Errorf("error parsing platform %s", args.Platform)
 	}
 
-	conf, err := config.Parse(f, config.Dir(args.ConfigDir))
+	conf, err := config.Parse(f, args.ConfigDir)
 	if err != nil {
 		return nil, fmt.Errorf("parsing configuration directory %s: %w", args.ConfigDir, err)
 	}

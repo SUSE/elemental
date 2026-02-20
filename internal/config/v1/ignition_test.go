@@ -15,7 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package config
+package v1_test
 
 import (
 	"bytes"
@@ -24,6 +24,8 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"github.com/suse/elemental/v3/internal/config"
+	v1 "github.com/suse/elemental/v3/internal/config/v1"
 	"github.com/suse/elemental/v3/internal/image"
 	"github.com/suse/elemental/v3/pkg/log"
 	"github.com/suse/elemental/v3/pkg/manifest/api"
@@ -33,7 +35,7 @@ import (
 )
 
 var _ = Describe("Ignition configuration", func() {
-	var output = Output{
+	var output = image.Output{
 		RootPath: "/_out",
 	}
 
@@ -41,7 +43,7 @@ var _ = Describe("Ignition configuration", func() {
 	var fs vfs.FS
 	var cleanup func()
 	var err error
-	var m *Manager
+	var m *config.Manager
 	var buffer *bytes.Buffer
 
 	BeforeEach(func() {
@@ -59,7 +61,7 @@ var _ = Describe("Ignition configuration", func() {
 		)
 		Expect(err).ToNot(HaveOccurred())
 
-		m = NewManager(system, nil)
+		m = config.NewManager(system, nil)
 	})
 
 	AfterEach(func() {
@@ -71,7 +73,7 @@ var _ = Describe("Ignition configuration", func() {
 
 		ignitionFile := filepath.Join(output.FirstbootConfigDir(), image.IgnitionFilePath())
 
-		Expect(m.configureIgnition(conf, output, "", "", nil)).To(Succeed())
+		Expect(m.ConfigureIgnition(conf, output, "", "", nil)).To(Succeed())
 		ok, err := vfs.Exists(system.FS(), ignitionFile)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(ok).To(BeFalse())
@@ -89,7 +91,7 @@ passwd:
     password_hash: $y$j9T$aUmgEDoFIDPhGxEe2FUjc/$C5A...
 `
 
-		Expect(parseAny([]byte(butaneConfigString), &butaneConf)).To(Succeed())
+		Expect(v1.ParseAny([]byte(butaneConfigString), &butaneConf)).To(Succeed())
 
 		conf := &image.Configuration{
 			ButaneConfig: butaneConf,
@@ -99,7 +101,7 @@ passwd:
 
 		ignitionFile := filepath.Join(output.FirstbootConfigDir(), image.IgnitionFilePath())
 
-		Expect(m.configureIgnition(conf, output, "", "", nil)).To(Succeed())
+		Expect(m.ConfigureIgnition(conf, output, "", "", nil)).To(Succeed())
 		ok, err := vfs.Exists(system.FS(), ignitionFile)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(ok).To(BeTrue())
@@ -115,7 +117,7 @@ passwd:
 		k8sScript := filepath.Join(output.OverlaysDir(), "path/to/k8s/script.sh")
 		k8sConfScript := filepath.Join(output.OverlaysDir(), "path/to/k8s/conf_script.sh")
 
-		Expect(m.configureIgnition(conf, output, k8sScript, k8sConfScript, nil)).To(Succeed())
+		Expect(m.ConfigureIgnition(conf, output, k8sScript, k8sConfScript, nil)).To(Succeed())
 		ok, err := vfs.Exists(system.FS(), ignitionFile)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(ok).To(BeTrue())
@@ -132,7 +134,7 @@ passwd:
 		ext := []api.SystemdExtension{{Name: "ext1", Image: "ext1-image"}}
 		ignitionFile := filepath.Join(output.FirstbootConfigDir(), image.IgnitionFilePath())
 
-		Expect(m.configureIgnition(conf, output, "", "", ext)).To(Succeed())
+		Expect(m.ConfigureIgnition(conf, output, "", "", ext)).To(Succeed())
 
 		ok, err := vfs.Exists(system.FS(), ignitionFile)
 		Expect(err).NotTo(HaveOccurred())
@@ -165,14 +167,14 @@ passwd:
 		k8sScript := filepath.Join(output.OverlaysDir(), "path/to/k8s/script.sh")
 		k8sConfScript := filepath.Join(output.OverlaysDir(), "path/to/k8s/conf_script.sh")
 
-		Expect(parseAny([]byte(butaneConfigString), &butane)).To(Succeed())
+		Expect(v1.ParseAny([]byte(butaneConfigString), &butane)).To(Succeed())
 		conf := &image.Configuration{
 			ButaneConfig: butane,
 		}
 
 		ignitionFile := filepath.Join(output.FirstbootConfigDir(), image.IgnitionFilePath())
 
-		Expect(m.configureIgnition(conf, output, k8sScript, k8sConfScript, nil)).To(MatchError(
+		Expect(m.ConfigureIgnition(conf, output, k8sScript, k8sConfScript, nil)).To(MatchError(
 			ContainSubstring("No translator exists for variant unknown with version"),
 		))
 		ok, err := vfs.Exists(system.FS(), ignitionFile)
@@ -191,13 +193,13 @@ passwd:
   - name: pipo
     password_hash: $y$j9T$aUmgEDoFIDPhGxEe2FUjc/$C5A...
 `
-		Expect(parseAny([]byte(butaneConfigString), &butane)).To(Succeed())
+		Expect(v1.ParseAny([]byte(butaneConfigString), &butane)).To(Succeed())
 		conf := &image.Configuration{
 			ButaneConfig: butane,
 		}
 
 		ignitionFile := filepath.Join(output.FirstbootConfigDir(), image.IgnitionFilePath())
-		Expect(m.configureIgnition(conf, output, "", "", nil)).To(Succeed())
+		Expect(m.ConfigureIgnition(conf, output, "", "", nil)).To(Succeed())
 		ok, err := vfs.Exists(system.FS(), ignitionFile)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(ok).To(BeTrue())

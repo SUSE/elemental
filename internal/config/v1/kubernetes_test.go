@@ -15,7 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package config
+package v1_test
 
 import (
 	"context"
@@ -25,6 +25,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"github.com/suse/elemental/v3/internal/config"
 	"github.com/suse/elemental/v3/internal/image"
 	"github.com/suse/elemental/v3/internal/image/kubernetes"
 	"github.com/suse/elemental/v3/internal/image/release"
@@ -51,7 +52,7 @@ var _ = Describe("Kubernetes", func() {
 	Describe("Resources trigger", func() {
 		It("Skips manifests setup if manifests are not provided", func() {
 			conf := &image.Configuration{}
-			Expect(needsManifestsSetup(conf)).To(BeFalse())
+			Expect(config.NeedsManifestsSetup(conf)).To(BeFalse())
 		})
 
 		It("Requires manifests setup if local manifests are provided", func() {
@@ -60,7 +61,7 @@ var _ = Describe("Kubernetes", func() {
 					LocalManifests: []string{"/apache.yaml"},
 				},
 			}
-			Expect(needsManifestsSetup(conf)).To(BeTrue())
+			Expect(config.NeedsManifestsSetup(conf)).To(BeTrue())
 		})
 
 		It("Requires manifests setup if remote manifests are provided", func() {
@@ -69,12 +70,12 @@ var _ = Describe("Kubernetes", func() {
 					RemoteManifests: []string{"https://raw.githubusercontent.com/rancher/local-path-provisioner/v0.0.31/deploy/local-path-storage.yaml"},
 				},
 			}
-			Expect(needsManifestsSetup(conf)).To(BeTrue())
+			Expect(config.NeedsManifestsSetup(conf)).To(BeTrue())
 		})
 
 		It("Skips Helm setup if charts are not provided", func() {
 			conf := &image.Configuration{}
-			Expect(needsHelmChartsSetup(conf)).To(BeFalse())
+			Expect(config.NeedsHelmChartsSetup(conf)).To(BeFalse())
 		})
 
 		It("Requires Helm setup if user charts are provided", func() {
@@ -87,7 +88,7 @@ var _ = Describe("Kubernetes", func() {
 					},
 				},
 			}
-			Expect(needsHelmChartsSetup(conf)).To(BeTrue())
+			Expect(config.NeedsHelmChartsSetup(conf)).To(BeTrue())
 		})
 
 		It("Requires Helm setup if core charts are provided", func() {
@@ -103,7 +104,7 @@ var _ = Describe("Kubernetes", func() {
 				},
 			}
 
-			Expect(needsHelmChartsSetup(conf)).To(BeTrue())
+			Expect(config.NeedsHelmChartsSetup(conf)).To(BeTrue())
 		})
 
 		It("Requires Helm setup if product charts are provided", func() {
@@ -119,12 +120,12 @@ var _ = Describe("Kubernetes", func() {
 				},
 			}
 
-			Expect(needsHelmChartsSetup(conf)).To(BeTrue())
+			Expect(config.NeedsHelmChartsSetup(conf)).To(BeTrue())
 		})
 	})
 
 	Describe("Configuration", func() {
-		var output = Output{
+		var output = image.Output{
 			RootPath: "/_out",
 		}
 
@@ -161,10 +162,10 @@ var _ = Describe("Kubernetes", func() {
 				return nil
 			}
 
-			m := NewManager(
+			m := config.NewManager(
 				system,
 				helmMock,
-				WithDownloadFunc(dlFunc),
+				config.WithDownloadFunc(dlFunc),
 			)
 
 			manifest := &resolver.ResolvedManifest{}
@@ -180,7 +181,7 @@ var _ = Describe("Kubernetes", func() {
 				},
 			}
 
-			script, confScript, err := m.configureKubernetes(context.Background(), conf, manifest, output)
+			script, confScript, err := m.ConfigureKubernetes(context.Background(), conf, manifest, output)
 			Expect(err).To(HaveOccurred())
 			Expect(err).To(MatchError("configuring helm charts: helm error"))
 			Expect(script).To(BeEmpty())
@@ -198,10 +199,10 @@ var _ = Describe("Kubernetes", func() {
 				return nil
 			}
 
-			m := NewManager(
+			m := config.NewManager(
 				system,
 				helmMock,
-				WithDownloadFunc(dlFunc),
+				config.WithDownloadFunc(dlFunc),
 			)
 
 			manifest := &resolver.ResolvedManifest{}
@@ -223,7 +224,7 @@ var _ = Describe("Kubernetes", func() {
 				},
 			}
 
-			script, confScript, err := m.configureKubernetes(context.Background(), conf, manifest, output)
+			script, confScript, err := m.ConfigureKubernetes(context.Background(), conf, manifest, output)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(script).To(Equal("/var/lib/elemental/kubernetes/k8s_res_deploy.sh"))
 
@@ -243,10 +244,10 @@ var _ = Describe("Kubernetes", func() {
 				return nil
 			}
 
-			m := NewManager(
+			m := config.NewManager(
 				system,
 				nil,
-				WithDownloadFunc(dlFunc),
+				config.WithDownloadFunc(dlFunc),
 			)
 
 			manifest := &resolver.ResolvedManifest{}
@@ -262,7 +263,7 @@ var _ = Describe("Kubernetes", func() {
 				},
 			}
 
-			script, confScript, err := m.configureKubernetes(context.Background(), conf, manifest, output)
+			script, confScript, err := m.ConfigureKubernetes(context.Background(), conf, manifest, output)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(script).To(BeEmpty())
 			Expect(confScript).ToNot(BeEmpty())

@@ -543,7 +543,7 @@ spec:
 		}
 
 		It("Successfully filters enabled Helm charts with dependency", func() {
-			charts, repositories, err := enabledHelmCharts(rm, []release.HelmChart{{Name: "neuvector"}}, logger)
+			charts, repositories, err := enabledHelmCharts(rm, []release.HelmChart{{Name: "neuvector"}})
 			Expect(err).NotTo(HaveOccurred())
 			Expect(charts).To(HaveLen(2))
 			Expect(repositories).To(HaveLen(2))
@@ -571,7 +571,7 @@ spec:
 		})
 
 		It("Successfully filters enabled Helm chart", func() {
-			charts, repositories, err := enabledHelmCharts(rm, []release.HelmChart{{Name: "neuvector-crd"}}, logger)
+			charts, repositories, err := enabledHelmCharts(rm, []release.HelmChart{{Name: "neuvector-crd"}})
 			Expect(err).NotTo(HaveOccurred())
 			Expect(charts).To(HaveLen(1))
 			Expect(repositories).To(HaveLen(2))
@@ -589,7 +589,7 @@ spec:
 		})
 
 		It("Fails to find non-existing enabled Helm chart", func() {
-			charts, repositories, err := enabledHelmCharts(rm, []release.HelmChart{{Name: "rancher"}}, logger)
+			charts, repositories, err := enabledHelmCharts(rm, []release.HelmChart{{Name: "rancher"}})
 			Expect(err).To(HaveOccurred())
 			Expect(err).To(MatchError("adding helm chart 'rancher': helm chart does not exist"))
 			Expect(charts).To(BeNil())
@@ -597,7 +597,7 @@ spec:
 		})
 
 		It("Fails to find non-existing dependency Helm chart", func() {
-			charts, repositories, err := enabledHelmCharts(rm, []release.HelmChart{{Name: "longhorn"}}, logger)
+			charts, repositories, err := enabledHelmCharts(rm, []release.HelmChart{{Name: "longhorn"}})
 			Expect(err).To(HaveOccurred())
 			Expect(err).To(MatchError("adding helm chart 'longhorn': adding dependent helm chart 'longhorn-crd': helm chart does not exist"))
 			Expect(charts).To(BeNil())

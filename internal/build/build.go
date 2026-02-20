@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/suse/elemental/v3/internal/config"
 	"github.com/suse/elemental/v3/internal/image"
 	imginstall "github.com/suse/elemental/v3/internal/image/install"
 	"github.com/suse/elemental/v3/pkg/bootloader"
@@ -39,7 +38,7 @@ import (
 )
 
 type configManager interface {
-	ConfigureComponents(ctx context.Context, conf *image.Configuration, output config.Output) (*resolver.ResolvedManifest, error)
+	ConfigureComponents(ctx context.Context, conf *image.Configuration, output image.Output) (*resolver.ResolvedManifest, error)
 }
 
 type Builder struct {
@@ -48,7 +47,7 @@ type Builder struct {
 	Local         bool
 }
 
-func (b *Builder) Run(ctx context.Context, d *image.Definition, output config.Output) error {
+func (b *Builder) Run(ctx context.Context, d *image.Definition, output image.Output) error {
 	logger := b.System.Logger()
 	runner := b.System.Runner()
 
@@ -128,7 +127,7 @@ func newDeployment(
 	system *sys.System,
 	installationDevice, osImage string,
 	installation *imginstall.Installation,
-	output config.Output,
+	output image.Output,
 	customPartitions ...*deployment.Partition,
 ) (*deployment.Deployment, error) {
 	deploymentOpts := []deployment.Opt{
