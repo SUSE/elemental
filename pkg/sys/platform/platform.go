@@ -104,6 +104,8 @@ func archToGolangArch(arch string) (string, error) {
 		return ArchArm64, nil
 	case ArchAarch64:
 		return ArchArm64, nil
+	case ArchRiscv64:
+		return ArchRiscv64, nil
 	default:
 		return "", errInvalidArch
 	}
@@ -119,6 +121,8 @@ func golangArchToArch(arch string) (string, error) {
 		return ArchArm64, nil
 	case ArchAarch64:
 		return ArchArm64, nil
+	case ArchRiscv64:
+		return ArchRiscv64, nil
 	default:
 		return "", errInvalidArch
 	}
