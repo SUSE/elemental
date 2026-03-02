@@ -36,7 +36,7 @@ Elemental is in active development, and these limitations **will** be addressed 
 
 ### Overview
 
-> **NOTE**: The user is able to customize Linux-only images by **excluding** Kubernetes resources and deployments from the configuration directory (regardless of whether this is under `kubernetes/manifests`, `kubernetes.yaml` or `release.yaml`). This is currently an implicit process, but it is possible that an explicit option for it (e.g. a flag) is added at a later stage.
+> **NOTE**: The user is able to customize Linux-only images by **excluding** Kubernetes resources and deployments from the configuration directory (regardless of whether this is under `kubernetes/manifests`, `kubernetes/cluster.yaml` or `release.yaml`). This is currently an implicit process, but it is possible that an explicit option for it (e.g. a flag) is added at a later stage.
 
 This section provides a high-level overview of the steps that Elemental's tooling goes through in order to produce a customized and extended image.
 
@@ -312,7 +312,7 @@ The contents of this directory include:
 
 * [install.yaml](../examples/elemental/customize/single-node/install.yaml) - specifies which `bootloader` and `kernel command line` arguments to apply during the OS installation process, along with the image's `disk size` and desired FIPS policy setting.
 * [butane.yaml](../examples/elemental/customize/single-node/butane.yaml) - specifies a [butane](https://coreos.github.io/butane/) configuration that defines the user that will be used to log into the booted system.
-* [kubernetes.yaml](../examples/elemental/customize/single-node/kubernetes.yaml) - specifies the user-desired `NeuVector` Helm chart as well as a remote manifest for the [local-path-provisioner](https://github.com/rancher/local-path-provisioner).
+* [kubernetes/cluster.yaml](../examples/elemental/customize/single-node/kubernetes/cluster.yaml) - specifies the user-desired `NeuVector` Helm chart as well as a remote manifest for the [local-path-provisioner](https://github.com/rancher/local-path-provisioner).
 * [release.yaml](../examples/elemental/customize/single-node/release.yaml) - specifies the reference to the desired product. From this product release, enable the desired Kubernetes distribution, as well as `Rancher` and `MetalLB`.
 * [suse-product-manifest.yaml](../examples/elemental/customize/single-node/suse-product-manifest.yaml) - example for a `Product` release manifest that the user has referred in the `release.yaml` configuration file.
 * [kubernetes/helm/values/rancher.yaml](../examples/elemental/customize/single-node/kubernetes/helm/values/rancher.yaml) - custom values for the `Rancher` Helm chart that the user has enabled from the `Product` release manifest.
@@ -345,7 +345,6 @@ After execution, for a RAW disk type, your `examples/elemental/customize/single-
 ├── image-2025-12-11T12-19-06.raw.sha256 <- created by the customization process
 ├── install.yaml
 ├── kubernetes/
-├── kubernetes.yaml
 ├── network/
 ├── release.yaml
 └── suse-product-manifest.yaml
@@ -523,7 +522,7 @@ The contents of the directory are the same as the contents for a [single-node Ku
 
 - [network/](../examples/elemental/customize/multi-node/network/) - add network configuration for each desired node. This example configures the static IPs `192.168.122.250`, `192.168.122.251`, `192.168.122.252` and `192.168.122.253` for machines with the respective `FE:C4:05:42:8B:01`, `FE:C4:05:42:8B:02`, `FE:C4:05:42:8B:03` and `FE:C4:05:42:8B:04` MAC addresses.
 - [kubernetes/config/agent.yaml](../examples/elemental/customize/multi-node/kubernetes/config/agent.yaml) - add configuration for the agent node.
-- [kubernetes.yaml](../examples/elemental/customize/multi-node/kubernetes.yaml) - add multi-node cluster configuration that specifies the node's roles as well as the cluster's network setup.
+- [kubernetes/cluster.yaml](../examples/elemental/customize/multi-node/kubernetes/cluster.yaml) - add multi-node cluster configuration that specifies the node's roles as well as the cluster's network setup.
 
 #### Producing the customized image
 
@@ -549,7 +548,6 @@ After execution, for a RAW disk type, your `examples/elemental/customize/multi-n
 ├── image-2025-12-11T12-19-06.raw.sha256 <- created by the customization process
 ├── install.yaml
 ├── kubernetes/
-├── kubernetes.yaml
 ├── network/
 ├── release.yaml
 └── suse-product-manifest.yaml
@@ -579,7 +577,7 @@ Where:
 
 - `<machine-name>` is the name of the machine as seen by `virsh list`.
 - `<copy-of-customized-raw>` is a copy of the produced `customized.raw` disk that will be specific for this machine.
-- `<node-MAC>` is the MAC address for the desired node, as defined in both [kubernetes.yaml](../examples/elemental/customize/multi-node/kubernetes.yaml) and [network/](../examples/elemental/customize/multi-node/network/).
+- `<node-MAC>` is the MAC address for the desired node, as defined in both [kubernetes/cluster.yaml](../examples/elemental/customize/multi-node/kubernetes/cluster.yaml) and [network/](../examples/elemental/customize/multi-node/network/).
 
 #### Environment overview
 
@@ -596,7 +594,7 @@ Much of the environment validation is the same as for the [single-node Kubernete
    endpoint-copier-operator-695f9b84f6-z5sk7   1/1     Running   0             19m
    ```
 
-1. Validate `kubernetes-vip` service is created and running the IP specified in the [kubernetes.yaml](../examples/elemental/customize/multi-node/kubernetes.yaml) file:
+1. Validate `kubernetes-vip` service is created and running the IP specified in the [kubernetes/cluster.yaml](../examples/elemental/customize/multi-node/kubernetes/cluster.yaml) file:
 
    ```shell
    kubectl get svc kubernetes-vip
