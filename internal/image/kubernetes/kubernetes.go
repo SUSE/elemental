@@ -29,9 +29,9 @@ const (
 )
 
 type Kubernetes struct {
-	// RemoteManifests - manifest URLs specified under config/kubernetes.yaml
+	// RemoteManifests - manifest URLs specified under config/kubernetes/cluster.yaml
 	RemoteManifests []string `yaml:"manifests,omitempty" validate:"dive,required,url"`
-	// Helm - charts specified under config/kubernetes.yaml
+	// Helm - charts specified under config/kubernetes/cluster.yaml
 	Helm *Helm `yaml:"helm,omitempty" validate:"omitempty"`
 	// LocalManifests - local manifest files specified under config/kubernetes/manifests
 	LocalManifests []string

@@ -46,8 +46,8 @@ func (dir Dir) ReleaseFilepath() string {
 	return filepath.Join(string(dir), "release.yaml")
 }
 
-func (dir Dir) KubernetesFilepath() string {
-	return filepath.Join(string(dir), "kubernetes.yaml")
+func (dir Dir) ClusterFilepath() string {
+	return filepath.Join(dir.kubernetesDir(), "cluster.yaml")
 }
 
 func (dir Dir) ButaneFilepath() string {
@@ -167,7 +167,7 @@ func Parse(f vfs.FS, configDir Dir) (conf *image.Configuration, err error) {
 		return nil, fmt.Errorf("updating manifest URI: %w", err)
 	}
 
-	if err = parseKubernetes(f, configDir, &conf.Kubernetes, &conf.Release); err != nil {
+	if err = parseKubernetesDir(f, configDir, &conf.Kubernetes, &conf.Release); err != nil {
 		return nil, fmt.Errorf("parsing kubernetes configuration: %w", err)
 	}
 
@@ -216,10 +216,10 @@ func parseKubernetes(f vfs.FS, configDir Dir, k *kubernetes.Kubernetes, r *relea
 		EndpointCopierOperator = "endpoint-copier-operator"
 	)
 
-	data, err := f.ReadFile(configDir.KubernetesFilepath())
+	data, err := f.ReadFile(configDir.ClusterFilepath())
 	if err == nil {
 		if err = parseAny(data, k); err != nil {
-			return fmt.Errorf("parsing config file %q: %w", configDir.KubernetesFilepath(), err)
+			return fmt.Errorf("parsing config file %q: %w", configDir.ClusterFilepath(), err)
 		}
 	} else if !errors.Is(err, fs.ErrNotExist) {
 		return fmt.Errorf("reading config file: %w", err)
@@ -241,10 +241,10 @@ func parseKubernetes(f vfs.FS, configDir Dir, k *kubernetes.Kubernetes, r *relea
 		}
 	}
 
-	return parseKubernetesDir(f, configDir, k)
+	return nil
 }
 
-func parseKubernetesDir(f vfs.FS, configDir Dir, k *kubernetes.Kubernetes) error {
+func parseKubernetesDir(f vfs.FS, configDir Dir, k *kubernetes.Kubernetes, r *release.Release) error {
 	entries, err := f.ReadDir(configDir.KubernetesManifestsDir())
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return fmt.Errorf("reading %s: %w", configDir.KubernetesManifestsDir(), err)
@@ -267,7 +267,7 @@ func parseKubernetesDir(f vfs.FS, configDir Dir, k *kubernetes.Kubernetes) error
 		k.Config.AgentFilePath = agentYamlPath
 	}
 
-	return nil
+	return parseKubernetes(f, configDir, k, r)
 }
 
 func parseNetworkDir(f vfs.FS, configDir Dir, n *image.Network) error {
