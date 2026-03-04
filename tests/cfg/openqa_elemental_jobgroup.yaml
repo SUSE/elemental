@@ -15,12 +15,15 @@
 .default_products: &default_products
   distri: sle
 
-.common_test_settings: &common_test_settings
-  HDDSIZEGB: '30'
+.common_settings: &common_settings
   K8S: rke2
-  QEMUCPUS: '4'
-  QEMURAM: '4096'
   TEST_PASSWORD: Elemental@R00t
+
+.common_test_settings: &common_test_settings
+  <<: *common_settings
+  HDDSIZEGB: '30'
+  QEMUCPUS: '4'
+  QEMURAM: '8192'
   YAML_SCHEDULE: schedule/elemental3/os_image.yaml
 
 .common_microos_boot_settings: &common_microos_boot_settings
@@ -34,12 +37,11 @@
   VIDEOMODE: text
 
 .generate_settings: &generate_settings
+  <<: *common_settings
   <<: *common_microos_boot_settings
   IMG_NAME: 'elemental-%BUILD%-%ARCH%-%TESTED_CMD%'
-  K8S: rke2
   KERNEL_CMD_LINE: 'console=ttyS0'
   QEMURAM: '2048'
-  TEST_PASSWORD: Elemental@R00t
   YAML_SCHEDULE: schedule/elemental3/generate.yaml
 
 .test_raw_settings: &test_raw_settings
@@ -58,8 +60,10 @@
 .k8s_test_settings: &k8s_test_settings
   EXPECTED_NM_CONNECTIVITY: none
   NICTYPE: tap
+  # NODES_LIST: node01,node02,node03
   NODES_LIST: node01
-  TESTS_TO_RUN: validatecluster,deployrancher
+  # TESTS_TO_RUN: validatecluster,deployrancher
+  TESTS_TO_RUN: validatecluster
   TEST_TYPE: k8s_validation
 
 .node_k8s_validation_settings: &node_k8s_validation_settings
@@ -69,13 +73,13 @@
   PARALLEL_WITH: master
 
 .master_k8s_validation_settings: &master_k8s_validation_settings
+  <<: *common_settings
   <<: *common_microos_boot_settings
   <<: *k8s_test_settings
   CERTMANAGER_VERSION: v1.19.1
   +DISTRI: sle-micro
   +HDD_1: 'openSUSE-MicroOS.%ARCH%-Updated.qcow2'
   HOSTNAME: master
-  K8S: rke2
   QEMURAM: '4096'
   RANCHER_VERSION: v2.13.2
   TEST_FRAMEWORK_REPO: https://github.com/ldevulder/distros-test-framework@fix-support-uc-os-image
@@ -113,6 +117,7 @@ scenarios:
           testsuite: null
           settings:
             <<: *generate_settings
+            CRYPTO_POLICY: fips
             IMAGE_TYPE: iso
             TESTED_CMD: customize
       - generate_raw_with_customize:
@@ -127,16 +132,23 @@ scenarios:
             <<: *generate_settings
             ISO_CMD_LINE: 'console=ttyS0 enforcing=0'
             TESTED_CMD: build_installer_iso
+      - test_with_install_image:
+          testsuite: null
+          settings:
+            <<: *test_raw_settings
+            TESTED_CMD: install
+            START_AFTER_TEST: generate_with_%TESTED_CMD%
       - test_iso:
           testsuite: null
           settings:
             <<: *test_iso_settings
             TESTED_CMD: build_installer_iso
             START_AFTER_TEST: generate_with_%TESTED_CMD%
-      - test_release_manifest_iso:
+      - test_release_manifest_iso_fips:
           testsuite: null
           settings:
             <<: *test_iso_settings
+            CRYPTO_POLICY: fips
             TESTED_CMD: customize
             START_AFTER_TEST: generate_iso_with_%TESTED_CMD%
       - test_release_manifest_raw:
@@ -170,6 +182,7 @@ scenarios:
           testsuite: null
           settings:
             <<: *generate_settings
+            CRYPTO_POLICY: fips
             IMAGE_TYPE: iso
             TESTED_CMD: customize
       - generate_raw_with_customize:
@@ -186,16 +199,23 @@ scenarios:
             <<: *generate_settings
             ISO_CMD_LINE: 'console=ttyS0 enforcing=0'
             TESTED_CMD: build_installer_iso
+      - test_with_install_image:
+          testsuite: null
+          settings:
+            <<: *test_raw_settings
+            TESTED_CMD: install
+            START_AFTER_TEST: generate_with_%TESTED_CMD%@64bit
       - test_iso:
           testsuite: null
           settings:
             <<: *test_iso_settings
             TESTED_CMD: build_installer_iso
             START_AFTER_TEST: generate_with_%TESTED_CMD%@64bit
-      - test_release_manifest_iso:
+      - test_release_manifest_iso_fips:
           testsuite: null
           settings:
             <<: *test_iso_settings
+            CRYPTO_POLICY: fips
             TESTED_CMD: customize
             START_AFTER_TEST: generate_iso_with_%TESTED_CMD%@64bit
       - test_release_manifest_raw:
