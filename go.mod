@@ -23,7 +23,7 @@ require (
 	github.com/urfave/cli/v3 v3.7.0
 	go.yaml.in/yaml/v3 v3.0.4
 	golang.org/x/crypto v0.48.0
-	k8s.io/mount-utils v0.35.1
+	k8s.io/mount-utils v0.35.2
 )
 
 require (
