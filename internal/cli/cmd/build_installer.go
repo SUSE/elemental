@@ -91,7 +91,7 @@ func NewBuildInstallerCommand(appName string, action func(context.Context, *cli.
 			},
 			&cli.StringFlag{
 				Name:        "output",
-				Usage:       "Location for the temporary builtime files and the resulting image",
+				Usage:       "Location for the temporary build-time files and the resulting image",
 				Destination: &InstallerArgs.OutputDir,
 				Required:    true,
 			},

@@ -189,7 +189,7 @@ func enabledHelmCharts(rm *resolver.ResolvedManifest, enabled []release.HelmChar
 	var addChart func(name string) error
 
 	// Add a chart and its direct dependencies, avoiding duplicates.
-	// Prioritise charts from product releases over core ones.
+	// Prioritize charts from product releases over core ones.
 	addChart = func(name string) error {
 		source := "product"
 

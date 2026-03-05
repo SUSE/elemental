@@ -152,7 +152,7 @@ func defaultManifestResolver(fs vfs.FS, out Output, local bool) (res *resolver.R
 
 	extr, err := extractor.New(searchPaths, extractor.WithStore(manifestsDir), extractor.WithLocal(local))
 	if err != nil {
-		return nil, fmt.Errorf("initialising OCI release manifest extractor: %w", err)
+		return nil, fmt.Errorf("initializing OCI release manifest extractor: %w", err)
 	}
 
 	return resolver.New(source.NewReader(extr)), nil

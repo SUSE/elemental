@@ -55,7 +55,7 @@ func (b *Builder) Run(ctx context.Context, d *image.Definition, output config.Ou
 	logger.Info("Configuring image components")
 	rm, err := b.ConfigManager.ConfigureComponents(ctx, d.Configuration, output)
 	if err != nil {
-		logger.Error("Configuring image components")
+		logger.Error("Configuring image components failed")
 		return err
 	}
 

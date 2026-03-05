@@ -94,7 +94,7 @@ func TranslateBytes(s *sys.System, butane any) ([]byte, error) {
 		return nil, fmt.Errorf("failed translating Butane config: %w\nReport: %v", err, report)
 	}
 	if len(report.Entries) > 0 {
-		s.Logger().Warn("translating Butane to Ignition reported non fatal entries: %v", report)
+		s.Logger().Warn("translating Butane to Ignition reported non-fatal entries: %v", report)
 	}
 	s.Logger().Debug("Butane configuration translated:\n--- Generated Ignition Config ---\n%s", string(ignitionBytes))
 	return ignitionBytes, nil

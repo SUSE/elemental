@@ -204,6 +204,6 @@ passwd:
 		ignition, err := system.FS().ReadFile(ignitionFile)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(ignition).To(ContainSubstring("merge"))
-		Expect(buffer.String()).To(ContainSubstring("translating Butane to Ignition reported non fatal entries"))
+		Expect(buffer.String()).To(ContainSubstring("translating Butane to Ignition reported non-fatal entries"))
 	})
 })

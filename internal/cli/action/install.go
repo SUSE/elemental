@@ -155,7 +155,7 @@ func setBootloader(s *sys.System, d *deployment.Deployment, bootloaderType, cmdl
 func digestInstallSetup(s *sys.System, flags *cmdpkg.InstallFlags) (*deployment.Deployment, error) {
 	d := deployment.DefaultDeployment()
 
-	// Given flags always have precedence compared to in place configuration of live media
+	// Given flags always have precedence compared to in-place configuration of live media
 	if flags.Description != "" {
 		err := loadDescriptionFile(s, flags.Description, d)
 		if err != nil {
