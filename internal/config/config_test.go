@@ -53,7 +53,7 @@ version: 1.6.0
 variant: fcos
 `
 
-var kubernetesYAML = `
+var kubernetesClusterYAML = `
 manifests:
   - https://foo.bar/bar.yaml
 helm:
@@ -94,7 +94,7 @@ var _ = Describe("Configuration", Label("configuration"), func() {
 		fs, cleanup, err = sysmock.TestFS(map[string]any{
 			fmt.Sprintf("%s/install.yaml", configDir):                      installYAML,
 			fmt.Sprintf("%s/butane.yaml", configDir):                       butaneYAML,
-			fmt.Sprintf("%s/kubernetes.yaml", configDir):                   kubernetesYAML,
+			fmt.Sprintf("%s/kubernetes/cluster.yaml", configDir):           kubernetesClusterYAML,
 			fmt.Sprintf("%s/release.yaml", configDir):                      releaseYAML,
 			fmt.Sprintf("%s/foo.yaml", configDir.HelmValuesDir()):          "",
 			fmt.Sprintf("%s/bar.yaml", configDir.KubernetesManifestsDir()): "",

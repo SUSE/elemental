@@ -96,11 +96,12 @@ Check [Elemental and Ignition Integration](./ignition-integration.md) for furthe
 
 ## Kubernetes
 
-Users can provide Kubernetes related configurations through the `kubernetes.yaml` file and/or the `kubernetes/` directory.
+Users can provide Kubernetes related configurations through the `cluster.yaml` file within the
+[`kubernetes/` directory](#kubernetes-directory).
 
-### kubernetes.yaml
+### cluster.yaml
 
-The `kubernetes.yaml` file enables users to extend the Kubernetes cluster with Helm charts and/or remote Kubernetes manifests by introducing the following API:
+The `cluster.yaml` file enables users to extend the Kubernetes cluster with Helm charts and/or remote Kubernetes manifests by introducing the following API:
 
 ```yaml
 manifests:
@@ -172,8 +173,9 @@ The directory's structure is as follows:
 ```
 
 * `helm` - Optional; Contains locally provided Helm chart configurations
-  * `values` - Optional; Contains [Helm values files](https://helm.sh/docs/chart_template_guide/values_files/). Helm charts that require specified values must have a values file included in this directory.
-* `manifests` - Optional; Contains locally provided Kubernetes manifests which will be applied to the cluster. Can be used separately or in combination with the manifests provided in the `kubernetes.yaml` file.
+  * `values` - Optional; Contains [Helm values files](https://helm.sh/docs/chart_template_guide/values_files/). Helm charts that requirespecified values must have a values file included in this directory.
+* `manifests` - Optional; Contains locally provided Kubernetes manifests which will be applied to the cluster. Can
+  be used separately or in combination with the manifests provided in the `cluster.yaml` file.
 * `config` - Optional; Contains locally provided Kubernetes configuration files, `server.yaml` for control-plane nodes and `agent.yaml` for workers.
 
 ## Network
