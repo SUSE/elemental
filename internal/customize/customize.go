@@ -25,7 +25,6 @@ import (
 
 	_ "embed"
 
-	"github.com/suse/elemental/v3/internal/config"
 	"github.com/suse/elemental/v3/internal/image"
 	"github.com/suse/elemental/v3/internal/image/install"
 	"github.com/suse/elemental/v3/internal/template"
@@ -45,7 +44,7 @@ const (
 var autoInstallerScriptTpl string
 
 type configManager interface {
-	ConfigureComponents(ctx context.Context, conf *image.Configuration, output config.Output) (*resolver.ResolvedManifest, error)
+	ConfigureComponents(ctx context.Context, conf *image.Configuration, output image.Output) (*resolver.ResolvedManifest, error)
 }
 
 type ociFileExtractor interface {
@@ -63,7 +62,7 @@ type Runner struct {
 	Media         media
 }
 
-func (r *Runner) Run(ctx context.Context, def *image.Definition, output config.Output) (err error) {
+func (r *Runner) Run(ctx context.Context, def *image.Definition, output image.Output) (err error) {
 	logger := r.System.Logger()
 
 	logger.Info("Configuring image components")
@@ -169,7 +168,7 @@ func parseDeployment(
 	mediaType installer.MediaType,
 	install *install.Installation,
 	installerDep *deployment.Deployment,
-	output config.Output,
+	output image.Output,
 	customPartitions ...*deployment.Partition,
 ) (dep *deployment.Deployment, err error) {
 	customizeDisk := &deployment.Disk{}

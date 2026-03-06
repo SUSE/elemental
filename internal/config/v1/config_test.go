@@ -15,7 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package config
+package v1
 
 import (
 	"fmt"
@@ -33,9 +33,9 @@ import (
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
 
-func TestConfigurationSuite(t *testing.T) {
+func TestV1ConfigurationSuite(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Configuration test suite")
+	RunSpecs(t, "V1 Configuration test suite")
 }
 
 var installYAML = `

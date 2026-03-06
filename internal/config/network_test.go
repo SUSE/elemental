@@ -31,7 +31,7 @@ import (
 )
 
 var _ = Describe("Network", func() {
-	var output = Output{
+	var output = image.Output{
 		RootPath: "/_out",
 	}
 
@@ -67,7 +67,7 @@ var _ = Describe("Network", func() {
 	})
 
 	It("Skips configuration", func() {
-		err := m.configureNetworkOnFirstboot(&image.Configuration{}, Output{})
+		err := m.configureNetworkOnFirstboot(&image.Configuration{}, image.Output{})
 		Expect(err).NotTo(HaveOccurred())
 	})
 

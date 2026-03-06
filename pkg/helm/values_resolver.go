@@ -27,8 +27,8 @@ import (
 )
 
 type ValuesResolver struct {
-	ValuesDir string
 	FS        vfs.FS
+	ValuesDir string
 }
 
 type ValueSource struct {

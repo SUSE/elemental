@@ -15,12 +15,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package config
+package v1_test
 
 import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"github.com/suse/elemental/v3/internal/config"
 	"github.com/suse/elemental/v3/internal/image"
 	"github.com/suse/elemental/v3/internal/image/release"
 	"github.com/suse/elemental/v3/pkg/log"
@@ -34,10 +35,10 @@ var _ = Describe("Systemd extensions", func() {
 	logger := log.New(log.WithDiscardAll())
 
 	It("Detects remote sources", func() {
-		Expect(isRemoteURL("http://example.com/extension.raw")).To(BeTrue(), "http")
-		Expect(isRemoteURL("https://example.com/extension.raw")).To(BeTrue(), "https")
-		Expect(isRemoteURL("registry.example.com/extension:0.0.1")).To(BeFalse(), "oci")
-		Expect(isRemoteURL("raw:///etc/extension.raw")).To(BeFalse(), "custom")
+		Expect(config.IsRemoteURL("http://example.com/extension.raw")).To(BeTrue(), "http")
+		Expect(config.IsRemoteURL("https://example.com/extension.raw")).To(BeTrue(), "https")
+		Expect(config.IsRemoteURL("registry.example.com/extension:0.0.1")).To(BeFalse(), "oci")
+		Expect(config.IsRemoteURL("raw:///etc/extension.raw")).To(BeFalse(), "custom")
 	})
 
 	Describe("Filtering", func() {
@@ -74,7 +75,7 @@ var _ = Describe("Systemd extensions", func() {
 				},
 			}
 
-			extensions, err := enabledExtensions(rm, conf, logger)
+			extensions, err := config.EnabledExtensions(rm, conf, logger)
 			Expect(err).To(HaveOccurred())
 			Expect(err).To(MatchError(MatchRegexp("filtering enabled helm charts: adding helm chart 'longhorn': " +
 				"adding dependent helm chart 'longhorn-crd': helm chart does not exist")))
@@ -159,7 +160,7 @@ var _ = Describe("Systemd extensions", func() {
 				},
 			}
 
-			extensions, err := enabledExtensions(rm, conf, logger)
+			extensions, err := config.EnabledExtensions(rm, conf, logger)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(extensions).To(HaveLen(4))
 

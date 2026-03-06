@@ -115,7 +115,7 @@ func (h *Helm) writeHelmCharts(crds []*helm.CRD) ([]string, error) {
 func (h *Helm) retrieveHelmCharts(rm *resolver.ResolvedManifest, conf *image.Configuration) ([]*helm.CRD, error) {
 	var crds []*helm.CRD
 
-	charts, repositories, err := enabledHelmCharts(rm, conf.Release.Components.HelmCharts, h.Logger)
+	charts, repositories, err := enabledHelmCharts(rm, conf.Release.Components.HelmCharts)
 	if err != nil {
 		return nil, fmt.Errorf("filtering enabled helm charts: %w", err)
 	}
@@ -161,7 +161,7 @@ func (h *Helm) appendHelmChart(chart helmChart, repositories, valueFiles map[str
 	return nil
 }
 
-func enabledHelmCharts(rm *resolver.ResolvedManifest, enabled []release.HelmChart, logger log.Logger) ([]*api.HelmChart, map[string]string, error) {
+func enabledHelmCharts(rm *resolver.ResolvedManifest, enabled []release.HelmChart) ([]*api.HelmChart, map[string]string, error) {
 	coreCharts, productCharts := map[string]*api.HelmChart{}, map[string]*api.HelmChart{}
 	repositories := map[string]string{}
 
@@ -191,20 +191,12 @@ func enabledHelmCharts(rm *resolver.ResolvedManifest, enabled []release.HelmChar
 	// Add a chart and its direct dependencies, avoiding duplicates.
 	// Prioritise charts from product releases over core ones.
 	addChart = func(name string) error {
-		source := "product"
-
 		chart, ok := productCharts[name]
 		if !ok {
 			chart, ok = coreCharts[name]
 			if !ok {
 				return fmt.Errorf("helm chart does not exist")
 			}
-
-			source = "core"
-		}
-
-		if logger != nil {
-			logger.Info("Using Helm chart %s from %s release", name, source)
 		}
 
 		if slices.ContainsFunc(charts, func(c *api.HelmChart) bool {

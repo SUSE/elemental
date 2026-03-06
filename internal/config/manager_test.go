@@ -15,15 +15,19 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package config
+package config_test
 
 import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
+	"github.com/suse/elemental/v3/internal/config"
+	v1 "github.com/suse/elemental/v3/internal/config/v1"
 	"github.com/suse/elemental/v3/internal/image"
 	"github.com/suse/elemental/v3/internal/image/kubernetes"
 	"github.com/suse/elemental/v3/internal/image/release"
@@ -35,6 +39,23 @@ import (
 	sysmock "github.com/suse/elemental/v3/pkg/sys/mock"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
+
+func TestConfigurationSuite(t *testing.T) {
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "Configuration test suite")
+}
+
+type helmConfiguratorMock struct {
+	configureFunc func(*image.Configuration, *resolver.ResolvedManifest) ([]string, error)
+}
+
+func (h *helmConfiguratorMock) Configure(conf *image.Configuration, manifest *resolver.ResolvedManifest) ([]string, error) {
+	if h.configureFunc != nil {
+		return h.configureFunc(conf, manifest)
+	}
+
+	panic("not implemented")
+}
 
 type resolverMock struct {
 	resolveFunc func(uri string) (*resolver.ResolvedManifest, error)
@@ -49,10 +70,10 @@ func (r *resolverMock) Resolve(uri string) (*resolver.ResolvedManifest, error) {
 }
 
 var _ = Describe("Manager", func() {
-	var output = Output{
+	var output = image.Output{
 		RootPath: "/_out",
 	}
-	var configDir Dir = "/config"
+	var configDir v1.Dir = "/config"
 	var fs vfs.FS
 	var cleanup func()
 	var err error
@@ -145,12 +166,12 @@ passwd:
 
 	It("Successfully applies configurations to output directory", func() {
 		var butane map[string]any
-		Expect(parseAny([]byte(butaneConfigString), &butane)).To(Succeed())
+		Expect(v1.ParseAny([]byte(butaneConfigString), &butane)).To(Succeed())
 
 		conf := activeConfig
 		conf.ButaneConfig = butane
 
-		m := NewManager(
+		m := config.NewManager(
 			system,
 			&helmConfiguratorMock{configureFunc: func(c *image.Configuration, rm *resolver.ResolvedManifest) ([]string, error) {
 				helmPath := filepath.Join(output.OverlaysDir(), image.HelmPath())
@@ -168,14 +189,14 @@ passwd:
 				}
 				return files, nil
 			}},
-			WithManifestResolver(&resolverMock{resolveFunc: func(uri string) (*resolver.ResolvedManifest, error) {
+			config.WithManifestResolver(&resolverMock{resolveFunc: func(uri string) (*resolver.ResolvedManifest, error) {
 				if uri == activeConfig.Release.ManifestURI {
 					return activeReleaseManifest, nil
 				}
 
 				panic("missing release manifest")
 			}}),
-			WithDownloadFunc(func(ctx context.Context, fs vfs.FS, url, path string) error {
+			config.WithDownloadFunc(func(ctx context.Context, fs vfs.FS, url, path string) error {
 				_, err := fs.Create(filepath.Join(path))
 				return err
 			}),
@@ -203,7 +224,7 @@ passwd:
 
 	It("Fails to resolve release manifest during configuration", func() {
 		By("Using default manifest resolver")
-		m := NewManager(
+		m := config.NewManager(
 			system,
 			&helmConfiguratorMock{configureFunc: defaultHelmFunc},
 		)
@@ -219,10 +240,10 @@ passwd:
 		Expect(err.Error()).To(ContainSubstring("/_out/store/release-manifests: no such file or directory"))
 
 		By("Using custom manifest resolver")
-		m = NewManager(
+		m = config.NewManager(
 			system,
 			&helmConfiguratorMock{configureFunc: defaultHelmFunc},
-			WithManifestResolver(&resolverMock{resolveFunc: func(uri string) (*resolver.ResolvedManifest, error) {
+			config.WithManifestResolver(&resolverMock{resolveFunc: func(uri string) (*resolver.ResolvedManifest, error) {
 				return nil, fmt.Errorf("unable to resolve manifest")
 			}}),
 		)
@@ -239,10 +260,10 @@ passwd:
 	})
 
 	It("Fails to configure network", func() {
-		m := NewManager(
+		m := config.NewManager(
 			system,
 			&helmConfiguratorMock{configureFunc: defaultHelmFunc},
-			WithManifestResolver(&resolverMock{resolveFunc: defaultResolveFunc}),
+			config.WithManifestResolver(&resolverMock{resolveFunc: defaultResolveFunc}),
 		)
 		conf := &image.Configuration{
 			Network: image.Network{
@@ -258,12 +279,12 @@ passwd:
 
 	It("Fails to configure kubernetes", func() {
 		By("Failing helm configuration")
-		m := NewManager(
+		m := config.NewManager(
 			system,
 			&helmConfiguratorMock{configureFunc: func(c *image.Configuration, rm *resolver.ResolvedManifest) ([]string, error) {
 				return nil, fmt.Errorf("unable to configure helm charts")
 			}},
-			WithManifestResolver(&resolverMock{resolveFunc: defaultResolveFunc}),
+			config.WithManifestResolver(&resolverMock{resolveFunc: defaultResolveFunc}),
 		)
 		conf := &image.Configuration{
 			Kubernetes: kubernetes.Kubernetes{
@@ -295,11 +316,11 @@ passwd:
 		Expect(err.Error()).To(ContainSubstring("/missing/foo.yaml: no such file or directory"))
 
 		By("Failing to setup remote Kubernetes manfifests")
-		m = NewManager(
+		m = config.NewManager(
 			system,
 			&helmConfiguratorMock{configureFunc: defaultHelmFunc},
-			WithManifestResolver(&resolverMock{resolveFunc: defaultResolveFunc}),
-			WithDownloadFunc(func(ctx context.Context, fs vfs.FS, url, path string) error {
+			config.WithManifestResolver(&resolverMock{resolveFunc: defaultResolveFunc}),
+			config.WithDownloadFunc(func(ctx context.Context, fs vfs.FS, url, path string) error {
 				return fmt.Errorf("download unavailable")
 			}),
 		)
@@ -318,12 +339,12 @@ passwd:
 	It("Fails to configure ignition", func() {
 		var butane map[string]any
 		butaneConfigString := "breaking: breaking"
-		Expect(parseAny([]byte(butaneConfigString), &butane)).To(Succeed())
+		Expect(v1.ParseAny([]byte(butaneConfigString), &butane)).To(Succeed())
 
-		m := NewManager(
+		m := config.NewManager(
 			system,
 			&helmConfiguratorMock{configureFunc: defaultHelmFunc},
-			WithManifestResolver(&resolverMock{resolveFunc: func(uri string) (*resolver.ResolvedManifest, error) {
+			config.WithManifestResolver(&resolverMock{resolveFunc: func(uri string) (*resolver.ResolvedManifest, error) {
 				return &resolver.ResolvedManifest{CorePlatform: &core.ReleaseManifest{}}, nil
 			}}),
 		)
@@ -353,10 +374,10 @@ passwd:
 			},
 		}
 
-		m := NewManager(
+		m := config.NewManager(
 			system,
 			&helmConfiguratorMock{configureFunc: defaultHelmFunc},
-			WithManifestResolver(rMock),
+			config.WithManifestResolver(rMock),
 		)
 
 		conf := &image.Configuration{

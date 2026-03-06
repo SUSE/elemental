@@ -25,7 +25,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/suse/elemental/v3/internal/config"
+
 	"github.com/suse/elemental/v3/internal/customize"
 	"github.com/suse/elemental/v3/internal/image"
 	"github.com/suse/elemental/v3/internal/image/install"
@@ -44,7 +44,7 @@ func TestCustomizeSuite(t *testing.T) {
 }
 
 var _ = Describe("Customize runner", Label("customize"), func() {
-	output := config.Output{
+	output := image.Output{
 		RootPath: "/_out",
 	}
 
@@ -119,7 +119,7 @@ disks:
 		customizeRunner = &customize.Runner{
 			System: s,
 			ConfigManager: &configManagerMock{
-				configFunc: func(ctx context.Context, conf *image.Configuration, output config.Output) (*resolver.ResolvedManifest, error) {
+				configFunc: func(ctx context.Context, conf *image.Configuration, output image.Output) (*resolver.ResolvedManifest, error) {
 					return &resolver.ResolvedManifest{
 						CorePlatform: &core.ReleaseManifest{
 							Components: core.Components{
@@ -272,7 +272,7 @@ disks:
 
 	It("fails to configure components", func() {
 		customizeRunner.ConfigManager = &configManagerMock{
-			configFunc: func(ctx context.Context, conf *image.Configuration, output config.Output) (*resolver.ResolvedManifest, error) {
+			configFunc: func(ctx context.Context, conf *image.Configuration, output image.Output) (*resolver.ResolvedManifest, error) {
 				return nil, fmt.Errorf("missing manifest")
 			},
 		}
@@ -385,10 +385,10 @@ disks:
 })
 
 type configManagerMock struct {
-	configFunc func(ctx context.Context, conf *image.Configuration, output config.Output) (*resolver.ResolvedManifest, error)
+	configFunc func(ctx context.Context, conf *image.Configuration, output image.Output) (*resolver.ResolvedManifest, error)
 }
 
-func (c *configManagerMock) ConfigureComponents(ctx context.Context, conf *image.Configuration, output config.Output) (*resolver.ResolvedManifest, error) {
+func (c *configManagerMock) ConfigureComponents(ctx context.Context, conf *image.Configuration, output image.Output) (*resolver.ResolvedManifest, error) {
 	if c.configFunc != nil {
 		return c.configFunc(ctx, conf, output)
 	}

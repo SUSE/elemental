@@ -15,14 +15,4 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package config
-
-import (
-	v1 "github.com/suse/elemental/v3/internal/config/v1"
-	"github.com/suse/elemental/v3/internal/image"
-	"github.com/suse/elemental/v3/pkg/sys/vfs"
-)
-
-func Parse(f vfs.FS, configDir string) (conf *image.Configuration, err error) {
-	return v1.Parse(f, v1.Dir(configDir))
-}
+package v1
