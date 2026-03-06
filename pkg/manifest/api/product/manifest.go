@@ -19,21 +19,23 @@ package product
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 
 	"go.yaml.in/yaml/v3"
 
+	"github.com/go-playground/validator/v10"
 	"github.com/suse/elemental/v3/pkg/manifest/api"
 )
 
 type ReleaseManifest struct {
 	Metadata     *api.Metadata `yaml:"metadata,omitempty"`
-	CorePlatform *CorePlatform `yaml:"corePlatform"`
+	CorePlatform *CorePlatform `yaml:"corePlatform" validate:"required"`
 	Components   Components    `yaml:"components,omitempty"`
 }
 
 type CorePlatform struct {
-	Image string `yaml:"image"`
+	Image string `yaml:"image" validate:"required"`
 }
 
 type Components struct {
@@ -50,8 +52,13 @@ func Parse(data []byte) (*ReleaseManifest, error) {
 		return nil, fmt.Errorf("unmarshaling 'product' release manifest: %w", err)
 	}
 
-	if rm.CorePlatform == nil {
-		return nil, fmt.Errorf("missing 'corePlatform' field")
+	if err := api.NewValidator(api.WithYAMLFieldNames()).Struct(rm); err != nil {
+		var validationErrors validator.ValidationErrors
+		if errors.As(err, &validationErrors) {
+			err = api.FormatErrors(validationErrors)
+		}
+
+		return nil, fmt.Errorf("validating 'product' release manifest: %w", err)
 	}
 
 	return rm, nil
