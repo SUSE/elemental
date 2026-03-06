@@ -30,24 +30,24 @@ const (
 )
 
 type Metadata struct {
-	Name         string `yaml:"name"`
-	Version      string `yaml:"version"`
+	Name         string `yaml:"name" validate:"required"`
+	Version      string `yaml:"version" validate:"required"`
 	CreationDate string `yaml:"creationDate,omitempty"`
 }
 
 type Helm struct {
-	Charts       []*HelmChart      `yaml:"charts"`
-	Repositories []*HelmRepository `yaml:"repositories"`
+	Charts       []*HelmChart      `yaml:"charts" validate:"dive"`
+	Repositories []*HelmRepository `yaml:"repositories" validate:"dive"`
 }
 
 type HelmChart struct {
 	Name       string                `yaml:"name,omitempty"`
-	Chart      string                `yaml:"chart"`
-	Version    string                `yaml:"version"`
+	Chart      string                `yaml:"chart" validate:"required"`
+	Version    string                `yaml:"version" validate:"required"`
 	Namespace  string                `yaml:"namespace,omitempty"`
 	Repository string                `yaml:"repository,omitempty"`
 	Values     map[string]any        `yaml:"values,omitempty"`
-	DependsOn  []HelmChartDependency `yaml:"dependsOn,omitempty"`
+	DependsOn  []HelmChartDependency `yaml:"dependsOn,omitempty" validate:"dive"`
 	Images     []HelmChartImage      `yaml:"images,omitempty"`
 }
 
@@ -85,22 +85,22 @@ type HelmChartImage struct {
 }
 
 type HelmChartDependency struct {
-	Name string         `yaml:"name"`
-	Type DependencyType `yaml:"type"`
+	Name string         `yaml:"name" validate:"required"`
+	Type DependencyType `yaml:"type" validate:"required,oneof=sysext helm"`
 }
 
 type HelmRepository struct {
-	Name string `yaml:"name"`
-	URL  string `yaml:"url"`
+	Name string `yaml:"name" validate:"required"`
+	URL  string `yaml:"url" validate:"required,url"`
 }
 
 type Systemd struct {
-	Extensions []SystemdExtension `yaml:"extensions,omitempty"`
+	Extensions []SystemdExtension `yaml:"extensions,omitempty" validate:"dive"`
 }
 
 type SystemdExtension struct {
-	Name          string   `yaml:"name"`
-	Image         string   `yaml:"image"`
+	Name          string   `yaml:"name" validate:"required"`
+	Image         string   `yaml:"image" validate:"required"`
 	Required      bool     `yaml:"required,omitempty"`
 	KernelModules []string `yaml:"kernelModules,omitempty"`
 }

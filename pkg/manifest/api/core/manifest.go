@@ -27,23 +27,23 @@ import (
 )
 
 type ReleaseManifest struct {
-	Metadata   *api.Metadata `yaml:"metadata"`
-	Components Components    `yaml:"components"`
+	Metadata   *api.Metadata `yaml:"metadata,omitempty"`
+	Components Components    `yaml:"components" validate:"required"`
 }
 
 type Components struct {
-	OperatingSystem *OperatingSystem `yaml:"operatingSystem"`
+	OperatingSystem *OperatingSystem `yaml:"operatingSystem" validate:"required"`
 	Systemd         api.Systemd      `yaml:"systemd,omitempty"`
 	Helm            *api.Helm        `yaml:"helm,omitempty"`
 }
 
 type OperatingSystem struct {
-	Image Image `yaml:"image"`
+	Image Image `yaml:"image" validate:"required"`
 }
 
 type Image struct {
-	Base string `yaml:"base"`
-	ISO  string `yaml:"iso"`
+	Base string `yaml:"base" validate:"required"`
+	ISO  string `yaml:"iso" validate:"required"`
 }
 
 func Parse(data []byte) (*ReleaseManifest, error) {

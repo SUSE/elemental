@@ -28,12 +28,12 @@ import (
 
 type ReleaseManifest struct {
 	Metadata     *api.Metadata `yaml:"metadata,omitempty"`
-	CorePlatform *CorePlatform `yaml:"corePlatform"`
+	CorePlatform *CorePlatform `yaml:"corePlatform" validate:"required"`
 	Components   Components    `yaml:"components,omitempty"`
 }
 
 type CorePlatform struct {
-	Image string `yaml:"image"`
+	Image string `yaml:"image" validate:"required"`
 }
 
 type Components struct {
