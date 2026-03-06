@@ -12,6 +12,11 @@ OS_IMG?=$(IMG_REPO)/uc-base-os-kernel-default
 OS_VERSION?=latest
 DOCKER_SOCK?=/var/run/docker.sock
 
+# If we want to run the pipeline with local build
+ifneq (,$(LOCAL))
+	BUILD_ARGS+=--local
+endif
+
 ### Elemental customize specific variables ###
 RELEASE_MANIFEST?=$(IMG_REPO)/release-manifest:latest
 CONFIG_DIR?=$(abspath ./tests/testdata/config-dir)
@@ -26,7 +31,7 @@ define CUSTOMIZE
 	$(DOCKER) run --rm \
 		--volume "$(CONFIG_DIR):/config" \
 		"$(ELEMENTAL_IMAGE_REPO):$(VERSION)" \
-		--debug customize \
+		--debug customize $(BUILD_ARGS) \
 		--type "$(MEDIA_TYPE)" \
 		--output "/config/$(CUSTOMIZED_WORKDIR_NAME)/$(IMG_NAME).$(MEDIA_TYPE)"
 endef
@@ -49,7 +54,11 @@ build-disk: $(BUILD_DIR) image
 		--volume /run/udev:/run/udev:ro \
 		--privileged \
 		$(ELEMENTAL_IMAGE_REPO):$(VERSION) \
-		--debug install --os-image $(OS_IMG):$(OS_VERSION) --target $${TARGET} --cmdline "console=ttyS0,115200" --config /build/config.sh
+		--debug install $(BUILD_ARGS) \
+		--os-image $(OS_IMG):$(OS_VERSION) \
+		--target $${TARGET} \
+		--cmdline "console=ttyS0,115200" \
+		--config /build/config.sh
 	BUILD_ERR=$$?
 	test $${BUILD_ERR} -eq 0 && qemu-img convert -c -p -O qcow2 $(IMG).raw $(IMG).qcow2
 	sudo losetup -d $${TARGET}

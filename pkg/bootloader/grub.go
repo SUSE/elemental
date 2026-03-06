@@ -361,7 +361,7 @@ func (g *Grub) installEFIEntry(rootPath, targetDir string, grubTmpl []byte, data
 	}
 
 	srcDir := filepath.Join(rootPath, "usr", "share", "efi", grubArch(g.s.Platform().Arch))
-	for _, name := range []string{"grub.efi", "MokManager.efi"} {
+	for _, name := range bootFiles(g.s.Platform().Arch) {
 		src := filepath.Join(srcDir, name)
 		target := filepath.Join(targetDir, name)
 		err = vfs.CopyFile(g.s.FS(), src, target)
@@ -370,9 +370,8 @@ func (g *Grub) installEFIEntry(rootPath, targetDir string, grubTmpl []byte, data
 		}
 	}
 
-	src := filepath.Join(srcDir, "shim.efi")
-	target := filepath.Join(targetDir, defaultEfiBootFileName(g.s.Platform()))
-	err = vfs.CopyFile(g.s.FS(), src, target)
+	src, target := defaultEfiBootFileName(g.s.Platform())
+	err = vfs.CopyFile(g.s.FS(), filepath.Join(srcDir, src), filepath.Join(targetDir, target))
 	if err != nil {
 		return fmt.Errorf("copying file '%s': %w", src, err)
 	}
@@ -394,21 +393,34 @@ func grubArch(arch string) string {
 	}
 }
 
-// defaultEfiBootFileName returns the default efi application name for the provided platform:
+func bootFiles(arch string) []string {
+	switch arch {
+	case platform.ArchRiscv64:
+		return []string{"grub.efi"}
+	default:
+		return []string{"grub.efi", "MokManager.efi"}
+	}
+
+}
+
+// defaultEfiBootFileName returns the default src/target efi application name for the provided platform:
 // * x86_64: bootx64.efi
 // * aarch64: bootaa64.efi
 // * riscv64: bootriscv64.efi
 // defaults to x86_64.
-func defaultEfiBootFileName(p *platform.Platform) string {
+func defaultEfiBootFileName(p *platform.Platform) (src, target string) {
+	const shimEfi = "shim.efi"
+
 	switch p.Arch {
 	case platform.ArchAarch64:
-		return "bootaa64.efi"
+		return shimEfi, "bootaa64.efi"
 	case platform.ArchArm64:
-		return "bootaa64.efi"
+		return shimEfi, "bootaa64.efi"
 	case platform.ArchRiscv64:
-		return "bootriscv64.efi"
+		// shim does not exist yet on riscv64
+		return "grub.efi", "bootriscv64.efi"
 	default:
-		return "bootx64.efi"
+		return shimEfi, "bootx64.efi"
 	}
 }
 
