@@ -19,10 +19,12 @@ package core
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 
 	"go.yaml.in/yaml/v3"
 
+	"github.com/go-playground/validator/v10"
 	"github.com/suse/elemental/v3/pkg/manifest/api"
 )
 
@@ -53,6 +55,15 @@ func Parse(data []byte) (*ReleaseManifest, error) {
 
 	if err := decoder.Decode(rm); err != nil {
 		return nil, fmt.Errorf("unmarshaling 'core' release manifest: %w", err)
+	}
+
+	if err := api.NewValidator(api.WithYAMLFieldNames()).Struct(rm); err != nil {
+		var validationErrors validator.ValidationErrors
+		if errors.As(err, &validationErrors) {
+			err = api.FormatErrors(validationErrors)
+		}
+
+		return nil, fmt.Errorf("validating 'core' release manifest: %w", err)
 	}
 
 	return rm, nil

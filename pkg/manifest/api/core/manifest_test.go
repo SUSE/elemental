@@ -40,6 +40,26 @@ corePlatform:
   version: "0.0.0"
 `
 
+const brokenManifest = `
+metadata:
+  name: "suse-edge"
+  version: "3.2.0"
+components:
+  operatingSystem:
+    image:
+      base: foo.bar:latest
+  systemd:
+    extensions:
+    - name: "missing_img"
+  helm:
+    charts:
+    - version: "0.0"
+      chart: "oci://foo.bar"
+      dependsOn:
+      - name: "bar"
+        type: "broken"
+`
+
 func TestCoreManifestSuite(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Core Release Manifest API test suite")
@@ -96,6 +116,25 @@ var _ = Describe("ReleaseManifest", Label("release-manifest"), func() {
 		rm, err := core.Parse(data)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring(expErrMsg))
+		Expect(rm).To(BeNil())
+	})
+
+	It("fails when manifest is broken", func() {
+		expErrors := []string{
+			"field \"ReleaseManifest.components.operatingSystem.image.iso\" is required",
+			"field \"ReleaseManifest.components.systemd.extensions[0].image\" is required",
+			"field \"ReleaseManifest.components.helm.charts[0].dependsOn[0].type\" must be one of [sysext helm], but got \"broken\"",
+		}
+
+		data := []byte(brokenManifest)
+		rm, err := core.Parse(data)
+		Expect(err).To(HaveOccurred())
+
+		errMsg := err.Error()
+		for _, msg := range expErrors {
+			Expect(errMsg).To(ContainSubstring(msg))
+		}
+
 		Expect(rm).To(BeNil())
 	})
 })

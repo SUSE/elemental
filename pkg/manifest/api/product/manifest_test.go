@@ -41,10 +41,21 @@ components:
     image: "registry.com/foo/bar/sl-micro:6.2"
 `
 
-const missingFieldManifest = `
+const brokenManifest = `
 metadata:
   name: "suse-edge"
   version: "3.2.0"
+components:
+  systemd:
+    extensions:
+    - name: "missing_img"
+  helm:
+    charts:
+    - version: "0.0"
+      chart: "oci://foo.bar"
+      dependsOn:
+      - name: "bar"
+        type: "broken"
 `
 
 func TestProductManifestSuite(t *testing.T) {
@@ -103,12 +114,22 @@ var _ = Describe("ReleaseManifest", Label("release-manifest"), func() {
 		Expect(rm).To(BeNil())
 	})
 
-	It("fails when 'corePlatform' is missing", func() {
-		expErrMsg := "missing 'corePlatform' field"
-		data := []byte(missingFieldManifest)
+	It("fails when manifest is broken", func() {
+		expErrors := []string{
+			"field \"ReleaseManifest.corePlatform\" is required",
+			"field \"ReleaseManifest.components.systemd.extensions[0].image\" is required",
+			"field \"ReleaseManifest.components.helm.charts[0].dependsOn[0].type\" must be one of [sysext helm], but got \"broken\"",
+		}
+
+		data := []byte(brokenManifest)
 		rm, err := product.Parse(data)
 		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring(expErrMsg))
+
+		errMsg := err.Error()
+		for _, msg := range expErrors {
+			Expect(errMsg).To(ContainSubstring(msg))
+		}
+
 		Expect(rm).To(BeNil())
 	})
 })
