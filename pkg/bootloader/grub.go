@@ -408,7 +408,7 @@ func bootFiles(arch string) []string {
 // * aarch64: bootaa64.efi
 // * riscv64: bootriscv64.efi
 // defaults to x86_64.
-func defaultEfiBootFileName(p *platform.Platform) (src, target string) {
+func defaultEfiBootFileName(p *platform.Platform) (string, string) {
 	const shimEfi = "shim.efi"
 
 	switch p.Arch {
