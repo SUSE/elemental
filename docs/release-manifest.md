@@ -27,6 +27,10 @@ metadata:
 corePlatform:
   image: "registry.suse.com/uc/release-manifest:0.0.1"
 components:
+  systemd:
+    extensions:
+      - name: "longhorn"
+        image: "registry.suse.com/beta/uc/longhorn:5.36-1.88"
   helm:
     charts:
     - chart: "cert-manager"
@@ -61,6 +65,11 @@ components:
 * `corePlatform` - Required; Defines the `Core Platform` release version that this product wishes to be based upon and extend.
   * `image` - Required; Container image pointing to the desired `Core Platform` release manifest.
 * `components` - Optional; Components with which to extend the `Core Platform`.
+  * `systemd` - Systemd related components.
+      * `extensions` - List of systemd extension images.
+          * `name` - Name by which the extension can be identified and possibly later enabled from the [product release reference](./configuration-directory.md#product-release-reference).
+          * `image` - Location of the extension image itself.
+          * `required` - Whether this extension should be included by default or not. If omitted defaults to `false`.
   * `helm` - Optional; Defines Helm components with which to extend the `Core Platform`.
     * `charts` - Required; Defines a list of Helm charts to be deployed alongside any `Core Platform` defined Helm charts.
       * `chart` - Required; Name of the Helm chart, as seen in the repository.
@@ -126,20 +135,15 @@ components:
       url: "https://metallb.github.io/metallb"
 ```
 
-The manifest's structure is similar to that of the [Product Release Manifest](#product-release-manifest-api), with the key difference being the inclusion of components unique to the Core Platform (e.g. `operatingSystem` and `kubernetes`). 
+The manifest's structure is similar to that of the [Product Release Manifest](#product-release-manifest-api), with the key difference being the inclusion of components unique to the Core Platform (e.g. `operatingSystem` and `kubernetes`).
 
-This reference focuses only on the unique to the Core Platform component APIs. Any components not mentioned here share the same description as those in the `Product Release Manifest`.
+This reference focuses on fields unique to the Core Platform APIs. Any components not mentioned here share the same description as those in the `Product Release Manifest`.
 
 * `components` - Components described by the Core Platform release manifest.
   * `operatingSystem` - Operating system related components.
-    * `image` - Location to different operating system container images.
-      * `base` - Location to the base container image from which all other images defined here are built.
-      * `iso` - Location to the installer media ISO that is used during the customization process.
-  * `systemd` - Systemd related components.
-    * `extensions` - List of systemd extension images.
-      * `name` - Name by which the extension can be identified and possibly later enabled from the [product release reference](./configuration-directory.md#product-release-reference).
-      * `image` - Location to the extension image itself.
-      * `required` - Whether this extension should be included by default or not. If omitted defaults to `false`.
+    * `image` - Location of different operating system container images.
+      * `base` - Location of the base container image from which all other images defined here are built.
+      * `iso` - Location of the installer media ISO that is used during the customization process.
   * `kubernetes` - Kubernetes distribution related components.
     * `version` - Required; Kubernetes distribution version to be installed (e.g., `v1.35.0+rke2r1`).
     * `image` - Required; OCI image reference containing all distribution artifacts required for installation. The image should contain the installation script, distribution binaries, container image archives (e.g., CNI-specific images for air-gapped deployments), checksums file, and any other necessary artifacts.
