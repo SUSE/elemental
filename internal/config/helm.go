@@ -18,11 +18,15 @@ limitations under the License.
 package config
 
 import (
+	"encoding/base64"
 	"fmt"
+	"net/url"
 	"path/filepath"
 	"slices"
 	"strings"
 
+	"github.com/suse/elemental/v3/internal/image/auth"
+	"github.com/suse/elemental/v3/internal/image/kubernetes"
 	"go.yaml.in/yaml/v3"
 
 	"github.com/suse/elemental/v3/internal/image"
@@ -42,7 +46,7 @@ type helmChart interface {
 	GetName() string
 	GetInlineValues() map[string]any
 	GetRepositoryName() string
-	ToCRD(values []byte, repository string) *helm.CRD
+	ToCRD(values []byte, repository string, hasAuth bool) *helm.CRD
 }
 
 type Helm struct {
@@ -63,7 +67,7 @@ func NewHelm(fs vfs.FS, valuesResolver helmValuesResolver, logger log.Logger, de
 	}
 }
 
-func (h *Helm) Configure(conf *image.Configuration, rm *resolver.ResolvedManifest) ([]string, error) {
+func (h *Helm) Configure(conf *image.Configuration, rm *resolver.ResolvedManifest) ([]string, map[string][]byte, error) {
 	if len(conf.Release.Components.HelmCharts) > 0 {
 		var charts []string
 		for _, c := range conf.Release.Components.HelmCharts {
@@ -73,17 +77,22 @@ func (h *Helm) Configure(conf *image.Configuration, rm *resolver.ResolvedManifes
 		h.Logger.Info("Enabling the following Helm components: %s", strings.Join(charts, ", "))
 	}
 
-	charts, err := h.retrieveHelmCharts(rm, conf)
+	charts, secrets, err := h.retrieveHelmCharts(rm, conf)
 	if err != nil {
-		return nil, fmt.Errorf("retrieving helm charts: %w", err)
+		return nil, nil, fmt.Errorf("retrieving helm charts: %w", err)
 	}
 
 	chartFiles, err := h.writeHelmCharts(charts)
 	if err != nil {
-		return nil, fmt.Errorf("writing helm chart resources: %w", err)
+		return nil, nil, fmt.Errorf("writing helm chart resources: %w", err)
 	}
 
-	return chartFiles, nil
+	helmSecrets, err := h.createHelmSecretFileMap(secrets)
+	if err != nil {
+		return nil, nil, fmt.Errorf("creating helm secrets: %w", err)
+	}
+
+	return chartFiles, helmSecrets, nil
 }
 
 func (h *Helm) writeHelmCharts(crds []*helm.CRD) ([]string, error) {
@@ -112,19 +121,40 @@ func (h *Helm) writeHelmCharts(crds []*helm.CRD) ([]string, error) {
 	return charts, nil
 }
 
-func (h *Helm) retrieveHelmCharts(rm *resolver.ResolvedManifest, conf *image.Configuration) ([]*helm.CRD, error) {
+func (h *Helm) createHelmSecretFileMap(secrets []*helm.Secret) (map[string][]byte, error) {
+	helmSecrets := make(map[string][]byte)
+	for _, secret := range secrets {
+		data, err := yaml.Marshal(secret)
+		if err != nil {
+			return nil, fmt.Errorf("marshaling secret %s: %w", secret.Metadata.Name, err)
+		}
+
+		secretName := fmt.Sprintf("%s-priority.yaml", secret.Metadata.Name)
+		helmSecrets[secretName] = data
+	}
+
+	return helmSecrets, nil
+}
+
+func (h *Helm) retrieveHelmCharts(rm *resolver.ResolvedManifest, conf *image.Configuration) ([]*helm.CRD, []*helm.Secret, error) {
 	var crds []*helm.CRD
 
 	charts, repositories, err := enabledHelmCharts(rm, conf.Release.Components.HelmCharts, h.Logger)
 	if err != nil {
-		return nil, fmt.Errorf("filtering enabled helm charts: %w", err)
+		return nil, nil, fmt.Errorf("filtering enabled helm charts: %w", err)
 	}
 
 	valueFiles := conf.Release.Components.HelmValueFiles()
 
+	authMap, err := createAuthMap(charts, repositories, conf)
+	if err != nil {
+		return nil, nil, fmt.Errorf("creating helm chart auth map: %w", err)
+	}
+
 	for _, chart := range charts {
-		if err = h.appendHelmChart(chart, repositories, valueFiles, &crds); err != nil {
-			return nil, fmt.Errorf("collecting helm charts: %w", err)
+		needsAuth := authMap[chart.Chart] != nil
+		if err = h.appendHelmChart(chart, repositories, valueFiles, &crds, needsAuth); err != nil {
+			return nil, nil, fmt.Errorf("collecting helm charts: %w", err)
 		}
 	}
 
@@ -133,16 +163,81 @@ func (h *Helm) retrieveHelmCharts(rm *resolver.ResolvedManifest, conf *image.Con
 		valueFiles = conf.Kubernetes.Helm.ValueFiles()
 
 		for _, chart := range conf.Kubernetes.Helm.Charts {
-			if err = h.appendHelmChart(chart, repositories, valueFiles, &crds); err != nil {
-				return nil, fmt.Errorf("collecting user helm charts: %w", err)
+			needsAuth := authMap[chart.Name] != nil
+			if err = h.appendHelmChart(chart, repositories, valueFiles, &crds, needsAuth); err != nil {
+				return nil, nil, fmt.Errorf("collecting user helm charts: %w", err)
 			}
 		}
 	}
 
-	return crds, nil
+	return crds, generateHelmSecrets(authMap), nil
 }
 
-func (h *Helm) appendHelmChart(chart helmChart, repositories, valueFiles map[string]string, crds *[]*helm.CRD) error {
+func createAuthMap(charts []*api.HelmChart, repositories map[string]string, conf *image.Configuration) (map[string]*auth.HelmAuth, error) {
+	authMap := make(map[string]*auth.HelmAuth)
+	if conf.Release.Components.HelmCharts != nil {
+		releaseChartsMap := make(map[string]*api.HelmChart, len(charts))
+		for _, c := range charts {
+			releaseChartsMap[c.Chart] = c
+		}
+
+		for _, rc := range conf.Release.Components.HelmCharts {
+			c, ok := releaseChartsMap[rc.Name]
+			if !ok || rc.Credentials == nil {
+				continue
+			}
+			extractedHost, err := extractHost(repositories[c.Repository])
+			if err != nil {
+				return nil, fmt.Errorf("extracting host: %w", err)
+			}
+			authMap[c.Chart] = &auth.HelmAuth{
+				URL: extractedHost,
+				Credentials: auth.Credentials{
+					Username: rc.Credentials.Username,
+					Password: rc.Credentials.Password,
+				},
+			}
+		}
+	}
+
+	if conf.Kubernetes.Helm != nil {
+		reposByName := make(map[string]*kubernetes.HelmRepository, len(conf.Kubernetes.Helm.Repositories))
+		for _, r := range conf.Kubernetes.Helm.Repositories {
+			reposByName[r.Name] = r
+		}
+		for _, c := range conf.Kubernetes.Helm.Charts {
+			r, ok := reposByName[c.RepositoryName]
+			if !ok || r.Credentials == nil {
+				continue
+			}
+			extractedHost, err := extractHost(r.URL)
+			if err != nil {
+				return nil, fmt.Errorf("extracting host: %w", err)
+			}
+			authMap[c.Name] = &auth.HelmAuth{
+				URL: extractedHost,
+				Credentials: auth.Credentials{
+					Username: r.Credentials.Username,
+					Password: r.Credentials.Password,
+				},
+			}
+		}
+	}
+
+	return authMap, nil
+}
+
+func generateHelmSecrets(authMap map[string]*auth.HelmAuth) []*helm.Secret {
+	var secrets []*helm.Secret
+
+	for chart, creds := range authMap {
+		secrets = append(secrets, NewSecret(chart, creds))
+	}
+
+	return secrets
+}
+
+func (h *Helm) appendHelmChart(chart helmChart, repositories, valueFiles map[string]string, crds *[]*helm.CRD, needsAuth bool) error {
 	name := chart.GetName()
 	repository, ok := repositories[chart.GetRepositoryName()]
 	if !ok {
@@ -155,7 +250,7 @@ func (h *Helm) appendHelmChart(chart helmChart, repositories, valueFiles map[str
 		return fmt.Errorf("resolving values for chart %s: %w", name, err)
 	}
 
-	crd := chart.ToCRD(values, repository)
+	crd := chart.ToCRD(values, repository, needsAuth)
 	*crds = append(*crds, crd)
 
 	return nil
@@ -234,4 +329,36 @@ func enabledHelmCharts(rm *resolver.ResolvedManifest, enabled []release.HelmChar
 	}
 
 	return charts, repositories, nil
+}
+
+func NewSecret(name string, creds *auth.HelmAuth) *helm.Secret {
+	a := base64.StdEncoding.EncodeToString([]byte(creds.Credentials.Username + ":" + creds.Credentials.Password))
+	dockerConfig := fmt.Sprintf(`{"auths":{"%s":{"username":"%s","password":"%s","auth":"%s"}}}`, creds.URL, creds.Credentials.Username, creds.Credentials.Password, a)
+	encoded := base64.StdEncoding.EncodeToString([]byte(dockerConfig))
+
+	return &helm.Secret{
+		APIVersion: "v1",
+		Kind:       "Secret",
+		Metadata: helm.SecretMetadata{
+			Name:      fmt.Sprintf("%s-auth", name),
+			Namespace: "kube-system",
+		},
+		Type: "kubernetes.io/dockerconfigjson",
+		Data: helm.SecretData{
+			DockerConfigJSON: encoded,
+		},
+	}
+}
+
+func extractHost(rawURL string) (string, error) {
+	r := rawURL
+	if !strings.Contains(r, "://") {
+		r = "https://" + r
+	}
+	u, err := url.Parse(r)
+	if err != nil {
+		return "", fmt.Errorf("parsing url %q: %w", r, err)
+	}
+
+	return u.Host, nil
 }

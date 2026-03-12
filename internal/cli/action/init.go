@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/suse/elemental/v3/internal/image/auth"
 	"github.com/urfave/cli/v3"
 
 	cmdpkg "github.com/suse/elemental/v3/internal/cli/cmd"
@@ -77,8 +78,52 @@ func defaultConfiguration() *image.Configuration {
 		Release: release.Release{
 			Name:        "my-product",
 			ManifestURI: "oci://registry.example.com/my-product/release-manifest:latest",
+			Components: release.Components{
+				HelmCharts: []release.HelmChart{
+					{
+						Name: "metallb",
+					},
+					{
+						Name: "endpoint-copier-operator",
+						Credentials: &auth.Credentials{
+							Username: "release-user",
+							Password: "release-pass",
+						},
+					},
+				},
+			},
 		},
 		Kubernetes: kubernetes.Kubernetes{
+			Helm: &kubernetes.Helm{
+				Charts: []*kubernetes.HelmChart{
+					{
+						Name:            "example-chart",
+						RepositoryName:  "example-chart-collection",
+						Version:         "1.0",
+						TargetNamespace: "exampleNamespace",
+					},
+					{
+						Name:            "example-auth-chart",
+						RepositoryName:  "example-auth-chart-collection",
+						Version:         "2.0",
+						TargetNamespace: "exampleNamespace",
+					},
+				},
+				Repositories: []*kubernetes.HelmRepository{
+					{
+						Name: "example-chart-collection",
+						URL:  "https://example-charts.io",
+					},
+					{
+						Name: "example-auth-chart-collection",
+						URL:  "https://example-auth-charts.io",
+						Credentials: &auth.Credentials{
+							Username: "example-user",
+							Password: "example-pass",
+						},
+					},
+				},
+			},
 			Nodes: kubernetes.Nodes{
 				{
 					Hostname: "node1.example",

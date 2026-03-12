@@ -46,10 +46,10 @@ func TestConfigurationSuite(t *testing.T) {
 }
 
 type helmConfiguratorMock struct {
-	configureFunc func(*image.Configuration, *resolver.ResolvedManifest) ([]string, error)
+	configureFunc func(*image.Configuration, *resolver.ResolvedManifest) ([]string, map[string][]byte, error)
 }
 
-func (h *helmConfiguratorMock) Configure(conf *image.Configuration, manifest *resolver.ResolvedManifest) ([]string, error) {
+func (h *helmConfiguratorMock) Configure(conf *image.Configuration, manifest *resolver.ResolvedManifest) ([]string, map[string][]byte, error) {
 	if h.configureFunc != nil {
 		return h.configureFunc(conf, manifest)
 	}
@@ -78,7 +78,7 @@ var _ = Describe("Manager", func() {
 	var cleanup func()
 	var err error
 	var system *sys.System
-	var defaultHelmFunc func(c *image.Configuration, rm *resolver.ResolvedManifest) ([]string, error)
+	var defaultHelmFunc func(c *image.Configuration, rm *resolver.ResolvedManifest) ([]string, map[string][]byte, error)
 	var defaultResolveFunc func(uri string) (*resolver.ResolvedManifest, error)
 	var butaneConfigString = `
 version: 1.6.0
@@ -156,8 +156,8 @@ passwd:
 		)
 		Expect(err).ToNot(HaveOccurred())
 
-		defaultHelmFunc = func(c *image.Configuration, rm *resolver.ResolvedManifest) ([]string, error) {
-			return nil, nil
+		defaultHelmFunc = func(c *image.Configuration, rm *resolver.ResolvedManifest) ([]string, map[string][]byte, error) {
+			return nil, nil, nil
 		}
 
 		defaultResolveFunc = func(uri string) (*resolver.ResolvedManifest, error) {
@@ -184,10 +184,10 @@ passwd:
 
 		m := NewManager(
 			system,
-			&helmConfiguratorMock{configureFunc: func(c *image.Configuration, rm *resolver.ResolvedManifest) ([]string, error) {
+			&helmConfiguratorMock{configureFunc: func(c *image.Configuration, rm *resolver.ResolvedManifest) ([]string, map[string][]byte, error) {
 				helmPath := filepath.Join(output.OverlaysDir(), image.HelmPath())
 				if err := vfs.MkdirAll(fs, helmPath, vfs.DirPerm); err != nil {
-					return nil, err
+					return nil, nil, err
 				}
 
 				files := []string{}
@@ -195,10 +195,10 @@ passwd:
 					files = append(files, chart.Name)
 					_, err := fs.Create(filepath.Join(helmPath, chart.Name))
 					if err != nil {
-						return nil, err
+						return nil, nil, err
 					}
 				}
-				return files, nil
+				return files, nil, nil
 			}},
 			WithManifestResolver(&resolverMock{resolveFunc: func(uri string) (*resolver.ResolvedManifest, error) {
 				if uri == activeConfig.Release.ManifestURI {
@@ -298,8 +298,8 @@ passwd:
 		By("Failing helm configuration")
 		m := NewManager(
 			system,
-			&helmConfiguratorMock{configureFunc: func(c *image.Configuration, rm *resolver.ResolvedManifest) ([]string, error) {
-				return nil, fmt.Errorf("unable to configure helm charts")
+			&helmConfiguratorMock{configureFunc: func(c *image.Configuration, rm *resolver.ResolvedManifest) ([]string, map[string][]byte, error) {
+				return nil, nil, fmt.Errorf("unable to configure helm charts")
 			}},
 			WithManifestResolver(&resolverMock{resolveFunc: defaultResolveFunc}),
 		)

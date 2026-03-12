@@ -20,6 +20,7 @@ package kubernetes
 import (
 	"fmt"
 
+	"github.com/suse/elemental/v3/internal/image/auth"
 	"github.com/suse/elemental/v3/pkg/helm"
 )
 
@@ -90,13 +91,14 @@ func (c *HelmChart) GetRepositoryName() string {
 	return c.RepositoryName
 }
 
-func (c *HelmChart) ToCRD(values []byte, repository string) *helm.CRD {
-	return helm.NewCRD(c.TargetNamespace, c.Name, c.Version, string(values), repository)
+func (c *HelmChart) ToCRD(values []byte, repository string, hasAuth bool) *helm.CRD {
+	return helm.NewCRD(c.TargetNamespace, c.Name, c.Version, string(values), repository, hasAuth)
 }
 
 type HelmRepository struct {
-	Name string `yaml:"name" validate:"required"`
-	URL  string `yaml:"url" validate:"required,url"`
+	Name        string            `yaml:"name" validate:"required"`
+	URL         string            `yaml:"url" validate:"required,url"`
+	Credentials *auth.Credentials `yaml:"credentials,omitempty"`
 }
 
 type Node struct {

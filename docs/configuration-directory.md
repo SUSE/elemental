@@ -31,6 +31,10 @@ components:
   helm:
     - chart: foo
       valuesFile: foo.yaml
+    - chart: bar
+      credentials:
+        username: user
+        password: pass
   systemd:
     - extension: bar
 ```
@@ -42,6 +46,9 @@ components:
   * `helm` - Optional; List of Helm chart components that need to be enabled from the Core Platform base.
     * `chart` - Required; The actual chart that needs to be enabled, as seen in the Core Platform release manifest.
     * `valuesFile` - Optional; The name of the [Helm values file](https://helm.sh/docs/chart_template_guide/values_files/) (not including the path) that will be applied to this chart. The values file must be placed under `kubernetes/helm/values` for the specified chart.
+    * `credentials` - Required for authenticated repositories/registries.
+      * `username` - Required; Defines the username for accessing the specified repository/registry.
+      * `password` - Required; Defines the password for accessing the specified repository/registry.
   * `systemd` - Optional; List of System extensions that need to be enabled from the product base.
     * `extension` - Required; The actual extension that needs to be enabled, as seen in the product release manifest.
 
@@ -115,9 +122,18 @@ helm:
       targetNamespace: "cattle-system"
       repositoryName: "rancher"
       valuesFile: rancher.yaml
+    - name: "cert-manager-fips"
+      version: "1.19.3"
+      targetNamespace: "cmf-system"
+      repositoryName: "application-collection"
   repositories:
     - name: "rancher"
       url: "https://releases.rancher.com/server-charts/stable"
+    - name: "application-collection"
+      url: "oci://dp.apps.rancher.io/charts"
+      credentials:
+        username: user
+        password: pass
 nodes:
 - hostname: node1.example
   type: server
@@ -146,6 +162,9 @@ network:
     * `name` - Required; Defines the name for this repository. This name doesn't have to match the name of the actual
     repository, but must correspond with the `repositoryName` of one or more charts.
     * `url` - Required; Defines the URL where this chart repository can be reached.
+    * `credentials` - Required for authenticated repositories/registries.
+      * `username` - Required; Defines the username for accessing the specified repository/registry.
+      * `password` - Required; Defines the password for accessing the specified repository/registry.
 * `nodes` - Required for multi-node clusters; Defines a list of all nodes that form the cluster.
   * `hostname` -  Required; Indicates the fully qualified domain name (FQDN) to identify the particular node on which the remainder of these attributes will be applied.
   * `type` - Required; Selects the Kubernetes node type, either server (for control plane nodes) or agent (for worker nodes).
