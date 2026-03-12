@@ -35,6 +35,34 @@ import (
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
 
+var expectedReleaseSubstring = `components:
+  helm:
+    - chart: metallb
+    - chart: endpoint-copier-operator
+      credentials:
+        username: release-user
+        password: release-pass`
+var expectedClusterSubstring = `helm:
+  charts:
+    - name: example-chart
+      repositoryName: example-chart-collection
+      version: "1.0"
+      targetNamespace: exampleNamespace
+      valuesFile: ""
+    - name: example-auth-chart
+      repositoryName: example-auth-chart-collection
+      version: "2.0"
+      targetNamespace: exampleNamespace
+      valuesFile: ""
+  repositories:
+    - name: example-chart-collection
+      url: https://example-charts.io
+    - name: example-auth-chart-collection
+      url: https://example-auth-charts.io
+      credentials:
+        username: example-user
+        password: example-pass`
+
 var _ = Describe("Init action", Label("init"), func() {
 	var s *sys.System
 	var tfs vfs.FS
@@ -95,12 +123,21 @@ var _ = Describe("Init action", Label("init"), func() {
 		Expect(string(data)).To(ContainSubstring("bootloader: grub"))
 	})
 
+	It("writes valid cluster.yaml with auth and non-auth helm repositories", func() {
+		Expect(action.Init(context.Background(), cliCmd)).To(Succeed())
+
+		data, err := tfs.ReadFile(filepath.Join(targetDir, "kubernetes", "cluster.yaml"))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(string(data)).To(ContainSubstring(expectedClusterSubstring))
+	})
+
 	It("writes valid release.yaml with manifest URI", func() {
 		Expect(action.Init(context.Background(), cliCmd)).To(Succeed())
 
 		data, err := tfs.ReadFile(filepath.Join(targetDir, "release.yaml"))
 		Expect(err).ToNot(HaveOccurred())
 		Expect(string(data)).To(ContainSubstring("manifestURI:"))
+		Expect(string(data)).To(ContainSubstring(expectedReleaseSubstring))
 	})
 
 	It("writes butane.yaml with root user", func() {

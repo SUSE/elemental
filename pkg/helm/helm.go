@@ -42,16 +42,38 @@ type Metadata struct {
 }
 
 type Spec struct {
-	Chart           string `yaml:"chart"`
-	Version         string `yaml:"version"`
-	Repo            string `yaml:"repo,omitempty"`
-	ValuesContent   string `yaml:"valuesContent,omitempty"`
-	TargetNamespace string `yaml:"targetNamespace,omitempty"`
-	CreateNamespace bool   `yaml:"createNamespace,omitempty"`
-	BackOffLimit    int    `yaml:"backOffLimit"`
+	Chart           string     `yaml:"chart"`
+	Version         string     `yaml:"version"`
+	Repo            string     `yaml:"repo,omitempty"`
+	ValuesContent   string     `yaml:"valuesContent,omitempty"`
+	TargetNamespace string     `yaml:"targetNamespace,omitempty"`
+	CreateNamespace bool       `yaml:"createNamespace,omitempty"`
+	BackOffLimit    int        `yaml:"backOffLimit"`
+	AuthSecret      AuthSecret `yaml:"dockerRegistrySecret,omitempty"`
 }
 
-func NewCRD(namespace, chart, version, valuesContent, repository string) *CRD {
+type AuthSecret struct {
+	Name string `yaml:"name,omitempty"`
+}
+
+type Secret struct {
+	APIVersion string         `yaml:"apiVersion"`
+	Kind       string         `yaml:"kind"`
+	Metadata   SecretMetadata `yaml:"metadata"`
+	Type       string         `yaml:"type"`
+	Data       SecretData     `yaml:"data"`
+}
+
+type SecretMetadata struct {
+	Namespace string `yaml:"namespace"`
+	Name      string `yaml:"name"`
+}
+
+type SecretData struct {
+	DockerConfigJSON string `yaml:".dockerconfigjson"`
+}
+
+func NewCRD(namespace, chart, version, valuesContent string, repository string, auth bool) *CRD {
 	name := chart
 
 	if strings.HasPrefix(repository, "oci://") {
@@ -62,7 +84,7 @@ func NewCRD(namespace, chart, version, valuesContent, repository string) *CRD {
 		repository = ""
 	}
 
-	return &CRD{
+	crd := &CRD{
 		APIVersion: helmChartAPIVersion,
 		Kind:       helmChartKind,
 		Metadata: Metadata{
@@ -79,4 +101,12 @@ func NewCRD(namespace, chart, version, valuesContent, repository string) *CRD {
 			BackOffLimit:    helmBackoffLimit,
 		},
 	}
+
+	if auth {
+		crd.Spec.AuthSecret = AuthSecret{
+			Name: fmt.Sprintf("%s-auth", name),
+		}
+	}
+
+	return crd
 }

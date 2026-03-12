@@ -36,7 +36,7 @@ type downloadFunc func(ctx context.Context, fs vfs.FS, url, path string) error
 type unpackFunc func(ctx context.Context, imageRef, destDir string) error
 
 type helmConfigurator interface {
-	Configure(conf *image.Configuration, manifest *resolver.ResolvedManifest) ([]string, error)
+	Configure(conf *image.Configuration, manifest *resolver.ResolvedManifest) ([]string, map[string][]byte, error)
 }
 
 type releaseManifestResolver interface {

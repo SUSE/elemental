@@ -68,6 +68,9 @@ helm:
   repositories:
     - name: "foo-charts"
       url: "https://charts.foo.bar"
+      credentials:
+        username: cluster-user
+        password: cluster-pass
 nodes:
   - hostname: node1.foo.bar
     type: server
@@ -85,6 +88,9 @@ components:
   helm:
     - chart: foo
       valuesFile: foo.yaml
+      credentials:
+        username: release-user
+        password: release-pass
 `
 
 var _ = Describe("Configuration", Label("configuration"), func() {
@@ -135,6 +141,8 @@ var _ = Describe("Configuration", Label("configuration"), func() {
 		Expect(conf.Kubernetes.Helm.Charts[0].Version).To(Equal("0.0.0"))
 		Expect(conf.Kubernetes.Helm.Repositories[0].Name).To(Equal("foo-charts"))
 		Expect(conf.Kubernetes.Helm.Repositories[0].URL).To(Equal("https://charts.foo.bar"))
+		Expect(conf.Kubernetes.Helm.Repositories[0].Credentials.Username).To(Equal("cluster-user"))
+		Expect(conf.Kubernetes.Helm.Repositories[0].Credentials.Password).To(Equal("cluster-pass"))
 		Expect(conf.Kubernetes.Nodes[0].Hostname).To(Equal("node1.foo.bar"))
 		Expect(conf.Kubernetes.Nodes[0].Type).To(Equal("server"))
 		Expect(conf.Kubernetes.Network.APIHost).To(Equal("192.168.120.100"))
@@ -152,6 +160,8 @@ var _ = Describe("Configuration", Label("configuration"), func() {
 		Expect(len(conf.Release.Components.HelmCharts)).To(Equal(3))
 		Expect(conf.Release.Components.HelmCharts[0].Name).To(Equal("foo"))
 		Expect(conf.Release.Components.HelmCharts[0].ValuesFile).To(Equal("foo.yaml"))
+		Expect(conf.Release.Components.HelmCharts[0].Credentials.Username).To(Equal("release-user"))
+		Expect(conf.Release.Components.HelmCharts[0].Credentials.Password).To(Equal("release-pass"))
 		Expect(containsChart("metallb", conf.Release.Components.HelmCharts)).To(BeTrue())
 		Expect(containsChart("endpoint-copier-operator", conf.Release.Components.HelmCharts)).To(BeTrue())
 		Expect(conf.Release.ManifestURI).To(Equal("oci://registry.foo.bar/release-manifest:0.0.1"))

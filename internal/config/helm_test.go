@@ -23,8 +23,8 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-
 	"github.com/suse/elemental/v3/internal/image"
+	"github.com/suse/elemental/v3/internal/image/auth"
 	"github.com/suse/elemental/v3/internal/image/kubernetes"
 	"github.com/suse/elemental/v3/internal/image/release"
 	"github.com/suse/elemental/v3/pkg/helm"
@@ -154,10 +154,11 @@ var _ = Describe("Helm tests", Label("helm"), func() {
 
 			h := &Helm{ValuesResolver: resolver, Logger: logger}
 
-			charts, err := h.Configure(conf, rm)
+			charts, secrets, err := h.Configure(conf, rm)
 			Expect(err).To(HaveOccurred())
 			Expect(err).To(MatchError("retrieving helm charts: collecting helm charts: resolving values for chart metallb: resolving failed"))
 			Expect(charts).To(BeNil())
+			Expect(secrets).To(BeNil())
 		})
 
 		It("Fails resolving values of product Helm chart", func() {
@@ -176,10 +177,11 @@ var _ = Describe("Helm tests", Label("helm"), func() {
 
 			h := &Helm{ValuesResolver: resolver, Logger: logger}
 
-			charts, err := h.Configure(conf, rm)
+			charts, secrets, err := h.Configure(conf, rm)
 			Expect(err).To(HaveOccurred())
 			Expect(err).To(MatchError("retrieving helm charts: collecting helm charts: resolving values for chart neuvector-crd: resolving failed"))
 			Expect(charts).To(BeNil())
+			Expect(secrets).To(BeNil())
 		})
 
 		It("Fails resolving values of user Helm chart", func() {
@@ -208,10 +210,11 @@ var _ = Describe("Helm tests", Label("helm"), func() {
 
 			h := &Helm{ValuesResolver: resolver}
 
-			charts, err := h.Configure(conf, rm)
+			charts, secrets, err := h.Configure(conf, rm)
 			Expect(err).To(HaveOccurred())
 			Expect(err).To(MatchError("retrieving helm charts: collecting user helm charts: resolving values for chart apache: resolving failed"))
 			Expect(charts).To(BeNil())
+			Expect(secrets).To(BeNil())
 		})
 
 		It("Fails to collect chart with a missing repository", func() {
@@ -233,10 +236,11 @@ var _ = Describe("Helm tests", Label("helm"), func() {
 			}
 
 			h := &Helm{ValuesResolver: resolver}
-			charts, err := h.Configure(conf, rm)
+			charts, secrets, err := h.Configure(conf, rm)
 			Expect(err).To(HaveOccurred())
 			Expect(err).To(MatchError("retrieving helm charts: collecting user helm charts: repository not found for chart: apache"))
 			Expect(charts).To(BeNil())
+			Expect(secrets).To(BeNil())
 		})
 
 		It("Fails enabling a missing release chart", func() {
@@ -255,10 +259,11 @@ var _ = Describe("Helm tests", Label("helm"), func() {
 
 			h := &Helm{ValuesResolver: resolver, Logger: logger}
 
-			charts, err := h.Configure(conf, rm)
+			charts, secrets, err := h.Configure(conf, rm)
 			Expect(err).To(HaveOccurred())
 			Expect(err).To(MatchError("retrieving helm charts: filtering enabled helm charts: adding helm chart 'rancher': helm chart does not exist"))
 			Expect(charts).To(BeNil())
+			Expect(secrets).To(BeNil())
 		})
 
 		It("Fails writing Helm charts to the FS", func() {
@@ -278,10 +283,11 @@ var _ = Describe("Helm tests", Label("helm"), func() {
 				RelativePath:   helmPath,
 			}
 
-			charts, err := h.Configure(conf, rm)
+			charts, secrets, err := h.Configure(conf, rm)
 			Expect(err).To(HaveOccurred())
 			Expect(err).To(MatchError("writing helm chart resources: creating directory: Mkdir /etc/overlays/helm: operation not permitted"))
 			Expect(charts).To(BeNil())
+			Expect(secrets).To(BeNil())
 		})
 
 		It("Collects and writes core, product and user Helm charts to the FS", func() {
@@ -347,8 +353,9 @@ var _ = Describe("Helm tests", Label("helm"), func() {
 				Logger:         logger,
 			}
 
-			charts, err := h.Configure(conf, rm)
+			charts, secrets, err := h.Configure(conf, rm)
 			Expect(err).NotTo(HaveOccurred())
+			Expect(secrets).To(BeEmpty())
 			Expect(charts).To(ConsistOf(
 				"/helm/metallb.yaml",
 				"/helm/endpoint-copier-operator.yaml",
@@ -483,6 +490,181 @@ spec:
 			b, err = fs.ReadFile(filepath.Join(overlaysPath, helmPath, "nginx.yaml"))
 			Expect(err).NotTo(HaveOccurred())
 			Expect(string(b)).To(Equal(contents))
+		})
+
+		It("Collects and writes core, product and user Helm charts with auth to the FS", func() {
+			fs, cleanup, err := sysmock.TestFS(map[string]string{})
+			Expect(err).NotTo(HaveOccurred())
+			DeferCleanup(cleanup)
+
+			resolver := &helm.ValuesResolver{
+				ValuesDir: filepath.Join(overlaysPath, helmPath),
+				FS:        fs,
+			}
+
+			conf := &image.Configuration{
+				Release: release.Release{
+					Components: release.Components{
+						HelmCharts: []release.HelmChart{
+							{Name: "metallb"},
+							{
+								Name: "endpoint-copier-operator",
+								Credentials: &auth.Credentials{
+									Username: "eco-user",
+									Password: "eco-pass",
+								},
+							},
+						},
+					},
+				},
+				Kubernetes: kubernetes.Kubernetes{
+					Helm: &kubernetes.Helm{
+						Charts: []*kubernetes.HelmChart{
+							{
+								Name:            "apache",
+								RepositoryName:  "apache",
+								TargetNamespace: "web",
+								Version:         "10.7.0",
+							},
+							{
+								Name:            "nginx",
+								RepositoryName:  "nginx",
+								TargetNamespace: "web",
+								Version:         "1.29.3",
+							},
+							{
+								Name:            "suse-storage",
+								RepositoryName:  "storage",
+								TargetNamespace: "suse-storage",
+								Version:         "1.11.0",
+							},
+						},
+						Repositories: []*kubernetes.HelmRepository{
+							{
+								Name: "apache",
+								URL:  "https://example.com/apache",
+								Credentials: &auth.Credentials{
+									Username: "apache-user",
+									Password: "apache-pass",
+								},
+							},
+							{
+								Name: "nginx",
+								URL:  "oci://example.com/web",
+							},
+							{
+								Name: "storage",
+								URL:  "oci://example-1.com/charts",
+								Credentials: &auth.Credentials{
+									Username: "storage-user",
+									Password: "storage-pass",
+								},
+							},
+						},
+					},
+				},
+			}
+
+			h := &Helm{
+				FS:             fs,
+				ValuesResolver: resolver,
+				DestinationDir: overlaysPath,
+				RelativePath:   helmPath,
+				Logger:         logger,
+			}
+
+			charts, secrets, err := h.Configure(conf, rm)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(charts).To(ConsistOf(
+				"/helm/metallb.yaml",
+				"/helm/endpoint-copier-operator.yaml",
+				"/helm/apache.yaml",
+				"/helm/nginx.yaml",
+				"/helm/suse-storage.yaml"))
+
+			apacheAuthSecret := "apiVersion: v1\nkind: Secret\nmetadata:\n    namespace: kube-system\n    name: apache-auth\ntype: kubernetes.io/dockerconfigjson\ndata:\n    .dockerconfigjson: eyJhdXRocyI6eyJleGFtcGxlLmNvbSI6eyJ1c2VybmFtZSI6ImFwYWNoZS11c2VyIiwicGFzc3dvcmQiOiJhcGFjaGUtcGFzcyIsImF1dGgiOiJZWEJoWTJobExYVnpaWEk2WVhCaFkyaGxMWEJoYzNNPSJ9fX0=\n"
+			storageAuthSecret := "apiVersion: v1\nkind: Secret\nmetadata:\n    namespace: kube-system\n    name: suse-storage-auth\ntype: kubernetes.io/dockerconfigjson\ndata:\n    .dockerconfigjson: eyJhdXRocyI6eyJleGFtcGxlLTEuY29tIjp7InVzZXJuYW1lIjoic3RvcmFnZS11c2VyIiwicGFzc3dvcmQiOiJzdG9yYWdlLXBhc3MiLCJhdXRoIjoiYzNSdmNtRm5aUzExYzJWeU9uTjBiM0poWjJVdGNHRnpjdz09In19fQ==\n"
+			ecoAuthSecret := "apiVersion: v1\nkind: Secret\nmetadata:\n    namespace: kube-system\n    name: endpoint-copier-operator-auth\ntype: kubernetes.io/dockerconfigjson\ndata:\n    .dockerconfigjson: eyJhdXRocyI6eyJleGFtcGxlLTEuY29tIjp7InVzZXJuYW1lIjoiZWNvLXVzZXIiLCJwYXNzd29yZCI6ImVjby1wYXNzIiwiYXV0aCI6IlpXTnZMWFZ6WlhJNlpXTnZMWEJoYzNNPSJ9fX0=\n"
+
+			Expect(string(secrets["apache-auth-priority.yaml"])).To(Equal(apacheAuthSecret))
+			Expect(string(secrets["endpoint-copier-operator-auth-priority.yaml"])).To(Equal(ecoAuthSecret))
+			Expect(string(secrets["suse-storage-auth-priority.yaml"])).To(Equal(storageAuthSecret))
+
+			// Verify the contents of the various written Helm resources
+			contents := `apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+    name: metallb
+    namespace: kube-system
+spec:
+    chart: metallb
+    version: 302.0.0+up0.14.9
+    repo: https://example.com/suse-core
+    valuesContent: |
+        frrk8s:
+            enabled: true
+    targetNamespace: metallb-system
+    createNamespace: true
+    backOffLimit: 20
+`
+			b, err := fs.ReadFile(filepath.Join(overlaysPath, helmPath, "metallb.yaml"))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(string(b)).To(Equal(contents))
+
+			contents = `apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+    name: endpoint-copier-operator
+    namespace: kube-system
+spec:
+    chart: oci://example-1.com/charts/endpoint-copier-operator
+    version: 0.3.0
+    targetNamespace: endpoint-copier-operator
+    createNamespace: true
+    backOffLimit: 20
+    dockerRegistrySecret:
+        name: endpoint-copier-operator-auth
+`
+			b, err = fs.ReadFile(filepath.Join(overlaysPath, helmPath, "endpoint-copier-operator.yaml"))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(string(b)).To(Equal(contents), "full actual:\n%s", string(b))
+			Expect(string(b)).To(Equal(contents))
+
+			contents = `apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+    name: apache
+    namespace: kube-system
+spec:
+    chart: apache
+    version: 10.7.0
+    repo: https://example.com/apache
+    targetNamespace: web
+    createNamespace: true
+    backOffLimit: 20
+    dockerRegistrySecret:
+        name: apache-auth
+`
+			b, err = fs.ReadFile(filepath.Join(overlaysPath, helmPath, "apache.yaml"))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(string(b)).To(Equal(contents))
+
+			contents = `apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+    name: nginx
+    namespace: kube-system
+spec:
+    chart: oci://example.com/web/nginx
+    version: 1.29.3
+    targetNamespace: web
+    createNamespace: true
+    backOffLimit: 20
+`
+			b, err = fs.ReadFile(filepath.Join(overlaysPath, helmPath, "nginx.yaml"))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(string(b)).To(Equal(contents))
+
 		})
 	})
 

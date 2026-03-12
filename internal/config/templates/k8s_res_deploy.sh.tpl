@@ -95,6 +95,25 @@ deployManifests() {
   local failed=false
   echo "Deploying Kubernetes manifests.."
   for manifest in {{ .ManifestsDir }}/*.yaml; do
+    [[ "$manifest" == *-priority.yaml ]] && continue
+    retryKubectlCreate "$manifest" 6 10
+    if [[ $? -ne 0 ]]; then
+      failed=true
+    fi
+  done
+
+  if [ "$failed" = true ]; then
+    exit 1
+  fi
+}
+{{- end }}
+
+{{- if .ManifestsDir }}
+deployPriorityManifests() {
+  local failed=false
+  echo "Deploying Kubernetes priority manifests.."
+  for manifest in {{ .ManifestsDir }}/*-priority.yaml; do
+    [[ -e "$manifest" ]] || continue
     retryKubectlCreate "$manifest" 6 10
     if [[ $? -ne 0 ]]; then
       failed=true
@@ -136,6 +155,10 @@ waitForCoreRKE2Charts() {
 }
 
 waitForCoreRKE2Charts
+
+{{- if .ManifestsDir }}
+deployPriorityManifests
+{{- end }}
 
 {{- if .HelmCharts }}
 deployHelmCharts

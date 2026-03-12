@@ -41,8 +41,8 @@ var k8sResDeployScriptTpl string
 //go:embed templates/k8s_conf_deploy.sh.tpl
 var k8sConfDeployScriptTpl string
 
-func needsManifestsSetup(conf *image.Configuration) bool {
-	return len(conf.Kubernetes.RemoteManifests) > 0 || len(conf.Kubernetes.LocalManifests) > 0 || conf.Kubernetes.Network.IsHA()
+func needsManifestsSetup(conf *image.Configuration, additionalManifests map[string][]byte) bool {
+	return len(conf.Kubernetes.RemoteManifests) > 0 || len(conf.Kubernetes.LocalManifests) > 0 || conf.Kubernetes.Network.IsHA() || additionalManifests != nil
 }
 
 func needsHelmChartsSetup(conf *image.Configuration) bool {
@@ -50,7 +50,7 @@ func needsHelmChartsSetup(conf *image.Configuration) bool {
 }
 
 func isKubernetesEnabled(conf *image.Configuration) bool {
-	return conf.Release.Components.Kubernetes != nil || needsHelmChartsSetup(conf) || needsManifestsSetup(conf)
+	return conf.Release.Components.Kubernetes != nil || needsHelmChartsSetup(conf) || needsManifestsSetup(conf, nil)
 }
 
 func (m *Manager) configureKubernetes(
@@ -68,20 +68,21 @@ func (m *Manager) configureKubernetes(
 	}
 
 	var runtimeHelmCharts []string
+	var additionalManifests map[string][]byte
 	if needsHelmChartsSetup(conf) {
 		m.system.Logger().Info("Configuring Helm charts")
 
-		runtimeHelmCharts, err = m.helm.Configure(conf, manifest)
+		runtimeHelmCharts, additionalManifests, err = m.helm.Configure(conf, manifest)
 		if err != nil {
 			return "", "", fmt.Errorf("configuring helm charts: %w", err)
 		}
 	}
 
 	var runtimeManifestsDir string
-	if needsManifestsSetup(conf) {
+	if needsManifestsSetup(conf, additionalManifests) {
 		m.system.Logger().Info("Configuring Kubernetes manifests")
 
-		runtimeManifestsDir, err = m.setupManifests(ctx, &conf.Kubernetes, output)
+		runtimeManifestsDir, err = m.setupManifests(ctx, &conf.Kubernetes, additionalManifests, output)
 		if err != nil {
 			return "", "", fmt.Errorf("configuring kubernetes manifests: %w", err)
 		}
@@ -107,7 +108,7 @@ func (m *Manager) configureKubernetes(
 	return k8sResourceScript, k8sConfScript, nil
 }
 
-func (m *Manager) setupManifests(ctx context.Context, k *kubernetes.Kubernetes, output Output) (string, error) {
+func (m *Manager) setupManifests(ctx context.Context, k *kubernetes.Kubernetes, additionalManifests map[string][]byte, output Output) (string, error) {
 	fs := m.system.FS()
 
 	relativeManifestsPath := filepath.Join("/", image.KubernetesManifestsPath())
@@ -129,6 +130,13 @@ func (m *Manager) setupManifests(ctx context.Context, k *kubernetes.Kubernetes, 
 		overlayPath := filepath.Join(manifestsDir, filepath.Base(manifest))
 		if err := vfs.CopyFile(fs, manifest, overlayPath); err != nil {
 			return "", fmt.Errorf("copying local manifest '%s' to '%s': %w", manifest, overlayPath, err)
+		}
+	}
+
+	for name, manifest := range additionalManifests {
+		secretPath := filepath.Join(manifestsDir, filepath.Base(name))
+		if err := fs.WriteFile(secretPath, manifest, 0o644); err != nil {
+			return "", fmt.Errorf("writing secret %q: %w", secretPath, err)
 		}
 	}
 
