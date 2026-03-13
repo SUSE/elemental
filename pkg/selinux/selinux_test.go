@@ -103,12 +103,12 @@ var _ = Describe("Selinux", Label("selinux"), func() {
 		Expect(fs.WriteFile(contextFile, []byte{}, vfs.FilePerm)).To(Succeed())
 		Expect(vfs.MkdirAll(fs, "/partition/var", vfs.DirPerm)).To(Succeed())
 		Expect(selinux.ChrootedRelabel(
-			context.Background(), s, root, map[string]string{"/partition/var": "/var"}),
+			context.Background(), s, root, map[string]string{"/partition/var": "/var"}, "/etc"),
 		).To(Succeed())
 		Expect(runner.CmdsMatch([][]string{
-			{"setfiles", "-i", "-F", "/etc/selinux/targeted/contexts/files/file_contexts", "/", "/var"},
+			{"setfiles", "-i", "-F", "/etc/selinux/targeted/contexts/files/file_contexts", "/", "/etc", "/var"},
 			{"sync"},
-			{"setfiles", "-i", "-F", "-r", "/some/root", "/some/root/etc/selinux/targeted/contexts/files/file_contexts", "/some/root/var"},
+			{"setfiles", "-i", "-F", "-r", "/some/root", "/some/root/etc/selinux/targeted/contexts/files/file_contexts", fmt.Sprintf("%s/etc", root), "/some/root/var"},
 		})).To(Succeed())
 	})
 	It("fails to relabel in a chroot env if chroot mounts fail", func() {
@@ -117,6 +117,17 @@ var _ = Describe("Selinux", Label("selinux"), func() {
 		Expect(selinux.ChrootedRelabel(
 			context.Background(), s, root, map[string]string{"/partition/var": "/var"}),
 		).NotTo(Succeed())
+	})
+	It("fails when bind paths overlap with additional paths", func() {
+		By("failing when paths match exactly")
+		err := selinux.ChrootedRelabel(context.Background(), s, root, map[string]string{"/foo/etc": "/etc"}, "/etc")
+		Expect(err).To(HaveOccurred())
+		Expect(err).To(MatchError("failed adding bind mount path '/etc' for relabel: path already exists in or overlaps with existing relabel paths: '[/etc]'"))
+
+		By("failing when paths overlap")
+		err = selinux.ChrootedRelabel(context.Background(), s, root, map[string]string{"/foo/etc": "/etc/elemental"}, "/etc")
+		Expect(err).To(HaveOccurred())
+		Expect(err).To(MatchError("failed adding bind mount path '/etc/elemental' for relabel: path already exists in or overlaps with existing relabel paths: '[/etc]'"))
 	})
 	It("does nothing if the context is not found in chroot", func() {
 		Expect(vfs.MkdirAll(fs, "/partition/var", vfs.DirPerm)).To(Succeed())
