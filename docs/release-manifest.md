@@ -128,17 +128,17 @@ components:
       url: "https://metallb.github.io/metallb"
 ```
 
-The manifest's structure is similar to that of the [Product Release Manifest](#product-release-manifest-api), with the key difference being the inclusion of components unique to the Core Platform (e.g. `operatingSystem` and `kubernetes`). 
+The manifest's structure is similar to that of the [Product Release Manifest](#product-release-manifest-api), with the key difference being the inclusion of components unique to the Core Platform (e.g. `operatingSystem` and `systemd`).
 
-This reference focuses only on the unique to the Core Platform component APIs. Any components not mentioned here share the same description as those in the `Product Release Manifest`.
+This reference focuses only on the fields unique to the Core Platform APIs. Any components not mentioned here share the same description as those in the `Product Release Manifest`.
 
 * `components` - Components described by the Core Platform release manifest.
   * `operatingSystem` - Operating system related components.
-    * `image` - Location to different operating system container images.
-      * `base` - Location to the base container image from which all other images defined here are built.
-      * `iso` - Location to the installer media ISO that is used during the customization process.
+    * `image` - Location of different operating system container images.
+      * `base` - Location of the base container image from which all other images defined here are built.
+      * `iso` - Location of the installer media ISO that is used during the customization process.
   * `systemd` - Systemd related components.
     * `extensions` - List of systemd extension images.
       * `name` - Name by which the extension can be identified and possibly later enabled from the [product release reference](./configuration-directory.md#product-release-reference).
-      * `image` - Location to the extension image itself.
+      * `image` - Location of the extension image itself.
       * `required` - Whether this extension should be included by default or not. If omitted defaults to `false`.
