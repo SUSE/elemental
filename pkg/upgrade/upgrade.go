@@ -110,7 +110,12 @@ func (u Upgrader) Upgrade(d *deployment.Deployment) (err error) {
 
 	esp := d.GetEfiPartition()
 	if esp == nil {
-		return fmt.Errorf("no EFI partition defined in deployment")
+		return fmt.Errorf("no %s partition defined in deployment", deployment.EfiLabel)
+	}
+
+	sys := d.GetSystemPartition()
+	if sys == nil {
+		return fmt.Errorf("no %s partition defined in deployment", deployment.SystemLabel)
 	}
 
 	uh, err = u.t.Init(*d)
@@ -146,7 +151,7 @@ func (u Upgrader) Upgrade(d *deployment.Deployment) (err error) {
 		}
 	}
 
-	err = selinux.ChrootedRelabel(u.ctx, u.s, trans.Path, nil)
+	err = selinux.ChrootedRelabel(u.ctx, u.s, trans.Path, nil, sys.RWVolumes.GetPaths()...)
 	if err != nil {
 		return fmt.Errorf("relabelling snapshot path '%s': %w", trans.Path, err)
 	}

@@ -568,6 +568,16 @@ func (s SanitizeDeployment) name() string {
 	return fullName[lastDotIndex+1:]
 }
 
+// GetPaths returns a list of volume paths as seen in RWVolumes.
+func (rw RWVolumes) GetPaths() []string {
+	paths := make([]string, 0, len(rw))
+	for _, vol := range rw {
+		paths = append(paths, vol.Path)
+	}
+
+	return paths
+}
+
 // GetSystemPartition returns the system partition from the disk.
 // returns nil if not found.
 func (d Disk) GetSystemPartition() *Partition {
