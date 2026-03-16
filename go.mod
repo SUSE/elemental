@@ -5,7 +5,7 @@ go 1.25.6
 require (
 	dario.cat/mergo v1.0.2
 	github.com/cenkalti/backoff/v4 v4.3.0
-	github.com/containerd/containerd/v2 v2.2.1
+	github.com/containerd/containerd/v2 v2.2.2
 	github.com/coreos/butane v0.27.0
 	github.com/coreos/ignition/v2 v2.26.0
 	github.com/distribution/reference v0.6.0
