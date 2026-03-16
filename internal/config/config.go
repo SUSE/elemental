@@ -102,6 +102,10 @@ func (o Output) Cleanup(fs vfs.FS) error {
 	return fs.RemoveAll(o.RootPath)
 }
 
+func Write(f vfs.FS, configDir string, conf *image.Configuration) error {
+	return v0.Write(f, v0.Dir(configDir), conf)
+}
+
 func Parse(f vfs.FS, configDir string) (conf *image.Configuration, err error) {
 	schemaVersion, err := LoadSchemaVersion(f, configDir)
 	if err != nil {

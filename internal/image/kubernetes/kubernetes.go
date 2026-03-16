@@ -102,7 +102,7 @@ type HelmRepository struct {
 type Node struct {
 	Hostname string `yaml:"hostname" validate:"required,hostname"`
 	Type     string `yaml:"type" validate:"required,oneof=server agent"`
-	Init     bool   `yaml:"init"`
+	Init     bool   `yaml:"init,omitempty"`
 }
 
 type Nodes []Node
@@ -129,8 +129,8 @@ func FindInitNode(nodes Nodes) (*Node, error) {
 
 type Network struct {
 	APIHost string `yaml:"apiHost"`
-	APIVIP4 string `yaml:"apiVIP" validate:"omitempty"`
-	APIVIP6 string `yaml:"apiVIP6" validate:"omitempty,ipv6"`
+	APIVIP4 string `yaml:"apiVIP,omitempty" validate:"omitempty"`
+	APIVIP6 string `yaml:"apiVIP6,omitempty" validate:"omitempty,ipv6"`
 }
 
 func (n Network) IsHA() bool {

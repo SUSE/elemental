@@ -36,6 +36,7 @@ func main() {
 		cmd.Teardown,
 		cmd.NewBuildCommand(appName, action.Build),
 		cmd.NewCustomizeCommand(appName, action.Customize),
+		cmd.NewInitCommand(appName, action.Init),
 		cmd.NewVersionCommand(appName))
 
 	if err := application.Run(context.Background(), os.Args); err != nil {

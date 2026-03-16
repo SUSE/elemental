@@ -85,6 +85,63 @@ func (dir Dir) CustomDir() string {
 	return filepath.Join(string(dir), "custom")
 }
 
+func Write(f vfs.FS, configDir Dir, conf *image.Configuration) error {
+	if err := vfs.MkdirAll(f, string(configDir), vfs.DirPerm); err != nil {
+		return fmt.Errorf("creating config directory: %w", err)
+	}
+
+	if err := writeYAML(f, configDir.InstallFilepath(), &conf.Installation); err != nil {
+		return err
+	}
+
+	if err := writeYAML(f, configDir.ReleaseFilepath(), &conf.Release); err != nil {
+		return err
+	}
+
+	if conf.ButaneConfig != nil {
+		if err := writeYAML(f, configDir.ButaneFilepath(), conf.ButaneConfig); err != nil {
+			return err
+		}
+	}
+
+	if err := vfs.MkdirAll(f, configDir.NetworkDir(), vfs.DirPerm); err != nil {
+		return fmt.Errorf("creating network directory: %w", err)
+	}
+
+	if err := vfs.MkdirAll(f, configDir.kubernetesDir(), vfs.DirPerm); err != nil {
+		return fmt.Errorf("creating kubernetes directory: %w", err)
+	}
+
+	if conf.Kubernetes.Helm != nil || len(conf.Kubernetes.RemoteManifests) > 0 ||
+		len(conf.Kubernetes.Nodes) > 0 || conf.Kubernetes.Network != (kubernetes.Network{}) {
+		if err := writeYAML(f, configDir.ClusterFilepath(), &conf.Kubernetes); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func writeYAML(f vfs.FS, path string, v any) error {
+	if err := vfs.MkdirAll(f, filepath.Dir(path), vfs.DirPerm); err != nil {
+		return fmt.Errorf("creating directory for %s: %w", path, err)
+	}
+
+	var buf bytes.Buffer
+	encoder := yaml.NewEncoder(&buf)
+	encoder.SetIndent(2)
+
+	if err := encoder.Encode(v); err != nil {
+		return fmt.Errorf("marshalling %s: %w", path, err)
+	}
+
+	if err := f.WriteFile(path, buf.Bytes(), vfs.FilePerm); err != nil {
+		return fmt.Errorf("writing %s: %w", path, err)
+	}
+
+	return nil
+}
+
 func Parse(f vfs.FS, configDir Dir) (conf *image.Configuration, err error) {
 	conf = &image.Configuration{}
 
