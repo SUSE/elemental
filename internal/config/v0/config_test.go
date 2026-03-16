@@ -26,7 +26,9 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"github.com/suse/elemental/v3/internal/image"
 	"github.com/suse/elemental/v3/internal/image/install"
+	"github.com/suse/elemental/v3/internal/image/kubernetes"
 	"github.com/suse/elemental/v3/internal/image/release"
 	"github.com/suse/elemental/v3/pkg/crypto"
 	sysmock "github.com/suse/elemental/v3/pkg/sys/mock"
@@ -284,6 +286,193 @@ raw:
 		Expect(err).To(HaveOccurred())
 		// Parse will fail first on reading the file
 		Expect(err.Error()).To(ContainSubstring("reading config file"))
+	})
+})
+
+var _ = Describe("Write", Label("configuration", "write"), func() {
+	var configDir Dir = "/tmp/write-config-dir"
+	var fs vfs.FS
+	var cleanup func()
+	var err error
+
+	BeforeEach(func() {
+		fs, cleanup, err = sysmock.TestFS(map[string]any{})
+		Expect(err).ToNot(HaveOccurred())
+	})
+
+	AfterEach(func() {
+		cleanup()
+	})
+
+	It("Writes install.yaml and release.yaml", func() {
+		conf := &image.Configuration{
+			Installation: install.Installation{
+				SchemaVersion: "v0",
+				Bootloader:    "grub",
+				RAW: install.RAW{
+					DiskSize: "20G",
+				},
+			},
+			Release: release.Release{
+				Name:        "test-product",
+				ManifestURI: "oci://registry.example.com/test:latest",
+			},
+		}
+
+		Expect(Write(fs, configDir, conf)).To(Succeed())
+
+		data, err := fs.ReadFile(configDir.InstallFilepath())
+		Expect(err).ToNot(HaveOccurred())
+
+		var parsedInstall install.Installation
+		Expect(ParseAny(data, &parsedInstall)).To(Succeed())
+		Expect(parsedInstall.SchemaVersion).To(Equal("v0"))
+		Expect(parsedInstall.Bootloader).To(Equal("grub"))
+		Expect(parsedInstall.RAW.DiskSize).To(Equal(install.DiskSize("20G")))
+
+		data, err = fs.ReadFile(configDir.ReleaseFilepath())
+		Expect(err).ToNot(HaveOccurred())
+
+		var parsedRelease release.Release
+		Expect(ParseAny(data, &parsedRelease)).To(Succeed())
+		Expect(parsedRelease.Name).To(Equal("test-product"))
+		Expect(parsedRelease.ManifestURI).To(Equal("oci://registry.example.com/test:latest"))
+	})
+
+	It("Writes butane.yaml when ButaneConfig is set", func() {
+		conf := &image.Configuration{
+			Installation: install.Installation{SchemaVersion: "v0"},
+			Release:      release.Release{ManifestURI: "oci://test"},
+			ButaneConfig: map[string]any{
+				"version": "1.6.0",
+				"variant": "fcos",
+			},
+		}
+
+		Expect(Write(fs, configDir, conf)).To(Succeed())
+
+		data, err := fs.ReadFile(configDir.ButaneFilepath())
+		Expect(err).ToNot(HaveOccurred())
+
+		var parsed map[string]any
+		Expect(ParseAny(data, &parsed)).To(Succeed())
+		Expect(parsed["version"]).To(Equal("1.6.0"))
+		Expect(parsed["variant"]).To(Equal("fcos"))
+	})
+
+	It("Skips butane.yaml when ButaneConfig is nil", func() {
+		conf := &image.Configuration{
+			Installation: install.Installation{SchemaVersion: "v0"},
+			Release:      release.Release{ManifestURI: "oci://test"},
+		}
+
+		Expect(Write(fs, configDir, conf)).To(Succeed())
+
+		exists, _ := vfs.Exists(fs, configDir.ButaneFilepath())
+		Expect(exists).To(BeFalse())
+	})
+
+	It("Creates network and kubernetes directories", func() {
+		conf := &image.Configuration{
+			Installation: install.Installation{SchemaVersion: "v0"},
+			Release:      release.Release{ManifestURI: "oci://test"},
+		}
+
+		Expect(Write(fs, configDir, conf)).To(Succeed())
+
+		info, err := fs.Stat(configDir.NetworkDir())
+		Expect(err).ToNot(HaveOccurred())
+		Expect(info.IsDir()).To(BeTrue())
+
+		info, err = fs.Stat(configDir.kubernetesDir())
+		Expect(err).ToNot(HaveOccurred())
+		Expect(info.IsDir()).To(BeTrue())
+	})
+
+	It("Writes cluster.yaml when Kubernetes has content", func() {
+		conf := &image.Configuration{
+			Installation: install.Installation{SchemaVersion: "v0"},
+			Release:      release.Release{ManifestURI: "oci://test"},
+			Kubernetes: kubernetes.Kubernetes{
+				RemoteManifests: []string{"https://example.com/manifest.yaml"},
+				Nodes: kubernetes.Nodes{
+					{Hostname: "node1.example", Type: "server"},
+				},
+			},
+		}
+
+		Expect(Write(fs, configDir, conf)).To(Succeed())
+
+		data, err := fs.ReadFile(configDir.ClusterFilepath())
+		Expect(err).ToNot(HaveOccurred())
+
+		var parsed kubernetes.Kubernetes
+		Expect(ParseAny(data, &parsed)).To(Succeed())
+		Expect(parsed.RemoteManifests).To(ConsistOf("https://example.com/manifest.yaml"))
+		Expect(parsed.Nodes).To(HaveLen(1))
+		Expect(parsed.Nodes[0].Hostname).To(Equal("node1.example"))
+	})
+
+	It("Skips cluster.yaml when Kubernetes is empty", func() {
+		conf := &image.Configuration{
+			Installation: install.Installation{SchemaVersion: "v0"},
+			Release:      release.Release{ManifestURI: "oci://test"},
+		}
+
+		Expect(Write(fs, configDir, conf)).To(Succeed())
+
+		exists, _ := vfs.Exists(fs, configDir.ClusterFilepath())
+		Expect(exists).To(BeFalse())
+	})
+
+	It("Produces files that can be round-tripped through Parse", func() {
+		conf := &image.Configuration{
+			Installation: install.Installation{
+				SchemaVersion: "v0",
+				Bootloader:    "grub",
+				CryptoPolicy:  crypto.FIPSPolicy,
+				RAW: install.RAW{
+					DiskSize: "35G",
+				},
+			},
+			Release: release.Release{
+				Name:        "roundtrip-product",
+				ManifestURI: "oci://registry.example.com/roundtrip:1.0",
+				Components: release.Components{
+					SystemdExtensions: []release.SystemdExtension{
+						{Name: "rke2"},
+					},
+					HelmCharts: []release.HelmChart{
+						{Name: "test-chart"},
+					},
+				},
+			},
+			ButaneConfig: map[string]any{
+				"version": "1.6.0",
+				"variant": "fcos",
+			},
+		}
+
+		Expect(Write(fs, configDir, conf)).To(Succeed())
+
+		// Remove empty network dir so Parse doesn't reject it
+		Expect(fs.Remove(configDir.NetworkDir())).To(Succeed())
+
+		parsed, err := Parse(fs, configDir)
+		Expect(err).ToNot(HaveOccurred())
+
+		Expect(parsed.Installation.SchemaVersion).To(Equal("v0"))
+		Expect(parsed.Installation.Bootloader).To(Equal("grub"))
+		Expect(parsed.Installation.CryptoPolicy).To(Equal(crypto.FIPSPolicy))
+		Expect(parsed.Installation.RAW.DiskSize).To(Equal(install.DiskSize("35G")))
+		Expect(parsed.Release.Name).To(Equal("roundtrip-product"))
+		Expect(parsed.Release.ManifestURI).To(Equal("oci://registry.example.com/roundtrip:1.0"))
+		Expect(parsed.Release.Components.SystemdExtensions).To(HaveLen(1))
+		Expect(parsed.Release.Components.SystemdExtensions[0].Name).To(Equal("rke2"))
+		Expect(parsed.Release.Components.HelmCharts).To(HaveLen(1))
+		Expect(parsed.Release.Components.HelmCharts[0].Name).To(Equal("test-chart"))
+		Expect(parsed.ButaneConfig["version"]).To(Equal("1.6.0"))
+		Expect(parsed.ButaneConfig["variant"]).To(Equal("fcos"))
 	})
 })
 
