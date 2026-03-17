@@ -105,8 +105,8 @@ function start {
   [[ "${ELMNTL_SMP}" != "" ]] && smp_arg="-smp ${ELMNTL_SMP}"
 
   # Generate the command line
-  cmdline="qemu-system-${ELMNTL_TARGETARCH} ${kvm_arg} ${disk_arg} ${cdrom_arg} ${global_arg} ${firmware_arg} \
-             ${net_arg} ${memory_arg} ${graphics_arg} ${serial_arg} ${pidfile_arg} \
+  cmdline="qemu-system-${ELMNTL_TARGETARCH} ${kvm_arg} ${disk_arg} ${cdrom_arg} ${firmware_arg} \
+             ${net_arg} ${memory_arg} ${serial_arg} ${pidfile_arg} \
              ${display_arg} ${machine_arg} ${accel_arg} ${rngdev_arg} ${cpu_arg} ${smp_arg}"
 
   # Start the VM
