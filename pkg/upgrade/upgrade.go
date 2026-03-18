@@ -21,6 +21,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -113,11 +114,6 @@ func (u Upgrader) Upgrade(d *deployment.Deployment) (err error) {
 		return fmt.Errorf("no %s partition defined in deployment", deployment.EfiLabel)
 	}
 
-	sys := d.GetSystemPartition()
-	if sys == nil {
-		return fmt.Errorf("no %s partition defined in deployment", deployment.SystemLabel)
-	}
-
 	uh, err = u.t.Init(*d)
 	if err != nil {
 		return fmt.Errorf("initializing transaction: %w", err)
@@ -151,7 +147,7 @@ func (u Upgrader) Upgrade(d *deployment.Deployment) (err error) {
 		}
 	}
 
-	err = selinux.ChrootedRelabel(u.ctx, u.s, trans.Path, nil, sys.RWVolumes.GetPaths()...)
+	err = selinux.ChrootedRelabel(u.ctx, u.s, trans.Path, nil, parseAdditionalRelabelPaths(d)...)
 	if err != nil {
 		return fmt.Errorf("relabelling snapshot path '%s': %w", trans.Path, err)
 	}
@@ -255,4 +251,26 @@ func logOutput(s *sys.System, stdOut, stdErr string) {
 	output += stdErr
 	output += "----------------------\n"
 	s.Logger().Debug("Install config hook output:\n%s", output)
+}
+
+func parseAdditionalRelabelPaths(d *deployment.Deployment) []string {
+	var paths []string
+
+	isRO := func(opts []string) bool {
+		return slices.ContainsFunc(opts, func(s string) bool {
+			return s == "ro" || strings.HasPrefix(s, "ro=")
+		})
+	}
+
+	for _, part := range d.GetSELinuxSupportedPartitions() {
+		if part.MountPoint != "" && !isRO(part.MountOpts) {
+			paths = append(paths, part.MountPoint)
+		}
+
+		for _, rwVol := range part.RWVolumes {
+			paths = append(paths, rwVol.Path)
+		}
+	}
+
+	return paths
 }

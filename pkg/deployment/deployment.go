@@ -568,16 +568,6 @@ func (s SanitizeDeployment) name() string {
 	return fullName[lastDotIndex+1:]
 }
 
-// GetPaths returns a list of volume paths as seen in RWVolumes.
-func (rw RWVolumes) GetPaths() []string {
-	paths := make([]string, 0, len(rw))
-	for _, vol := range rw {
-		paths = append(paths, vol.Path)
-	}
-
-	return paths
-}
-
 // GetSystemPartition returns the system partition from the disk.
 // returns nil if not found.
 func (d Disk) GetSystemPartition() *Partition {
@@ -693,6 +683,25 @@ func (d Deployment) RecoveryKernelCmdline() string {
 	}
 	// elm.recovery is mark to identify it boots from recovery partition
 	return fmt.Sprintf("%s %s", LiveKernelCmdline(label), RecoveryMark)
+}
+
+// GetSELinuxSupportedPartitions returns all partitions in all disks that
+// support SELinux security labels
+func (d Deployment) GetSELinuxSupportedPartitions() Partitions {
+	var parts Partitions
+
+	for _, disk := range d.Disks {
+		if disk == nil {
+			continue
+		}
+		for _, part := range disk.Partitions {
+			if part.FileSystem != VFat {
+				parts = append(parts, part)
+			}
+		}
+	}
+
+	return parts
 }
 
 func (d *Deployment) setDefaults(s *sys.System) {
