@@ -21,8 +21,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/url"
-	"os"
 	"path/filepath"
 	"strings"
 	"text/tabwriter"
@@ -81,7 +81,7 @@ func ReleaseInfo(ctx context.Context, cmd *cli.Command) error {
 
 	info := buildManifestInfo(resolved, args.Core, args.Product)
 
-	return printManifestInfo(info, args.Output)
+	return printManifestInfo(info, args.Output, system.Logger().GetOutput())
 }
 
 func resolveManifest(ctx context.Context, system *sys.System, arg string, local bool) (*resolver.ResolvedManifest, error) {
@@ -133,25 +133,25 @@ func buildManifestInfo(resolved *resolver.ResolvedManifest, showCore, showProduc
 	return info
 }
 
-func printManifestInfo(info *ManifestInfo, format string) error {
+func printManifestInfo(info *ManifestInfo, format string, out io.Writer) error {
 	switch strings.ToLower(format) {
 	case "json":
-		encoder := json.NewEncoder(os.Stdout)
+		encoder := json.NewEncoder(out)
 		encoder.SetIndent("", "  ")
 		return encoder.Encode(info)
 	case "yaml":
-		encoder := yaml.NewEncoder(os.Stdout)
+		encoder := yaml.NewEncoder(out)
 		return encoder.Encode(info)
 	case "":
-		printTable(info)
+		printTable(info, out)
 		return nil
 	default:
 		return fmt.Errorf("unsupported output format: %s", format)
 	}
 }
 
-func printTable(info *ManifestInfo) {
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+func printTable(info *ManifestInfo, out io.Writer) {
+	w := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
 
 	if info.Product != nil {
 		fmt.Fprintf(w, "Product Manifest\n%s\n", strings.Repeat("-", 16))
