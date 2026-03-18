@@ -64,7 +64,7 @@ type ProductInfo struct {
 	HelmRepos         []string `json:"helmRepos,omitempty" yaml:"helmRepos,omitempty"`
 }
 
-func ReleaseInfo(ctx context.Context, cmd *cli.Command) error {
+func ReleaseInfo(_ context.Context, cmd *cli.Command) error {
 	if cmd.Root().Metadata == nil || cmd.Root().Metadata["system"] == nil {
 		return fmt.Errorf("error setting up initial configuration")
 	}
@@ -74,7 +74,7 @@ func ReleaseInfo(ctx context.Context, cmd *cli.Command) error {
 	system.Logger().Debug("release-info called with args: %+v", args)
 
 	arg := cmd.Args().Get(0)
-	resolved, err := resolveManifest(ctx, system, arg, args.Local)
+	resolved, err := resolveManifest(system, arg, args.Local)
 	if err != nil {
 		return err
 	}
@@ -84,7 +84,7 @@ func ReleaseInfo(ctx context.Context, cmd *cli.Command) error {
 	return printManifestInfo(info, args.Output, system.Logger().GetOutput())
 }
 
-func resolveManifest(ctx context.Context, system *sys.System, arg string, local bool) (*resolver.ResolvedManifest, error) {
+func resolveManifest(system *sys.System, arg string, local bool) (*resolver.ResolvedManifest, error) {
 	srcType, err := argSourceType(system, arg)
 	if err != nil {
 		return nil, err
@@ -106,7 +106,12 @@ func resolveManifest(ctx context.Context, system *sys.System, arg string, local 
 	if err != nil {
 		return nil, err
 	}
-	defer output.Cleanup(system.FS())
+	defer func() {
+		system.Logger().Debug("Cleaning up working directory")
+		if rmErr := system.FS(); rmErr != nil {
+			system.Logger().Error("Cleaning up working directory failed: %v", rmErr)
+		}
+	}()
 
 	res, err := manifestResolver(system.FS(), output, local)
 	if err != nil {
