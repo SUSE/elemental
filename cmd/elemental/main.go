@@ -37,7 +37,9 @@ func main() {
 		cmd.NewBuildCommand(appName, action.Build),
 		cmd.NewCustomizeCommand(appName, action.Customize),
 		cmd.NewInitCommand(appName, action.Init),
-		cmd.NewVersionCommand(appName))
+		cmd.NewVersionCommand(appName),
+		cmd.NewReleaseInfoCommand(appName, action.ReleaseInfo),
+	)
 
 	if err := application.Run(context.Background(), os.Args); err != nil {
 		log.Fatal(err)
