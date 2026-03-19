@@ -508,6 +508,7 @@ We will use the “Linux-only” example as we need to *split* the responsibilit
 In order to satisfy the infrastructure provider (CAPM3), we will need to set the respective Ignition provider in the `linux-only/install.yaml` file. This is where **you will have to include** the `ignition.platform.id=openstack` value within the `kernelCmdLine` parameter as:
 
 ```
+schema: v0
 bootloader: grub
 kernelCmdLine: "console=ttyS0 loglevel=3 ignition.platform.id=openstack"
 raw:
