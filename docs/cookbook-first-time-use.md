@@ -4,11 +4,11 @@
 
 UC is a SLES-based, immutable, image-oriented Kubernetes-native infrastructure stack designed to serve as the common foundation for the next generation of SUSE solutions. Unlike traditional distributions, UC treats the operating system, Kubernetes layer, and management agents as a single atomic unit, bound together by a "release manifest."
 
-This architecture allows us to streamline initial deployment and lifecycle management by ensuring that the entire stack is versioned, validated, and upgraded as a coherent whole. While it provides a rigorous baseline, UC is built for flexibility; it provides the essential tooling required to customize and extend the system, enabling SUSE products, partners, and customers to tailor the stack for diverse environments and unique solution requirements.
+This architecture allows us to simplify initial deployment and management by ensuring that the entire stack is versioned, validated, and upgraded as a coherent whole. While it provides a solid foundation, UC is built for flexibility; it provides the essential tools to customize and extend the system, enabling SUSE products, partners, and customers to tailor the stack for diverse environments and unique solution requirements.
 
 ## Release Information
 
-UC comprises a few components, their comprehensive integration and validation, and effective delivery:
+UC consists of several components, their comprehensive integration and validation, and effective delivery:
 
 | Component | Version | Purpose |
 | :---: | :---: | :---: |
@@ -20,19 +20,19 @@ UC comprises a few components, their comprehensive integration and validation, a
 
 ## Scope and Audience
 
-This “cookbook” details three distinct provisioning scenarios:
+This “cookbook” describes three different deployment scenarios:
 
 * **Recipe 1:** Deployment of a “single-node” Kubernetes cluster using an example SUSE solution utilizing UC.
 
-* **Recipe 2:** Deployment of a “multi-node” Kubernetes cluster using an example SUSE solution utilizing UC
+* **Recipe 2:** Deployment of a “multi-node” Kubernetes cluster using an example SUSE solution utilizing UC.
 
-* **Recipe 3:** Deployment of a “single-node” Kubernetes cluster deployment, provisioned via [Cluster API](https://cluster-api.sigs.k8s.io/) and using UC as a base.
+* **Recipe 3:** Deployment of a “single-node” Kubernetes cluster, deployed using [Cluster API](https://cluster-api.sigs.k8s.io/) and using UC as a base.
 
 This is a guide for **anyone** interested in understanding UC, its goals, and the underlying technology.
 
 ## Prerequisites
 
-As this guide will walk you through the full deployment, you will need to ensure that your local workstation (or remote development system) meets the following hardware, software, and networking requirements if you’re to successfully complete the tasks outlined in this cookbook.
+This guide will walk you through the full deployment. Ensure that your local workstation (or remote development system) meets the requirements to successfully complete this guide.
 
 ### Hardware Requirements
 
@@ -42,9 +42,9 @@ There are two different roles for the hosts needed:
 
 * **Hypervisor Host** \-\> Used for provisioning VMs based on the images created above.
 
-Those two roles **can** be the same physical host to simplify the scenario.
+These two roles **can** be the same physical host to simplify the scenario.
 
-**NOTE:** UC also supports bare metal provisioning, so the hypervisor host is only necessary for virtualization purposes as recommended as part of this guide; it’s perfectly possible to use a bare metal system, laptop, or other piece of equipment (e.g. Raspberry Pi) to boot your resulting images.
+**NOTE:** UC also supports bare metal provisioning, so the hypervisor host is only necessary for virtualization as recommended in this guide; it’s perfectly possible to use a bare metal system, laptop, or other equipment (e.g., Raspberry Pi) to boot your resulting images.
 
 The requirements will vary depending on whether the machine used for customizing artifacts is the same one that is also going to be used for provisioning virtual machines. If that is the case, multiply the requirements below by the target number of Kubernetes nodes to be deployed.
 
@@ -55,14 +55,14 @@ The requirements will vary depending on whether the machine used for customizing
 * **Disk Space:**
   * RAW disk: 50 GB for writing a 35 GB RAW disk
   * ISO media: 10 GB for writing a \~1 GB ISO
-* **Internet Access** for downloading customization artifacts. Offline / air-gapped capabilities are scheduled for the future (UC 0.6+).
+* **Internet Access** for downloading customization artifacts. Offline / air-gapped capabilities are planned for the future (UC 0.6+).
 
 #### Hypervisor Host
 
-* **CPU Architecture:** x86\_64 (v2 instruction set); aarch64 may work but is not comprehensively validated yet.
-* **Memory (RAM):** 32 GB or higher (depending on the number of VMs intended to run, each of those are recommended 16GB+, 12 GB minimum)
+* **CPU Architecture:** x86\_64 (v2 instruction set); aarch64 may work but is not fully tested yet.
+* **Memory (RAM):** 32 GB or higher (depending on the number of VMs intended to run; 16GB+ recommended per VM, 12 GB minimum)
 * **Disk Space:**
-  * 100 GB for hosting the VM disks (depending on the number of VMs intended to run, each of those will be 35 GB but if disks are thin provisioned it will be less)
+  * 100 GB for hosting the VM disks (depending on the number of VMs; each will be 35 GB, though thin provisioning will use less)
 * **Internet Access** for downloading runtime artifacts, container images, etc.
 
 #### Kubernetes Node (VM)
@@ -87,9 +87,9 @@ There are a few requirements for the host(s) acting as the entrypoint for custom
 
 # Key Concepts
 
-UC is an initiative to build a tightly integrated, opinionated and thoroughly validated stack of core components that serve as the foundation layer, or the lowest common denominator, of what is deployed as the underlying infrastructure platform for SUSE solutions that use RKE2.
+UC is an initiative to build a tightly integrated and fully tested stack of core components. It serves as the base layer for SUSE solutions that use RKE2.
 
-In contrast with traditional stacks where updates are managed as individual upgrades, separated by layers, in UC all updates and lifecycles are done top-down, from the container to the OS, and are designed to be reproducible and deterministic.
+In contrast with traditional stacks where updates are managed as individual upgrades across layers, UC handles all updates top-down, from the container to the OS. This process is designed to be reproducible and predictable.
 
 ## Components
 
@@ -101,15 +101,15 @@ The operating system used by UC is designed to be an evolution of the work pione
 
 The design is specifically tailored to container management scenarios, regardless of whether that involves Kubernetes orchestration or is subject to constrained environments where Podman is the only available tool. This involves immutability, security hardening, and minimalist footprint.
 
-Due to its nature, the operating system does not come with a standard package manager (e.g. zypper). Installation and updates are done using container native workflows and artifacts, not standard system management processes. This keeps “pristinity” as one of its core concepts, prevents tampering, and allows for seamless, atomic, containerized-based updates that favor repeatability.
+The operating system does not include a standard package manager (e.g., zypper). Installation and updates use container-native workflows rather than standard system management processes. This keeps the system immutable, prevents tampering, and allows for seamless, atomic updates that favor repeatability.
 
 ### Kubernetes
 
-Kubernetes is prevalent in this day and age, and its popularity is only going to grow with time. **UC bundles RKE2 as an enterprise-ready Kubernetes distribution**, that inherits all the benefits of K3s and delivers additional hardening, compliance, and advanced networking capabilities. As part of UC, it is built and delivered as a [*systemd extension*](https://www.freedesktop.org/software/systemd/man/latest/systemd-sysext.html), but can be customized just like any normal RKE2 installation.
+Kubernetes is widely used today, and its popularity continues to grow. **UC bundles RKE2 as an enterprise-ready Kubernetes distribution**. It inherits the benefits of K3s and provides additional hardening, compliance, and advanced networking capabilities. As part of UC, it is delivered as a [*systemd extension*](https://www.freedesktop.org/software/systemd/man/latest/systemd-sysext.html), but can be customized like any normal RKE2 installation.
 
 ### Load Balancing & High Availability
 
-UC uses MetalLB and Endpoint Copier Operator in order to establish reliable load balancing capabilities for the Kubernetes API. This allows for Kubernetes nodes **to form a cluster** **in a secure and fully automated manner,** and for API functionality to be maintained in the event of a node outage, or during lifecycle operations.
+UC uses MetalLB and Endpoint Copier Operator to provide reliable load balancing for the Kubernetes API. This allows Kubernetes nodes **to form a cluster** **in a secure and automated manner.** API functionality is maintained during node outages or lifecycle operations.
 
 ### Elemental 3
 
