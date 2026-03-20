@@ -17,6 +17,7 @@
 
 .common_settings: &common_settings
   K8S: rke2
+  CONSOLE: ttyS0
   TEST_PASSWORD: Elemental@R00t
 
 .common_test_settings: &common_test_settings
@@ -40,7 +41,7 @@
   <<: *common_settings
   <<: *common_microos_boot_settings
   IMG_NAME: 'elemental-%BUILD%-%ARCH%-%TESTED_CMD%'
-  KERNEL_CMD_LINE: 'console=ttyS0'
+  KERNEL_CMD_LINE: 'console=%CONSOLE%'
   QEMURAM: '2048'
   YAML_SCHEDULE: schedule/elemental3/generate.yaml
 
@@ -60,7 +61,6 @@
 .k8s_test_settings: &k8s_test_settings
   EXPECTED_NM_CONNECTIVITY: none
   NICTYPE: tap
-  # NODES_LIST: node01,node02,node03
   NODES_LIST: node01
   # TESTS_TO_RUN: validatecluster,deployrancher
   TESTS_TO_RUN: validatecluster
@@ -80,7 +80,6 @@
   +DISTRI: sle-micro
   +HDD_1: 'openSUSE-MicroOS.%ARCH%-Updated.qcow2'
   HOSTNAME: master
-  QEMURAM: '4096'
   RANCHER_VERSION: v2.13.2
   TEST_FRAMEWORK_REPO: https://github.com/ldevulder/distros-test-framework@fix-support-uc-os-image
   YAML_SCHEDULE: schedule/elemental3/master.yaml
@@ -90,79 +89,111 @@ defaults:
     machine: aarch64-virtio
     priority: 50
   x86_64:
-    machine: uefi-virtio-vga
+    machine: uefi-virtio
     priority: 50
     settings:
       QEMUCPU: host
 
 products:
-  sle-unifiedcore-image-16.0-aarch64:
+  sle-16.0-uc-osimage:
     <<: *default_products
-    flavor: UnifiedCore-Image
+    flavor: UnifiedCore-OS-Image
     version : '16.0'
-  sle-unifiedcore-image-16.0-x86_64:
+  sle-16.0-uc-isoimage:
     <<: *default_products
-    flavor: UnifiedCore-Image
+    flavor: UnifiedCore-ISO-Image
+    version : '16.0'
+  sle-16.0-uc-release_manifest:
+    <<: *default_products
+    flavor: UnifiedCore-Release-Manifest
     version : '16.0'
 
 scenarios:
   aarch64:
-    sle-unifiedcore-image-16.0-aarch64:
+    sle-16.0-uc-osimage:
       - generate_with_install:
           testsuite: null
           settings:
             <<: *generate_settings
             TESTED_CMD: install
-      - generate_iso_with_customize:
+      - generate_with_build_installer_iso:
+          testsuite: null
+          settings:
+            <<: *generate_settings
+            ISO_CMD_LINE: 'console=%CONSOLE% enforcing=0'
+            TESTED_CMD: build_installer_iso
+      - test_with_install:
+          testsuite: null
+          settings:
+            <<: *test_raw_settings
+            TESTED_CMD: install
+            START_AFTER_TEST: generate_with_%TESTED_CMD%
+      - test_with_build_installer_iso:
+          testsuite: null
+          settings:
+            <<: *test_iso_settings
+            TESTED_CMD: build_installer_iso
+            START_AFTER_TEST: generate_with_%TESTED_CMD%
+    sle-16.0-uc-isoimage:
+      - extract_iso:
+          testsuite: null
+          settings:
+            <<: *generate_settings
+            TESTED_CMD: extract_iso
+      - test_extract_iso:
+          testsuite: null
+          settings:
+            <<: *test_iso_settings
+            TESTED_CMD: extract_iso
+            START_AFTER_TEST: '%TESTED_CMD%'
+    sle-16.0-uc-release_manifest:
+      - generate_iso:
           testsuite: null
           settings:
             <<: *generate_settings
             CRYPTO_POLICY: fips
             IMAGE_TYPE: iso
             TESTED_CMD: customize
-      - generate_raw_with_customize:
+      - generate_raw:
           testsuite: null
           settings:
             <<: *generate_settings
             IMAGE_TYPE: raw
             TESTED_CMD: customize
-      - generate_with_build_installer_iso:
+      - generate_raw_recovery:
           testsuite: null
           settings:
             <<: *generate_settings
-            ISO_CMD_LINE: 'console=ttyS0 enforcing=0'
-            TESTED_CMD: build_installer_iso
-      - test_with_install_image:
-          testsuite: null
-          settings:
-            <<: *test_raw_settings
-            TESTED_CMD: install
-            START_AFTER_TEST: generate_with_%TESTED_CMD%
-      - test_iso:
-          testsuite: null
-          settings:
-            <<: *test_iso_settings
-            TESTED_CMD: build_installer_iso
-            START_AFTER_TEST: generate_with_%TESTED_CMD%
-      - test_release_manifest_iso_fips:
+            IMAGE_TYPE: raw
+            TEMPLATE: build-tpl_recovery.tar.gz
+            TESTED_CMD: customize_recovery
+      - test_iso_fips:
           testsuite: null
           settings:
             <<: *test_iso_settings
             CRYPTO_POLICY: fips
             TESTED_CMD: customize
-            START_AFTER_TEST: generate_iso_with_%TESTED_CMD%
-      - test_release_manifest_raw:
+            START_AFTER_TEST: generate_iso
+      - test_raw:
           testsuite: null
           settings:
             <<: *test_raw_settings
             TESTED_CMD: customize
-            START_AFTER_TEST: generate_raw_with_%TESTED_CMD%
+            START_AFTER_TEST: generate_raw
+      - test_raw_recovery:
+          testsuite: null
+          settings:
+            <<: *test_raw_settings
+            TEMPLATE: build-tpl_recovery.tar.gz
+            TESTED_CMD: customize_recovery
+            TEST_TYPE: 'recovery'
+            START_AFTER_TEST: generate_raw_recovery
       - master:
           testsuite: null
           settings:
             <<: *master_k8s_validation_settings
             TESTED_CMD: customize
-            START_AFTER_TEST: generate_raw_with_%TESTED_CMD%
+            START_AFTER_TEST: generate_raw
       - node01:
           testsuite: null
           settings:
@@ -170,66 +201,90 @@ scenarios:
             HOSTNAME: node01
             TESTED_CMD: customize
   x86_64:
-    sle-unifiedcore-image-16.0-x86_64:
+    sle-16.0-uc-osimage:
       - generate_with_install:
-          machine: 64bit
           testsuite: null
           settings:
             <<: *generate_settings
             TESTED_CMD: install
-      - generate_iso_with_customize:
-          machine: 64bit
+      - generate_with_build_installer_iso:
+          testsuite: null
+          settings:
+            <<: *generate_settings
+            ISO_CMD_LINE: 'console=%CONSOLE% enforcing=0'
+            TESTED_CMD: build_installer_iso
+      - test_with_install:
+          testsuite: null
+          settings:
+            <<: *test_raw_settings
+            TESTED_CMD: install
+            START_AFTER_TEST: generate_with_%TESTED_CMD%
+      - test_with_build_installer_iso:
+          testsuite: null
+          settings:
+            <<: *test_iso_settings
+            TESTED_CMD: build_installer_iso
+            START_AFTER_TEST: generate_with_%TESTED_CMD%
+    sle-16.0-uc-isoimage:
+      - extract_iso:
+          testsuite: null
+          settings:
+            <<: *generate_settings
+            TESTED_CMD: extract_iso
+      - test_extract_iso:
+          testsuite: null
+          settings:
+            <<: *test_iso_settings
+            TESTED_CMD: extract_iso
+            START_AFTER_TEST: '%TESTED_CMD%'
+    sle-16.0-uc-release_manifest:
+      - generate_iso:
           testsuite: null
           settings:
             <<: *generate_settings
             CRYPTO_POLICY: fips
             IMAGE_TYPE: iso
             TESTED_CMD: customize
-      - generate_raw_with_customize:
-          machine: 64bit
+      - generate_raw:
           testsuite: null
           settings:
             <<: *generate_settings
             IMAGE_TYPE: raw
             TESTED_CMD: customize
-      - generate_with_build_installer_iso:
-          machine: 64bit
+      - generate_raw_recovery:
           testsuite: null
           settings:
             <<: *generate_settings
-            ISO_CMD_LINE: 'console=ttyS0 enforcing=0'
-            TESTED_CMD: build_installer_iso
-      - test_with_install_image:
-          testsuite: null
-          settings:
-            <<: *test_raw_settings
-            TESTED_CMD: install
-            START_AFTER_TEST: generate_with_%TESTED_CMD%@64bit
-      - test_iso:
-          testsuite: null
-          settings:
-            <<: *test_iso_settings
-            TESTED_CMD: build_installer_iso
-            START_AFTER_TEST: generate_with_%TESTED_CMD%@64bit
-      - test_release_manifest_iso_fips:
+            IMAGE_TYPE: raw
+            TEMPLATE: build-tpl_recovery.tar.gz
+            TESTED_CMD: customize_recovery
+      - test_iso_fips:
           testsuite: null
           settings:
             <<: *test_iso_settings
             CRYPTO_POLICY: fips
             TESTED_CMD: customize
-            START_AFTER_TEST: generate_iso_with_%TESTED_CMD%@64bit
-      - test_release_manifest_raw:
+            START_AFTER_TEST: generate_iso
+      - test_raw:
           testsuite: null
           settings:
             <<: *test_raw_settings
             TESTED_CMD: customize
-            START_AFTER_TEST: generate_raw_with_%TESTED_CMD%@64bit
+            START_AFTER_TEST: generate_raw
+      - test_raw_recovery:
+          testsuite: null
+          settings:
+            <<: *test_raw_settings
+            TEMPLATE: build-tpl_recovery.tar.gz
+            TESTED_CMD: customize_recovery
+            TEST_TYPE: 'recovery'
+            START_AFTER_TEST: generate_raw_recovery
       - master:
           testsuite: null
           settings:
             <<: *master_k8s_validation_settings
             TESTED_CMD: customize
-            START_AFTER_TEST: generate_raw_with_%TESTED_CMD%@64bit
+            START_AFTER_TEST: generate_raw
       - node01:
           testsuite: null
           settings:
