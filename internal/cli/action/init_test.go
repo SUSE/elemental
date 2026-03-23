@@ -116,4 +116,13 @@ var _ = Describe("Init action", Label("init"), func() {
 		Expect(action.Init(context.Background(), cliCmd)).To(Succeed())
 		Expect(buffer.String()).To(ContainSubstring("Configuration created successfully"))
 	})
+
+	It("fails if configuration already exists", func() {
+		Expect(vfs.MkdirAll(tfs, targetDir, 0755)).To(Succeed())
+		Expect(tfs.WriteFile(filepath.Join(targetDir, "install.yaml"), []byte("schema: v0"), 0644)).To(Succeed())
+
+		err := action.Init(context.Background(), cliCmd)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("configuration already exists"))
+	})
 })

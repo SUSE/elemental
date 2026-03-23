@@ -20,6 +20,7 @@ package action
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 
 	"github.com/urfave/cli/v3"
 
@@ -31,6 +32,7 @@ import (
 	"github.com/suse/elemental/v3/internal/image/release"
 	"github.com/suse/elemental/v3/pkg/crypto"
 	"github.com/suse/elemental/v3/pkg/sys"
+	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
 
 func Init(_ context.Context, cmd *cli.Command) error {
@@ -41,6 +43,10 @@ func Init(_ context.Context, cmd *cli.Command) error {
 	system := cmd.Root().Metadata["system"].(*sys.System)
 	logger := system.Logger()
 	args := &cmdpkg.InitArgs
+
+	if exists, _ := vfs.Exists(system.FS(), filepath.Join(args.TargetDir, "install.yaml")); exists {
+		return fmt.Errorf("configuration already exists in %s", args.TargetDir)
+	}
 
 	logger.Info("Creating new configuration in %s", args.TargetDir)
 

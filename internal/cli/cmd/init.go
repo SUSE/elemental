@@ -34,8 +34,17 @@ func NewInitCommand(appName string, action func(context.Context, *cli.Command) e
 	return &cli.Command{
 		Name:      "init",
 		Usage:     "Create a new image configuration directory",
-		UsageText: fmt.Sprintf("%s init [OPTIONS]", appName),
-		Action:    action,
+		UsageText: fmt.Sprintf("%s init [OPTIONS] [TARGET_DIR]", appName),
+		Before: func(ctx context.Context, cmd *cli.Command) (context.Context, error) {
+			if cmd.Args().Len() > 1 {
+				return ctx, fmt.Errorf("expected just one argument for TARGET_DIR")
+			}
+			if cmd.Args().Len() == 1 {
+				InitArgs.TargetDir = cmd.Args().First()
+			}
+			return ctx, nil
+		},
+		Action: action,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:        "target-dir",
