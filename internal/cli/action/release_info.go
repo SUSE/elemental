@@ -73,6 +73,10 @@ func ReleaseInfo(_ context.Context, cmd *cli.Command) error {
 
 	system.Logger().Debug("release-info called with args: %+v", args)
 
+	if cmd.Args() == nil || cmd.Args().Len() == 0 {
+		system.Logger().Error("no file or OCI image provided")
+		return fmt.Errorf("refer usage: %s", cmd.UsageText)
+	}
 	arg := cmd.Args().Get(0)
 	resolved, err := resolveManifest(system, arg, args.Local)
 	if err != nil {
@@ -97,6 +101,7 @@ func resolveManifest(system *sys.System, arg string, local bool) (*resolver.Reso
 	}
 
 	if srcType == source.OCI {
+		// check if it's a valid OCI image before proceeding
 		if _, err := name.ParseReference(uri); err != nil {
 			return nil, fmt.Errorf("invalid OCI image reference: %w", err)
 		}
@@ -108,7 +113,7 @@ func resolveManifest(system *sys.System, arg string, local bool) (*resolver.Reso
 	}
 	defer func() {
 		system.Logger().Debug("Cleaning up working directory")
-		if rmErr := system.FS(); rmErr != nil {
+		if rmErr := output.Cleanup(system.FS()); rmErr != nil {
 			system.Logger().Error("Cleaning up working directory failed: %v", rmErr)
 		}
 	}()
