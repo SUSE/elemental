@@ -71,13 +71,13 @@ func ReleaseInfo(_ context.Context, cmd *cli.Command) error {
 	system := cmd.Root().Metadata["system"].(*sys.System)
 	args := &cmdpkg.ReleaseInfoArgs
 
-	system.Logger().Debug("release-info called with args: %+v", args)
-
 	if cmd.Args() == nil || cmd.Args().Len() == 0 {
 		system.Logger().Error("no file or OCI image provided")
 		return fmt.Errorf("refer usage: %s", cmd.UsageText)
 	}
-	arg := cmd.Args().Get(0)
+	system.Logger().Debug("release-info called with args: %+v", args)
+
+	arg := cmd.Args().First()
 	resolved, err := resolveManifest(system, arg, args.Local)
 	if err != nil {
 		return err
@@ -287,4 +287,38 @@ func manifestResolver(fs vfs.FS, out config.Output, local bool) (*resolver.Resol
 	}
 
 	return resolver.New(source.NewReader(extr)), nil
+}
+
+func Diff(_ context.Context, cmd *cli.Command) error {
+	if cmd.Root().Metadata == nil || cmd.Root().Metadata["system"] == nil {
+		return fmt.Errorf("setting up initial configuration")
+	}
+	system := cmd.Root().Metadata["system"].(*sys.System)
+	args := &cmdpkg.ReleaseInfoArgs
+
+	if cmd.Args() == nil || cmd.Args().Len() != 2 {
+		system.Logger().Error("insufficient files or OCI images provided for diff")
+		return fmt.Errorf("refer usage: %s", cmd.UsageText)
+	}
+	system.Logger().Debug("diff called with args: %+v", cmd.Args())
+
+	m1, m2 := cmd.Args().Get(0), cmd.Args().Get(1)
+	r1, err := resolveManifest(system, m1, args.Local)
+	if err != nil {
+		system.Logger().Error("resolving manifest %q", m1)
+		return err
+	}
+	r2, err := resolveManifest(system, m2, args.Local)
+	if err != nil {
+		system.Logger().Error("resolving manifest %q", m2)
+		return err
+	}
+
+	manifestInfo1 := buildManifestInfo(r1, args.Core, args.Product)
+	manifestInfo2 := buildManifestInfo(r2, args.Core, args.Product)
+
+	printManifestInfo(manifestInfo1, "", system.Logger().GetOutput())
+	printManifestInfo(manifestInfo2, "", system.Logger().GetOutput())
+
+	return nil
 }

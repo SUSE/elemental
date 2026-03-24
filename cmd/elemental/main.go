@@ -38,7 +38,7 @@ func main() {
 		cmd.NewCustomizeCommand(appName, action.Customize),
 		cmd.NewInitCommand(appName, action.Init),
 		cmd.NewVersionCommand(appName),
-		cmd.NewReleaseInfoCommand(appName, action.ReleaseInfo),
+		cmd.NewReleaseInfoCommand(appName, action.ReleaseInfo, action.Diff),
 	)
 
 	if err := application.Run(context.Background(), os.Args); err != nil {
