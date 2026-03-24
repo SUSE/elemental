@@ -4,12 +4,12 @@ metadata:
   creationDate: "2025-12-08"
 corePlatform:
   # Registry path to the release manifest OCI image of the Core Platform that this SUSE Product extends
-  image: "registry.suse.de/devel/unifiedcore/releases/0.6/containers/suse/uc/release-manifest:0.6_rke2_1.34"
+  image: "registry.suse.com/beta/uc/release-manifest:0.6_rke2_1.35"
 components:
   systemd:
     extensions:
       - name: "longhorn"
-        image: "registry.suse.de/devel/unifiedcore/releases/0.6/containers/suse/uc/longhorn:5.36-1.88"
+        image: "registry.suse.com/beta/uc/longhorn:5.36-1.88"
   helm:
     charts:
       - chart: "cert-manager"

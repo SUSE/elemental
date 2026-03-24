@@ -77,8 +77,6 @@ Unless configured otherwise, after execution, the resulting ready-to-boot image 
 
 #### Container image
 
-> **IMPORTANT:** Access to SUSE's internal VPN is required. As of this moment, our component images are not publicly available. This will change in the future.
-
 > **NOTE:** This section assumes you have pulled the `elemental3` container image and referenced it in the `ELEMENTAL_IMAGE` variable.
 
 Run the customization process:
@@ -177,7 +175,6 @@ The examples will showcase how you can use the `elemental3` container image to a
 
 ### Prerequisites
 
-* Access to SUSE's internal VPN (as of this moment, our component images are not publicly available).
 * A server or virtual machine running Tumbleweed, Leap 16.0, Leap Micro 6.2, SLES 16 or SUSE Linux Micro 6.2, with a minimum x86_64-v2 instruction set.
 * Some other packages can also be needed if you want to compile the binaries yourself: `git-core go make mtools squashfs xorriso`.
 

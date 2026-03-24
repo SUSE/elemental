@@ -1,2 +1,2 @@
 name: suse-product
-manifestURI: oci://registry.suse.de/devel/unifiedcore/releases/0.6/containers/suse/uc/release-manifest:0.6_rke2_1.34
+manifestURI: oci://registry.suse.com/beta/uc/release-manifest:0.6_rke2_1.35
