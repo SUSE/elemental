@@ -317,8 +317,116 @@ func Diff(_ context.Context, cmd *cli.Command) error {
 	manifestInfo1 := buildManifestInfo(r1, args.Core, args.Product)
 	manifestInfo2 := buildManifestInfo(r2, args.Core, args.Product)
 
-	printManifestInfo(manifestInfo1, "", system.Logger().GetOutput())
-	printManifestInfo(manifestInfo2, "", system.Logger().GetOutput())
+	printDiff(manifestInfo1, manifestInfo2, m1, m2, system.Logger().GetOutput())
 
 	return nil
+}
+
+func printDiff(info1, info2 *ManifestInfo, arg1, arg2 string, out io.Writer) {
+	w := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
+
+	if info1.Core != nil || info2.Core != nil {
+		fmt.Fprintf(w, "Core Manifest\n%s\n", strings.Repeat("-", 13))
+		fmt.Fprintf(w, "Field\t%s\t%s\n", arg1, arg2)
+		fmt.Fprintf(w, "%s\t%s\t%s\n", strings.Repeat("-", 5), strings.Repeat("-", len(arg1)), strings.Repeat("-", len(arg2)))
+
+		// Operating System
+		os1 := getStringOrEmpty(info1.Core, func(c *CoreInfo) string { return c.OperatingSystem })
+		os2 := getStringOrEmpty(info2.Core, func(c *CoreInfo) string { return c.OperatingSystem })
+		fmt.Fprintf(w, "Operating System\t%s\t%s\n", os1, os2)
+
+		// Systemd Extensions
+		printFieldComparison(w, "Systemd Extensions",
+			getSliceOrEmpty(info1.Core, func(c *CoreInfo) []string { return c.SystemdExtensions }),
+			getSliceOrEmpty(info2.Core, func(c *CoreInfo) []string { return c.SystemdExtensions }))
+
+		// Helm Charts
+		printFieldComparison(w, "Helm Charts",
+			getSliceOrEmpty(info1.Core, func(c *CoreInfo) []string { return c.HelmCharts }),
+			getSliceOrEmpty(info2.Core, func(c *CoreInfo) []string { return c.HelmCharts }))
+
+		// Helm Repositories
+		printFieldComparison(w, "Helm Repositories",
+			getSliceOrEmpty(info1.Core, func(c *CoreInfo) []string { return c.HelmRepos }),
+			getSliceOrEmpty(info2.Core, func(c *CoreInfo) []string { return c.HelmRepos }))
+
+		fmt.Fprintln(w)
+	}
+
+	// Show Product comparison if either manifest has Product info
+	if info1.Product != nil || info2.Product != nil {
+		fmt.Fprintf(w, "Product Manifest\n%s\n", strings.Repeat("-", 16))
+		fmt.Fprintf(w, "Field\t%s\t%s\n", arg1, arg2)
+		fmt.Fprintf(w, "%s\t%s\t%s\n", strings.Repeat("-", 5), strings.Repeat("-", len(arg1)), strings.Repeat("-", len(arg2)))
+
+		// Systemd Extensions
+		printFieldComparison(w, "Systemd Extensions",
+			getSliceOrEmpty(info1.Product, func(p *ProductInfo) []string { return p.SystemdExtensions }),
+			getSliceOrEmpty(info2.Product, func(p *ProductInfo) []string { return p.SystemdExtensions }))
+
+		// Helm Charts
+		printFieldComparison(w, "Helm Charts",
+			getSliceOrEmpty(info1.Product, func(p *ProductInfo) []string { return p.HelmCharts }),
+			getSliceOrEmpty(info2.Product, func(p *ProductInfo) []string { return p.HelmCharts }))
+
+		// Helm Repositories
+		printFieldComparison(w, "Helm Repositories",
+			getSliceOrEmpty(info1.Product, func(p *ProductInfo) []string { return p.HelmRepos }),
+			getSliceOrEmpty(info2.Product, func(p *ProductInfo) []string { return p.HelmRepos }))
+
+		fmt.Fprintln(w)
+	}
+
+	w.Flush()
+}
+
+func printFieldComparison(w io.Writer, fieldName string, items1, items2 []string) {
+	maxLen := len(items1)
+	if len(items2) > maxLen {
+		maxLen = len(items2)
+	}
+
+	// If both lists are empty, print a single row with empty values
+	if maxLen == 0 {
+		fmt.Fprintf(w, "%s\t\t\n", fieldName)
+		return
+	}
+
+	// Print first row with field name
+	val1 := ""
+	if len(items1) > 0 {
+		val1 = items1[0]
+	}
+	val2 := ""
+	if len(items2) > 0 {
+		val2 = items2[0]
+	}
+	fmt.Fprintf(w, "%s\t%s\t%s\n", fieldName, val1, val2)
+
+	// Print remaining rows with empty field name
+	for i := 1; i < maxLen; i++ {
+		val1 = ""
+		if i < len(items1) {
+			val1 = items1[i]
+		}
+		val2 = ""
+		if i < len(items2) {
+			val2 = items2[i]
+		}
+		fmt.Fprintf(w, "\t%s\t%s\n", val1, val2)
+	}
+}
+
+func getSliceOrEmpty[T any](ptr *T, getter func(*T) []string) []string {
+	if ptr == nil {
+		return []string{}
+	}
+	return getter(ptr)
+}
+
+func getStringOrEmpty[T any](ptr *T, getter func(*T) string) string {
+	if ptr == nil {
+		return ""
+	}
+	return getter(ptr)
 }
