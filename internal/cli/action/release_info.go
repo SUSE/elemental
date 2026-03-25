@@ -275,7 +275,7 @@ func argSourceType(s *sys.System, arg string) (source.ReleaseManifestSourceType,
 	if ok, _ := vfs.Exists(s.FS(), arg); ok {
 		return source.File, nil
 	}
-	return source.OCI, nil
+	return 0, fmt.Errorf("file %q not found; if you meant to specify an OCI image, use the 'oci://' prefix (e.g., oci://registry.example.com/image:tag)", arg)
 }
 
 func manifestResolver(fs vfs.FS, out config.Output, local bool) (*resolver.Resolver, error) {

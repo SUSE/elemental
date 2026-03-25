@@ -93,6 +93,15 @@ components:
 		Expect(action.ReleaseInfo(ctx, cliCmd)).ToNot(Succeed())
 	})
 
+	It("fails if inexistent file is passed as argument", func() {
+		manifestPath, err := tfs.RawPath("/etc/elemental3/nosuchfile.yaml")
+		Expect(err).ToNot(HaveOccurred())
+
+		err = cliCmd.Run(ctx, []string{"", manifestPath})
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("use the 'oci://' prefix"))
+	})
+
 	It("tests various options of release-info command", func() {
 		manifestPath, err := tfs.RawPath("/etc/elemental3/manifest.yaml")
 		Expect(err).ToNot(HaveOccurred())
