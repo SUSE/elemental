@@ -51,6 +51,8 @@ type ManifestInfo struct {
 
 // CoreInfo represents core manifest details
 type CoreInfo struct {
+	Name              string   `json:"name" yaml:"name"`
+	Version           string   `json:"version" yaml:"version"`
 	OperatingSystem   string   `json:"operatingSystem" yaml:"operatingSystem"`
 	HelmCharts        []string `json:"helmCharts,omitempty" yaml:"helmCharts,omitempty"`
 	HelmRepos         []string `json:"helmRepos,omitempty" yaml:"helmRepos,omitempty"`
@@ -59,6 +61,8 @@ type CoreInfo struct {
 
 // ProductInfo represents product manifest details
 type ProductInfo struct {
+	Name              string   `json:"name" yaml:"name"`
+	Version           string   `json:"version" yaml:"version"`
 	SystemdExtensions []string `json:"systemdExtensions,omitempty" yaml:"systemdExtensions,omitempty"`
 	HelmCharts        []string `json:"helmCharts,omitempty" yaml:"helmCharts,omitempty"`
 	HelmRepos         []string `json:"helmRepos,omitempty" yaml:"helmRepos,omitempty"`
@@ -165,6 +169,8 @@ func printTable(info *ManifestInfo, out io.Writer) {
 
 	if info.Product != nil {
 		fmt.Fprintf(w, "Product Manifest\n%s\n", strings.Repeat("-", 16))
+		fmt.Fprintf(w, "Name\t%s\n", info.Product.Name)
+		fmt.Fprintf(w, "Version\t%s\n", info.Product.Version)
 		if len(info.Product.SystemdExtensions) > 0 {
 			fmt.Fprintf(w, "Systemd Extensions\t%s\n", strings.Join(info.Product.SystemdExtensions, ", "))
 		}
@@ -179,6 +185,8 @@ func printTable(info *ManifestInfo, out io.Writer) {
 
 	if info.Core != nil {
 		fmt.Fprintf(w, "Core Manifest\n%s\n", strings.Repeat("-", 13))
+		fmt.Fprintf(w, "Name\t%s\n", info.Core.Name)
+		fmt.Fprintf(w, "Version\t%s\n", info.Core.Version)
 		fmt.Fprintf(w, "Operating System\t%s\n", info.Core.OperatingSystem)
 		if len(info.Core.SystemdExtensions) > 0 {
 			fmt.Fprintf(w, "Systemd Extensions\t%s\n", strings.Join(info.Core.SystemdExtensions, ", "))
@@ -205,6 +213,8 @@ func mapCoreInfo(cm *core.ReleaseManifest) *CoreInfo {
 	}
 
 	return &CoreInfo{
+		Name:              cm.Metadata.Name,
+		Version:           cm.Metadata.Version,
 		OperatingSystem:   osName,
 		HelmCharts:        mapHelmCharts(cm.Components.Helm.Charts),
 		HelmRepos:         mapHelmRepos(cm.Components.Helm.Repositories),
@@ -214,6 +224,8 @@ func mapCoreInfo(cm *core.ReleaseManifest) *CoreInfo {
 
 func mapProductInfo(pm *product.ReleaseManifest) *ProductInfo {
 	return &ProductInfo{
+		Name:              pm.Metadata.Name,
+		Version:           pm.Metadata.Version,
 		SystemdExtensions: mapSystemdExtensions(pm.Components.Systemd.Extensions),
 		HelmCharts:        mapHelmCharts(pm.Components.Helm.Charts),
 		HelmRepos:         mapHelmRepos(pm.Components.Helm.Repositories),
@@ -223,7 +235,7 @@ func mapProductInfo(pm *product.ReleaseManifest) *ProductInfo {
 func mapHelmCharts(charts []*api.HelmChart) []string {
 	var result []string
 	for _, h := range charts {
-		result = append(result, fmt.Sprintf("%s (%s)", h.GetName(), h.GetRepositoryName()))
+		result = append(result, fmt.Sprintf("%s-%s (%s)", h.GetName(), h.Version, h.GetRepositoryName()))
 	}
 	return result
 }
@@ -317,18 +329,22 @@ func Diff(_ context.Context, cmd *cli.Command) error {
 	manifestInfo1 := buildManifestInfo(r1, args.Core, args.Product)
 	manifestInfo2 := buildManifestInfo(r2, args.Core, args.Product)
 
-	printDiff(manifestInfo1, manifestInfo2, m1, m2, system.Logger().GetOutput())
+	printDiff(manifestInfo1, manifestInfo2, system.Logger().GetOutput())
 
 	return nil
 }
 
-func printDiff(info1, info2 *ManifestInfo, arg1, arg2 string, out io.Writer) {
+func printDiff(info1, info2 *ManifestInfo, out io.Writer) {
 	w := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
 
 	if info1.Core != nil || info2.Core != nil {
+		title1 := getStringOrEmpty(info1.Core, func(p *CoreInfo) string { return p.Name }) + " " +
+			getStringOrEmpty(info1.Core, func(p *CoreInfo) string { return p.Version })
+		title2 := getStringOrEmpty(info2.Core, func(p *CoreInfo) string { return p.Name }) + " " +
+			getStringOrEmpty(info2.Core, func(p *CoreInfo) string { return p.Version })
 		fmt.Fprintf(w, "Core Manifest\n%s\n", strings.Repeat("-", 13))
-		fmt.Fprintf(w, "Field\t%s\t%s\n", arg1, arg2)
-		fmt.Fprintf(w, "%s\t%s\t%s\n", strings.Repeat("-", 5), strings.Repeat("-", len(arg1)), strings.Repeat("-", len(arg2)))
+		fmt.Fprintf(w, "Field\t%s\t%s\n", title1, title2)
+		fmt.Fprintf(w, "%s\t%s\t%s\n", strings.Repeat("-", 5), strings.Repeat("-", len(title1)), strings.Repeat("-", len(title2)))
 
 		// Operating System
 		os1 := getStringOrEmpty(info1.Core, func(c *CoreInfo) string { return c.OperatingSystem })
@@ -355,9 +371,13 @@ func printDiff(info1, info2 *ManifestInfo, arg1, arg2 string, out io.Writer) {
 
 	// Show Product comparison if either manifest has Product info
 	if info1.Product != nil || info2.Product != nil {
+		title1 := getStringOrEmpty(info1.Product, func(p *ProductInfo) string { return p.Name }) + " " +
+			getStringOrEmpty(info1.Product, func(p *ProductInfo) string { return p.Version })
+		title2 := getStringOrEmpty(info2.Product, func(p *ProductInfo) string { return p.Name }) + " " +
+			getStringOrEmpty(info2.Product, func(p *ProductInfo) string { return p.Version })
 		fmt.Fprintf(w, "Product Manifest\n%s\n", strings.Repeat("-", 16))
-		fmt.Fprintf(w, "Field\t%s\t%s\n", arg1, arg2)
-		fmt.Fprintf(w, "%s\t%s\t%s\n", strings.Repeat("-", 5), strings.Repeat("-", len(arg1)), strings.Repeat("-", len(arg2)))
+		fmt.Fprintf(w, "Field\t%s\t%s\n", title1, title2)
+		fmt.Fprintf(w, "%s\t%s\t%s\n", strings.Repeat("-", 5), strings.Repeat("-", len(title1)), strings.Repeat("-", len(title2)))
 
 		// Systemd Extensions
 		printFieldComparison(w, "Systemd Extensions",
