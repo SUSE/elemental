@@ -170,7 +170,9 @@ func (o OCI) Unpack(ctx context.Context, destination string, excludes ...string)
 
 func fetchImage(ctx context.Context, ref name.Reference, platform containerregistry.Platform, local bool) (containerregistry.Image, error) {
 	if local {
-		return daemon.Image(ref, daemon.WithContext(ctx))
+		return daemon.Image(ref,
+			daemon.WithContext(ctx),
+			daemon.WithUnbufferedOpener())
 	}
 
 	return remote.Image(ref,
