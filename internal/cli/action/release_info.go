@@ -54,6 +54,7 @@ type CoreInfo struct {
 	Name              string   `json:"name" yaml:"name"`
 	Version           string   `json:"version" yaml:"version"`
 	OperatingSystem   string   `json:"operatingSystem" yaml:"operatingSystem"`
+	Kubernetes        string   `json:"kubernetes" yaml:"kubernetes"`
 	HelmCharts        []string `json:"helmCharts,omitempty" yaml:"helmCharts,omitempty"`
 	HelmRepos         []string `json:"helmRepos,omitempty" yaml:"helmRepos,omitempty"`
 	SystemdExtensions []string `json:"systemdExtensions,omitempty" yaml:"systemdExtensions,omitempty"`
@@ -188,6 +189,9 @@ func printTable(info *ManifestInfo, out io.Writer) {
 		fmt.Fprintf(w, "Name\t%s\n", info.Core.Name)
 		fmt.Fprintf(w, "Version\t%s\n", info.Core.Version)
 		fmt.Fprintf(w, "Operating System\t%s\n", info.Core.OperatingSystem)
+		if info.Core.Kubernetes != "" {
+			fmt.Fprintf(w, "Kubernetes\t%s\n", info.Core.Kubernetes)
+		}
 		if len(info.Core.SystemdExtensions) > 0 {
 			fmt.Fprintf(w, "Systemd Extensions\t%s\n", strings.Join(info.Core.SystemdExtensions, ", "))
 		}
@@ -212,7 +216,12 @@ func mapCoreInfo(cm *core.ReleaseManifest) *CoreInfo {
 		}
 	}
 
-	return &CoreInfo{
+	var kubernetes string
+	if cm.Components.Kubernetes != nil {
+		kubernetes = cm.Components.Kubernetes.Version
+	}
+
+	c := &CoreInfo{
 		Name:              cm.Metadata.Name,
 		Version:           cm.Metadata.Version,
 		OperatingSystem:   osName,
@@ -220,6 +229,10 @@ func mapCoreInfo(cm *core.ReleaseManifest) *CoreInfo {
 		HelmRepos:         mapHelmRepos(cm.Components.Helm.Repositories),
 		SystemdExtensions: mapSystemdExtensions(cm.Components.Systemd.Extensions),
 	}
+	if kubernetes != "" {
+		c.Kubernetes = kubernetes
+	}
+	return c
 }
 
 func mapProductInfo(pm *product.ReleaseManifest) *ProductInfo {
@@ -350,6 +363,12 @@ func printDiff(info1, info2 *ManifestInfo, out io.Writer) {
 		os1 := getStringOrEmpty(info1.Core, func(c *CoreInfo) string { return c.OperatingSystem })
 		os2 := getStringOrEmpty(info2.Core, func(c *CoreInfo) string { return c.OperatingSystem })
 		fmt.Fprintf(w, "Operating System\t%s\t%s\n", os1, os2)
+
+		if info1.Core.Kubernetes != "" || info2.Core.Kubernetes != "" {
+			k8s1 := getStringOrEmpty(info1.Core, func(c *CoreInfo) string { return c.Kubernetes })
+			k8s2 := getStringOrEmpty(info2.Core, func(c *CoreInfo) string { return c.Kubernetes })
+			fmt.Fprintf(w, "Kubernetes\t%s\t%s\n", k8s1, k8s2)
+		}
 
 		// Systemd Extensions
 		printFieldComparison(w, "Systemd Extensions",
