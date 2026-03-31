@@ -25,10 +25,8 @@ import (
 )
 
 type ReleaseInfoFlags struct {
-	Output  string
-	Core    bool
-	Product bool
-	Local   bool
+	Local    bool
+	Markdown bool
 }
 
 var ReleaseInfoArgs ReleaseInfoFlags
@@ -37,35 +35,24 @@ var description = `release-info takes as argument either an OCI image containing
 or a local release manifest file and prints detailed information about components that make up the Core and Product manifest.`
 
 func NewReleaseInfoCommand(appName string, releaseInfoAction func(context.Context, *cli.Command) error) *cli.Command {
-	localFlag := &cli.BoolFlag{
-		Name:        "local",
-		Usage:       "Load OCI images from the local container storage instead of a remote registry",
-		Destination: &ReleaseInfoArgs.Local,
-	}
 	return &cli.Command{
 		Name:        "release-info",
 		Usage:       "Prints details of components that make up a Core and Product release manifest file",
 		Description: fmt.Sprintf("%s %s", appName, description),
-		UsageText:   fmt.Sprintf("%s release-info [flags] <manifest-file>", appName),
+		UsageText:   fmt.Sprintf("%s release-info [options] <manifest-file>\n%s release-info [options] oci://registry.com/repo/manifest", appName, appName),
 		Action:      releaseInfoAction,
 		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:        "output",
-				Aliases:     []string{"o"},
-				Usage:       "Output format. One of: (json, yaml)",
-				Destination: &ReleaseInfoArgs.Output,
+			&cli.BoolFlag{
+				Name:        "local",
+				Usage:       "Load OCI images from the local container storage instead of a remote registry",
+				Destination: &ReleaseInfoArgs.Local,
 			},
 			&cli.BoolFlag{
-				Name:        "core",
-				Usage:       "Print only the Core Release Manifest information; doesn't print details pertaining to Core Release Manifest",
-				Destination: &ReleaseInfoArgs.Core,
+				Name:        "markdown",
+				Aliases:     []string{"m"},
+				Usage:       "Generate markdown output that can be copy-paste into a markdown editor",
+				Destination: &ReleaseInfoArgs.Markdown,
 			},
-			&cli.BoolFlag{
-				Name:        "product",
-				Usage:       "Print only the Product Release Manifest information; doesn't print details pertaining to Core Release Manifest",
-				Destination: &ReleaseInfoArgs.Product,
-			},
-			localFlag,
 		},
 	}
 }

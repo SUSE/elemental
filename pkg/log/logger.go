@@ -38,7 +38,6 @@ type Logger interface {
 	SetLevel(level uint32)
 	GetLevel() uint32
 	SetOutput(writer io.Writer)
-	GetOutput() io.Writer
 }
 
 var _ Logger = (*logrusWrapper)(nil)
@@ -118,8 +117,4 @@ func (w *logrusWrapper) Panic(msg string, args ...any) {
 
 func (w *logrusWrapper) Trace(msg string, args ...any) {
 	w.Tracef(msg, args...)
-}
-
-func (w *logrusWrapper) GetOutput() io.Writer {
-	return w.Out
 }
