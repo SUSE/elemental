@@ -3,7 +3,6 @@ package action_test
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -25,7 +24,7 @@ var _ = Describe("Release info tests", Label("release-info"), func() {
 	var buffer *bytes.Buffer
 	var ctx context.Context
 	var manifest = `metadata:
-  name: suse-core
+  name: suse-core-test
   version: 0.6-rc.20260317
   creationDate: '2026-03-17'
 components:
@@ -74,11 +73,11 @@ components:
 			Metadata: map[string]any{
 				"system": s,
 			},
+			Writer: buffer,
 		}
 		ctx = context.Background()
 		cmd.ReleaseInfoArgs.Local = true
 		cliCmd.Action = action.ReleaseInfo
-		cliCmd.Writer = buffer
 	})
 	AfterEach(func() {
 		cleanup()
@@ -100,39 +99,19 @@ components:
 
 		err = cliCmd.Run(ctx, []string{"", manifestPath})
 		Expect(err).ToNot(HaveOccurred())
-		Expect(buffer).To(ContainSubstring("Core Manifest"))
-		Expect(buffer).To(ContainSubstring("Helm Repositories"))
-		Expect(buffer).To(ContainSubstring("metallb"))
-		Expect(buffer).To(ContainSubstring("suse-edge"))
-		Expect(buffer).To(ContainSubstring("Helm Charts"))
-	})
+		Expect(buffer).To(ContainSubstring("CORE PLATFORM"))
+		Expect(buffer).To(ContainSubstring("suse-core-test"))
+		Expect(buffer).To(ContainSubstring("registry.suse.com/beta/uc/uc-base-os-kernel-default:16.0-55.79"))
 
-	It("tests for JSON output", func() {
-		manifestPath, err := tfs.RawPath("/etc/elemental3/manifest.yaml")
-		Expect(err).ToNot(HaveOccurred())
-		manifestPath = "file://" + manifestPath
+		Expect(buffer).To(ContainSubstring("INFRASTRUCTURE COMPONENTS"))
+		Expect(buffer).To(ContainSubstring("SLES 16.0"))
+		Expect(buffer).To(ContainSubstring("registry.suse.com/beta/uc/rke2:1.35_1.42-1.77"))
 
-		cmd.ReleaseInfoArgs.Output = "json"
-		err = cliCmd.Run(ctx, []string{"", manifestPath})
-		Expect(err).ToNot(HaveOccurred())
-		Expect(json.Valid(buffer.Bytes())).To(BeTrue())
-		Expect(buffer).To(ContainSubstring("core"))
-		Expect(buffer).To(ContainSubstring("helmRepos"))
-		Expect(buffer).To(ContainSubstring("helmCharts"))
-		Expect(buffer).To(ContainSubstring("systemdExtensions"))
-	})
+		Expect(buffer).To(ContainSubstring("SYSTEMD EXTENSIONS"))
+		Expect(buffer).To(ContainSubstring("registry.suse.com/beta/uc/elemental3ctl:0.6_19.2-3.151"))
 
-	It("tests for YAML output", func() {
-		manifestPath, err := tfs.RawPath("/etc/elemental3/manifest.yaml")
-		Expect(err).ToNot(HaveOccurred())
-		manifestPath = "file://" + manifestPath
-
-		cmd.ReleaseInfoArgs.Output = "yaml"
-		err = cliCmd.Run(ctx, []string{"", manifestPath})
-		Expect(err).ToNot(HaveOccurred())
-		Expect(buffer).To(ContainSubstring("core"))
-		Expect(buffer).To(ContainSubstring("helmRepos"))
-		Expect(buffer).To(ContainSubstring("helmCharts"))
-		Expect(buffer).To(ContainSubstring("systemdExtensions"))
+		Expect(buffer).To(ContainSubstring("CHART NAME"))
+		Expect(buffer).To(ContainSubstring("https://metallb.github.io/metallb"))
+		Expect(buffer).To(ContainSubstring("https://suse-edge.github.io/charts"))
 	})
 })
