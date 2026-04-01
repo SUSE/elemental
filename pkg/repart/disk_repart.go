@@ -22,8 +22,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"text/template"
 
@@ -31,6 +33,7 @@ import (
 	"github.com/suse/elemental/v3/pkg/deployment"
 	"github.com/suse/elemental/v3/pkg/sys"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
+	"golang.org/x/sys/unix"
 )
 
 const (
@@ -190,6 +193,8 @@ func repartDisk(s *sys.System, d *deployment.Disk, empty string) (err error) {
 // the optional given flags. On success it parses systemd-repart output to get the generated partition UUIDs and update the
 // given partitions list with them.
 func runSystemdRepart(s *sys.System, target string, parts []Partition, flags ...string) error {
+	setupLoopDeviceNodes()
+
 	dir, err := vfs.TempDir(s.FS(), "", "elemental-repart.d")
 	if err != nil {
 		return fmt.Errorf("failed creating a temporary directory for systemd-repart configuration: %w", err)
@@ -288,4 +293,16 @@ func readOnlyPart(part *deployment.Partition) string {
 		}
 	}
 	return ""
+}
+
+// setupLoopDeviceNodes creates 4 loop device nodes for systemd-repart to use at runtime. This is only necessary on arm64
+// podman containers as, on first run, the container does not have enough loop device nodes available for systemd-repart to work.
+// This is not an issue in amd64 containers because enough loop device nodes are automatically available.
+func setupLoopDeviceNodes() {
+	if os.Getenv("container") != "" && runtime.GOARCH == "arm64" {
+		for i := 0; i < 4; i++ {
+			devPath := fmt.Sprintf("/dev/loop%d", i)
+			_ = unix.Mknod(devPath, unix.S_IFBLK|0660, 7*256+i)
+		}
+	}
 }
