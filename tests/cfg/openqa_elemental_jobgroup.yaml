@@ -16,8 +16,9 @@
   distri: sle
 
 .common_settings: &common_settings
-  K8S: rke2
   CONSOLE: ttyS0
+  K8S: rke2
+  KERNEL_CMD_LINE: 'console=%CONSOLE% testframework=openqa'
   TEST_PASSWORD: Elemental@R00t
 
 .common_test_settings: &common_test_settings
@@ -37,11 +38,15 @@
   KEEP_GRUB_TIMEOUT: '0'
   VIDEOMODE: text
 
+.container_validation_settings: &container_validation_settings
+  <<: *common_settings
+  <<: *common_microos_boot_settings
+  YAML_SCHEDULE: schedule/elemental3/validate.yaml
+
 .generate_settings: &generate_settings
   <<: *common_settings
   <<: *common_microos_boot_settings
   IMG_NAME: 'elemental-%BUILD%-%ARCH%-%TESTED_CMD%'
-  KERNEL_CMD_LINE: 'console=%CONSOLE%'
   QEMURAM: '2048'
   YAML_SCHEDULE: schedule/elemental3/generate.yaml
 
@@ -80,7 +85,8 @@
   +DISTRI: sle-micro
   +HDD_1: 'openSUSE-MicroOS.%ARCH%-Updated.qcow2'
   HOSTNAME: master
-  RANCHER_VERSION: v2.13.2
+  QEMURAM: '4096'
+  RANCHER_VERSION: v2.13.4
   TEST_FRAMEWORK_REPO: https://github.com/ldevulder/distros-test-framework@fix-support-uc-os-image
   YAML_SCHEDULE: schedule/elemental3/master.yaml
 
@@ -95,22 +101,48 @@ defaults:
       QEMUCPU: host
 
 products:
-  sle-16.0-uc-osimage:
+  sle-16.0-uc-elemental_container:
     <<: *default_products
-    flavor: UnifiedCore-OS-Image
+    flavor: UnifiedCore-Elemental-Container
     version : '16.0'
-  sle-16.0-uc-isoimage:
+  sle-16.0-uc-iso_image:
     <<: *default_products
     flavor: UnifiedCore-ISO-Image
+    version : '16.0'
+  sle-16.0-uc-os_image:
+    <<: *default_products
+    flavor: UnifiedCore-OS-Image
     version : '16.0'
   sle-16.0-uc-release_manifest:
     <<: *default_products
     flavor: UnifiedCore-Release-Manifest
     version : '16.0'
+  sle-16.0-uc-rke2_container:
+    <<: *default_products
+    flavor: UnifiedCore-RKE2-Container
+    version : '16.0'
 
 scenarios:
   aarch64:
-    sle-16.0-uc-osimage:
+    sle-16.0-uc-elemental_container:
+      - validate_container_image:
+          testsuite: null
+          settings:
+            <<: *container_validation_settings
+            TESTED_CONTAINER: elemental
+    sle-16.0-uc-iso_image:
+      - extract_iso:
+          testsuite: null
+          settings:
+            <<: *generate_settings
+            TESTED_CMD: extract_iso
+      - test_extract_iso:
+          testsuite: null
+          settings:
+            <<: *test_iso_settings
+            TESTED_CMD: extract_iso
+            START_AFTER_TEST: '%TESTED_CMD%'
+    sle-16.0-uc-os_image:
       - generate_with_install:
           testsuite: null
           settings:
@@ -134,18 +166,6 @@ scenarios:
             <<: *test_iso_settings
             TESTED_CMD: build_installer_iso
             START_AFTER_TEST: generate_with_%TESTED_CMD%
-    sle-16.0-uc-isoimage:
-      - extract_iso:
-          testsuite: null
-          settings:
-            <<: *generate_settings
-            TESTED_CMD: extract_iso
-      - test_extract_iso:
-          testsuite: null
-          settings:
-            <<: *test_iso_settings
-            TESTED_CMD: extract_iso
-            START_AFTER_TEST: '%TESTED_CMD%'
     sle-16.0-uc-release_manifest:
       - generate_iso:
           testsuite: null
@@ -200,8 +220,32 @@ scenarios:
             <<: *node_k8s_validation_settings
             HOSTNAME: node01
             TESTED_CMD: customize
+    sle-16.0-uc-rke2_container:
+      - validate_container_image:
+          testsuite: null
+          settings:
+            <<: *container_validation_settings
+            TESTED_CONTAINER: rke2
   x86_64:
-    sle-16.0-uc-osimage:
+    sle-16.0-uc-elemental_container:
+      - validate_container_image:
+          testsuite: null
+          settings:
+            <<: *container_validation_settings
+            TESTED_CONTAINER: elemental
+    sle-16.0-uc-iso_image:
+      - extract_iso:
+          testsuite: null
+          settings:
+            <<: *generate_settings
+            TESTED_CMD: extract_iso
+      - test_extract_iso:
+          testsuite: null
+          settings:
+            <<: *test_iso_settings
+            TESTED_CMD: extract_iso
+            START_AFTER_TEST: '%TESTED_CMD%'
+    sle-16.0-uc-os_image:
       - generate_with_install:
           testsuite: null
           settings:
@@ -225,18 +269,6 @@ scenarios:
             <<: *test_iso_settings
             TESTED_CMD: build_installer_iso
             START_AFTER_TEST: generate_with_%TESTED_CMD%
-    sle-16.0-uc-isoimage:
-      - extract_iso:
-          testsuite: null
-          settings:
-            <<: *generate_settings
-            TESTED_CMD: extract_iso
-      - test_extract_iso:
-          testsuite: null
-          settings:
-            <<: *test_iso_settings
-            TESTED_CMD: extract_iso
-            START_AFTER_TEST: '%TESTED_CMD%'
     sle-16.0-uc-release_manifest:
       - generate_iso:
           testsuite: null
@@ -291,3 +323,9 @@ scenarios:
             <<: *node_k8s_validation_settings
             HOSTNAME: node01
             TESTED_CMD: customize
+    sle-16.0-uc-rke2_container:
+      - validate_container_image:
+          testsuite: null
+          settings:
+            <<: *container_validation_settings
+            TESTED_CONTAINER: rke2
