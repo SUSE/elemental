@@ -144,7 +144,7 @@ func (o OCI) Unpack(ctx context.Context, destination string, excludes ...string)
 		return "", err
 	}
 
-	digest, err := img.Digest()
+	digest, err := img.ConfigName()
 	if err != nil {
 		return "", err
 	}
