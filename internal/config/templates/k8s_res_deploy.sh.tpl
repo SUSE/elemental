@@ -12,24 +12,35 @@ retryKubectlCreate() {
   local resource="$1"
   local retries="$2"
   local sleep="$3"
-  local failed=true
+
   for i in $(seq 1 "$retries"); do
     output=$(kubectl_cmd create -f "$resource" 2>&1)
-    if [[ $? -eq 0 || "$output" == *AlreadyExists* ]]; then
+    status=$?
+
+    if [ $status -eq 0 ]; then
       echo "$output"
-      failed=false
-      break
+      return 0
     fi
-    echo "Creation for resource '$resource' failed with error '$output'. Retrying in $sleep seconds.."
-    sleep $sleep
+
+    local failed=false
+    while IFS= read -r line; do
+      if [[ -n "$line" && "$line" != *"AlreadyExists"* ]]; then
+        failed=true
+        break
+      fi
+    done <<< "$output"
+
+    if [ "$failed" = false ]; then
+      echo "$output"
+      return 0 # Only "AlreadyExists" errors found, consider it success
+    fi
+
+    echo "Attempt $i/$retries: Creation for resource '$resource' failed with error '$output'. Retrying in $sleep seconds.."
+    sleep "$sleep"
   done
 
-  if [ "$failed" = true ]; then
-    echo "Creation for resource '$resource' failed.."
-    return 1
-  fi
-
-  return 0
+  echo "ERROR: Resource '$resource' failed to deploy after $retries attempts."
+  return 1
 }
 
 waitForHelmChart() {
