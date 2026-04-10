@@ -66,16 +66,25 @@
 .k8s_test_settings: &k8s_test_settings
   EXPECTED_NM_CONNECTIVITY: none
   NICTYPE: tap
-  NODES_LIST: node01
-  # TESTS_TO_RUN: validatecluster,deployrancher
-  TESTS_TO_RUN: validatecluster
   TEST_TYPE: k8s_validation
 
 .node_k8s_validation_settings: &node_k8s_validation_settings
   <<: *common_test_settings
   <<: *k8s_test_settings
   HDD_1: 'elemental-%BUILD%-%ARCH%-%TESTED_CMD%.qcow2'
-  PARALLEL_WITH: master
+  TESTED_CMD: customize
+
+.singlenode_k8s_validation_settings: &singlenode_k8s_validation_settings
+  <<: *node_k8s_validation_settings
+  CLUSTER_TYPE: singlenode
+  NODES_LIST: node01
+  PARALLEL_WITH: master_singlenode
+
+.multinode_k8s_validation_settings: &multinode_k8s_validation_settings
+  <<: *node_k8s_validation_settings
+  CLUSTER_TYPE: multinode
+  NODES_LIST: node01,node02,node03,node04
+  PARALLEL_WITH: master_multinode
 
 .master_k8s_validation_settings: &master_k8s_validation_settings
   <<: *common_settings
@@ -86,8 +95,10 @@
   +HDD_1: 'openSUSE-MicroOS.%ARCH%-Updated.qcow2'
   HOSTNAME: master
   QEMURAM: '4096'
-  RANCHER_VERSION: v2.13.4
-  TEST_FRAMEWORK_REPO: https://github.com/ldevulder/distros-test-framework@fix-support-uc-os-image
+  RANCHER_VERSION: v2.14.1
+  TESTED_CMD: customize
+  TEST_FRAMEWORK_REPO: https://github.com/ldevulder/distros-test-framework@for-openqa-tests
+  TESTS_TO_RUN: validatecluster,deployrancher
   YAML_SCHEDULE: schedule/elemental3/master.yaml
 
 defaults:
@@ -180,6 +191,13 @@ scenarios:
             <<: *generate_settings
             IMAGE_TYPE: raw
             TESTED_CMD: customize
+      - generate_raw_multinode:
+          testsuite: null
+          settings:
+            <<: *generate_settings
+            IMAGE_TYPE: raw
+            TESTED_CMD: customize
+            CLUSTER_TYPE: multinode
       - generate_raw_recovery:
           testsuite: null
           settings:
@@ -187,6 +205,13 @@ scenarios:
             IMAGE_TYPE: raw
             TEMPLATE: build-tpl_recovery.tar.gz
             TESTED_CMD: customize_recovery
+      - generate_raw_singlenode:
+          testsuite: null
+          settings:
+            <<: *generate_settings
+            IMAGE_TYPE: raw
+            TESTED_CMD: customize
+            CLUSTER_TYPE: singlenode
       - test_iso_fips:
           testsuite: null
           settings:
@@ -208,18 +233,51 @@ scenarios:
             TESTED_CMD: customize_recovery
             TEST_TYPE: 'recovery'
             START_AFTER_TEST: generate_raw_recovery
-      - master:
+      - master_singlenode:
           testsuite: null
           settings:
             <<: *master_k8s_validation_settings
-            TESTED_CMD: customize
-            START_AFTER_TEST: generate_raw
+            NODES_LIST: node01
+            TESTS_TO_RUN: validatecluster
+            START_AFTER_TEST: generate_raw_singlenode
+      - singlenode:
+          testsuite: null
+          settings:
+            <<: *singlenode_k8s_validation_settings
+            HOSTNAME: node01
+            NICMAC: '52:54:00:99:88:01'
+      - master_multinode:
+          testsuite: null
+          settings:
+            <<: *master_k8s_validation_settings
+            NICMAC: '52:54:00:99:88:00'
+            NODES_LIST: node01,node02,node03,node04
+            TESTS_TO_RUN: validatecluster
+            START_AFTER_TEST: generate_raw_multinode
       - node01:
           testsuite: null
           settings:
-            <<: *node_k8s_validation_settings
+            <<: *multinode_k8s_validation_settings
             HOSTNAME: node01
-            TESTED_CMD: customize
+            NICMAC: '52:54:00:99:88:01'
+      - node02:
+          testsuite: null
+          settings:
+            <<: *multinode_k8s_validation_settings
+            HOSTNAME: node02
+            NICMAC: '52:54:00:99:88:02'
+      - node03:
+          testsuite: null
+          settings:
+            <<: *multinode_k8s_validation_settings
+            HOSTNAME: node03
+            NICMAC: '52:54:00:99:88:03'
+      - node04:
+          testsuite: null
+          settings:
+            <<: *multinode_k8s_validation_settings
+            HOSTNAME: node04
+            NICMAC: '52:54:00:99:88:04'
     sle-16.0-uc-rke2_container:
       - validate_container_image:
           testsuite: null
@@ -283,6 +341,13 @@ scenarios:
             <<: *generate_settings
             IMAGE_TYPE: raw
             TESTED_CMD: customize
+      - generate_raw_multinode:
+          testsuite: null
+          settings:
+            <<: *generate_settings
+            IMAGE_TYPE: raw
+            TESTED_CMD: customize
+            CLUSTER_TYPE: multinode
       - generate_raw_recovery:
           testsuite: null
           settings:
@@ -290,6 +355,13 @@ scenarios:
             IMAGE_TYPE: raw
             TEMPLATE: build-tpl_recovery.tar.gz
             TESTED_CMD: customize_recovery
+      - generate_raw_singlenode:
+          testsuite: null
+          settings:
+            <<: *generate_settings
+            IMAGE_TYPE: raw
+            TESTED_CMD: customize
+            CLUSTER_TYPE: singlenode
       - test_iso_fips:
           testsuite: null
           settings:
@@ -311,18 +383,49 @@ scenarios:
             TESTED_CMD: customize_recovery
             TEST_TYPE: 'recovery'
             START_AFTER_TEST: generate_raw_recovery
-      - master:
+      - master_singlenode:
           testsuite: null
           settings:
             <<: *master_k8s_validation_settings
-            TESTED_CMD: customize
-            START_AFTER_TEST: generate_raw
+            NODES_LIST: node01
+            START_AFTER_TEST: generate_raw_singlenode
+      - singlenode:
+          testsuite: null
+          settings:
+            <<: *singlenode_k8s_validation_settings
+            HOSTNAME: node01
+            NICMAC: '52:54:00:99:88:01'
+      - master_multinode:
+          testsuite: null
+          settings:
+            <<: *master_k8s_validation_settings
+            NICMAC: '52:54:00:99:88:00'
+            NODES_LIST: node01,node02,node03,node04
+            START_AFTER_TEST: generate_raw_multinode
       - node01:
           testsuite: null
           settings:
-            <<: *node_k8s_validation_settings
+            <<: *multinode_k8s_validation_settings
             HOSTNAME: node01
-            TESTED_CMD: customize
+            NICMAC: '52:54:00:99:88:01'
+      - node02:
+          testsuite: null
+          settings:
+            <<: *multinode_k8s_validation_settings
+            HOSTNAME: node02
+            NICMAC: '52:54:00:99:88:02'
+      - node03:
+          testsuite: null
+          settings:
+            <<: *multinode_k8s_validation_settings
+            HOSTNAME: node03
+            NICMAC: '52:54:00:99:88:03'
+      - node04:
+          testsuite: null
+          settings:
+            <<: *multinode_k8s_validation_settings
+            HOSTNAME: node04
+            NICMAC: '52:54:00:99:88:04'
     sle-16.0-uc-rke2_container:
       - validate_container_image:
           testsuite: null
