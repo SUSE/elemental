@@ -11,7 +11,7 @@ require (
 	github.com/distribution/reference v0.6.0
 	github.com/docker/go-units v0.5.0
 	github.com/go-playground/validator/v10 v10.30.2
-	github.com/google/go-containerregistry v0.21.2
+	github.com/google/go-containerregistry v0.21.5
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
 	github.com/olekukonko/tablewriter v1.1.4
@@ -28,7 +28,6 @@ require (
 )
 
 require (
-	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
 	github.com/Masterminds/semver/v3 v3.4.0 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/Microsoft/hcsshim v0.14.0-rc.1 // indirect
@@ -49,11 +48,9 @@ require (
 	github.com/coreos/go-systemd/v22 v22.7.0 // indirect
 	github.com/coreos/vcontext v0.0.0-20231102161604-685dc7299dc5 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
-	github.com/docker/cli v29.2.1+incompatible // indirect
-	github.com/docker/distribution v2.8.3+incompatible // indirect
-	github.com/docker/docker v28.5.2+incompatible // indirect
+	github.com/docker/cli v29.4.0+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.9.3 // indirect
-	github.com/docker/go-connections v0.5.0 // indirect
+	github.com/docker/go-connections v0.6.0 // indirect
 	github.com/fatih/color v1.18.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.13 // indirect
@@ -66,7 +63,7 @@ require (
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/pprof v0.0.0-20260115054156-294ebfa9ad83 // indirect
-	github.com/klauspost/compress v1.18.4 // indirect
+	github.com/klauspost/compress v1.18.5 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
@@ -74,6 +71,8 @@ require (
 	github.com/mitchellh/colorstring v0.0.0-20190213212951-d06e56a500db // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
+	github.com/moby/moby/api v1.54.1 // indirect
+	github.com/moby/moby/client v0.4.0 // indirect
 	github.com/moby/sys/mountinfo v0.7.2 // indirect
 	github.com/moby/sys/sequential v0.6.0 // indirect
 	github.com/moby/sys/userns v0.1.0 // indirect
@@ -93,13 +92,13 @@ require (
 	go.opentelemetry.io/otel v1.38.0 // indirect
 	go.opentelemetry.io/otel/metric v1.38.0 // indirect
 	go.opentelemetry.io/otel/trace v1.38.0 // indirect
-	golang.org/x/mod v0.34.0 // indirect
-	golang.org/x/net v0.52.0 // indirect
+	golang.org/x/mod v0.35.0 // indirect
+	golang.org/x/net v0.53.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
 	golang.org/x/sys v0.43.0 // indirect
 	golang.org/x/term v0.42.0 // indirect
 	golang.org/x/text v0.36.0 // indirect
-	golang.org/x/tools v0.43.0 // indirect
+	golang.org/x/tools v0.44.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20251222181119-0a764e51fe1b // indirect
 	google.golang.org/grpc v1.78.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
