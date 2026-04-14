@@ -28,20 +28,20 @@ This section provides an overview of how you build a Linux image that can includ
 
 ## Prepare basic configuration
 
-`elemental3ctl` can apply basic configuration and extensions at deployment time in the following ways:
+`elemental3ctl` can apply basic configuration and include extensions at deployment time in the following ways:
 
-* Through a [system extension image](#configuring-through-a-system-extension-image)
-* Through a [configuration script](#configuring-through-a-configuration-script)
+* Adding [system extension images](#adding-system-extension-images)
+* Apply configuration through a [configuration script](#configuring-through-a-configuration-script)
 
-### Configuring through a system extension image
+### Adding system extension images
 
-While we recommend reading through the complete document to understand system extensions in the context of elemental 
+While we recommend reading through the complete document to understand system extensions in the context of elemental
 project, please refer to the
 ["Create system extension images"](./systemd-system-extensions.md#create-system-extension-images) section for specific
 steps. After that continue further with the
 ["Configuring through a configuration script"](#configuring-through-a-configuration-script) section below.
 
-### Preparing the system extension image as an overlay
+#### Preparing the system extension image as an overlay
 
 Overlay is the way of merging contents of a system extension onto the host system such that it all looks like a part
 of the host system.
@@ -58,7 +58,7 @@ of the host system.
     tar -cavzf overlays.tar.gz -C overlays .
     ```
 
-You have now prepared an archive containing a system extension image for use during the installation process. This
+You have now prepared an archive containing a system extension images for use during the installation process. This
 adds the `kubectl` binary or `strace` package to the operating system after boot.
 
 
@@ -124,7 +124,7 @@ sudo elemental3ctl install \
 
 Note that:
 
-* The `overlays.tar.gz` tarball came from the system extension image [example configuration](#example-system-extension-image).
+* The `overlays.tar.gz` tarball came from the system extension image [example configuration](#adding-system-extension-images).
 * The `config.sh` script came from the [configuration script example](#example-configuration-script).
 * `/dev/nbd0` is the chosen block device from the `qemu-nbd -c` command in the [Prepare the Installation Target](#prepare-the-installation-target) section.
 
@@ -187,7 +187,7 @@ You should see the bootloader prompting you to start `openSUSE Tumbleweed`.
         journalctl -u example-oneshot.service
         ```
 
-4. Check that `elemental3ctl` binary is available and working:
+4. Check that any given extension image is merged as expected:
 
     * Check logs for the `systemd-sysext.service`:
 
@@ -195,11 +195,6 @@ You should see the bootloader prompting you to start `openSUSE Tumbleweed`.
         journalctl -u systemd-sysext.service
         ```
 
-    * Try calling the command:
-
-        ```shell
-        elemental3ctl version
-        ```
 
 ## Create an Installer Media
 
@@ -317,10 +312,9 @@ chmod +x config-live.sh
 
 #### Include Extensions in the Installer Media
 
-The provided OS does not include the `elemental3ctl` required to run the installation to the target disk. The `elemental3ctl` is delivered through a systemd extension image.
-To ensure it is available at ISO boot, it has to be included in the ISO filesystem and either copied or linked to `/run/extensions`.
+In case some extension are required at install time they have to be included in the ISO filesystem and either copied or linked to '/run/extensions' at boot time.
 
-This example shows how to prepare the ISO overlay directory tree and the configuration script to ensure the `elemental3ctl` extensions are
+This example shows how to prepare the ISO overlay directory tree and the configuration script to ensure a given systemd extension is
 available and loaded at boot.
 
 1. Create an `iso-overlay/extensions` directory:
@@ -329,10 +323,10 @@ available and loaded at boot.
     mkdir -p iso-overlay/extensions
     ```
 
-2. Create the [elemental3ctl](#example-system-extension-image) extension image and move it to this directory:
+2. Copy the given extension image to the `iso-overlay/extensions` directory:
 
     ```shell
-    mv example-extension/mkosi.output/elemental3ctl-3.0.x86-64.raw iso-overlay/extensions
+    mv example-extension/mkosi.output/example-extension_1.0_x86-64.raw iso-overlay/extensions
     ```
 
 3. Make sure the live configuration script links the `extensions` folder at `/run/extensions`
@@ -368,7 +362,7 @@ The RAW disk image only includes the ESP partition and a recovery partition. The
 squashfs OS image to boot from like a live ISO would.
 
 Note that:
-* The `overlays.tar.gz` tarball came from the system extension image [example configuration](#example-system-extension-image).
+* The `overlays.tar.gz` tarball came from the system extension image [example configuration](#adding-system-extension-images).
 * The `config.sh` script came from the [configuration script example](#example-configuration-script).
 * The `/dev/sda` is the target device you want the ISO to install to.
 * The `iso-overlay` is the directory tree [including extensions](#include-extensions-in-the-installer-media) that will be included in the ISO filesystem of the built image.
