@@ -7,7 +7,7 @@ SCRIPTS_PATH=$(dirname "${SCRIPT}")
 TESTS_PATH=$(realpath -s "${SCRIPTS_PATH}/../tests")
 
 : "${ELMNTL_PREFIX:=}" 
-: "${ELMNTL_FIRMWARE:=/usr/share/qemu/ovmf-x86_64.bin}"
+: "${ELMNTL_FIRMWARE:=/usr/share/qemu/ovmf-x86_64-4m.bin}"
 : "${ELMNTL_FWDIP:=127.0.0.1}"
 : "${ELMNTL_FWDPORT:=2222}"
 : "${ELMNTL_MEMORY:=4096}"
