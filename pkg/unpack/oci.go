@@ -19,17 +19,19 @@ package unpack
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/schollz/progressbar/v3"
 
+	"github.com/suse/elemental/v3/pkg/containerd"
 	"github.com/suse/elemental/v3/pkg/sys"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 
 	backoff "github.com/cenkalti/backoff/v4"
-	"github.com/containerd/containerd/v2/pkg/archive"
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
 	containerregistry "github.com/google/go-containerregistry/pkg/v1"
@@ -38,7 +40,12 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 )
 
-const workDirSuffix = ".workdir"
+const (
+	CtrdSockEnv = "CONTAINERD_SOCK"
+
+	workDirSuffix = ".workdir"
+	ctrdNamespace = "k8s.io"
+)
 
 type OCI struct {
 	s           *sys.System
@@ -47,6 +54,8 @@ type OCI struct {
 	verify      bool
 	imageRef    string
 	rsyncFlags  []string
+	ctrdSock    string
+	ctrd        containerd.Interface
 }
 
 type OCIOpt func(*OCI)
@@ -75,6 +84,12 @@ func WithRsyncFlagsOCI(flags ...string) OCIOpt {
 	}
 }
 
+func WithContainerd(ctrd containerd.Interface) OCIOpt {
+	return func(o *OCI) {
+		o.ctrd = ctrd
+	}
+}
+
 func NewOCIUnpacker(s *sys.System, imageRef string, opts ...OCIOpt) *OCI {
 	unpacker := &OCI{
 		s:           s,
@@ -87,14 +102,36 @@ func NewOCIUnpacker(s *sys.System, imageRef string, opts ...OCIOpt) *OCI {
 		o(unpacker)
 	}
 
+	if unpacker.local {
+		sock := os.Getenv(CtrdSockEnv)
+		if ok, _ := vfs.Exists(unpacker.s.FS(), sock); ok {
+			unpacker.ctrdSock = sock
+		}
+	}
+
 	return unpacker
 }
 
-// SynchedUnpack for OCI images will extract OCI contents to a destination sibling directory first and
+func (o OCI) SynchedUnpack(ctx context.Context, destination string, excludes []string, deleteExcludes []string) (digest string, err error) {
+	if o.ctrdSock != "" {
+		return o.synchedUnpackContainerd(ctx, destination, excludes, deleteExcludes)
+	}
+	return o.synchedUnpack(ctx, destination, excludes, deleteExcludes)
+}
+
+func (o OCI) Unpack(ctx context.Context, destination string, excludes ...string) (digest string, err error) {
+	if o.ctrdSock != "" {
+		return o.unpackContainerd(ctx, destination, excludes...)
+	}
+
+	return o.unpack(ctx, destination, excludes...)
+}
+
+// synchedUnpack for OCI images will extract OCI contents to a destination sibling directory first and
 // after that it will sync it to the destination directory. Ideally the destination path should
 // not be mountpoint to a different filesystem of the sibling directories in order to benefit of
 // copy on write features of the base filesystem.
-func (o OCI) SynchedUnpack(ctx context.Context, destination string, excludes []string, deleteExcludes []string) (digest string, err error) {
+func (o OCI) synchedUnpack(ctx context.Context, destination string, excludes []string, deleteExcludes []string) (digest string, err error) {
 	tempDir := filepath.Clean(destination) + workDirSuffix
 	err = vfs.MkdirAll(o.s.FS(), tempDir, vfs.DirPerm)
 	if err != nil {
@@ -106,7 +143,7 @@ func (o OCI) SynchedUnpack(ctx context.Context, destination string, excludes []s
 			err = e
 		}
 	}()
-	digest, err = o.Unpack(ctx, tempDir)
+	digest, err = o.unpack(ctx, tempDir)
 	if err != nil {
 		return "", err
 	}
@@ -118,7 +155,7 @@ func (o OCI) SynchedUnpack(ctx context.Context, destination string, excludes []s
 	return digest, nil
 }
 
-func (o OCI) Unpack(ctx context.Context, destination string, excludes ...string) (string, error) {
+func (o OCI) unpack(ctx context.Context, destination string, excludes ...string) (string, error) {
 	platform, err := containerregistry.ParsePlatform(o.platformRef)
 	if err != nil {
 		return "", err
@@ -162,8 +199,7 @@ func (o OCI) Unpack(ctx context.Context, destination string, excludes ...string)
 
 	r := progressbar.NewReader(reader, bar)
 
-	filter := excludesFilter(destination, excludes...)
-	_, err = archive.Apply(ctx, destination, &r, archive.WithFilter(filter))
+	_, err = containerd.Apply(ctx, destination, &r, excludesFilter(destination, excludes...))
 
 	return digest.String(), err
 }
@@ -181,4 +217,51 @@ func fetchImage(ctx context.Context, ref name.Reference, platform containerregis
 		remote.WithAuthFromKeychain(authn.DefaultKeychain),
 		remote.WithContext(ctx),
 	)
+}
+
+func (o OCI) synchedUnpackContainerd(ctx context.Context, destination string, excludes []string, deleteExcludes []string) (string, error) {
+	callback := func(rootfs string) error {
+		unpackD := NewDirectoryUnpacker(o.s, rootfs, WithRsyncFlagsDir(o.rsyncFlags...))
+		_, e := unpackD.SynchedUnpack(ctx, destination, excludes, deleteExcludes)
+		return e
+	}
+	return o.onMountedContainerdImage(ctx, callback)
+}
+
+func (o OCI) unpackContainerd(ctx context.Context, destination string, excludes ...string) (string, error) {
+	callback := func(rootfs string) error {
+		unpackD := NewDirectoryUnpacker(o.s, rootfs, WithRsyncFlagsDir(o.rsyncFlags...))
+		_, e := unpackD.Unpack(ctx, destination, excludes...)
+		return e
+	}
+	return o.onMountedContainerdImage(ctx, callback)
+}
+
+// onMountedContainerdImage mounts as RO the image reference, if found in containerd, and then runs the given callback.
+// Returns the image config digest (imageID) of the image on success or error otherwise. Mountpoints are unmounted and
+// resources freed after executing the method. The given callback gets as input the mountpoint of the image root-tree.
+func (o OCI) onMountedContainerdImage(ctx context.Context, callback func(rootfs string) error) (string, error) {
+	if !o.local {
+		return "", fmt.Errorf("only unpacked images cand be mounted")
+	}
+
+	if o.ctrd == nil {
+		ctrd, err := containerd.NewWrapper(o.s, o.ctrdSock)
+		if err != nil {
+			return "", err
+		}
+		o.ctrd = ctrd
+	}
+	ctx = containerd.AddNamespace(ctx, ctrdNamespace)
+
+	img, err := o.ctrd.FindUnpackedImage(ctx, o.imageRef)
+	if err != nil {
+		return "", err
+	}
+
+	err = o.ctrd.RunOnMountedROSnapshot(ctx, img, callback)
+	if err != nil {
+		return "", err
+	}
+	return img.Digest, nil
 }
