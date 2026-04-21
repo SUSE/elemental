@@ -19,8 +19,44 @@ limitations under the License.
 package api
 
 import (
+	"bytes"
+	"fmt"
+
+	"go.yaml.in/yaml/v3"
+
 	"github.com/suse/elemental/v3/pkg/helm"
 )
+
+type SchemaVersion string
+
+const SchemaV0 SchemaVersion = "v0"
+
+type schemaHeader struct {
+	SchemaVersion SchemaVersion `yaml:"schema"`
+}
+
+func LoadSchemaVersion(data []byte) (SchemaVersion, error) {
+	var header schemaHeader
+
+	decoder := yaml.NewDecoder(bytes.NewReader(data))
+	decoder.KnownFields(false)
+
+	if err := decoder.Decode(&header); err != nil {
+		return "", fmt.Errorf("extracting schema version: %w", err)
+	}
+
+	// TODO: remove default once we have added schema to the official manifests.
+	if header.SchemaVersion == "" {
+		return SchemaV0, nil
+	}
+
+	switch header.SchemaVersion {
+	case SchemaV0:
+		return SchemaV0, nil
+	default:
+		return "", fmt.Errorf("unsupported manifest schema version: %q", header.SchemaVersion)
+	}
+}
 
 type DependencyType string
 

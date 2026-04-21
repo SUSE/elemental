@@ -72,6 +72,8 @@ var _ = Describe("ReleaseManifest", Label("release-manifest"), func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(rm).ToNot(BeNil())
 
+		Expect(rm.Schema).To(BeEquivalentTo("v0"))
+
 		Expect(rm.Metadata).ToNot(BeNil())
 		Expect(rm.Metadata.Name).To(Equal("suse-edge"))
 		Expect(rm.Metadata.Version).To(Equal("3.2.0"))
@@ -103,6 +105,40 @@ var _ = Describe("ReleaseManifest", Label("release-manifest"), func() {
 		Expect(len(rm.Components.Helm.Repositories)).To(Equal(1))
 		Expect(rm.Components.Helm.Repositories[0].Name).To(Equal("bar-charts"))
 		Expect(rm.Components.Helm.Repositories[0].URL).To(Equal("https://bar.github.io/charts"))
+	})
+
+	It("defaults to schema v0 when schema field is missing", func() {
+		data := []byte(`
+corePlatform:
+  image: "foo.example.com/bar/release-manifest:1.0"
+`)
+		rm, err := product.Parse(data)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(rm).ToNot(BeNil())
+	})
+
+	It("succeeds with explicit schema v0", func() {
+		data := []byte(`
+schema: v0
+corePlatform:
+  image: "foo.example.com/bar/release-manifest:1.0"
+`)
+		rm, err := product.Parse(data)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(rm).ToNot(BeNil())
+		Expect(rm.Schema).To(BeEquivalentTo("v0"))
+	})
+
+	It("fails with unknown schema version", func() {
+		data := []byte(`
+schema: v99
+corePlatform:
+  image: "foo.example.com/bar/release-manifest:1.0"
+`)
+		rm, err := product.Parse(data)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring(`unsupported manifest schema version: "v99"`))
+		Expect(rm).To(BeNil())
 	})
 
 	It("fails when unknown field is introduced", func() {

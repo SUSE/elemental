@@ -29,9 +29,10 @@ import (
 )
 
 type ReleaseManifest struct {
-	Metadata     *api.Metadata `yaml:"metadata,omitempty"`
-	CorePlatform *CorePlatform `yaml:"corePlatform" validate:"required"`
-	Components   Components    `yaml:"components,omitempty"`
+	Schema       api.SchemaVersion `yaml:"schema,omitempty"`
+	Metadata     *api.Metadata     `yaml:"metadata,omitempty"`
+	CorePlatform *CorePlatform     `yaml:"corePlatform" validate:"required"`
+	Components   Components        `yaml:"components,omitempty"`
 }
 
 type CorePlatform struct {
@@ -44,6 +45,10 @@ type Components struct {
 }
 
 func Parse(data []byte) (*ReleaseManifest, error) {
+	if _, err := api.LoadSchemaVersion(data); err != nil {
+		return nil, fmt.Errorf("parsing 'product' release manifest: %w", err)
+	}
+
 	rm := &ReleaseManifest{}
 	decoder := yaml.NewDecoder(bytes.NewReader(data))
 	decoder.KnownFields(true)
