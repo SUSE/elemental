@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+schema: v0
 metadata:
   name: "suse-edge"
   version: "3.2.0"

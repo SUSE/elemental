@@ -74,6 +74,8 @@ var _ = Describe("ReleaseManifest", Label("release-manifest"), func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(rm).ToNot(BeNil())
 
+		Expect(rm.Schema).To(BeEquivalentTo("v0"))
+
 		Expect(rm.Metadata).ToNot(BeNil())
 		Expect(rm.Metadata.Name).To(Equal("suse-core"))
 		Expect(rm.Metadata.Version).To(Equal("1.0"))
@@ -117,6 +119,49 @@ var _ = Describe("ReleaseManifest", Label("release-manifest"), func() {
 		rm, err := core.Parse(data)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring(expErrMsg))
+		Expect(rm).To(BeNil())
+	})
+
+	It("defaults to schema v0 when schema field is missing", func() {
+		data := []byte(`
+components:
+  operatingSystem:
+    image:
+      base: "registry.com/foo/bar/os-base:6.2"
+      iso: "registry.com/foo/bar/installer-iso:6.2"
+`)
+		rm, err := core.Parse(data)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(rm).ToNot(BeNil())
+	})
+
+	It("succeeds with explicit schema v0", func() {
+		data := []byte(`
+schema: v0
+components:
+  operatingSystem:
+    image:
+      base: "registry.com/foo/bar/os-base:6.2"
+      iso: "registry.com/foo/bar/installer-iso:6.2"
+`)
+		rm, err := core.Parse(data)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(rm).ToNot(BeNil())
+		Expect(rm.Schema).To(BeEquivalentTo("v0"))
+	})
+
+	It("fails with unknown schema version", func() {
+		data := []byte(`
+schema: v99
+components:
+  operatingSystem:
+    image:
+      base: "registry.com/foo/bar/os-base:6.2"
+      iso: "registry.com/foo/bar/installer-iso:6.2"
+`)
+		rm, err := core.Parse(data)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring(`unsupported manifest schema version: "v99"`))
 		Expect(rm).To(BeNil())
 	})
 
