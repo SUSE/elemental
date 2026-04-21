@@ -19,10 +19,13 @@ package unpack_test
 
 import (
 	"context"
+	"fmt"
+	"os"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	ctrdmock "github.com/suse/elemental/v3/pkg/containerd/mock"
 	"github.com/suse/elemental/v3/pkg/log"
 	"github.com/suse/elemental/v3/pkg/sys"
 	sysmock "github.com/suse/elemental/v3/pkg/sys/mock"
@@ -114,5 +117,55 @@ var _ = Describe("OCIUnpacker", Label("oci", "rootlesskit"), func() {
 		exists, _ = vfs.Exists(tfs, "/target/root/protected")
 		Expect(exists).To(BeTrue())
 		Expect(digest).To(ContainSubstring("sha256:"))
+	})
+})
+
+var _ = Describe("OCIUnpacker", Label("oci", "containerd"), func() {
+	var tfs vfs.FS
+	var s *sys.System
+	var cleanup func()
+	var ctrd *ctrdmock.ContainerdMock
+	BeforeEach(func() {
+		var err error
+		ctrd = &ctrdmock.ContainerdMock{
+			MntRootFS: "/mnt/root",
+		}
+		tfs, cleanup, err = sysmock.TestFS(nil)
+		Expect(err).NotTo(HaveOccurred())
+		s, err = sys.NewSystem(sys.WithFS(tfs), sys.WithLogger(log.New(log.WithDiscardAll())))
+		Expect(err).NotTo(HaveOccurred())
+		err = os.Setenv(unpack.CtrdSockEnv, "/run/containerd/containerd.sock")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(vfs.MkdirAll(tfs, "/target/root", vfs.DirPerm)).To(Succeed())
+		Expect(vfs.MkdirAll(tfs, "/mnt/root", vfs.DirPerm)).To(Succeed())
+		Expect(vfs.MkdirAll(tfs, "/run/containerd", vfs.DirPerm)).To(Succeed())
+		Expect(tfs.WriteFile("/run/containerd/containerd.sock", []byte{}, vfs.FilePerm)).To(Succeed())
+		Expect(tfs.WriteFile("/mnt/root/content", []byte("image content"), vfs.FilePerm)).To(Succeed())
+	})
+	AfterEach(func() {
+		cleanup()
+	})
+	It("Unpacks a local image from containerd", func() {
+		ctrd.Img.Digest = "imageID"
+		ctrd.MntRootFS = "/mnt/root"
+		unpacker := unpack.NewOCIUnpacker(s, alpineImageRef, unpack.WithContainerd(ctrd), unpack.WithLocalOCI(true))
+
+		digest, err := unpacker.Unpack(context.Background(), "/target/root")
+		Expect(err).NotTo(HaveOccurred())
+		exists, _ := vfs.Exists(tfs, "/target/root/content")
+		Expect(exists).To(BeTrue())
+		Expect(digest).To(Equal("imageID"))
+	})
+	It("Fails to find an image in containerd", func() {
+		ctrd.EFind = fmt.Errorf("image not found")
+		unpacker := unpack.NewOCIUnpacker(s, alpineImageRef, unpack.WithContainerd(ctrd), unpack.WithLocalOCI(true))
+		_, err := unpacker.Unpack(context.Background(), "/target/root")
+		Expect(err).To(MatchError("image not found"))
+	})
+	It("Fails to mount a containerd image", func() {
+		ctrd.ERunOnMounted = fmt.Errorf("failed to mount image")
+		unpacker := unpack.NewOCIUnpacker(s, alpineImageRef, unpack.WithContainerd(ctrd), unpack.WithLocalOCI(true))
+		_, err := unpacker.Unpack(context.Background(), "/target/root")
+		Expect(err).To(MatchError("failed to mount image"))
 	})
 })
