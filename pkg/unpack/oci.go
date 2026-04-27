@@ -242,7 +242,7 @@ func (o OCI) unpackContainerd(ctx context.Context, destination string, excludes 
 // resources freed after executing the method. The given callback gets as input the mountpoint of the image root-tree.
 func (o OCI) onMountedContainerdImage(ctx context.Context, callback func(rootfs string) error) (string, error) {
 	if !o.local {
-		return "", fmt.Errorf("only unpacked images cand be mounted")
+		return "", fmt.Errorf("only unpacked images can be mounted")
 	}
 
 	if o.ctrd == nil {
