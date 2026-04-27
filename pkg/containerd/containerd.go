@@ -24,6 +24,9 @@ import (
 	"io"
 	"time"
 
+	"github.com/suse/elemental/v3/pkg/sys"
+	"github.com/suse/elemental/v3/pkg/sys/vfs"
+
 	"github.com/containerd/containerd/v2/client"
 	"github.com/containerd/containerd/v2/core/images"
 	"github.com/containerd/containerd/v2/core/leases"
@@ -32,8 +35,6 @@ import (
 	"github.com/containerd/containerd/v2/pkg/namespaces"
 	"github.com/containerd/platforms"
 	"github.com/opencontainers/image-spec/identity"
-	"github.com/suse/elemental/v3/pkg/sys"
-	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
 
 type Interface interface {
@@ -170,11 +171,16 @@ func (w Wrapper) RunOnMountedROSnapshot(ctx context.Context, img ImgMeta, callba
 	}()
 	w.s.Logger().Debug("created snapshot with key %s", key)
 
-	if err := mount.All(mounts, tempDir); err != nil {
+	var rawTmp string
+	if rawTmp, err = w.s.FS().RawPath(tempDir); err != nil {
+		rawTmp = tempDir
+	}
+
+	if err := mount.All(mounts, rawTmp); err != nil {
 		return fmt.Errorf("failed to mount to %s: %w", tempDir, err)
 	}
 	defer func() {
-		e := mount.UnmountAll(tempDir, 0)
+		e := mount.UnmountAll(rawTmp, 0)
 		if err == nil && e != nil {
 			err = e
 		}
