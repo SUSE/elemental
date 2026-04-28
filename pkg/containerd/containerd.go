@@ -85,14 +85,14 @@ func (w Wrapper) FindUnpackedImage(ctx context.Context, imageRef string) (ImgMet
 	var img ImgMeta
 	image, err := w.cli.GetImage(ctx, imageRef)
 	if err != nil {
-		return img, fmt.Errorf("failed to get image from containerd: %w", err)
+		return img, fmt.Errorf("getting image from containerd: %w", err)
 	}
-	w.s.Logger().Debug("image '%s' found in containerd daemon", imageRef)
+	w.s.Logger().Debug("image %q found in containerd daemon", imageRef)
 
 	introService := w.cli.IntrospectionService()
 	pluginsResp, err := introService.Plugins(ctx, "type==io.containerd.snapshotter.v1")
 	if err != nil {
-		return img, fmt.Errorf("failed to get containerd snapshotter plugins: %w", err)
+		return img, fmt.Errorf("getting containerd snapshotter plugins: %w", err)
 	}
 
 	// discover the current containerd snapshotter
@@ -106,13 +106,13 @@ func (w Wrapper) FindUnpackedImage(ctx context.Context, imageRef string) (ImgMet
 		break
 	}
 	if snapshotterName == "" {
-		return img, fmt.Errorf("image '%s' is not unpacked", imageRef)
+		return img, fmt.Errorf("image %q is not unpacked", imageRef)
 	}
 
 	cs := w.cli.ContentStore()
 	manifest, err := images.Manifest(ctx, cs, image.Target(), platforms.Default())
 	if err != nil {
-		return img, fmt.Errorf("failed to resolve platform-specific manifest: %w", err)
+		return img, fmt.Errorf("resolving platform-specific manifest: %w", err)
 	}
 	digest := manifest.Config.Digest.String()
 
