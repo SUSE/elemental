@@ -19,6 +19,7 @@ package unpack
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/suse/elemental/v3/pkg/sys"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
@@ -89,13 +90,11 @@ func (r Raw) SynchedUnpack(ctx context.Context, destination string, excludes []s
 func (r Raw) mountImage() (string, umountFunc, error) {
 	dir, err := vfs.TempDir(r.s.FS(), "", "elemental_unpack")
 	if err != nil {
-		r.s.Logger().Error("failed creating a temporary directory to unpack a raw image: %w", err)
-		return "", nil, err
+		return "", nil, fmt.Errorf("creating a temporary directory to unpack image: %w", err)
 	}
 	err = r.s.Mounter().Mount(r.path, dir, "auto", []string{"ro"})
 	if err != nil {
-		r.s.Logger().Error("failed mounting raw image '%s': %w", r.path, err)
-		return "", nil, err
+		return "", nil, fmt.Errorf("mounting raw image %q: %w", r.path, err)
 	}
 	umount := func() error {
 		err := r.s.Mounter().Unmount(dir)
