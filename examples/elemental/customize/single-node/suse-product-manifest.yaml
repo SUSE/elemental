@@ -5,7 +5,7 @@ metadata:
   creationDate: "2025-12-08"
 corePlatform:
   # Release manifest OCI image of the Core Platform that this SUSE Product extends
-  image: "registry.suse.com/beta/uc/release-manifest:0.6_rke2_1.35"
+  image: "registry.opensuse.org/home/dcassany/unifiedcore/tumbleweed/containers/release-manifest:latest"
 components:
   systemd:
     extensions:
