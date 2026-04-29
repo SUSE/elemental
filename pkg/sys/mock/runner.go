@@ -50,7 +50,7 @@ func (r *Runner) RunEnv(command string, envs []string, args ...string) ([]byte, 
 	err := r.ReturnError
 	out := r.ReturnValue
 
-	r.debug(fmt.Sprintf("Running cmd: '%s %s'", command, strings.Join(args, " ")))
+	r.debug("Running cmd: '%s %s'", command, strings.Join(args, " "))
 	r.cmds = append(r.cmds, append([]string{command}, args...))
 	r.envs = append(r.envs, append([]string{command}, envs...))
 	if r.SideEffect != nil {
@@ -60,7 +60,7 @@ func (r *Runner) RunEnv(command string, envs []string, args ...string) ([]byte, 
 		}
 	}
 	if err != nil {
-		r.error(fmt.Sprintf("Error running command: %s", err.Error()))
+		r.error("Error running command: %s", err.Error())
 	}
 	return out, err
 }
