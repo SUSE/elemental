@@ -59,7 +59,7 @@ func (r run) RunEnv(command string, env []string, args ...string) ([]byte, error
 	if len(env) > 0 {
 		displayEnv = strings.Join(env, " ") + " "
 	}
-	r.debug("Running cmd: '%s%s %s'", displayEnv, command, strings.Join(args, " "))
+	r.debug("Running cmd: '%s %s %s'", displayEnv, command, strings.Join(args, " "))
 	cmd := exec.Command(command, args...)
 	cmd.Env = env
 	out, err := cmd.Output()
