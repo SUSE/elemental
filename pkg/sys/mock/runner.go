@@ -171,14 +171,14 @@ func (r *Runner) SetLogger(logger log.Logger) {
 	r.Logger = logger
 }
 
-func (r Runner) error(msg string) {
+func (r Runner) error(msg string, args ...any) {
 	if r.Logger != nil {
-		r.Logger.Error(msg)
+		r.Logger.Error(msg, args...)
 	}
 }
 
-func (r Runner) debug(msg string) {
+func (r Runner) debug(msg string, args ...any) {
 	if r.Logger != nil {
-		r.Logger.Debug(msg)
+		r.Logger.Debug(msg, args...)
 	}
 }
