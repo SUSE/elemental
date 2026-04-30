@@ -20,7 +20,7 @@ components:
           crds:
             enabled: true
       - chart: "rancher"
-        version: "2.13.0"
+        version: "2.14.0"
         namespace: "cattle-system"
         repository: "rancher"
         values:
@@ -45,6 +45,6 @@ components:
       - name: "jetstack"
         url: "https://charts.jetstack.io"
       - name: "rancher"
-        url: "https://releases.rancher.com/server-charts/stable"
+        url: "https://releases.rancher.com/server-charts/latest"
       - name: "rancher-charts"
         url: "https://charts.rancher.io"
