@@ -3,6 +3,8 @@ export ROOT_DIR:=$(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
 
 GINKGO?="github.com/onsi/ginkgo/v2/ginkgo"
 
+ROOTLESSKIT?=no
+
 BUILD_DIR?=./build
 
 PKG?=./pkg/... ./internal/...
@@ -78,8 +80,8 @@ image:
 .PHONY: unit-tests
 unit-tests:
 	go run $(GINKGO) --label-filter '!rootlesskit' --race --cover --coverpkg=$(COVER_PKG) --github-output -p -r $(GO_RUN_ARGS) ${PKG} || exit $$?
-ifeq (, $(shell which rootlesskit 2>/dev/null))
-	@echo "No rootlesskit utility found, not executing tests requiring it"
+ifneq (yes, $(ROOTLESSKIT))
+	@echo "Not executing tests requiring rootlesskit, set ROOTLESSKIT=yes to run them"
 else
 	@mv coverprofile.out coverprofile.out.bk
 	rootlesskit go run $(GINKGO) --label-filter 'rootlesskit' --race --cover --coverpkg=$(COVER_PKG) --github-output -p -r $(GO_RUN_ARGS) ${PKG} || exit $$?

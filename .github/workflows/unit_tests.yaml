@@ -31,7 +31,7 @@ jobs:
           COV_THRESHOLD: "70"
         run: |
           # Execute the Unit tests
-          make VERBOSE=true unit-tests
+          make VERBOSE=true ROOTLESSKIT=yes unit-tests
 
           # Remove mock files from coverage analysis
           sed -n -i '/\/mock\//!p' coverprofile.out
