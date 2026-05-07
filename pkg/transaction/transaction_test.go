@@ -18,6 +18,7 @@ limitations under the License.
 package transaction_test
 
 import (
+	"bytes"
 	"context"
 	"slices"
 	"testing"
@@ -192,6 +193,7 @@ var sn transaction.Interface
 var d *deployment.Deployment
 var sideEffects map[string]func(...string) ([]byte, error)
 var imgsrc *deployment.ImageSource
+var logBuf *bytes.Buffer
 
 // var trans *transaction.Transaction
 // var upgradeH transaction.UpgradeHelper
@@ -204,7 +206,8 @@ func snapperContextMock() {
 	runner = sysmock.NewRunner()
 	tfs, cleanup, err = sysmock.TestFS(nil)
 	Expect(err).NotTo(HaveOccurred())
-	logger := log.New(log.WithDiscardAll())
+	logBuf = &bytes.Buffer{}
+	logger := log.New(log.WithBuffer(logBuf))
 	logger.SetLevel(log.DebugLevel())
 	s, err = sys.NewSystem(
 		sys.WithFS(tfs), sys.WithLogger(logger), sys.WithSyscall(syscall),
