@@ -195,7 +195,29 @@ var _ = Describe("SnapperUpgradeHelper", Label("transaction"), func() {
 			Expect(tfs.WriteFile(filepath.Join(etcMerge.Modified, "unmodifiedFile"), []byte("non modified file"), vfs.FilePerm)).To(Succeed())
 			Expect(vfs.MkdirAll(tfs, trans.Merges["/home"].Modified, vfs.DirPerm)).To(Succeed())
 
-			// New defaults
+			// Old stock (the pre-upgrade /etc baseline). modifiedFile is the
+			// shared baseline with the customisations; relabelledFile and
+			// unmodifiedFile match the user version (no user delta on these
+			// in the modified vs old comparison).
+			Expect(vfs.MkdirAll(tfs, etcMerge.Old, vfs.DirPerm)).To(Succeed())
+			Expect(tfs.WriteFile(filepath.Join(etcMerge.Old, "modifiedFile"), []byte("old defaults modified file"), vfs.FilePerm)).To(Succeed())
+
+			// New stock (snapshot of the new image's /etc, captured BEFORE
+			// applyCustomChanges). configureRWVolumes sets etcMerge.NewStock
+			// during Merge — predict the path here so we can seed it: the
+			// mocked snapper.create returns id 5, so NewStock lands at
+			// <trans.Path>/etc/.snapshots/5/snapshot. modifiedFile differs
+			// from old → defaults delta touches it, colliding with the user
+			// customisation.
+			etcNewStock := filepath.Join(root, ".snapshots/5/snapshot/etc/.snapshots/5/snapshot")
+			homeNewStock := filepath.Join(root, ".snapshots/5/snapshot/home/.snapshots/5/snapshot")
+			Expect(vfs.MkdirAll(tfs, etcNewStock, vfs.DirPerm)).To(Succeed())
+			Expect(tfs.WriteFile(filepath.Join(etcNewStock, "modifiedFile"), []byte("new defaults modified file"), vfs.FilePerm)).To(Succeed())
+
+			Expect(vfs.MkdirAll(tfs, trans.Merges["/home"].Old, vfs.DirPerm)).To(Succeed())
+			Expect(vfs.MkdirAll(tfs, homeNewStock, vfs.DirPerm)).To(Succeed())
+
+			// New defaults already unpacked into the new snapshot tree.
 			Expect(vfs.MkdirAll(tfs, newEtc, vfs.DirPerm)).To(Succeed())
 			Expect(tfs.WriteFile(filepath.Join(newEtc, "deletedFile"), []byte("to be deleted file"), vfs.FilePerm)).To(Succeed())
 			Expect(tfs.WriteFile(filepath.Join(newEtc, "modifiedFile"), []byte("new defaults modified file"), vfs.FilePerm)).To(Succeed())
