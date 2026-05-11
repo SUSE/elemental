@@ -26,7 +26,7 @@ require (
 	github.com/urfave/cli/v3 v3.8.0
 	go.yaml.in/yaml/v3 v3.0.4
 	golang.org/x/crypto v0.50.0
-	golang.org/x/sys v0.43.0
+	golang.org/x/sys v0.44.0
 	k8s.io/mount-utils v0.35.3
 )
 
