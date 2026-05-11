@@ -22,11 +22,13 @@ if [[ "${HOSTNAME}" = "{{ .InitNode.Hostname }}" ]]; then
   CONFIGFILE={{ .KubernetesDir }}/init.yaml
 fi
 
+# Better to append if a file exist
+# Useful if some custom configuration are done at boot
 mkdir -p /etc/rancher/rke2
 echo "Copying RKE2 config file ${CONFIGFILE}"
-cp ${CONFIGFILE} /etc/rancher/rke2/config.yaml
+cat ${CONFIGFILE} >> /etc/rancher/rke2/config.yaml
 
-if [ -e "${REGFILE}" ]; then
+if [[ -e "${REGFILE}" ]]; then
   cp "${REGFILE}" /etc/rancher/rke2/registries.yaml
 fi
 

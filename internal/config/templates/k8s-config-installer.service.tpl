@@ -1,6 +1,6 @@
 [Unit]
 Description=Kubernetes Installation and Configuration
-ConditionPathExists=!/etc/rancher/rke2/config.yaml
+ConditionFirstBoot=true
 Requires=network-online.target
 
 [Service]
