@@ -220,12 +220,10 @@ func parseDeployment(
 		d.BootConfig.KernelCmdline = fips.AppendCommandLine(d.BootConfig.KernelCmdline)
 	}
 
-	overlaysURI := fmt.Sprintf("%s://%s", deployment.Dir, output.OverlaysDir())
-	overlaySource, err := deployment.NewSrcFromURI(overlaysURI)
-	if err != nil {
-		return nil, fmt.Errorf("parsing overlay source URI %q: %w", overlaysURI, err)
+	overlaysDir := output.OverlaysDir()
+	if exists, _ := vfs.Exists(fs, overlaysDir); exists {
+		d.OverlayTree = deployment.NewDirSrc(overlaysDir)
 	}
-	d.OverlayTree = overlaySource
 
 	// Make sure that we define a valid installer config script if such was not defined
 	// during the build process of the ISO that is currently being customized.

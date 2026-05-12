@@ -192,7 +192,7 @@ disks:
 
 		err := customizeRunner.Run(context.Background(), def, output)
 		Expect(err).ToNot(HaveOccurred())
-		defaultCustomizeDeploymentValidation(customizeDeployment)
+		defaultCustomizeDeploymentValidation(customizeDeployment, def)
 
 		Expect(customizeDeployment.Disks[0].Device).To(Equal("/dev/sda"))
 		// [{}, {}, nil, ignition, SYSTEM]
@@ -266,7 +266,7 @@ disks:
 
 		err := customizeRunner.Run(context.Background(), def, output)
 		Expect(err).ToNot(HaveOccurred())
-		defaultCustomizeDeploymentValidation(customizeDeployment)
+		defaultCustomizeDeploymentValidation(customizeDeployment, def)
 		Expect(customizeDeployment.Disks[0].Device).To(BeEmpty())
 		Expect(len(customizeDeployment.Disks[0].Partitions)).To(Equal(0))
 	})
@@ -421,14 +421,19 @@ func (m *mediaMock) Customize(d *deployment.Deployment) error {
 	panic("not implemented")
 }
 
-func defaultCustomizeDeploymentValidation(dep *deployment.Deployment) {
+func defaultCustomizeDeploymentValidation(dep *deployment.Deployment, def *image.Definition) {
 	Expect(dep.BootConfig.Bootloader).To(Equal("grub"))
 
 	expectedCMD := fmt.Sprintf("console=ttyS0 %s %s", "fips=1", fmt.Sprintf("boot=LABEL=%s", deployment.EfiLabel))
 	Expect(dep.BootConfig.KernelCmdline).To(Equal(expectedCMD))
 	Expect(dep.Security.CryptoPolicy).To(Equal(crypto.FIPSPolicy))
 
-	expectedImgSrc := deployment.NewDirSrc("/_out/overlays")
-	Expect(dep.OverlayTree).To(Equal(expectedImgSrc))
+	if def.Image.ImageType == "iso" {
+		expectedImgSrc := deployment.NewDirSrc("/_out/overlays")
+		Expect(dep.OverlayTree).To(Equal(expectedImgSrc))
+	} else {
+		Expect(dep.OverlayTree).To(BeNil())
+	}
+
 	Expect(dep.Installer.CfgScript).To(Equal("/_out/auto_installer.sh"))
 }
