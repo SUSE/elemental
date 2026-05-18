@@ -99,8 +99,8 @@ func (c *HelmChart) GetRepositoryName() string {
 	return c.Repository
 }
 
-func (c *HelmChart) ToCRD(values []byte, repository string, hasAuth bool) *helm.CRD {
-	return helm.NewCRD(c.Namespace, c.Chart, c.Version, string(values), repository, hasAuth)
+func (c *HelmChart) ToCRD(values []byte, repository string, hasAuth bool, skipTLSVerify bool) *helm.CRD {
+	return helm.NewCRD(c.Namespace, c.Chart, c.Version, string(values), repository, hasAuth, skipTLSVerify)
 }
 
 func (c *HelmChart) ExtensionDependencies() []string {

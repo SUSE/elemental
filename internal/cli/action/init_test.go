@@ -61,7 +61,13 @@ var expectedClusterSubstring = `helm:
       url: https://example-auth-charts.io
       credentials:
         username: example-user
-        password: example-pass`
+        password: example-pass
+    - name: example-insecure-auth-chart-collection
+      url: https://example-insecure-auth-charts.io
+      credentials:
+        username: example-insecure-user
+        password: example-insecure-pass
+      insecureSkipTLSVerify: true`
 
 var _ = Describe("Init action", Label("init"), func() {
 	var s *sys.System

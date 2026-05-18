@@ -18,8 +18,10 @@ limitations under the License.
 package auth
 
 type HelmAuth struct {
-	URL         string      `yaml:"url"`
-	Credentials Credentials `yaml:"credentials"`
+	RawURL                string
+	URL                   string      `yaml:"url"`
+	Credentials           Credentials `yaml:"credentials"`
+	InsecureSkipTLSVerify bool
 }
 
 type Credentials struct {

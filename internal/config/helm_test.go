@@ -243,6 +243,42 @@ var _ = Describe("Helm tests", Label("helm"), func() {
 			Expect(secrets).To(BeNil())
 		})
 
+		It("Fails with same repository defined multiple times", func() {
+			resolver := &valuesResolverMock{}
+			conf := &image.Configuration{
+				Kubernetes: kubernetes.Kubernetes{
+					Helm: &kubernetes.Helm{
+						Charts: []*kubernetes.HelmChart{
+							{
+								Name:            "apache",
+								RepositoryName:  "apache",
+								TargetNamespace: "web",
+								Version:         "10.7.0",
+								ValuesFile:      "apache-values.yaml",
+							},
+						},
+						Repositories: []*kubernetes.HelmRepository{
+							{
+								Name: "apache-repo",
+								URL:  "https://example.com/apache",
+							},
+							{
+								Name: "apache-repo",
+								URL:  "https://second-example.com/apache",
+							},
+						},
+					},
+				},
+			}
+
+			h := &Helm{ValuesResolver: resolver}
+			charts, secrets, err := h.Configure(conf, rm)
+			Expect(err).To(HaveOccurred())
+			Expect(err).To(MatchError("retrieving helm charts: creating helm chart auth map: helm repository 'apache-repo' defined multiple times"))
+			Expect(charts).To(BeNil())
+			Expect(secrets).To(BeNil())
+		})
+
 		It("Fails enabling a missing release chart", func() {
 			resolver := &valuesResolverMock{}
 			conf := &image.Configuration{
@@ -538,6 +574,12 @@ spec:
 								TargetNamespace: "suse-storage",
 								Version:         "1.11.0",
 							},
+							{
+								Name:            "postgres",
+								RepositoryName:  "postgres",
+								TargetNamespace: "postgres-system",
+								Version:         "9.9.9",
+							},
 						},
 						Repositories: []*kubernetes.HelmRepository{
 							{
@@ -560,6 +602,15 @@ spec:
 									Password: "storage-pass",
 								},
 							},
+							{
+								Name:                  "postgres",
+								URL:                   "http://example.com/postgres",
+								InsecureSkipTLSVerify: true,
+								Credentials: &auth.Credentials{
+									Username: "postgres-user",
+									Password: "postgres-pass",
+								},
+							},
 						},
 					},
 				},
@@ -580,13 +631,16 @@ spec:
 				"/helm/endpoint-copier-operator.yaml",
 				"/helm/apache.yaml",
 				"/helm/nginx.yaml",
+				"/helm/postgres.yaml",
 				"/helm/suse-storage.yaml"))
 
-			apacheAuthSecret := "apiVersion: v1\nkind: Secret\nmetadata:\n    namespace: kube-system\n    name: apache-auth\ntype: kubernetes.io/dockerconfigjson\ndata:\n    .dockerconfigjson: eyJhdXRocyI6eyJleGFtcGxlLmNvbSI6eyJ1c2VybmFtZSI6ImFwYWNoZS11c2VyIiwicGFzc3dvcmQiOiJhcGFjaGUtcGFzcyIsImF1dGgiOiJZWEJoWTJobExYVnpaWEk2WVhCaFkyaGxMWEJoYzNNPSJ9fX0=\n"
+			apacheAuthSecret := "apiVersion: v1\nkind: Secret\nmetadata:\n    namespace: kube-system\n    name: apache-auth\ntype: kubernetes.io/basic-auth\ndata:\n    username: YXBhY2hlLXVzZXI=\n    password: YXBhY2hlLXBhc3M=\n"
+			postgresAuthSecret := "apiVersion: v1\nkind: Secret\nmetadata:\n    namespace: kube-system\n    name: postgres-auth\ntype: kubernetes.io/basic-auth\ndata:\n    username: cG9zdGdyZXMtdXNlcg==\n    password: cG9zdGdyZXMtcGFzcw==\n"
 			storageAuthSecret := "apiVersion: v1\nkind: Secret\nmetadata:\n    namespace: kube-system\n    name: suse-storage-auth\ntype: kubernetes.io/dockerconfigjson\ndata:\n    .dockerconfigjson: eyJhdXRocyI6eyJleGFtcGxlLTEuY29tIjp7InVzZXJuYW1lIjoic3RvcmFnZS11c2VyIiwicGFzc3dvcmQiOiJzdG9yYWdlLXBhc3MiLCJhdXRoIjoiYzNSdmNtRm5aUzExYzJWeU9uTjBiM0poWjJVdGNHRnpjdz09In19fQ==\n"
 			ecoAuthSecret := "apiVersion: v1\nkind: Secret\nmetadata:\n    namespace: kube-system\n    name: endpoint-copier-operator-auth\ntype: kubernetes.io/dockerconfigjson\ndata:\n    .dockerconfigjson: eyJhdXRocyI6eyJleGFtcGxlLTEuY29tIjp7InVzZXJuYW1lIjoiZWNvLXVzZXIiLCJwYXNzd29yZCI6ImVjby1wYXNzIiwiYXV0aCI6IlpXTnZMWFZ6WlhJNlpXTnZMWEJoYzNNPSJ9fX0=\n"
 
 			Expect(string(secrets["apache-auth-priority.yaml"])).To(Equal(apacheAuthSecret))
+			Expect(string(secrets["postgres-auth-priority.yaml"])).To(Equal(postgresAuthSecret))
 			Expect(string(secrets["endpoint-copier-operator-auth-priority.yaml"])).To(Equal(ecoAuthSecret))
 			Expect(string(secrets["suse-storage-auth-priority.yaml"])).To(Equal(storageAuthSecret))
 
@@ -642,7 +696,7 @@ spec:
     targetNamespace: web
     createNamespace: true
     backOffLimit: 20
-    dockerRegistrySecret:
+    authSecret:
         name: apache-auth
 `
 			b, err = fs.ReadFile(filepath.Join(overlaysPath, helmPath, "apache.yaml"))
@@ -663,6 +717,27 @@ spec:
 `
 			b, err = fs.ReadFile(filepath.Join(overlaysPath, helmPath, "nginx.yaml"))
 			Expect(err).NotTo(HaveOccurred())
+			Expect(string(b)).To(Equal(contents))
+
+			contents = `apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+    name: postgres
+    namespace: kube-system
+spec:
+    chart: postgres
+    version: 9.9.9
+    repo: http://example.com/postgres
+    targetNamespace: postgres-system
+    createNamespace: true
+    backOffLimit: 20
+    authSecret:
+        name: postgres-auth
+    insecureSkipTLSVerify: true
+`
+			b, err = fs.ReadFile(filepath.Join(overlaysPath, helmPath, "postgres.yaml"))
+			Expect(err).NotTo(HaveOccurred())
+			fmt.Println(string(b))
 			Expect(string(b)).To(Equal(contents))
 
 		})

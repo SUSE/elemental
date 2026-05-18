@@ -121,6 +121,15 @@ func defaultConfiguration() *image.Configuration {
 							Password: "example-pass",
 						},
 					},
+					{
+						Name:                  "example-insecure-auth-chart-collection",
+						URL:                   "https://example-insecure-auth-charts.io",
+						InsecureSkipTLSVerify: true,
+						Credentials: &auth.Credentials{
+							Username: "example-insecure-user",
+							Password: "example-insecure-pass",
+						},
+					},
 				},
 			},
 			Nodes: kubernetes.Nodes{

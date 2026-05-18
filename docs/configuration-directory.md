@@ -129,6 +129,7 @@ helm:
       url: "https://releases.rancher.com/server-charts/stable"
     - name: "application-collection"
       url: "oci://dp.apps.rancher.io/charts"
+      insecureSkipTLSVerify: true
       credentials:
         username: user
         password: pass
@@ -160,6 +161,7 @@ network:
     * `name` - Required; Defines the name for this repository. This name doesn't have to match the name of the actual
     repository, but must correspond with the `repositoryName` of one or more charts.
     * `url` - Required; Defines the URL where this chart repository can be reached.
+    * `insecureSkipTLSVerify` - Optional; Must be set to true for repositories and registries with untrusted TLS certificates.
     * `credentials` - Required for authenticated repositories/registries.
       * `username` - Required; Defines the username for accessing the specified repository/registry.
       * `password` - Required; Defines the password for accessing the specified repository/registry.

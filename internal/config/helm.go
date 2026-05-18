@@ -46,7 +46,7 @@ type helmChart interface {
 	GetName() string
 	GetInlineValues() map[string]any
 	GetRepositoryName() string
-	ToCRD(values []byte, repository string, hasAuth bool) *helm.CRD
+	ToCRD(values []byte, repository string, hasAuth, skipTLSVerify bool) *helm.CRD
 }
 
 type Helm struct {
@@ -152,8 +152,10 @@ func (h *Helm) retrieveHelmCharts(rm *resolver.ResolvedManifest, conf *image.Con
 	}
 
 	for _, chart := range charts {
-		needsAuth := authMap[chart.Chart] != nil
-		if err = h.appendHelmChart(chart, repositories, valueFiles, &crds, needsAuth); err != nil {
+		a := authMap[chart.Chart]
+		needsAuth := a != nil
+		skipTLSVerify := needsAuth && a.InsecureSkipTLSVerify
+		if err = h.appendHelmChart(chart, repositories, valueFiles, &crds, needsAuth, skipTLSVerify); err != nil {
 			return nil, nil, fmt.Errorf("collecting helm charts: %w", err)
 		}
 	}
@@ -163,8 +165,10 @@ func (h *Helm) retrieveHelmCharts(rm *resolver.ResolvedManifest, conf *image.Con
 		valueFiles = conf.Kubernetes.Helm.ValueFiles()
 
 		for _, chart := range conf.Kubernetes.Helm.Charts {
-			needsAuth := authMap[chart.Name] != nil
-			if err = h.appendHelmChart(chart, repositories, valueFiles, &crds, needsAuth); err != nil {
+			a := authMap[chart.Name]
+			needsAuth := a != nil
+			skipTLSVerify := needsAuth && a.InsecureSkipTLSVerify
+			if err = h.appendHelmChart(chart, repositories, valueFiles, &crds, needsAuth, skipTLSVerify); err != nil {
 				return nil, nil, fmt.Errorf("collecting user helm charts: %w", err)
 			}
 		}
@@ -186,12 +190,15 @@ func createAuthMap(charts []*api.HelmChart, repositories map[string]string, conf
 			if !ok || rc.Credentials == nil {
 				continue
 			}
-			extractedHost, err := extractHost(repositories[c.Repository])
+
+			repoURL := repositories[c.Repository]
+			extractedHost, err := extractHost(repoURL)
 			if err != nil {
 				return nil, fmt.Errorf("extracting host: %w", err)
 			}
 			authMap[c.Chart] = &auth.HelmAuth{
-				URL: extractedHost,
+				RawURL: repoURL,
+				URL:    extractedHost,
 				Credentials: auth.Credentials{
 					Username: rc.Credentials.Username,
 					Password: rc.Credentials.Password,
@@ -203,6 +210,9 @@ func createAuthMap(charts []*api.HelmChart, repositories map[string]string, conf
 	if conf.Kubernetes.Helm != nil {
 		reposByName := make(map[string]*kubernetes.HelmRepository, len(conf.Kubernetes.Helm.Repositories))
 		for _, r := range conf.Kubernetes.Helm.Repositories {
+			if _, exists := reposByName[r.Name]; exists {
+				return nil, fmt.Errorf("helm repository '%s' defined multiple times", r.Name)
+			}
 			reposByName[r.Name] = r
 		}
 		for _, c := range conf.Kubernetes.Helm.Charts {
@@ -210,16 +220,20 @@ func createAuthMap(charts []*api.HelmChart, repositories map[string]string, conf
 			if !ok || r.Credentials == nil {
 				continue
 			}
-			extractedHost, err := extractHost(r.URL)
+
+			repoURL := r.URL
+			extractedHost, err := extractHost(repoURL)
 			if err != nil {
 				return nil, fmt.Errorf("extracting host: %w", err)
 			}
 			authMap[c.Name] = &auth.HelmAuth{
-				URL: extractedHost,
+				RawURL: repoURL,
+				URL:    extractedHost,
 				Credentials: auth.Credentials{
 					Username: r.Credentials.Username,
 					Password: r.Credentials.Password,
 				},
+				InsecureSkipTLSVerify: r.InsecureSkipTLSVerify,
 			}
 		}
 	}
@@ -237,7 +251,7 @@ func generateHelmSecrets(authMap map[string]*auth.HelmAuth) []*helm.Secret {
 	return secrets
 }
 
-func (h *Helm) appendHelmChart(chart helmChart, repositories, valueFiles map[string]string, crds *[]*helm.CRD, needsAuth bool) error {
+func (h *Helm) appendHelmChart(chart helmChart, repositories, valueFiles map[string]string, crds *[]*helm.CRD, needsAuth, skipTLSVerify bool) error {
 	name := chart.GetName()
 	repository, ok := repositories[chart.GetRepositoryName()]
 	if !ok {
@@ -250,7 +264,7 @@ func (h *Helm) appendHelmChart(chart helmChart, repositories, valueFiles map[str
 		return fmt.Errorf("resolving values for chart %s: %w", name, err)
 	}
 
-	crd := chart.ToCRD(values, repository, needsAuth)
+	crd := chart.ToCRD(values, repository, needsAuth, skipTLSVerify)
 	*crds = append(*crds, crd)
 
 	return nil
@@ -332,32 +346,43 @@ func enabledHelmCharts(rm *resolver.ResolvedManifest, enabled []release.HelmChar
 }
 
 func NewSecret(name string, creds *auth.HelmAuth) *helm.Secret {
-	a := base64.StdEncoding.EncodeToString([]byte(creds.Credentials.Username + ":" + creds.Credentials.Password))
-	dockerConfig := fmt.Sprintf(`{"auths":{"%s":{"username":"%s","password":"%s","auth":"%s"}}}`, creds.URL, creds.Credentials.Username, creds.Credentials.Password, a)
-	encoded := base64.StdEncoding.EncodeToString([]byte(dockerConfig))
-
-	return &helm.Secret{
+	secret := &helm.Secret{
 		APIVersion: "v1",
 		Kind:       "Secret",
 		Metadata: helm.SecretMetadata{
 			Name:      fmt.Sprintf("%s-auth", name),
 			Namespace: "kube-system",
 		},
-		Type: "kubernetes.io/dockerconfigjson",
-		Data: helm.SecretData{
-			DockerConfigJSON: encoded,
-		},
 	}
+
+	if strings.HasPrefix(creds.RawURL, "oci://") {
+		a := base64.StdEncoding.EncodeToString(
+			[]byte(creds.Credentials.Username + ":" + creds.Credentials.Password))
+		dockerConfig := fmt.Sprintf(`{"auths":{"%s":{"username":"%s","password":"%s","auth":"%s"}}}`,
+			creds.URL, creds.Credentials.Username, creds.Credentials.Password, a)
+		encoded := base64.StdEncoding.EncodeToString([]byte(dockerConfig))
+
+		secret.Type = "kubernetes.io/dockerconfigjson"
+		secret.Data = helm.SecretData{
+			DockerConfigJSON: &encoded,
+		}
+	} else {
+		encodedUser := base64.StdEncoding.EncodeToString([]byte(creds.Credentials.Username))
+		encodedPass := base64.StdEncoding.EncodeToString([]byte(creds.Credentials.Password))
+		secret.Type = "kubernetes.io/basic-auth"
+		secret.Data = helm.SecretData{
+			Username: &encodedUser,
+			Password: &encodedPass,
+		}
+	}
+
+	return secret
 }
 
 func extractHost(rawURL string) (string, error) {
-	r := rawURL
-	if !strings.Contains(r, "://") {
-		r = "https://" + r
-	}
-	u, err := url.Parse(r)
+	u, err := url.Parse(rawURL)
 	if err != nil {
-		return "", fmt.Errorf("parsing url %q: %w", r, err)
+		return "", fmt.Errorf("parsing url %q: %w", rawURL, err)
 	}
 
 	return u.Host, nil

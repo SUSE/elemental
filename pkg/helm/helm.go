@@ -42,14 +42,16 @@ type Metadata struct {
 }
 
 type Spec struct {
-	Chart           string     `yaml:"chart"`
-	Version         string     `yaml:"version"`
-	Repo            string     `yaml:"repo,omitempty"`
-	ValuesContent   string     `yaml:"valuesContent,omitempty"`
-	TargetNamespace string     `yaml:"targetNamespace,omitempty"`
-	CreateNamespace bool       `yaml:"createNamespace,omitempty"`
-	BackOffLimit    int        `yaml:"backOffLimit"`
-	AuthSecret      AuthSecret `yaml:"dockerRegistrySecret,omitempty"`
+	Chart                 string      `yaml:"chart"`
+	Version               string      `yaml:"version"`
+	Repo                  string      `yaml:"repo,omitempty"`
+	ValuesContent         string      `yaml:"valuesContent,omitempty"`
+	TargetNamespace       string      `yaml:"targetNamespace,omitempty"`
+	CreateNamespace       bool        `yaml:"createNamespace,omitempty"`
+	BackOffLimit          int         `yaml:"backOffLimit"`
+	RegistryAuthSecret    *AuthSecret `yaml:"dockerRegistrySecret,omitempty"`
+	RepositoryAuthSecret  *AuthSecret `yaml:"authSecret,omitempty"`
+	InsecureSkipTLSVerify bool        `yaml:"insecureSkipTLSVerify,omitempty"`
 }
 
 type AuthSecret struct {
@@ -70,13 +72,15 @@ type SecretMetadata struct {
 }
 
 type SecretData struct {
-	DockerConfigJSON string `yaml:".dockerconfigjson"`
+	DockerConfigJSON *string `yaml:".dockerconfigjson,omitempty"`
+	Username         *string `yaml:"username,omitempty"`
+	Password         *string `yaml:"password,omitempty"`
 }
 
-func NewCRD(namespace, chart, version, valuesContent string, repository string, auth bool) *CRD {
+func NewCRD(namespace, chart, version, valuesContent string, repository string, auth, skipTLSVerify bool) *CRD {
 	name := chart
-
-	if strings.HasPrefix(repository, "oci://") {
+	isOCI := strings.HasPrefix(repository, "oci://")
+	if isOCI {
 		// The repository is in fact an OCI registry.
 		// Use the full path for the chart identifier and drop the "repository" value.
 		// The latter is only valid for HTTP(s) repositories.
@@ -92,19 +96,26 @@ func NewCRD(namespace, chart, version, valuesContent string, repository string, 
 			Namespace: kubeSystemNamespace,
 		},
 		Spec: Spec{
-			Chart:           chart,
-			Version:         version,
-			Repo:            repository,
-			ValuesContent:   valuesContent,
-			TargetNamespace: namespace,
-			CreateNamespace: true,
-			BackOffLimit:    helmBackoffLimit,
+			Chart:                 chart,
+			Version:               version,
+			Repo:                  repository,
+			ValuesContent:         valuesContent,
+			TargetNamespace:       namespace,
+			CreateNamespace:       true,
+			BackOffLimit:          helmBackoffLimit,
+			InsecureSkipTLSVerify: skipTLSVerify,
 		},
 	}
 
 	if auth {
-		crd.Spec.AuthSecret = AuthSecret{
-			Name: fmt.Sprintf("%s-auth", name),
+		if isOCI {
+			crd.Spec.RegistryAuthSecret = &AuthSecret{
+				Name: fmt.Sprintf("%s-auth", name),
+			}
+		} else {
+			crd.Spec.RepositoryAuthSecret = &AuthSecret{
+				Name: fmt.Sprintf("%s-auth", name),
+			}
 		}
 	}
 
