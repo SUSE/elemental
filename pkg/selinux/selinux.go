@@ -33,6 +33,7 @@ const (
 	SelinuxTargetedContextFile = selinuxTargetedPath + "/contexts/files/file_contexts"
 
 	selinuxTargetedPath = "/etc/selinux/targeted"
+	selinuxAutoRelabel  = "/etc/selinux/.autorelabel"
 	debugLines          = 10
 )
 
@@ -41,6 +42,8 @@ const (
 // This is to prevent runtime changes during the upgrades as RW paths are potentially in use for current
 // processes. For snapshotted RW paths it applies SE Linux labels without force flag as it might include
 // customized content merged with stock OS content.
+// If at least one shared RW path is provided it also sets the .autorelabel file to trigger
+// relabelling at boot and relabel the excluded paths.
 func SystemRelabel(ctx context.Context, s *sys.System, rootDir string, snapshotted []string, shared []string) error {
 	contextFile := filepath.Join(rootDir, SelinuxTargetedContextFile)
 	contextExists, _ := vfs.Exists(s.FS(), contextFile)
@@ -69,6 +72,10 @@ func SystemRelabel(ctx context.Context, s *sys.System, rootDir string, snapshott
 		if len(shared) > 0 {
 			for _, path := range shared {
 				args = append(args, "-e", path)
+			}
+			err = s.FS().WriteFile(filepath.Join(rootDir, selinuxAutoRelabel), []byte{}, vfs.FilePerm)
+			if err != nil {
+				return fmt.Errorf("creating .autorelabel file: %w", err)
 			}
 		}
 		args = append(args, contextFile, rootDir)
