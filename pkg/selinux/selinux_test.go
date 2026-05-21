@@ -75,16 +75,27 @@ var _ = Describe("Selinux", Label("selinux"), func() {
 	AfterEach(func() {
 		cleanup()
 	})
-	It("relabels the given path for the targeted context, including rw paths", func() {
+	It("relabels the given path for the targeted context, no shared paths", func() {
 		Expect(fs.WriteFile(contextFile, []byte{}, vfs.FilePerm)).To(Succeed())
-		Expect(selinux.SystemRelabel(context.Background(), s, root, root+"/etc")).To(Succeed())
+		Expect(selinux.SystemRelabel(context.Background(), s, root, []string{root + "/etc"}, nil)).To(Succeed())
 		Expect(runner.CmdsMatch([][]string{{
 			"setfiles", "-i", "-r", "/some/root", "-F", "-e", "/some/root/etc",
+			"/some/root/etc/selinux/targeted/contexts/files/file_contexts", "/some/root",
+		}, {
+			"setfiles", "-i", "-r", "/some/root",
+			"/some/root/etc/selinux/targeted/contexts/files/file_contexts", "/some/root/etc",
+		}})).To(Succeed())
+	})
+	It("relabels the given path for the targeted context, including shared paths", func() {
+		Expect(fs.WriteFile(contextFile, []byte{}, vfs.FilePerm)).To(Succeed())
+		Expect(selinux.SystemRelabel(context.Background(), s, root, nil, []string{root + "/var"})).To(Succeed())
+		Expect(runner.CmdsMatch([][]string{{
+			"setfiles", "-i", "-r", "/some/root", "-F", "-e", "/some/root/var",
 			"/some/root/etc/selinux/targeted/contexts/files/file_contexts", "/some/root",
 		}})).To(Succeed())
 	})
 	It("does nothing if the context is not found", func() {
-		Expect(selinux.SystemRelabel(context.Background(), s, root)).To(Succeed())
+		Expect(selinux.SystemRelabel(context.Background(), s, root, nil, nil)).To(Succeed())
 		Expect(runner.CmdsMatch([][]string{{}}))
 		Expect(buffer.String()).To(ContainSubstring("no context found"))
 	})
@@ -96,23 +107,25 @@ var _ = Describe("Selinux", Label("selinux"), func() {
 			return []byte{}, nil
 		}
 		Expect(fs.WriteFile(contextFile, []byte{}, vfs.FilePerm)).To(Succeed())
-		Expect(selinux.SystemRelabel(context.Background(), s, root)).To(MatchError(ContainSubstring("setfiles failed")))
+		Expect(selinux.SystemRelabel(context.Background(), s, root, []string{}, []string{})).
+			To(MatchError(ContainSubstring("setfiles failed")))
 	})
 	It("relabels the given paths for the targeted context in a chroot env", func() {
 		Expect(fs.WriteFile(selinux.SelinuxTargetedContextFile, []byte{}, vfs.FilePerm)).To(Succeed())
 		Expect(fs.WriteFile(contextFile, []byte{}, vfs.FilePerm)).To(Succeed())
 		Expect(vfs.MkdirAll(fs, "/partition/var", vfs.DirPerm)).To(Succeed())
 		Expect(selinux.ChrootedSystemRelabel(
-			context.Background(), s, root, "/etc", "/var"),
+			context.Background(), s, root, []string{"/etc"}, []string{"/var"}),
 		).To(Succeed())
 		Expect(runner.CmdsMatch([][]string{
 			{"setfiles", "-i", "-F", "-e", "/etc", "-e", "/var", "/etc/selinux/targeted/contexts/files/file_contexts", "/"},
+			{"setfiles", "-i", "/etc/selinux/targeted/contexts/files/file_contexts", "/etc"},
 			{"sync"},
 		})).To(Succeed())
 	})
 	It("does nothing if the context is not found in chroot", func() {
 		Expect(selinux.ChrootedSystemRelabel(
-			context.Background(), s, root),
+			context.Background(), s, root, nil, nil),
 		).To(Succeed())
 		Expect(runner.CmdsMatch([][]string{{}}))
 		Expect(buffer.String()).To(ContainSubstring("no context found"))

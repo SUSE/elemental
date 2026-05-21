@@ -147,7 +147,8 @@ func (u Upgrader) Upgrade(d *deployment.Deployment) (err error) {
 		}
 	}
 
-	err = selinux.ChrootedSystemRelabel(u.ctx, u.s, trans.Path, parseAdditionalRelabelPaths(d)...)
+	shared, snapshotted := parsePersistentPaths(d)
+	err = selinux.ChrootedSystemRelabel(u.ctx, u.s, trans.Path, snapshotted, shared)
 	if err != nil {
 		return fmt.Errorf("relabelling snapshot path '%s': %w", trans.Path, err)
 	}
@@ -253,9 +254,7 @@ func logOutput(s *sys.System, stdOut, stdErr string) {
 	s.Logger().Debug("Install config hook output:\n%s", output)
 }
 
-func parseAdditionalRelabelPaths(d *deployment.Deployment) []string {
-	var paths []string
-
+func parsePersistentPaths(d *deployment.Deployment) (shared, snapshotted []string) {
 	isRO := func(opts []string) bool {
 		return slices.ContainsFunc(opts, func(s string) bool {
 			return s == "ro" || strings.HasPrefix(s, "ro=")
@@ -264,13 +263,17 @@ func parseAdditionalRelabelPaths(d *deployment.Deployment) []string {
 
 	for _, part := range d.GetSELinuxSupportedPartitions() {
 		if part.MountPoint != "" && !isRO(part.MountOpts) {
-			paths = append(paths, part.MountPoint)
+			shared = append(shared, part.MountPoint)
 		}
 
 		for _, rwVol := range part.RWVolumes {
-			paths = append(paths, rwVol.Path)
+			if !rwVol.Snapshotted {
+				shared = append(shared, rwVol.Path)
+			} else {
+				snapshotted = append(snapshotted, rwVol.Path)
+			}
 		}
 	}
 
-	return paths
+	return shared, snapshotted
 }

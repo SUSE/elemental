@@ -20,7 +20,9 @@ package selinux
 import (
 	"container/ring"
 	"context"
+	"fmt"
 	"path/filepath"
+	"slices"
 
 	"github.com/suse/elemental/v3/pkg/chroot"
 	"github.com/suse/elemental/v3/pkg/sys"
@@ -35,16 +37,18 @@ const (
 )
 
 // SystemRelabel applies the SE Linux labels based on the targeted policy found within the given
-// root path. It force applies the labels under the given root except for the given RW paths
+// root path. It force applies the labels under the given root except for the given shared RW paths.
 // This is to prevent runtime changes during the upgrades as RW paths are potentially in use for current
-// processes.
-func SystemRelabel(ctx context.Context, s *sys.System, rootDir string, rwPaths ...string) error {
+// processes. For snapshotted RW paths it applies SE Linux labels without force flag as it might include
+// customized content merged with stock OS content.
+func SystemRelabel(ctx context.Context, s *sys.System, rootDir string, snapshotted []string, shared []string) error {
 	contextFile := filepath.Join(rootDir, SelinuxTargetedContextFile)
 	contextExists, _ := vfs.Exists(s.FS(), contextFile)
 
 	if contextExists {
 		var err error
-		args := []string{"-i"}
+
+		baseArgs := []string{"-i"}
 
 		// We only keep last 10 lines of the stdout and stderr for debugging purposes
 		stdOut := ring.New(debugLines)
@@ -53,20 +57,35 @@ func SystemRelabel(ctx context.Context, s *sys.System, rootDir string, rwPaths .
 		if rootDir == "/" || rootDir == "" {
 			rootDir = "/"
 		} else {
-			args = append(args, "-r", rootDir)
+			baseArgs = append(baseArgs, "-r", rootDir)
 		}
 
-		args = append(args, "-F")
-		if len(rwPaths) > 0 {
-			for _, rwp := range rwPaths {
-				args = append(args, "-e", rwp)
+		args := []string{"-F"}
+		if len(snapshotted) > 0 {
+			for _, path := range snapshotted {
+				args = append(args, "-e", path)
+			}
+		}
+		if len(shared) > 0 {
+			for _, path := range shared {
+				args = append(args, "-e", path)
 			}
 		}
 		args = append(args, contextFile, rootDir)
 
 		s.Logger().Info("Applying SE Linux labels to the read-only root tree, forced relabelling")
-		err = s.Runner().RunContextParseOutput(ctx, stdHander(stdOut), stdHander(stdErr), "setfiles", args...)
+		err = s.Runner().RunContextParseOutput(ctx, stdHander(stdOut), stdHander(stdErr), "setfiles", slices.Concat(baseArgs, args)...)
 		logOutput(s, stdOut, stdErr)
+
+		if len(snapshotted) > 0 {
+			s.Logger().Info("Applying SE Linux labels to snapshotted RW volumes")
+			for _, path := range snapshotted {
+				stdOut = ring.New(debugLines)
+				stdErr = ring.New(debugLines)
+				err = s.Runner().RunContextParseOutput(ctx, stdHander(stdOut), stdHander(stdErr), "setfiles", append(baseArgs, contextFile, path)...)
+				logOutput(s, stdOut, stdErr)
+			}
+		}
 
 		return err
 	}
@@ -77,9 +96,13 @@ func SystemRelabel(ctx context.Context, s *sys.System, rootDir string, rwPaths .
 
 // ChrootedSystemRelabel applies the SE Linux labels based on the targeted policy found within the given
 // root path. Runs the same logic as RelabelSystem method but running inside a chroot environment.
-func ChrootedSystemRelabel(ctx context.Context, s *sys.System, rootDir string, rwPaths ...string) error {
-	callback := func() error { return SystemRelabel(ctx, s, "/", rwPaths...) }
-	return chroot.ChrootedCallback(s, rootDir, nil, callback, chroot.WithoutDefaultBinds())
+func ChrootedSystemRelabel(ctx context.Context, s *sys.System, rootDir string, snapshotted []string, shared []string) error {
+	callback := func() error { return SystemRelabel(ctx, s, "/", snapshotted, shared) }
+	err := chroot.ChrootedCallback(s, rootDir, nil, callback, chroot.WithoutDefaultBinds())
+	if err != nil {
+		return fmt.Errorf("chrooted system relabel: %w", err)
+	}
+	return nil
 }
 
 func stdHander(r *ring.Ring) func(string) {
