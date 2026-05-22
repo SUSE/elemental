@@ -276,7 +276,7 @@ Feel free to adjust these values as you see fit, e.g. by adding an SSH key or an
 Let’s customize a RAW disk image:
 
 ```shell
-sudo podman run -it --rm\
+sudo podman run -it --rm \
 --network host \
 -v ${ELEMENTAL_PATH}/single-node:/config:Z \
 -v /run/podman/podman.sock:/var/run/docker.sock \
