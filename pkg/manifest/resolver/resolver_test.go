@@ -148,7 +148,11 @@ func validateResolvedManifest(rm *resolver.ResolvedManifest, coreOnly bool) {
 	Expect(rm.CorePlatform.Metadata).ToNot(BeNil())
 	Expect(rm.CorePlatform.Metadata.Name).To(Equal("suse-core"))
 	Expect(rm.CorePlatform.Metadata.Version).To(Equal("1.0"))
-	Expect(rm.CorePlatform.Metadata.CreationDate).To(Equal("2000-01-01"))
+
+	Expect(rm.CorePlatform.Lifecycle).ToNot(BeNil())
+	Expect(rm.CorePlatform.Lifecycle.AvailabilityDate).To(Equal("2000-01-01"))
+	Expect(rm.CorePlatform.Lifecycle.FullSupportEndDate).To(Equal("2001-01-01"))
+	Expect(rm.CorePlatform.Lifecycle.MaintenanceSupportEndDate).To(Equal("2002-01-01"))
 
 	Expect(rm.CorePlatform.Components).ToNot(BeNil())
 	Expect(rm.CorePlatform.Components.OperatingSystem).ToNot(BeNil())
@@ -187,7 +191,11 @@ func validateResolvedManifest(rm *resolver.ResolvedManifest, coreOnly bool) {
 		Expect(rm.SolutionExtension.Metadata).ToNot(BeNil())
 		Expect(rm.SolutionExtension.Metadata.Name).To(Equal("suse-edge"))
 		Expect(rm.SolutionExtension.Metadata.Version).To(Equal("3.2.0"))
-		Expect(rm.SolutionExtension.Metadata.CreationDate).To(Equal("2025-01-20"))
+
+		Expect(rm.SolutionExtension.Lifecycle).ToNot(BeNil())
+		Expect(rm.SolutionExtension.Lifecycle.AvailabilityDate).To(Equal("2025-01-20"))
+		Expect(rm.SolutionExtension.Lifecycle.FullSupportEndDate).To(Equal("2026-01-20"))
+		Expect(rm.SolutionExtension.Lifecycle.MaintenanceSupportEndDate).To(Equal("2027-01-20"))
 
 		Expect(rm.SolutionExtension.CorePlatform).ToNot(BeNil())
 		Expect(rm.SolutionExtension.CorePlatform.Image).To(Equal("foo.example.com/bar/release-manifest:1.0"))

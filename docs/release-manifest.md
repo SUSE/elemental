@@ -7,6 +7,10 @@ Ultimately, there are two types of release manifests:
 * [Solution Release Manifest](#solution-release-manifest)
 * [Core Platform Release Manifest](#core-platform-release-manifest)
 
+## Schema versions
+
+Manifests may declare a schema version with a top-level `schema` field. Both `v0` and `v1` are accepted; when the field is omitted, the manifest is treated as `v0`. The `lifecycle` section is optional; when supplied, `availabilityDate` is required and all other lifecycle fields remain optional.
+
 ## Solution Release Manifest
 
 > **NOTE:** Elemental is in active development and the Solution manifest API may change over time.
@@ -20,10 +24,14 @@ Enables consumers to extend a specific `Core Platform` release with additional c
 Consumers who wish to create a release manifest for their solution should refer to the below API reference for information.
 
 ```yaml
+schema: v1
 metadata:
   name: "SUSE Solution"
   version: "4.2.0"
-  creationDate: "2025-07-10"
+lifecycle:
+  availabilityDate: "2025-07-10"
+  fullSupportEndDate: "2026-07-10"
+  maintenanceSupportEndDate: "2027-07-10"
 corePlatform:
   image: "registry.suse.com/uc/release-manifest:0.0.1"
 components:
@@ -54,10 +62,14 @@ components:
       url: "https://charts.jetstack.io"
 ```
 
+* `schema` - Optional; Schema version of this manifest. Accepted values are `v0` and `v1`; defaults to `v0` when omitted.
 * `metadata` - Optional; General information about the solution version that this manifest describes.
   * `name` - Required; Name of the solution that this manifest describes.
   * `version` - Required; Version of the solution release that this manifest describes.
-  * `creationDate` - Optional; Defines the release date for the specified version.
+* `lifecycle` - Optional; Release lifecycle metadata. When supplied, dates must use ISO `YYYY-MM-DD` format.
+  * `availabilityDate` - Required (when `lifecycle` is present); Date when this release became available.
+  * `fullSupportEndDate` - Optional; Date when full support for this release ends.
+  * `maintenanceSupportEndDate` - Optional; Date when maintenance support for this release ends.
 * `corePlatform` - Required; Defines the `Core Platform` release version that this solution wishes to be based upon and extend.
   * `image` - Required; Container image pointing to the desired `Core Platform` release manifest.
 * `components` - Optional; Components with which to extend the `Core Platform`.
@@ -102,10 +114,14 @@ Defines the set of components that make up a specific `Core Platform` release ve
 ```yaml
 # The values shown in this example are for illustrative purposes only
 # and should not be used directly
+schema: v1
 metadata:
   name: "SUSE Core Platform"
   version: "0.0.2"
-  creationDate: "2025-07-14"
+lifecycle:
+  availabilityDate: "2025-07-14"
+  fullSupportEndDate: "2026-07-14"
+  maintenanceSupportEndDate: "2027-07-14"
 components:
   operatingSystem:
     image:
@@ -126,7 +142,7 @@ components:
       url: "https://metallb.github.io/metallb"
 ```
 
-The manifest's structure is similar to that of the [Solution Release Manifest](#solution-release-manifest-api), with the key difference being the inclusion of components unique to the Core Platform (e.g. `operatingSystem` and `kubernetes`). 
+The manifest's structure is similar to that of the [Solution Release Manifest](#solution-release-manifest-api), with the key difference being the inclusion of components unique to the Core Platform (e.g. `operatingSystem` and `kubernetes`). The `schema`, `metadata`, and `lifecycle` sections follow the same rules as in the `Solution Release Manifest`.
 
 This reference focuses only on the unique to the Core Platform component APIs. Any components not mentioned here share the same description as those in the `Solution Release Manifest`.
 

@@ -13,11 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-schema: v0
+schema: v1
 metadata:
   name: "suse-edge"
   version: "3.2.0"
-  creationDate: "2025-01-20"
+lifecycle:
+  availabilityDate: "2025-01-20"
+  fullSupportEndDate: "2026-01-20"
+  maintenanceSupportEndDate: "2027-01-20"
 corePlatform:
   image: "foo.example.com/bar/release-manifest:1.0"
 components:

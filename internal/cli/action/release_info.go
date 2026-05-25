@@ -51,10 +51,9 @@ const (
 var markdown bool
 
 type basicInfo struct {
-	Name         string
-	Version      string
-	CreationDate string
-	Source       string
+	Name    string
+	Version string
+	Source  string
 }
 
 func ReleaseInfo(_ context.Context, cmd *cli.Command) error {
@@ -224,40 +223,60 @@ func newTable(markdown bool, out io.Writer) *tablewriter.Table {
 // most basic information that shall be printed for all the optional flags
 func printBasicData(cm *core.ReleaseManifest, sm *solution.ReleaseManifest, arg string, out io.Writer) error {
 	var data [][]string
-	var cmBasic, smBasic *basicInfo
 	table := newTable(markdown, out)
 
-	cmBasic = &basicInfo{
-		Name:         cm.Metadata.Name,
-		Version:      cm.Metadata.Version,
-		CreationDate: cm.Metadata.CreationDate,
-		Source:       arg,
+	cmBasic := &basicInfo{
+		Name:    cm.Metadata.Name,
+		Version: cm.Metadata.Version,
+		Source:  arg,
 	}
+	cmLifecycle := lifecycleRowValues(cm.Lifecycle)
+
 	if sm != nil {
 		// we are dealing with a solution manifest
-		smBasic = &basicInfo{
-			Name:         sm.Metadata.Name,
-			Version:      sm.Metadata.Version,
-			CreationDate: sm.Metadata.CreationDate,
-			Source:       arg,
+		smBasic := &basicInfo{
+			Name:    sm.Metadata.Name,
+			Version: sm.Metadata.Version,
+			Source:  arg,
 		}
+		smLifecycle := lifecycleRowValues(sm.Lifecycle)
 		cmBasic.Source = sm.CorePlatform.Image
 
 		table.Header([]string{"Attribute", "Core Platform (Base)", "Solution Manifest (Extension)"})
 		data = append(data, []string{"Name", cmBasic.Name, smBasic.Name})
-		data = append(data, []string{versionHdr, cmBasic.Version, sm.Metadata.Version})
-		data = append(data, []string{"Release Date", cmBasic.CreationDate, sm.Metadata.CreationDate})
+		data = append(data, []string{versionHdr, cmBasic.Version, smBasic.Version})
+		data = append(data, []string{"Availability Date", cmLifecycle.availability, smLifecycle.availability})
+		data = append(data, []string{"Full Support End", cmLifecycle.fullSupportEnd, smLifecycle.fullSupportEnd})
+		data = append(data, []string{"Maintenance Support End", cmLifecycle.maintenanceSupportEnd, smLifecycle.maintenanceSupportEnd})
 		data = append(data, []string{sourceHdr, cmBasic.Source, smBasic.Source})
 	} else {
 		// we are dealing with a core manifest
 		table.Header([]string{"Attribute", "Core Platform (Base)"})
 		data = append(data, []string{"Name", cmBasic.Name})
 		data = append(data, []string{versionHdr, cmBasic.Version})
-		data = append(data, []string{"Release Data", cmBasic.CreationDate})
+		data = append(data, []string{"Availability Date", cmLifecycle.availability})
+		data = append(data, []string{"Full Support End", cmLifecycle.fullSupportEnd})
+		data = append(data, []string{"Maintenance Support End", cmLifecycle.maintenanceSupportEnd})
 		data = append(data, []string{sourceHdr, cmBasic.Source})
-
 	}
 	return printAndClearData(table, data, out)
+}
+
+type lifecycleRow struct {
+	availability          string
+	fullSupportEnd        string
+	maintenanceSupportEnd string
+}
+
+func lifecycleRowValues(l *api.Lifecycle) lifecycleRow {
+	if l == nil {
+		return lifecycleRow{}
+	}
+	return lifecycleRow{
+		availability:          l.AvailabilityDate,
+		fullSupportEnd:        l.FullSupportEndDate,
+		maintenanceSupportEnd: l.MaintenanceSupportEndDate,
+	}
 }
 
 func printInfraData(cm *core.ReleaseManifest, out io.Writer) error {

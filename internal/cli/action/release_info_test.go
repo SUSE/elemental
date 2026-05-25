@@ -23,10 +23,14 @@ var _ = Describe("Release info tests", Label("release-info"), func() {
 	var cliCmd *cli.Command
 	var buffer *bytes.Buffer
 	var ctx context.Context
-	var manifest = `metadata:
+	var manifest = `schema: v1
+metadata:
   name: suse-core-test
   version: 0.6-rc.20260317
-  creationDate: '2026-03-17'
+lifecycle:
+  availabilityDate: '2026-03-17'
+  fullSupportEndDate: '2027-03-17'
+  maintenanceSupportEndDate: '2028-03-17'
 components:
   operatingSystem:
     image:

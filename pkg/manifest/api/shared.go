@@ -29,7 +29,10 @@ import (
 
 type SchemaVersion string
 
-const SchemaV0 SchemaVersion = "v0"
+const (
+	SchemaV0 SchemaVersion = "v0"
+	SchemaV1 SchemaVersion = "v1"
+)
 
 type schemaHeader struct {
 	SchemaVersion SchemaVersion `yaml:"schema"`
@@ -51,6 +54,8 @@ func LoadSchemaVersion(data []byte) (SchemaVersion, error) {
 	}
 
 	switch header.SchemaVersion {
+	case SchemaV1:
+		return SchemaV1, nil
 	case SchemaV0:
 		return SchemaV0, nil
 	default:
@@ -69,6 +74,24 @@ type Metadata struct {
 	Name         string `yaml:"name" validate:"required"`
 	Version      string `yaml:"version" validate:"required"`
 	CreationDate string `yaml:"creationDate,omitempty"`
+}
+
+// ValidateMetadata enforces schema-version-specific rules on metadata that
+// cannot be expressed via struct tags.
+func ValidateMetadata(schema SchemaVersion, m *Metadata) error {
+	if m == nil {
+		return nil
+	}
+	if schema == SchemaV1 && m.CreationDate != "" {
+		return fmt.Errorf(`field "metadata.creationDate" is not allowed in schema %q; use "lifecycle.availabilityDate" instead`, SchemaV1)
+	}
+	return nil
+}
+
+type Lifecycle struct {
+	AvailabilityDate          string `yaml:"availabilityDate" validate:"required,datetime=2006-01-02"`
+	FullSupportEndDate        string `yaml:"fullSupportEndDate,omitempty" validate:"omitempty,datetime=2006-01-02"`
+	MaintenanceSupportEndDate string `yaml:"maintenanceSupportEndDate,omitempty" validate:"omitempty,datetime=2006-01-02"`
 }
 
 type Helm struct {
