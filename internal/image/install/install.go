@@ -36,9 +36,9 @@ func (d DiskSize) IsValid() bool {
 }
 
 // returns the size in MiB
-func (d DiskSize) ToMiB() (uint, error) {
+func (d DiskSize) ToMiB() (uint64, error) {
 	size := strings.TrimSpace(string(d))
-	dimension := uint(1)
+	dimension := uint64(1)
 	switch unicode.ToUpper(rune(size[len(size)-1])) {
 	case 'K':
 		dimension = units.KiB
@@ -55,7 +55,7 @@ func (d DiskSize) ToMiB() (uint, error) {
 		return 0, err
 	}
 
-	return uint(value) * dimension / units.MiB, nil
+	return value * dimension / units.MiB, nil
 }
 
 type Installation struct {

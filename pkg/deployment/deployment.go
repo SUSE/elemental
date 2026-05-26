@@ -46,7 +46,7 @@ const (
 	contextKeySkipDiskDeviceExists contextKey = "skip_disk_device_exists"
 )
 
-type MiB uint
+type MiB uint64
 
 const (
 	EfiLabel     = "EFI"

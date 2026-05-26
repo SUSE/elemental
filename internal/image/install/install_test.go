@@ -24,6 +24,7 @@ import (
 	"testing"
 
 	"github.com/docker/go-units"
+
 	"github.com/suse/elemental/v3/internal/image/install"
 )
 
@@ -42,8 +43,8 @@ var _ = Describe("DiskSize", func() {
 	})
 
 	It("ToMiB() tests", func() {
-		Expect(install.DiskSize("10G").ToMiB()).To(Equal(uint(10 * units.GiB / units.MiB)))
+		Expect(install.DiskSize("10G").ToMiB()).To(Equal(uint64(10 * units.GiB / units.MiB)))
 
-		Expect(install.DiskSize("8M").ToMiB()).To(Equal(uint(8)))
+		Expect(install.DiskSize("8M").ToMiB()).To(Equal(uint64(8)))
 	})
 })
