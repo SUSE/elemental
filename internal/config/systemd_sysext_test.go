@@ -26,7 +26,7 @@ import (
 	"github.com/suse/elemental/v3/pkg/log"
 	"github.com/suse/elemental/v3/pkg/manifest/api"
 	"github.com/suse/elemental/v3/pkg/manifest/api/core"
-	"github.com/suse/elemental/v3/pkg/manifest/api/product"
+	"github.com/suse/elemental/v3/pkg/manifest/api/solution"
 	"github.com/suse/elemental/v3/pkg/manifest/resolver"
 )
 
@@ -100,8 +100,8 @@ var _ = Describe("Systemd extensions", func() {
 						},
 					},
 				},
-				ProductExtension: &product.ReleaseManifest{
-					Components: product.Components{
+				SolutionExtension: &solution.ReleaseManifest{
+					Components: solution.Components{
 						Systemd: api.Systemd{
 							Extensions: []api.SystemdExtension{
 								{

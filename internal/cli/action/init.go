@@ -76,7 +76,7 @@ func defaultConfiguration() *image.Configuration {
 			CryptoPolicy: crypto.DefaultPolicy,
 		},
 		Release: release.Release{
-			ManifestURI: "oci://registry.example.com/my-product/release-manifest:latest",
+			ManifestURI: "oci://registry.example.com/my-solution/release-manifest:latest",
 			Components: release.Components{
 				HelmCharts: []release.HelmChart{
 					{

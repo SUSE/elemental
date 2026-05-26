@@ -43,8 +43,8 @@ This section provides a high-level overview of the steps that Elemental's toolin
 *Steps:*
 1. Parse the user provided image specifications.
 1. Parse the configuration directory that the user has defined in the image specification.
-1. Parse the [product release manifest](release-manifest.md#product-release-manifest) that the user has defined as a [release reference](configuration-directory.md#product-release-reference) in the `release.yaml` file of the configuration directory.
-1. Pull and parse the [core platform release manifest](release-manifest.md#core-platform-release-manifest) that the aforementioned product manifest extends.
+1. Parse the [solution release manifest](release-manifest.md#solution-release-manifest) that the user has defined as a [release reference](configuration-directory.md#solution-release-reference) in the `release.yaml` file of the configuration directory.
+1. Pull and parse the [core platform release manifest](release-manifest.md#core-platform-release-manifest) that the aforementioned solution manifest extends.
 1. Begin the customization process:
    1. Unpack the pre-built installer ISO that is defined in the `core platform` release manifest.
    1. Prepare for Kubernetes cluster creation and resource deployment:
@@ -295,24 +295,24 @@ Once the machine has successfully been booted with the customized image, you can
 
 #### Use case
 
-A consumer has created a release manifest for their product that extends a specific `Core Platform` version with additional components, namely `Rancher` and `cert-manager`.
+A consumer has created a release manifest for their solution that extends a specific `Core Platform` version with additional components, namely `Rancher` and `cert-manager`.
 
-A user wants to customize and produce a RAW image that will be running an operating system, Kubernetes distribution and Rancher version that are supported by the aforementioned consumer product.
+A user wants to customize and produce a RAW image that will be running an operating system, Kubernetes distribution and Rancher version that are supported by the aforementioned consumer solution.
 
 Furthermore, using this image, the user wants to enable compliance with FIPS and setup a single-node Kubernetes cluster that will be extended with the `NeuVector` Helm chart along with a specific set of Kubernetes manifests that will enable access to the Rancher UI.
 
 #### Configuration directory setup
 
-The user creates a [configuration directory](../examples/elemental/customize/single-node/) that describes the desired configurations that need to be applied over the desired `Product` release.
+The user creates a [configuration directory](../examples/elemental/customize/single-node/) that describes the desired configurations that need to be applied over the desired `Solution` release.
 
 The contents of this directory include:
 
 * [install.yaml](../examples/elemental/customize/single-node/install.yaml) - specifies which `bootloader` and `kernel command line` arguments to apply during the OS installation process, along with the image's `disk size` and desired FIPS policy setting.
 * [butane.yaml](../examples/elemental/customize/single-node/butane.yaml) - specifies a [butane](https://coreos.github.io/butane/) configuration that defines the user that will be used to log into the booted system.
 * [kubernetes/cluster.yaml](../examples/elemental/customize/single-node/kubernetes/cluster.yaml) - specifies the user-desired `NeuVector` Helm chart as well as a remote manifest for the [local-path-provisioner](https://github.com/rancher/local-path-provisioner).
-* [release.yaml](../examples/elemental/customize/single-node/release.yaml) - specifies the reference to the desired product. From this product release, enable the desired Kubernetes distribution, as well as `Rancher` and `MetalLB`.
-* [suse-product-manifest.yaml](../examples/elemental/customize/single-node/suse-product-manifest.yaml) - example for a `Product` release manifest that the user has referred in the `release.yaml` configuration file.
-* [kubernetes/helm/values/rancher.yaml](../examples/elemental/customize/single-node/kubernetes/helm/values/rancher.yaml) - custom values for the `Rancher` Helm chart that the user has enabled from the `Product` release manifest.
+* [release.yaml](../examples/elemental/customize/single-node/release.yaml) - specifies the reference to the desired solution. From this solution release, enable the desired Kubernetes distribution, as well as `Rancher` and `MetalLB`.
+* [suse-solution-manifest.yaml](../examples/elemental/customize/single-node/suse-solution-manifest.yaml) - example for a `Solution` release manifest that the user has referred in the `release.yaml` configuration file.
+* [kubernetes/helm/values/rancher.yaml](../examples/elemental/customize/single-node/kubernetes/helm/values/rancher.yaml) - custom values for the `Rancher` Helm chart that the user has enabled from the `Solution` release manifest.
 * [kubernetes/manifests/ip-pool.yaml](../examples/elemental/customize/single-node/kubernetes/manifests/ip-pool.yaml) - local manifest to apply to the cluster and have the enabled `MetalLB` component setup an `IPAddressPool`.
 * [kubernetes/manifests/l2-adv.yaml](../examples/elemental/customize/single-node/kubernetes/manifests/l2-adv.yaml) - local manifest to apply to the cluster and have the enabled `MetalLB` component setup a `L2Advertisement`.
 * [kubernetes/manifests/rke2-ingress-config.yaml](../examples/elemental/customize/single-node/kubernetes/manifests/rke2-ingress-config.yaml) - local manifest that will edit the existing `rke2-ingress-nginx` Helm chart and will enable its service to be of type `LoadBalancer`.
@@ -344,7 +344,7 @@ After execution, for a RAW disk type, your `examples/elemental/customize/single-
 ├── kubernetes/
 ├── network/
 ├── release.yaml
-└── suse-product-manifest.yaml
+└── suse-solution-manifest.yaml
 ```
 
 #### Booting the image
@@ -427,7 +427,7 @@ Once the machine has successfully been booted with the customized image, you can
    metallb-speaker-w9gtc                 4/4     Running   0          13m
    ```
 
-1. Verify product enabled Helm chart components:
+1. Verify solution enabled Helm chart components:
 
    * *NeuVector*:
 
@@ -505,15 +505,15 @@ Once the machine has successfully been booted with the customized image, you can
 
 #### Use case
 
-A consumer has created a release manifest for their product that extends a specific `Core Platform` version with additional components, namely `Rancher` and `cert-manager`.
+A consumer has created a release manifest for their solution that extends a specific `Core Platform` version with additional components, namely `Rancher` and `cert-manager`.
 
-A user wants to customize and produce a RAW image that will be running an operating system, Kubernetes distribution and Rancher version that are supported by the aforementioned consumer product.
+A user wants to customize and produce a RAW image that will be running an operating system, Kubernetes distribution and Rancher version that are supported by the aforementioned consumer solution.
 
 Furthermore, using this image, the user intends to set up a multi-node Kubernetes cluster in which all nodes, both control-plane and worker, are FIPS compliant. The cluster will also be extended with the `NeuVector` Helm chart, along with a set of Kubernetes manifests that enable access to the Rancher UI.
 
 #### Configuration directory setup
 
-The user creates a [configuration directory](../examples/elemental/customize/multi-node/) that describes the desired configurations that need to be applied over the desired `Product` release.
+The user creates a [configuration directory](../examples/elemental/customize/multi-node/) that describes the desired configurations that need to be applied over the desired `Solution` release.
 
 The contents of the directory are the same as the contents for a [single-node Kubernetes setup](#configuration-directory-setup-1), with the following additions:
 
@@ -548,7 +548,7 @@ After execution, for a RAW disk type, your `examples/elemental/customize/multi-n
 ├── kubernetes/
 ├── network/
 ├── release.yaml
-└── suse-product-manifest.yaml
+└── suse-solution-manifest.yaml
 ```
 
 #### Booting the image

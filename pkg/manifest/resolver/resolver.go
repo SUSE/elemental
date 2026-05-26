@@ -22,15 +22,15 @@ import (
 	"fmt"
 
 	"github.com/suse/elemental/v3/pkg/manifest/api/core"
-	"github.com/suse/elemental/v3/pkg/manifest/api/product"
+	"github.com/suse/elemental/v3/pkg/manifest/api/solution"
 	"github.com/suse/elemental/v3/pkg/manifest/source"
 )
 
 type ResolvedManifest struct {
 	// Release manifest for the core platform
 	CorePlatform *core.ReleaseManifest
-	// Product release manifest that extends the core platform
-	ProductExtension *product.ReleaseManifest
+	// Solution release manifest that extends the core platform
+	SolutionExtension *solution.ReleaseManifest
 }
 
 type SourceReader interface {
@@ -49,7 +49,7 @@ func New(reader SourceReader) *Resolver {
 }
 
 // Resolve resolves a release manifest at a given uri to its
-// underlying component parts (i.e. product and core platform)
+// underlying component parts (i.e. solution and core platform)
 func (r *Resolver) Resolve(uri string) (*ResolvedManifest, error) {
 	resolved := &ResolvedManifest{}
 	if err := r.resolveRecursive(uri, resolved); err != nil {
@@ -74,19 +74,19 @@ func (r *Resolver) resolveRecursive(uri string, rm *ResolvedManifest) error {
 		return fmt.Errorf("empty file passed as release manifest: '%s'", rmSrc.URI())
 	}
 
-	productManifest, prodErr := product.Parse(data)
-	if prodErr != nil {
+	solutionManifest, solErr := solution.Parse(data)
+	if solErr != nil {
 		coreManifest, coreErr := core.Parse(data)
 		if coreErr != nil {
-			combinedErr := errors.Join(prodErr, coreErr)
+			combinedErr := errors.Join(solErr, coreErr)
 			return fmt.Errorf("unable to parse '%s' as a valid release manifest: %w", rmSrc.URI(), combinedErr)
 		}
 
 		rm.CorePlatform = coreManifest
 		return nil
 	}
-	rm.ProductExtension = productManifest
+	rm.SolutionExtension = solutionManifest
 
-	coreReleaseManifestOCI := fmt.Sprintf("%s://%s", source.OCI, rm.ProductExtension.CorePlatform.Image)
+	coreReleaseManifestOCI := fmt.Sprintf("%s://%s", source.OCI, rm.SolutionExtension.CorePlatform.Image)
 	return r.resolveRecursive(coreReleaseManifestOCI, rm)
 }

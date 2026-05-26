@@ -31,7 +31,7 @@ import (
 	"github.com/suse/elemental/v3/pkg/log"
 	"github.com/suse/elemental/v3/pkg/manifest/api"
 	"github.com/suse/elemental/v3/pkg/manifest/api/core"
-	"github.com/suse/elemental/v3/pkg/manifest/api/product"
+	"github.com/suse/elemental/v3/pkg/manifest/api/solution"
 	"github.com/suse/elemental/v3/pkg/manifest/resolver"
 	sysmock "github.com/suse/elemental/v3/pkg/sys/mock"
 )
@@ -96,8 +96,8 @@ var _ = Describe("Helm tests", Label("helm"), func() {
 					},
 				},
 			},
-			ProductExtension: &product.ReleaseManifest{
-				Components: product.Components{
+			SolutionExtension: &solution.ReleaseManifest{
+				Components: solution.Components{
 					Helm: &api.Helm{
 						Charts: []*api.HelmChart{
 							{
@@ -161,14 +161,14 @@ var _ = Describe("Helm tests", Label("helm"), func() {
 			Expect(secrets).To(BeNil())
 		})
 
-		It("Fails resolving values of product Helm chart", func() {
+		It("Fails resolving values of solution Helm chart", func() {
 			resolver := &valuesResolverMock{Err: fmt.Errorf("resolving failed")}
 			conf := &image.Configuration{
 				Release: release.Release{
 					Components: release.Components{
 						HelmCharts: []release.HelmChart{
 							{
-								Name: "neuvector", // chart in product release
+								Name: "neuvector", // chart in solution release
 							},
 						},
 					},
@@ -326,7 +326,7 @@ var _ = Describe("Helm tests", Label("helm"), func() {
 			Expect(secrets).To(BeNil())
 		})
 
-		It("Collects and writes core, product and user Helm charts to the FS", func() {
+		It("Collects and writes core, solution and user Helm charts to the FS", func() {
 			fs, cleanup, err := sysmock.TestFS(map[string]string{
 				filepath.Join(overlaysPath, helmPath, "apache-values.yaml"):  "image:\n  debug: true\nreplicaCount: 1\n",
 				filepath.Join(overlaysPath, helmPath, "metallb-values.yaml"): "controller:\n  logLevel: warn",
@@ -528,7 +528,7 @@ spec:
 			Expect(string(b)).To(Equal(contents))
 		})
 
-		It("Collects and writes core, product and user Helm charts with auth to the FS", func() {
+		It("Collects and writes core, solution and user Helm charts with auth to the FS", func() {
 			fs, cleanup, err := sysmock.TestFS(map[string]string{})
 			Expect(err).NotTo(HaveOccurred())
 			DeferCleanup(cleanup)
@@ -768,8 +768,8 @@ spec:
 					},
 				},
 			},
-			ProductExtension: &product.ReleaseManifest{
-				Components: product.Components{
+			SolutionExtension: &solution.ReleaseManifest{
+				Components: solution.Components{
 					Helm: &api.Helm{
 						Charts: []*api.HelmChart{
 							{

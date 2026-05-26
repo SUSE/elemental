@@ -32,12 +32,12 @@ type ReleaseInfoFlags struct {
 var ReleaseInfoArgs ReleaseInfoFlags
 
 var description = `release-info takes as argument either an OCI image containing a release manifest file in it
-or a local release manifest file and prints detailed information about components that make up the Core and Product manifest.`
+or a local release manifest file and prints detailed information about components that make up the Core and Solution manifest.`
 
 func NewReleaseInfoCommand(appName string, releaseInfoAction func(context.Context, *cli.Command) error) *cli.Command {
 	return &cli.Command{
 		Name:        "release-info",
-		Usage:       "Prints details of components that make up a Core and Product release manifest file",
+		Usage:       "Prints details of components that make up a Core and Solution release manifest file",
 		Description: fmt.Sprintf("%s %s", appName, description),
 		UsageText:   fmt.Sprintf("%s release-info [options] <manifest-file>\n%s release-info [options] oci://registry.com/repo/manifest", appName, appName),
 		Action:      releaseInfoAction,

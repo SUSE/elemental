@@ -15,7 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package product
+package solution
 
 import (
 	"bytes"
@@ -46,7 +46,7 @@ type Components struct {
 
 func Parse(data []byte) (*ReleaseManifest, error) {
 	if _, err := api.LoadSchemaVersion(data); err != nil {
-		return nil, fmt.Errorf("parsing 'product' release manifest: %w", err)
+		return nil, fmt.Errorf("parsing 'solution' release manifest: %w", err)
 	}
 
 	rm := &ReleaseManifest{}
@@ -54,7 +54,7 @@ func Parse(data []byte) (*ReleaseManifest, error) {
 	decoder.KnownFields(true)
 
 	if err := decoder.Decode(rm); err != nil {
-		return nil, fmt.Errorf("unmarshaling 'product' release manifest: %w", err)
+		return nil, fmt.Errorf("unmarshaling 'solution' release manifest: %w", err)
 	}
 
 	if err := api.NewValidator(api.WithYAMLFieldNames()).Struct(rm); err != nil {
@@ -63,7 +63,7 @@ func Parse(data []byte) (*ReleaseManifest, error) {
 			err = api.FormatErrors(validationErrors)
 		}
 
-		return nil, fmt.Errorf("validating 'product' release manifest: %w", err)
+		return nil, fmt.Errorf("validating 'solution' release manifest: %w", err)
 	}
 
 	return rm, nil

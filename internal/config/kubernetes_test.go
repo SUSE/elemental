@@ -105,7 +105,7 @@ var _ = Describe("Kubernetes", func() {
 			Expect(needsHelmChartsSetup(conf)).To(BeTrue())
 		})
 
-		It("Requires Helm setup if product charts are provided", func() {
+		It("Requires Helm setup if solution charts are provided", func() {
 			conf := &image.Configuration{
 				Release: release.Release{
 					Components: release.Components{

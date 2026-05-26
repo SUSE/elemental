@@ -30,14 +30,14 @@ import (
 )
 
 const (
-	corePlatformRef              = "foo.example.com/bar/release-manifest"
-	corePlatformVersion          = "1.0"
-	expectedCorePlatformImage    = corePlatformRef + ":" + corePlatformVersion
-	expectedProductManifestImage = "prod.example.com/bar/release-manifest:0.0.1"
+	corePlatformRef               = "foo.example.com/bar/release-manifest"
+	corePlatformVersion           = "1.0"
+	expectedCorePlatformImage     = corePlatformRef + ":" + corePlatformVersion
+	expectedSolutionManifestImage = "sol.example.com/bar/release-manifest:0.0.1"
 )
 
 var coreManifestPath = filepath.Join("..", "testdata", "full_core_release_manifest.yaml")
-var prodManifestPath = filepath.Join("..", "testdata", "full_product_release_manifest.yaml")
+var solManifestPath = filepath.Join("..", "testdata", "full_solution_release_manifest.yaml")
 
 func TestResolverSuite(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -52,17 +52,17 @@ var _ = Describe("Resolver", Label("release-manifest"), func() {
 		res = resolver.New(reader)
 	})
 
-	It("resolves a 'product' release manifest correctly", func() {
+	It("resolves a 'solution' release manifest correctly", func() {
 		By("reading the manifest source from a local file")
-		prodManifestFile := fmt.Sprintf("%s://%s", source.File, prodManifestPath)
-		resolvedManifest, err := res.Resolve(prodManifestFile)
+		solManifestFile := fmt.Sprintf("%s://%s", source.File, solManifestPath)
+		resolvedManifest, err := res.Resolve(solManifestFile)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(resolvedManifest).ToNot(BeNil())
 		validateResolvedManifest(resolvedManifest, false)
 
 		By("reading the manifest source from an OCI image")
-		prodManifestOCI := fmt.Sprintf("%s://%s", source.OCI, expectedProductManifestImage)
-		resolvedManifest, err = res.Resolve(prodManifestOCI)
+		solManifestOCI := fmt.Sprintf("%s://%s", source.OCI, expectedSolutionManifestImage)
+		resolvedManifest, err = res.Resolve(solManifestOCI)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(resolvedManifest).ToNot(BeNil())
 		validateResolvedManifest(resolvedManifest, false)
@@ -182,41 +182,41 @@ func validateResolvedManifest(rm *resolver.ResolvedManifest, coreOnly bool) {
 	Expect(rm.CorePlatform.Components.Helm.Repositories[0].URL).To(Equal("https://foo.github.io/charts"))
 
 	if !coreOnly {
-		Expect(rm.ProductExtension).ToNot(BeNil())
+		Expect(rm.SolutionExtension).ToNot(BeNil())
 
-		Expect(rm.ProductExtension.Metadata).ToNot(BeNil())
-		Expect(rm.ProductExtension.Metadata.Name).To(Equal("suse-edge"))
-		Expect(rm.ProductExtension.Metadata.Version).To(Equal("3.2.0"))
-		Expect(rm.ProductExtension.Metadata.CreationDate).To(Equal("2025-01-20"))
+		Expect(rm.SolutionExtension.Metadata).ToNot(BeNil())
+		Expect(rm.SolutionExtension.Metadata.Name).To(Equal("suse-edge"))
+		Expect(rm.SolutionExtension.Metadata.Version).To(Equal("3.2.0"))
+		Expect(rm.SolutionExtension.Metadata.CreationDate).To(Equal("2025-01-20"))
 
-		Expect(rm.ProductExtension.CorePlatform).ToNot(BeNil())
-		Expect(rm.ProductExtension.CorePlatform.Image).To(Equal("foo.example.com/bar/release-manifest:1.0"))
+		Expect(rm.SolutionExtension.CorePlatform).ToNot(BeNil())
+		Expect(rm.SolutionExtension.CorePlatform.Image).To(Equal("foo.example.com/bar/release-manifest:1.0"))
 
-		Expect(rm.ProductExtension.Components.Systemd.Extensions).To(HaveLen(1))
-		Expect(rm.ProductExtension.Components.Systemd.Extensions[0].Name).To(Equal("foo-ext"))
-		Expect(rm.ProductExtension.Components.Systemd.Extensions[0].Image).To(Equal("https://example.com/foo-ext_0.0.raw"))
-		Expect(rm.ProductExtension.Components.Systemd.Extensions[0].Required).To(BeFalse())
+		Expect(rm.SolutionExtension.Components.Systemd.Extensions).To(HaveLen(1))
+		Expect(rm.SolutionExtension.Components.Systemd.Extensions[0].Name).To(Equal("foo-ext"))
+		Expect(rm.SolutionExtension.Components.Systemd.Extensions[0].Image).To(Equal("https://example.com/foo-ext_0.0.raw"))
+		Expect(rm.SolutionExtension.Components.Systemd.Extensions[0].Required).To(BeFalse())
 
-		Expect(rm.ProductExtension.Components.Helm).ToNot(BeNil())
-		Expect(len(rm.ProductExtension.Components.Helm.Charts)).To(Equal(1))
-		Expect(rm.ProductExtension.Components.Helm.Charts[0].Name).To(Equal("Bar"))
-		Expect(rm.ProductExtension.Components.Helm.Charts[0].Chart).To(Equal("bar"))
-		Expect(rm.ProductExtension.Components.Helm.Charts[0].Version).To(Equal("0.0.0"))
-		Expect(rm.ProductExtension.Components.Helm.Charts[0].Namespace).To(Equal("bar-system"))
-		Expect(rm.ProductExtension.Components.Helm.Charts[0].Values).To(Equal(map[string]any{"image": map[string]any{"tag": "latest"}}))
-		Expect(len(rm.ProductExtension.Components.Helm.Charts[0].DependsOn)).To(Equal(2))
-		Expect(rm.ProductExtension.Components.Helm.Charts[0].DependsOn[0].Name).To(Equal("foo"))
-		Expect(rm.ProductExtension.Components.Helm.Charts[0].DependsOn[0].Type).To(BeEquivalentTo("helm"))
-		Expect(rm.ProductExtension.Components.Helm.Charts[0].DependsOn[1].Name).To(Equal("bar"))
-		Expect(rm.ProductExtension.Components.Helm.Charts[0].DependsOn[1].Type).To(BeEquivalentTo("sysext"))
-		Expect(len(rm.ProductExtension.Components.Helm.Charts[0].Images)).To(Equal(1))
-		Expect(rm.ProductExtension.Components.Helm.Charts[0].Images[0].Name).To(Equal("bar"))
-		Expect(rm.ProductExtension.Components.Helm.Charts[0].Images[0].Image).To(Equal("registry.com/bar/bar:0.0.0"))
-		Expect(len(rm.ProductExtension.Components.Helm.Repositories)).To(Equal(1))
-		Expect(rm.ProductExtension.Components.Helm.Repositories[0].Name).To(Equal("bar-charts"))
-		Expect(rm.ProductExtension.Components.Helm.Repositories[0].URL).To(Equal("https://bar.github.io/charts"))
+		Expect(rm.SolutionExtension.Components.Helm).ToNot(BeNil())
+		Expect(len(rm.SolutionExtension.Components.Helm.Charts)).To(Equal(1))
+		Expect(rm.SolutionExtension.Components.Helm.Charts[0].Name).To(Equal("Bar"))
+		Expect(rm.SolutionExtension.Components.Helm.Charts[0].Chart).To(Equal("bar"))
+		Expect(rm.SolutionExtension.Components.Helm.Charts[0].Version).To(Equal("0.0.0"))
+		Expect(rm.SolutionExtension.Components.Helm.Charts[0].Namespace).To(Equal("bar-system"))
+		Expect(rm.SolutionExtension.Components.Helm.Charts[0].Values).To(Equal(map[string]any{"image": map[string]any{"tag": "latest"}}))
+		Expect(len(rm.SolutionExtension.Components.Helm.Charts[0].DependsOn)).To(Equal(2))
+		Expect(rm.SolutionExtension.Components.Helm.Charts[0].DependsOn[0].Name).To(Equal("foo"))
+		Expect(rm.SolutionExtension.Components.Helm.Charts[0].DependsOn[0].Type).To(BeEquivalentTo("helm"))
+		Expect(rm.SolutionExtension.Components.Helm.Charts[0].DependsOn[1].Name).To(Equal("bar"))
+		Expect(rm.SolutionExtension.Components.Helm.Charts[0].DependsOn[1].Type).To(BeEquivalentTo("sysext"))
+		Expect(len(rm.SolutionExtension.Components.Helm.Charts[0].Images)).To(Equal(1))
+		Expect(rm.SolutionExtension.Components.Helm.Charts[0].Images[0].Name).To(Equal("bar"))
+		Expect(rm.SolutionExtension.Components.Helm.Charts[0].Images[0].Image).To(Equal("registry.com/bar/bar:0.0.0"))
+		Expect(len(rm.SolutionExtension.Components.Helm.Repositories)).To(Equal(1))
+		Expect(rm.SolutionExtension.Components.Helm.Repositories[0].Name).To(Equal("bar-charts"))
+		Expect(rm.SolutionExtension.Components.Helm.Repositories[0].URL).To(Equal("https://bar.github.io/charts"))
 	} else {
-		Expect(rm.ProductExtension).To(BeNil())
+		Expect(rm.SolutionExtension).To(BeNil())
 	}
 }
 
@@ -243,8 +243,8 @@ func (s SourceReaderMock) Read(m *source.ReleaseManifestSource) ([]byte, error) 
 		switch {
 		case m.URI() == expectedCorePlatformImage:
 			return os.ReadFile(coreManifestPath)
-		case m.URI() == expectedProductManifestImage:
-			return os.ReadFile(prodManifestPath)
+		case m.URI() == expectedSolutionManifestImage:
+			return os.ReadFile(solManifestPath)
 		default:
 			return nil, fmt.Errorf("unexpected image uri '%s'", m.URI())
 		}

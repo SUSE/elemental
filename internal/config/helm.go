@@ -271,7 +271,7 @@ func (h *Helm) appendHelmChart(chart helmChart, repositories, valueFiles map[str
 }
 
 func enabledHelmCharts(rm *resolver.ResolvedManifest, enabled []release.HelmChart, logger log.Logger) ([]*api.HelmChart, map[string]string, error) {
-	coreCharts, productCharts := map[string]*api.HelmChart{}, map[string]*api.HelmChart{}
+	coreCharts, solutionCharts := map[string]*api.HelmChart{}, map[string]*api.HelmChart{}
 	repositories := map[string]string{}
 
 	if rm.CorePlatform.Components.Helm != nil {
@@ -284,12 +284,12 @@ func enabledHelmCharts(rm *resolver.ResolvedManifest, enabled []release.HelmChar
 		}
 	}
 
-	if rm.ProductExtension != nil && rm.ProductExtension.Components.Helm != nil {
-		for _, c := range rm.ProductExtension.Components.Helm.Charts {
-			productCharts[c.Chart] = c
+	if rm.SolutionExtension != nil && rm.SolutionExtension.Components.Helm != nil {
+		for _, c := range rm.SolutionExtension.Components.Helm.Charts {
+			solutionCharts[c.Chart] = c
 		}
 
-		for _, repository := range rm.ProductExtension.Components.Helm.Repositories {
+		for _, repository := range rm.SolutionExtension.Components.Helm.Repositories {
 			repositories[repository.Name] = repository.URL
 		}
 	}
@@ -298,11 +298,11 @@ func enabledHelmCharts(rm *resolver.ResolvedManifest, enabled []release.HelmChar
 	var addChart func(name string) error
 
 	// Add a chart and its direct dependencies, avoiding duplicates.
-	// Prioritize charts from product releases over core ones.
+	// Prioritize charts from solution releases over core ones.
 	addChart = func(name string) error {
-		source := "product"
+		source := "solution"
 
-		chart, ok := productCharts[name]
+		chart, ok := solutionCharts[name]
 		if !ok {
 			chart, ok = coreCharts[name]
 			if !ok {

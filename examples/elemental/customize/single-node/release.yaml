@@ -1,9 +1,9 @@
-manifestURI: file://./suse-product-manifest.yaml
-# Alternatively, the product release manifest can be specified from an OCI image.
-# manifestURI: oci://registry.suse.com/suse-product/release-manifest:0.0.1
+manifestURI: file://./suse-solution-manifest.yaml
+# Alternatively, the solution release manifest can be specified from an OCI image.
+# manifestURI: oci://registry.suse.com/suse-solution/release-manifest:0.0.1
 components:
   kubernetes: {}  # Enable Kubernetes installation from core release
   helm:
     - chart: metallb # from core release
-    - chart: rancher # from product release
+    - chart: rancher # from solution release
       valuesFile: rancher.yaml

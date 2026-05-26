@@ -15,7 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package product_test
+package solution_test
 
 import (
 	"os"
@@ -25,7 +25,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/suse/elemental/v3/pkg/manifest/api/product"
+	"github.com/suse/elemental/v3/pkg/manifest/api/solution"
 )
 
 const unknownFieldManifest = `
@@ -58,17 +58,17 @@ components:
         type: "broken"
 `
 
-func TestProductManifestSuite(t *testing.T) {
+func TestSolutionManifestSuite(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Product Release Manifest API test suite")
+	RunSpecs(t, "Solution Release Manifest API test suite")
 }
 
 var _ = Describe("ReleaseManifest", Label("release-manifest"), func() {
 	It("is parsed correctly", func() {
-		data, err := os.ReadFile(filepath.Join("..", "..", "testdata", "full_product_release_manifest.yaml"))
+		data, err := os.ReadFile(filepath.Join("..", "..", "testdata", "full_solution_release_manifest.yaml"))
 		Expect(err).NotTo(HaveOccurred())
 
-		rm, err := product.Parse(data)
+		rm, err := solution.Parse(data)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(rm).ToNot(BeNil())
 
@@ -112,7 +112,7 @@ var _ = Describe("ReleaseManifest", Label("release-manifest"), func() {
 corePlatform:
   image: "foo.example.com/bar/release-manifest:1.0"
 `)
-		rm, err := product.Parse(data)
+		rm, err := solution.Parse(data)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(rm).ToNot(BeNil())
 	})
@@ -123,7 +123,7 @@ schema: v0
 corePlatform:
   image: "foo.example.com/bar/release-manifest:1.0"
 `)
-		rm, err := product.Parse(data)
+		rm, err := solution.Parse(data)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(rm).ToNot(BeNil())
 		Expect(rm.Schema).To(BeEquivalentTo("v0"))
@@ -135,16 +135,16 @@ schema: v99
 corePlatform:
   image: "foo.example.com/bar/release-manifest:1.0"
 `)
-		rm, err := product.Parse(data)
+		rm, err := solution.Parse(data)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring(`unsupported manifest schema version: "v99"`))
 		Expect(rm).To(BeNil())
 	})
 
 	It("fails when unknown field is introduced", func() {
-		expErrMsg := "field operatingSystem not found in type product.Components"
+		expErrMsg := "field operatingSystem not found in type solution.Components"
 		data := []byte(unknownFieldManifest)
-		rm, err := product.Parse(data)
+		rm, err := solution.Parse(data)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring(expErrMsg))
 		Expect(rm).To(BeNil())
@@ -158,7 +158,7 @@ corePlatform:
 		}
 
 		data := []byte(brokenManifest)
-		rm, err := product.Parse(data)
+		rm, err := solution.Parse(data)
 		Expect(err).To(HaveOccurred())
 
 		errMsg := err.Error()

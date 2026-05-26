@@ -241,7 +241,7 @@ single-node/
 ├── network
 │    └── single-node-example.yaml
 ├── release.yaml
-└── suse-product-manifest.yaml
+└── suse-solution-manifest.yaml
 
 6 directories, 11 files
 ```
@@ -254,7 +254,7 @@ This output might be confusing and you might be wondering how to read through it
 * **kubernetes/**: This subdirectory allows you to provide RKE2 configurations for cluster nodes, Helm chart customization options (such as values files), as well as additional local Kubernetes manifests.
 * **network/**: This subdirectory allows you to provide advanced network settings that can span multiple machines or specialized scripts that are necessary for configuring machines in highly specific use cases.
 * **release.yaml:** This is the “bread and butter” capability that Elemental 3 and UC provide. This is where you are able to specify the version of UC or any solution built on top of it, as well as all the components that will be enabled in the final artifact. The components range from solely RKE2 to specialized operating system extensions or key Kubernetes workloads (e.g. NVIDIA GPU Operator for SUSE AI).
-* **suse-product-manifest.yaml**: This file serves as an example description, that showcases how any product or solution can use UC as a base, and add any additional components on top of it. You can learn more about the “release manifest” concept [in the repository documentation.](https://github.com/SUSE/elemental/blob/main/docs/release-manifest.md)
+* **suse-solution-manifest.yaml**: This file serves as an example description, that showcases how any solution can use UC as a base, and add any additional components on top of it. You can learn more about the “release manifest” concept [in the repository documentation.](https://github.com/SUSE/elemental/blob/main/docs/release-manifest.md)
 
 # **Recipe 1: Single-node Kubernetes cluster**
 

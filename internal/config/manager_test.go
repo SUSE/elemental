@@ -33,7 +33,7 @@ import (
 	"github.com/suse/elemental/v3/pkg/log"
 	"github.com/suse/elemental/v3/pkg/manifest/api"
 	"github.com/suse/elemental/v3/pkg/manifest/api/core"
-	"github.com/suse/elemental/v3/pkg/manifest/api/product"
+	"github.com/suse/elemental/v3/pkg/manifest/api/solution"
 	"github.com/suse/elemental/v3/pkg/manifest/resolver"
 	"github.com/suse/elemental/v3/pkg/sys"
 	sysmock "github.com/suse/elemental/v3/pkg/sys/mock"
@@ -105,8 +105,8 @@ passwd:
 				},
 			},
 		},
-		ProductExtension: &product.ReleaseManifest{
-			Components: product.Components{
+		SolutionExtension: &solution.ReleaseManifest{
+			Components: solution.Components{
 				Helm: &api.Helm{
 					Charts: []*api.HelmChart{
 						{
@@ -191,7 +191,7 @@ passwd:
 				}
 
 				files := []string{}
-				for _, chart := range rm.ProductExtension.Components.Helm.Charts {
+				for _, chart := range rm.SolutionExtension.Components.Helm.Charts {
 					files = append(files, chart.Name)
 					_, err := fs.Create(filepath.Join(helmPath, chart.Name))
 					if err != nil {

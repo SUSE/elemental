@@ -34,7 +34,7 @@ import (
 	"github.com/suse/elemental/v3/pkg/extractor"
 	"github.com/suse/elemental/v3/pkg/manifest/api"
 	"github.com/suse/elemental/v3/pkg/manifest/api/core"
-	"github.com/suse/elemental/v3/pkg/manifest/api/product"
+	"github.com/suse/elemental/v3/pkg/manifest/api/solution"
 	"github.com/suse/elemental/v3/pkg/manifest/resolver"
 	"github.com/suse/elemental/v3/pkg/manifest/source"
 	"github.com/suse/elemental/v3/pkg/sys"
@@ -173,14 +173,14 @@ func manifestResolver(fs vfs.FS, out config.Output, local bool) (*resolver.Resol
 func printManifest(manifest *resolver.ResolvedManifest, arg string, out io.Writer) error {
 	// initialize some essentials
 	var cm *core.ReleaseManifest
-	var pm *product.ReleaseManifest
+	var sm *solution.ReleaseManifest
 
 	cm = manifest.CorePlatform
-	if manifest.ProductExtension != nil {
-		pm = manifest.ProductExtension
+	if manifest.SolutionExtension != nil {
+		sm = manifest.SolutionExtension
 	}
 
-	if err := printBasicData(cm, pm, arg, out); err != nil {
+	if err := printBasicData(cm, sm, arg, out); err != nil {
 		return err
 	}
 
@@ -190,12 +190,12 @@ func printManifest(manifest *resolver.ResolvedManifest, arg string, out io.Write
 	}
 
 	// systemd extensions info
-	if err := printSystemdData(cm, pm, out); err != nil {
+	if err := printSystemdData(cm, sm, out); err != nil {
 		return err
 	}
 
 	// helm charts
-	if err := printHelmChartsData(cm, pm, out); err != nil {
+	if err := printHelmChartsData(cm, sm, out); err != nil {
 		return err
 	}
 
@@ -222,9 +222,9 @@ func newTable(markdown bool, out io.Writer) *tablewriter.Table {
 }
 
 // most basic information that shall be printed for all the optional flags
-func printBasicData(cm *core.ReleaseManifest, pm *product.ReleaseManifest, arg string, out io.Writer) error {
+func printBasicData(cm *core.ReleaseManifest, sm *solution.ReleaseManifest, arg string, out io.Writer) error {
 	var data [][]string
-	var cmBasic, pmBasic *basicInfo
+	var cmBasic, smBasic *basicInfo
 	table := newTable(markdown, out)
 
 	cmBasic = &basicInfo{
@@ -233,21 +233,21 @@ func printBasicData(cm *core.ReleaseManifest, pm *product.ReleaseManifest, arg s
 		CreationDate: cm.Metadata.CreationDate,
 		Source:       arg,
 	}
-	if pm != nil {
-		// we are dealing with a product manifest
-		pmBasic = &basicInfo{
-			Name:         pm.Metadata.Name,
-			Version:      pm.Metadata.Version,
-			CreationDate: pm.Metadata.CreationDate,
+	if sm != nil {
+		// we are dealing with a solution manifest
+		smBasic = &basicInfo{
+			Name:         sm.Metadata.Name,
+			Version:      sm.Metadata.Version,
+			CreationDate: sm.Metadata.CreationDate,
 			Source:       arg,
 		}
-		cmBasic.Source = pm.CorePlatform.Image
+		cmBasic.Source = sm.CorePlatform.Image
 
-		table.Header([]string{"Attribute", "Core Platform (Base)", "Product Manifest (Extension)"})
-		data = append(data, []string{"Name", cmBasic.Name, pmBasic.Name})
-		data = append(data, []string{versionHdr, cmBasic.Version, pm.Metadata.Version})
-		data = append(data, []string{"Release Date", cmBasic.CreationDate, pm.Metadata.CreationDate})
-		data = append(data, []string{sourceHdr, cmBasic.Source, pmBasic.Source})
+		table.Header([]string{"Attribute", "Core Platform (Base)", "Solution Manifest (Extension)"})
+		data = append(data, []string{"Name", cmBasic.Name, smBasic.Name})
+		data = append(data, []string{versionHdr, cmBasic.Version, sm.Metadata.Version})
+		data = append(data, []string{"Release Date", cmBasic.CreationDate, sm.Metadata.CreationDate})
+		data = append(data, []string{sourceHdr, cmBasic.Source, smBasic.Source})
 	} else {
 		// we are dealing with a core manifest
 		table.Header([]string{"Attribute", "Core Platform (Base)"})
@@ -281,18 +281,18 @@ func printInfraData(cm *core.ReleaseManifest, out io.Writer) error {
 	return printAndClearData(table, data, out)
 }
 
-func printSystemdData(cm *core.ReleaseManifest, pm *product.ReleaseManifest, out io.Writer) error {
+func printSystemdData(cm *core.ReleaseManifest, sm *solution.ReleaseManifest, out io.Writer) error {
 	var data [][]string
 	var table *tablewriter.Table
 
-	if pm != nil {
+	if sm != nil {
 		table = newTable(markdown, out)
 		table.Header([]string{"Systemd Extensions", "Image Reference"})
 
 		for _, s := range cm.Components.Systemd.Extensions {
 			data = append(data, []string{s.Name, s.Image})
 		}
-		for _, s := range pm.Components.Systemd.Extensions {
+		for _, s := range sm.Components.Systemd.Extensions {
 			data = append(data, []string{s.Name + "(*)", s.Image})
 		}
 	} else if len(cm.Components.Systemd.Extensions) > 0 {
@@ -306,27 +306,27 @@ func printSystemdData(cm *core.ReleaseManifest, pm *product.ReleaseManifest, out
 	return printAndClearData(table, data, out)
 }
 
-func printHelmChartsData(cm *core.ReleaseManifest, pm *product.ReleaseManifest, out io.Writer) error {
+func printHelmChartsData(cm *core.ReleaseManifest, sm *solution.ReleaseManifest, out io.Writer) error {
 	var data [][]string
 	var table *tablewriter.Table
 
-	if pm != nil {
+	if sm != nil {
 		if cm.Components.Helm != nil && len(cm.Components.Helm.Charts) > 0 {
 			table = newTable(markdown, out)
 			table.Header([]string{"Chart Name", versionHdr, "Repository", "Target Namespace", "Depends On"})
 
 			data = coreManifestHelmChartsData(cm.Components.Helm)
 		}
-		if pm.Components.Helm != nil && len(pm.Components.Helm.Charts) > 0 {
-			pmRepos := repoUrls(pm.Components.Helm.Repositories)
-			for _, c := range pm.Components.Helm.Charts {
+		if sm.Components.Helm != nil && len(sm.Components.Helm.Charts) > 0 {
+			smRepos := repoUrls(sm.Components.Helm.Repositories)
+			for _, c := range sm.Components.Helm.Charts {
 				if len(c.DependsOn) > 0 {
 					for _, v := range c.DependsOn {
 						dependsOn := fmt.Sprintf("%s (%s)", v.Name, v.Type)
-						data = append(data, []string{c.GetName() + "(*)", c.Version, pmRepos[c.Repository], c.Namespace, dependsOn})
+						data = append(data, []string{c.GetName() + "(*)", c.Version, smRepos[c.Repository], c.Namespace, dependsOn})
 					}
 				} else {
-					data = append(data, []string{c.GetName() + "(*)", c.Version, pmRepos[c.Repository], c.Namespace, "-"})
+					data = append(data, []string{c.GetName() + "(*)", c.Version, smRepos[c.Repository], c.Namespace, "-"})
 				}
 			}
 

@@ -149,8 +149,8 @@ func enabledExtensions(rm *resolver.ResolvedManifest, conf *image.Configuration,
 	var all, enabled []api.SystemdExtension
 
 	all = append(all, rm.CorePlatform.Components.Systemd.Extensions...)
-	if rm.ProductExtension != nil {
-		all = append(all, rm.ProductExtension.Components.Systemd.Extensions...)
+	if rm.SolutionExtension != nil {
+		all = append(all, rm.SolutionExtension.Components.Systemd.Extensions...)
 	}
 
 	var notFound []string

@@ -4,7 +4,7 @@ The configuration directory is the place where users define the desired state of
 
 Generally, the available configuration areas that this directory supports are the following:
 
-* [Product Release Reference](#product-release-reference)
+* [Solution Release Reference](#solution-release-reference)
 * [Operating System](#operating-system)
 * [Kubernetes](#kubernetes)
 * [Network](#network)
@@ -12,19 +12,19 @@ Generally, the available configuration areas that this directory supports are th
 
 This document provides an overview of each configuration area, the rationale behind it and its API.
 
-## Product Release Reference
+## Solution Release Reference
 
 > **NOTE:** Before reviewing this file, make sure you familiarize yourself with the [release manifest](release-manifest.md) concept.
 
-One of Elemental's key features is enabling users to base their image on a set of components that are aligned with a specific product release.
+One of Elemental's key features is enabling users to base their image on a set of components that are aligned with a specific solution release.
 
-Consumers can use the `release.yaml` file to configure the desired product that they wish to use as base. Furthermore, they can explicitly choose which components from this product to enable based on their specific use case.
+Consumers can use the `release.yaml` file to configure the desired solution that they wish to use as base. Furthermore, they can explicitly choose which components from this solution to enable based on their specific use case.
 
 ### release.yaml
 
 ```yaml
-manifestURI: file:///path/to/manifest/suse-product-manifest.yaml
-# manifestURI: oci://registry.suse.com/suse-product/release-manifest:0.0.1
+manifestURI: file:///path/to/manifest/suse-solution-manifest.yaml
+# manifestURI: oci://registry.suse.com/suse-solution/release-manifest:0.0.1
 components:
   kubernetes: {}
   helm:
@@ -38,7 +38,7 @@ components:
     - extension: bar
 ```
 
-* `manifestURI` - Required; URI to a release manifest for the Core Platform or the Product that will be used as base. For more information, refer to the [Release Manifest](./release-manifest.md) guide. Supports both local file (file://) and OCI image (oci://) definitions.
+* `manifestURI` - Required; URI to a release manifest for the Core Platform or the Solution that will be used as base. For more information, refer to the [Release Manifest](./release-manifest.md) guide. Supports both local file (file://) and OCI image (oci://) definitions.
 * `components` - Optional; Components to explicitly enable from the Core Platform base.
   * `kubernetes` - Optional; If set (even if empty), enables Kubernetes distribution installation. If you also define cluster configuration, Helm charts or Kubernetes manifests, a cluster will be automatically enabled and this field is not required.
   * `helm` - Optional; List of Helm chart components that need to be enabled from the Core Platform base.
@@ -47,8 +47,8 @@ components:
     * `credentials` - Required for authenticated repositories/registries.
       * `username` - Required; Defines the username for accessing the specified repository/registry.
       * `password` - Required; Defines the password for accessing the specified repository/registry.
-  * `systemd` - Optional; List of System extensions that need to be enabled from the product base.
-    * `extension` - Required; The actual extension that needs to be enabled, as seen in the product release manifest.
+  * `systemd` - Optional; List of System extensions that need to be enabled from the solution base.
+    * `extension` - Required; The actual extension that needs to be enabled, as seen in the solution release manifest.
 
 ## Operating System
 
