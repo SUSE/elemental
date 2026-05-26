@@ -36,8 +36,6 @@ import (
 	"github.com/containerd/containerd/v2/client"
 	"github.com/containerd/containerd/v2/cmd/containerd/server"
 	srvconfig "github.com/containerd/containerd/v2/cmd/containerd/server/config"
-	"github.com/containerd/containerd/v2/defaults"
-	ctrdsys "github.com/containerd/containerd/v2/pkg/sys"
 	"github.com/containerd/containerd/v2/version"
 
 	_ "github.com/containerd/containerd/v2/plugins/content/local/plugin"
@@ -46,6 +44,7 @@ import (
 	_ "github.com/containerd/containerd/v2/plugins/gc"
 	_ "github.com/containerd/containerd/v2/plugins/leases"
 	_ "github.com/containerd/containerd/v2/plugins/metadata"
+	_ "github.com/containerd/containerd/v2/plugins/server/grpc"
 	_ "github.com/containerd/containerd/v2/plugins/services/content"
 	_ "github.com/containerd/containerd/v2/plugins/services/diff"
 	_ "github.com/containerd/containerd/v2/plugins/services/events"
@@ -82,11 +81,6 @@ func StartEmbeddedDaemon(ctx context.Context, s *sys.System, rootDir, stateDir, 
 		Debug: srvconfig.Debug{
 			Level: "debug",
 		},
-		GRPC: srvconfig.GRPCConfig{
-			Address:        socketPath,
-			MaxRecvMsgSize: defaults.DefaultMaxRecvMsgSize,
-			MaxSendMsgSize: defaults.DefaultMaxSendMsgSize,
-		},
 		// Explicitly disable everything related to running containers
 		DisabledPlugins: []string{
 			"io.containerd.grpc.v1.cri",
@@ -94,12 +88,19 @@ func StartEmbeddedDaemon(ctx context.Context, s *sys.System, rootDir, stateDir, 
 			"io.containerd.runtime.v2.task",
 			"io.containerd.monitor.v1.cgroups",
 			"io.containerd.internal.v1.restart",
+			"io.containerd.server.v1.grpc-tcp",
 		},
 		RequiredPlugins: []string{
+			"io.containerd.server.v1.grpc",
 			"io.containerd.grpc.v1.leases",
 			"io.containerd.grpc.v1.snapshots",
 			"io.containerd.grpc.v1.content",
 			"io.containerd.content.v1.content",
+		},
+		Plugins: map[string]any{
+			"io.containerd.server.v1.grpc": map[string]any{
+				"address": socketPath,
+			},
 		},
 	}
 
@@ -108,14 +109,9 @@ func StartEmbeddedDaemon(ctx context.Context, s *sys.System, rootDir, stateDir, 
 		return fmt.Errorf("failed to initialize embedded server: %w", err)
 	}
 
-	l, err := ctrdsys.GetLocalListener(cfg.GRPC.Address, cfg.GRPC.UID, cfg.GRPC.GID)
-	if err != nil {
-		return fmt.Errorf("failed to create socket listener: %w", err)
-	}
-
 	go func() {
 		// blocks until the context is cancelled
-		if err := srv.ServeGRPC(l); err != nil {
+		if err := srv.Start(ctx); err != nil {
 			s.Logger().Warn("Embedded containerd stopped: %v", err)
 		}
 	}()
