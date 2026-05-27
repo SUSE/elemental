@@ -48,6 +48,7 @@ type SUT struct {
 	Username      string
 	Password      string // #nosec G117
 	SSHKey        []byte
+	HostSSHKey    []byte
 	Timeout       int
 	artifactsRepo string
 	TestVersion   string
@@ -58,15 +59,17 @@ type SUT struct {
 
 func NewSUT() *SUT {
 	var (
-		err        error
-		user       string
-		sshKeyFile string
-		sshKey     []byte
-		pass       string
-		host       string
-		vmPid      int
-		timeout    = 180
-		value      int
+		err            error
+		user           string
+		sshKeyFile     string
+		sshKey         []byte
+		hostSSHKeyFile string
+		hostSSHKey     []byte
+		pass           string
+		host           string
+		vmPid          int
+		timeout        = 180
+		value          int
 	)
 
 	if user = os.Getenv("SSH_USER"); user == "" {
@@ -77,8 +80,13 @@ func NewSUT() *SUT {
 		sshKeyFile = "../assets/testkey"
 	}
 
+	if hostSSHKeyFile = os.Getenv("HOST_SSH_KEY"); hostSSHKeyFile == "" {
+		hostSSHKeyFile = "../assets/hostkey.pub"
+	}
+
 	// Not useful here to check for a reading error, skip it!
-	sshKey, _ = os.ReadFile(sshKeyFile) //nolint:gosec
+	sshKey, _ = os.ReadFile(sshKeyFile)         //nolint:gosec
+	hostSSHKey, _ = os.ReadFile(hostSSHKeyFile) //nolint:gosec
 
 	if pass = os.Getenv("SSH_PASS"); pass == "" {
 		pass = "linux"
@@ -103,6 +111,7 @@ func NewSUT() *SUT {
 		Username:      user,
 		Password:      pass,
 		SSHKey:        sshKey,
+		HostSSHKey:    hostSSHKey,
 		MachineID:     "test",
 		Timeout:       timeout,
 		artifactsRepo: "",
@@ -259,11 +268,13 @@ func (s *SUT) clientConfig() *ssh.ClientConfig {
 		auths = append(auths, ssh.PublicKeys(signer))
 	}
 
+	hostPubKey, _, _, _, _ := ssh.ParseAuthorizedKey(s.HostSSHKey)
+
 	sshConfig := &ssh.ClientConfig{
 		User:            s.Username,
 		Auth:            append(auths, ssh.Password(s.Password)),
-		Timeout:         15 * time.Second,            // max time to establish connection
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(), //nolint:gosec
+		Timeout:         15 * time.Second, // max time to establish connection
+		HostKeyCallback: ssh.FixedHostKey(hostPubKey),
 	}
 
 	return sshConfig
