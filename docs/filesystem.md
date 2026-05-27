@@ -121,14 +121,9 @@ This means:
 - Local configuration changes persist across updates via the merge process
 - Rolling back the OS also rolls back `/etc` to match that OS version
 
-## Configuring Additional Disks and Partitions
+## Configuring Additional Disks
 
-Since Elemental 3 supports Butane input, additional disks and partitions can be configured via Ignition on firstboot.
-This allows you to:
-
-- Add additional data disks
-- Create custom partitions for specific workloads
-- Configure filesystems and mount points beyond the default layout
+Since Elemental 3 supports Butane input, additional disks can be configured via Ignition on firstboot.
 
 This configuration is processed during the firstboot phase before the system becomes operational.
 
