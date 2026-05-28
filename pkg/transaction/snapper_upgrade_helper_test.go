@@ -26,6 +26,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/suse/elemental/v3/pkg/btrfs"
+	sysrunner "github.com/suse/elemental/v3/pkg/sys/runner"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 	"github.com/suse/elemental/v3/pkg/transaction"
 )
@@ -163,6 +164,14 @@ var _ = Describe("SnapperUpgradeHelper", Label("transaction"), func() {
 			snSysConf := filepath.Join(root, snapshotP, "/etc/sysconfig/snapper")
 			template := filepath.Join(root, snapshotP, snTemplate)
 			configsDir := filepath.Join(root, snapshotP, "/etc/snapper/configs")
+			newEtc := filepath.Join(root, snapshotP, "etc")
+			newHome := filepath.Join(root, snapshotP, "home")
+
+			// Run a real rsync process to check merge works as intended
+			realRunner := sysrunner.NewRunner()
+			sideEffects["rsync"] = func(args ...string) ([]byte, error) {
+				return realRunner.Run("rsync", args...)
+			}
 
 			Expect(vfs.MkdirAll(tfs, configsDir, vfs.DirPerm)).To(Succeed())
 			Expect(vfs.MkdirAll(tfs, filepath.Dir(template), vfs.DirPerm)).To(Succeed())
@@ -174,7 +183,28 @@ var _ = Describe("SnapperUpgradeHelper", Label("transaction"), func() {
 			Expect(tfs.WriteFile(etcStatus, []byte(snapperStatus), vfs.FilePerm)).To(Succeed())
 			Expect(tfs.WriteFile(homeStatus, []byte{}, vfs.FilePerm)).To(Succeed())
 
+			etcMerge := trans.Merges["/etc"]
+			Expect(etcMerge).NotTo(BeNil())
+
+			// Creating files to aligned with snapper status for etc
+			// Customized files
+			Expect(vfs.MkdirAll(tfs, etcMerge.Modified, vfs.DirPerm)).To(Succeed())
+			Expect(tfs.WriteFile(filepath.Join(etcMerge.Modified, "createdFile"), []byte("custom created file"), vfs.FilePerm)).To(Succeed())
+			Expect(tfs.WriteFile(filepath.Join(etcMerge.Modified, "modifiedFile"), []byte("custom modified file"), vfs.FilePerm)).To(Succeed())
+			Expect(tfs.WriteFile(filepath.Join(etcMerge.Modified, "relabelledFile"), []byte("custom relabelled file"), vfs.FilePerm)).To(Succeed())
+			Expect(tfs.WriteFile(filepath.Join(etcMerge.Modified, "unmodifiedFile"), []byte("non modified file"), vfs.FilePerm)).To(Succeed())
+			Expect(vfs.MkdirAll(tfs, trans.Merges["/home"].Modified, vfs.DirPerm)).To(Succeed())
+
+			// New defaults
+			Expect(vfs.MkdirAll(tfs, newEtc, vfs.DirPerm)).To(Succeed())
+			Expect(tfs.WriteFile(filepath.Join(newEtc, "deletedFile"), []byte("to be deleted file"), vfs.FilePerm)).To(Succeed())
+			Expect(tfs.WriteFile(filepath.Join(newEtc, "modifiedFile"), []byte("new defaults modified file"), vfs.FilePerm)).To(Succeed())
+			Expect(tfs.WriteFile(filepath.Join(newEtc, "relabelledFile"), []byte("new defaults relabelled file"), vfs.FilePerm)).To(Succeed())
+			Expect(tfs.WriteFile(filepath.Join(newEtc, "unmodifiedFile"), []byte("new defaults non modified file"), vfs.FilePerm)).To(Succeed())
+			Expect(vfs.MkdirAll(tfs, newHome, vfs.DirPerm)).To(Succeed())
+
 			Expect(upgradeH.Merge(trans)).To(Succeed())
+
 			Expect(runner.MatchMilestones([][]string{
 				{"snapper", "--no-dbus", "-c", "etc", "create-config", "--fstype", "btrfs", "/etc"},
 				{"snapper", "--no-dbus", "-c", "etc", "create", "--print-number"},
@@ -191,6 +221,19 @@ var _ = Describe("SnapperUpgradeHelper", Label("transaction"), func() {
 				},
 				{"rsync"},
 			})).To(Succeed())
+
+			// Verify customizations take precendence over new defaults
+			Expect(tfs.ReadFile(filepath.Join(etcMerge.New, "modifiedFile"))).To(Equal([]byte("custom modified file")))
+			Expect(tfs.ReadFile(filepath.Join(etcMerge.New, "createdFile"))).To(Equal([]byte("custom created file")))
+
+			// Verify files modifying only extended attributes are ignored
+			Expect(tfs.ReadFile(filepath.Join(etcMerge.New, "relabelledFile"))).To(Equal([]byte("new defaults relabelled file")))
+
+			// Verify deleted files have also precedence over new defaults
+			Expect(vfs.Exists(tfs, filepath.Join(etcMerge.New, "deletedFile"))).To(BeFalse())
+
+			// Verify unmodified files are not copied over
+			Expect(tfs.ReadFile(filepath.Join(etcMerge.New, "unmodifiedFile"))).To(Equal([]byte("new defaults non modified file")))
 		})
 		It("updates fstab", func() {
 			fstab := filepath.Join(root, ".snapshots/5/snapshot/etc/fstab")
