@@ -284,7 +284,7 @@ func (sc snapperContext) applyCustomChanges(status, rwVolPath string, merge *Mer
 	}
 	defer func() {
 		e := statusF.Close()
-		if err != nil {
+		if err == nil && e != nil {
 			err = fmt.Errorf("failed closing status file: %w", e)
 		}
 	}()
@@ -305,13 +305,13 @@ func (sc snapperContext) applyCustomChanges(status, rwVolPath string, merge *Mer
 		switch {
 		case len(match) == 0:
 			continue
-		case match[1] == "....":
+		case strings.HasPrefix(match[1], "...."):
 			// Ignore extended attributes changes because the stock snapshot used for
 			// comparison was taken before SELINUX relabelling, hence this is likely to
 			// list almost every single file.
 			continue
 		case match[2] == "-":
-			err = sc.s.FS().RemoveAll(filepath.Join(merge.New, match[3]))
+			err = sc.s.FS().RemoveAll(filepath.Join(merge.New, strings.TrimPrefix(match[3], rwVolPath)))
 			if err != nil {
 				_ = syncF.Close()
 				return err
