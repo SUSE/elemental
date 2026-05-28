@@ -329,6 +329,10 @@ func (sc snapperContext) applyCustomChanges(status, rwVolPath string, merge *Mer
 		return fmt.Errorf("failed closing modified files list: %w", err)
 	}
 
+	// Ensure rsync gets the raw path in testing environments
+	if s, e := sc.s.FS().RawPath(syncFiles); e == nil {
+		syncFiles = s
+	}
 	syncFlags := append(rsync.DefaultFlags(), "--files-from", syncFiles)
 
 	sync := rsync.NewRsync(sc.s, rsync.WithContext(sc.ctx), rsync.WithFlags(syncFlags...))
