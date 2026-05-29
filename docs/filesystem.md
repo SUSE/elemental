@@ -125,20 +125,19 @@ This means:
 
 The three way merge concept is common in distributed version control systems such as git. It essentially describes
 the process of merging two branches. The same concept can easily be applied to directory trees. In Elemental the
-essential focus is around the contents of /etc in a running system.
+essential focus is around the contents of `/etc` in a running system.
 
 The merge consists on applying two independent deltas over the same origin. There are the stock default contents of
 the current image in which there are some customization applied on top (e.g. users configurations, ssh keys, etc.), this
 is the customizations delta. On the other side there is the delta between the stock default contents of the current image
-versus the defaults ofi the new image, the defaults delta.
+versus the defaults of the new image, the defaults delta.
 
 The merging process applies both deltas over the original content with preference for the customizations delta.
 This is a two step process, first applies the defaults delta and then applies the customizations delta. Deltas are
 defined at file granularity, meaning the entire file is copied when the delta is applied. This way customized files are
 always kept during upgrades, having preference over the defaults delta in case of overlaps. Customized files always win.
 
-> [!NOTE]
-> SE Linux extended attributes are not merged, snapshotted directories are always relabelled according to the current
+> **NOTE:** SE Linux extended attributes are not merged, snapshotted directories are always relabelled according to the current
 > SE Linux policy.
 
 #### Merge combinations
@@ -155,9 +154,9 @@ and the expected outcome in each case.
 | exists            | not modified     | deleted          | file deleted     |
 | exists            | deleted          | not modified     | file deleted     |
 | exists            | deleted          | modified         | customized file  |
-| missing           | default creation | custom creation  | custom creation  |
-| missing           | default creation | missing          | default creation |
-| missing           | missing          | custom creation  | custom creation  |
+| missing           | missing          | user created     | user created     |
+| missing           | newly added      | user created     | user created     |
+| missing           | newly added      | missing          | newly added      |
 
 
 ## Configuring Additional Disks
