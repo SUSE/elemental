@@ -8,7 +8,7 @@ IMG_REPO?=registry.opensuse.org/devel/unifiedcore/tumbleweed/containers
 IMG?=$(BUILD_DIR)/$(IMG_NAME)
 DISK?=$(realpath $(IMG).qcow2)
 DISKSIZE?=20G
-OS_IMG?=$(IMG_REPO)/uc-base-os-kernel-default
+OS_IMG?=$(IMG_REPO)/base-os-kernel-default
 OS_VERSION?=latest
 DOCKER_SOCK?=/var/run/docker.sock
 
