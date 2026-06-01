@@ -117,7 +117,7 @@ Once you run the below command, the virtual disk created as part of the [Prepare
 sudo elemental3ctl install \
   --overlay tar://overlays.tar.gz \
   --config config.sh \
-  --os-image registry.opensuse.org/devel/unifiedcore/tumbleweed/containers/uc-base-os-kernel-default:latest \
+  --os-image registry.opensuse.org/devel/unifiedcore/tumbleweed/containers/base-os-kernel-default:latest \
   --target /dev/nbd0 \
   --cmdline "root=LABEL=SYSTEM console=ttyS0"
 ```
@@ -346,7 +346,7 @@ It will be using an `openSUSE Tumbleweed` image and will be configured to automa
 sudo elemental3ctl --debug build-installer \
     --type iso \
     --output build \
-    --os-image registry.opensuse.org/devel/unifiedcore/tumbleweed/containers/uc-base-os-kernel-default:latest \
+    --os-image registry.opensuse.org/devel/unifiedcore/tumbleweed/containers/base-os-kernel-default:latest \
     --overlay dir://iso-overlay \
     --cmdline "console=ttyS0" \
     --config config-live.sh \
@@ -429,7 +429,7 @@ Suppose the image that you created as part of the previous sections has been run
 You can do this through the `elemental3ctl` command line tool, by executing the following command:
 
 ```shell
-elemental3ctl upgrade --os-image registry.opensuse.org/devel/unifiedcore/tumbleweed/containers/uc-base-os-kernel-default:latest
+elemental3ctl upgrade --os-image registry.opensuse.org/devel/unifiedcore/tumbleweed/containers/base-os-kernel-default:latest
 ```
 
 After command completion, a new snapshot will be created:
@@ -454,4 +454,4 @@ localhost:~ # snapper list
 2* | single |       | Wed Jul 16 13:00:13 2025 | root |  12.28 MiB | number  | snapshot created from parent snapshot 1 |
 ```
 
-The latest snapshot will be running on the latest version of the `registry.opensuse.org/devel/unifiedcore/tumbleweed/containers/uc-base-os-kernel-default` image and will still hold any previously defined configurations and/or extensions.
+The latest snapshot will be running on the latest version of the `registry.opensuse.org/devel/unifiedcore/tumbleweed/containers/base-os-kernel-default` image and will still hold any previously defined configurations and/or extensions.
