@@ -25,8 +25,20 @@ import (
 )
 
 var _ = Describe("LoadSchemaVersion", Label("release-manifest"), func() {
-	It("defaults to v0 when schema field is missing", func() {
+	It("returns v1 when schema is explicitly set to v1", func() {
 		data := []byte(`
+schema: v1
+metadata:
+  name: "test"
+`)
+		version, err := api.LoadSchemaVersion(data)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(version).To(Equal(api.SchemaV1))
+	})
+
+	It("returns v0 when schema is explicitly set to v0", func() {
+		data := []byte(`
+schema: v0
 metadata:
   name: "test"
 `)
@@ -35,9 +47,8 @@ metadata:
 		Expect(version).To(Equal(api.SchemaV0))
 	})
 
-	It("returns v0 when schema is explicitly set to v0", func() {
+	It("defaults to v0 when schema field is missing", func() {
 		data := []byte(`
-schema: v0
 metadata:
   name: "test"
 `)

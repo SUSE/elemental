@@ -29,21 +29,28 @@ import (
 )
 
 const invalidManifest = `
+schema: v1
 metadata:
   name: "suse-core"
   version: "0.0.1"
-  upgradePathsFrom: 
-  - "0.0.1-rc"
-  creationDate: "2000-01-01"
+lifecycle:
+  availabilityDate: "2000-01-01"
+  fullSupportEndDate: "2001-01-01"
+  maintenanceSupportEndDate: "2002-01-01"
 corePlatform:
   name: "suse-edge"
   version: "0.0.0"
 `
 
 const brokenManifest = `
+schema: v1
 metadata:
   name: "suse-edge"
   version: "3.2.0"
+lifecycle:
+  availabilityDate: "2000-01-01"
+  fullSupportEndDate: "2001-01-01"
+  maintenanceSupportEndDate: "2002-01-01"
 components:
   operatingSystem:
     image:
@@ -60,6 +67,34 @@ components:
         type: "broken"
 `
 
+const missingLifecycleManifest = `
+schema: v1
+metadata:
+  name: "suse-core"
+  version: "1.0"
+components:
+  operatingSystem:
+    image:
+      base: "registry.com/foo/bar/os-base:6.2"
+      iso: "registry.com/foo/bar/installer-iso:6.2"
+`
+
+const badDateManifest = `
+schema: v1
+metadata:
+  name: "suse-core"
+  version: "1.0"
+lifecycle:
+  availabilityDate: "not-a-date"
+  fullSupportEndDate: "2001-01-01"
+  maintenanceSupportEndDate: "2002-01-01"
+components:
+  operatingSystem:
+    image:
+      base: "registry.com/foo/bar/os-base:6.2"
+      iso: "registry.com/foo/bar/installer-iso:6.2"
+`
+
 func TestCoreManifestSuite(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Core Release Manifest API test suite")
@@ -74,12 +109,16 @@ var _ = Describe("ReleaseManifest", Label("release-manifest"), func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(rm).ToNot(BeNil())
 
-		Expect(rm.Schema).To(BeEquivalentTo("v0"))
+		Expect(rm.Schema).To(BeEquivalentTo("v1"))
 
 		Expect(rm.Metadata).ToNot(BeNil())
 		Expect(rm.Metadata.Name).To(Equal("suse-core"))
 		Expect(rm.Metadata.Version).To(Equal("1.0"))
-		Expect(rm.Metadata.CreationDate).To(Equal("2000-01-01"))
+
+		Expect(rm.Lifecycle).ToNot(BeNil())
+		Expect(rm.Lifecycle.AvailabilityDate).To(Equal("2000-01-01"))
+		Expect(rm.Lifecycle.FullSupportEndDate).To(Equal("2001-01-01"))
+		Expect(rm.Lifecycle.MaintenanceSupportEndDate).To(Equal("2002-01-01"))
 
 		Expect(rm.Components).ToNot(BeNil())
 		Expect(rm.Components.OperatingSystem).ToNot(BeNil())
@@ -133,6 +172,7 @@ components:
 		rm, err := core.Parse(data)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(rm).ToNot(BeNil())
+		Expect(rm.Schema).To(BeEquivalentTo(""))
 	})
 
 	It("succeeds with explicit schema v0", func() {
@@ -150,6 +190,62 @@ components:
 		Expect(rm.Schema).To(BeEquivalentTo("v0"))
 	})
 
+	It("allows metadata.creationDate under schema v0", func() {
+		data := []byte(`
+schema: v0
+metadata:
+  name: "suse-core"
+  version: "1.0"
+  creationDate: "2000-01-01"
+components:
+  operatingSystem:
+    image:
+      base: "registry.com/foo/bar/os-base:6.2"
+      iso: "registry.com/foo/bar/installer-iso:6.2"
+`)
+		rm, err := core.Parse(data)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(rm.Metadata.CreationDate).To(Equal("2000-01-01"))
+	})
+
+	It("allows metadata.creationDate when schema is omitted (default v0)", func() {
+		data := []byte(`
+metadata:
+  name: "suse-core"
+  version: "1.0"
+  creationDate: "2000-01-01"
+components:
+  operatingSystem:
+    image:
+      base: "registry.com/foo/bar/os-base:6.2"
+      iso: "registry.com/foo/bar/installer-iso:6.2"
+`)
+		rm, err := core.Parse(data)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(rm.Metadata.CreationDate).To(Equal("2000-01-01"))
+	})
+
+	It("rejects metadata.creationDate under schema v1", func() {
+		data := []byte(`
+schema: v1
+metadata:
+  name: "suse-core"
+  version: "1.0"
+  creationDate: "2000-01-01"
+lifecycle:
+  availabilityDate: "2000-01-01"
+components:
+  operatingSystem:
+    image:
+      base: "registry.com/foo/bar/os-base:6.2"
+      iso: "registry.com/foo/bar/installer-iso:6.2"
+`)
+		rm, err := core.Parse(data)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring(`field "metadata.creationDate" is not allowed in schema "v1"`))
+		Expect(rm).To(BeNil())
+	})
+
 	It("fails with unknown schema version", func() {
 		data := []byte(`
 schema: v99
@@ -163,6 +259,64 @@ components:
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring(`unsupported manifest schema version: "v99"`))
 		Expect(rm).To(BeNil())
+	})
+
+	It("succeeds when the lifecycle section is omitted", func() {
+		data := []byte(missingLifecycleManifest)
+		rm, err := core.Parse(data)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(rm).ToNot(BeNil())
+		Expect(rm.Lifecycle).To(BeNil())
+	})
+
+	It("fails when a lifecycle date is malformed", func() {
+		data := []byte(badDateManifest)
+		rm, err := core.Parse(data)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring(`field "ReleaseManifest.lifecycle.availabilityDate" must be a date in YYYY-MM-DD format, but got "not-a-date"`))
+		Expect(rm).To(BeNil())
+	})
+
+	It("fails when lifecycle is present but availabilityDate is missing", func() {
+		data := []byte(`
+schema: v1
+metadata:
+  name: "suse-core"
+  version: "1.0"
+lifecycle:
+  fullSupportEndDate: "2001-01-01"
+components:
+  operatingSystem:
+    image:
+      base: "registry.com/foo/bar/os-base:6.2"
+      iso: "registry.com/foo/bar/installer-iso:6.2"
+`)
+		rm, err := core.Parse(data)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring(`field "ReleaseManifest.lifecycle.availabilityDate" is required`))
+		Expect(rm).To(BeNil())
+	})
+
+	It("accepts a lifecycle block with only availabilityDate", func() {
+		data := []byte(`
+schema: v1
+metadata:
+  name: "suse-core"
+  version: "1.0"
+lifecycle:
+  availabilityDate: "2000-01-01"
+components:
+  operatingSystem:
+    image:
+      base: "registry.com/foo/bar/os-base:6.2"
+      iso: "registry.com/foo/bar/installer-iso:6.2"
+`)
+		rm, err := core.Parse(data)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(rm).ToNot(BeNil())
+		Expect(rm.Lifecycle).ToNot(BeNil())
+		Expect(rm.Lifecycle.AvailabilityDate).To(Equal("2000-01-01"))
+		Expect(rm.Lifecycle.FullSupportEndDate).To(BeEmpty())
 	})
 
 	It("fails when manifest is broken", func() {

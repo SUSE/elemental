@@ -1,8 +1,12 @@
 # This configuration represents a fictional SUSE Solution and is meant for example purposes only.
+schema: v1
 metadata:
   name: "suse-solution"
   version: "4.2.0"
-  creationDate: "2025-12-08"
+lifecycle:
+  availabilityDate: "2025-12-08"
+  fullSupportEndDate: "2026-12-08"
+  maintenanceSupportEndDate: "2027-12-08"
 corePlatform:
   # Release manifest OCI image of the Core Platform that this SUSE Solution extends
   image: "registry.suse.com/elemental/rke2/rke2-manifest:1.35"

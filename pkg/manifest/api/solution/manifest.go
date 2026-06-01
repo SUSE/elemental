@@ -31,6 +31,7 @@ import (
 type ReleaseManifest struct {
 	Schema       api.SchemaVersion `yaml:"schema,omitempty"`
 	Metadata     *api.Metadata     `yaml:"metadata,omitempty"`
+	Lifecycle    *api.Lifecycle    `yaml:"lifecycle,omitempty"`
 	CorePlatform *CorePlatform     `yaml:"corePlatform" validate:"required"`
 	Components   Components        `yaml:"components,omitempty"`
 }
@@ -45,7 +46,8 @@ type Components struct {
 }
 
 func Parse(data []byte) (*ReleaseManifest, error) {
-	if _, err := api.LoadSchemaVersion(data); err != nil {
+	schema, err := api.LoadSchemaVersion(data)
+	if err != nil {
 		return nil, fmt.Errorf("parsing 'solution' release manifest: %w", err)
 	}
 
@@ -63,6 +65,10 @@ func Parse(data []byte) (*ReleaseManifest, error) {
 			err = api.FormatErrors(validationErrors)
 		}
 
+		return nil, fmt.Errorf("validating 'solution' release manifest: %w", err)
+	}
+
+	if err := api.ValidateMetadata(schema, rm.Metadata); err != nil {
 		return nil, fmt.Errorf("validating 'solution' release manifest: %w", err)
 	}
 

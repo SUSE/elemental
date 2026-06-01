@@ -13,11 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-schema: v0
+schema: v1
 metadata:
   name: "suse-core"
   version: "1.0"
-  creationDate: "2000-01-01"
+lifecycle:
+  availabilityDate: "2000-01-01"
+  fullSupportEndDate: "2001-01-01"
+  maintenanceSupportEndDate: "2002-01-01"
 components:
   operatingSystem:
     image:

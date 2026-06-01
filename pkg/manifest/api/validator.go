@@ -56,6 +56,8 @@ func FormatErrors(errs validator.ValidationErrors) error {
 			messages = append(messages, fmt.Sprintf("field %q must be one of [%s], but got %q", err.Namespace(), err.Param(), err.Value()))
 		case "url":
 			messages = append(messages, fmt.Sprintf("field %q must be a valid URL, but got %q", err.Namespace(), err.Value()))
+		case "datetime":
+			messages = append(messages, fmt.Sprintf("field %q must be a date in YYYY-MM-DD format, but got %q", err.Namespace(), err.Value()))
 		default:
 			messages = append(messages, fmt.Sprintf("field %q failed validation on tag %q", err.Namespace(), err.Tag()))
 		}
