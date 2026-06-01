@@ -4,8 +4,8 @@ description: |
   for the corresponding container source in <obs_project>.
 
   By default the following image-source mappings will be used:
-    - <image_repo>/uc-base-os-kernel-default:latest  = <obs_project>/elemental-base-os:default
-    - <image_repo>/uc-base-kernel-default-iso:latest = <obs_project>/elemental-base-os:default-iso
+    - <image_repo>/base-os-kernel-default:latest = <obs_project>/elemental-base-os:default
+    - <image_repo>/base-os-kernel-default-iso:latest = <obs_project>/elemental-base-os:default-iso
     - <image_repo>/release-manifest:latest           = <obs_project>/release-manifest-image
 inputs:
   image_repo:
@@ -22,13 +22,13 @@ inputs:
     description: |
       A map between tagged image references and their source OBS packages. Overrides the default source mapping.
       (e.g. override_source_mapping: |
-              uc-base-os-kernel-default:latest  = elemental-base-os:default
-              uc-base-kernel-default-iso:latest = elemental-base-os:default-iso
+              base-os-kernel-default:latest = elemental-base-os:default
+              base-os-kernel-default-iso:latest = elemental-base-os:default-iso
       )
     required: false
     default: |
-      uc-base-os-kernel-default:latest  = elemental-base-os:default
-      uc-base-kernel-default-iso:latest = elemental-base-os:default-iso
+      base-os-kernel-default:latest = elemental-base-os:default
+      base-os-kernel-default-iso:latest = elemental-base-os:default-iso
       release-manifest:latest           = release-manifest-image
 runs:
   using: composite
@@ -46,7 +46,7 @@ runs:
           [[ -z "$image" || -z "$source" ]] && continue
           image="${image//[[:space:]]/}"
           source="${source//[[:space:]]/}"
-          
+
           wait_image_to_source_match "$image_repo/$image" "$obs_project/$source"
         done <<< "$mapping"
 
