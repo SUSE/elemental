@@ -186,7 +186,7 @@ export ELEMENTAL_PATH="${HOME}/elemental-cookbook/elemental/examples/elemental/c
 Elemental 3 is packaged and delivered in a container image. We will use Podman to fetch the latest version as a final step to the environment setup stage.
 
 ```shell
-export ELEMENTAL_IMAGE="registry.suse.com/beta/uc/elemental3:latest"
+export ELEMENTAL_IMAGE="registry.suse.com/elemental/elemental:3.0"
 
 sudo podman pull ${ELEMENTAL_IMAGE}
 ```
