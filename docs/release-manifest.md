@@ -25,7 +25,7 @@ metadata:
   version: "4.2.0"
   creationDate: "2025-07-10"
 corePlatform:
-  image: "registry.suse.com/uc/release-manifest:0.0.1"
+  image: "registry.suse.com/elemental/rke2/rke2-manifest:1.35"
 components:
   helm:
     charts:
@@ -84,7 +84,7 @@ As mentioned in the [release.yaml](configuration-directory.md#releaseyaml) confi
 *Steps:*
 1. Create a solution release manifest YAML file by using the [Solution Release Manifest API](#solution-release-manifest-api) reference. **Make sure you provide only components relevant to your solution and remove the example components from the reference.**
 2. Using your build tool of choice, build your image with the created manifest copied inside of it.
-   * **Caveat:** To be able to find the release manifest, Elemental's tooling requires that the copied manifest's name conforms to the `release_manifest*.yaml` glob pattern and that it is copied either under the root of the OS (`/`), or under `/etc`. 
+   * **Caveat:** To be able to find the release manifest, Elemental's tooling requires that the copied manifest's name conforms to the `release_manifest*.yaml` glob pattern and that it is copied either under the root of the OS (`/`), or under `/etc`.
    * **Recommendation:** Since this image will only hold this file, it is advisable for the image to be as small as possible. Consider using base images such as [scratch](https://hub.docker.com/_/scratch), or similar for your OCI image.
 
 ## Core Platform Release Manifest
@@ -109,11 +109,11 @@ metadata:
 components:
   operatingSystem:
     image:
-      base: "registry.suse.com/uc/uc-base-os-kernel-default:0.0.1"
-      iso: "registry.suse.com/uc/uc-base-kernel-default-iso:0.0.1"
+      base: "registry.suse.com/elemental/base-os-kernel-default:16.0"
+      iso: "registry.suse.com/elemental/base-os-kernel-default-iso:16.0"
   kubernetes:
-    version: "v1.35.0+rke2r1"
-    image: "registry.suse.com/uc/rke2:1.35_1.0"
+    version: "v1.35.5+rke2r1"
+    image: "registry.suse.com/elemental/rke2/rke2:1.35.5_rke2r1"
   helm:
     charts:
     - name: "MetalLB"
@@ -126,7 +126,7 @@ components:
       url: "https://metallb.github.io/metallb"
 ```
 
-The manifest's structure is similar to that of the [Solution Release Manifest](#solution-release-manifest-api), with the key difference being the inclusion of components unique to the Core Platform (e.g. `operatingSystem` and `kubernetes`). 
+The manifest's structure is similar to that of the [Solution Release Manifest](#solution-release-manifest-api), with the key difference being the inclusion of components unique to the Core Platform (e.g. `operatingSystem` and `kubernetes`).
 
 This reference focuses only on the unique to the Core Platform component APIs. Any components not mentioned here share the same description as those in the `Solution Release Manifest`.
 
