@@ -30,15 +30,15 @@ var _ = Describe("Release info tests", Label("release-info"), func() {
 components:
   operatingSystem:
     image:
-      base: registry.suse.com/beta/uc/uc-base-os-kernel-default:16.0-55.79
-      iso: registry.suse.com/beta/uc/uc-base-kernel-default-iso:16.0-55.132
+      base: registry.suse.com/elemental/base-os-kernel-default:16.0-2.4
+      iso: registry.suse.com/elemental/base-os-kernel-default-iso:16.0-2.7
   kubernetes:
-    version: v1.35.0+rke2r1
-    image: registry.suse.com/beta/uc/rke2:1.35_1.42-1.77
+    version: v1.35.5+rke2r1
+    image: registry.suse.com/elemental/rke2/rke2:1.35.5_rke2r1
   systemd:
     extensions:
     - name: elemental3ctl
-      image: registry.suse.com/beta/uc/elemental3ctl:0.6_19.2-3.151
+      image: registry.suse.com/elemental/elemental3ctl:0.6_19.2-3.151
       required: true
   helm:
     charts:
@@ -101,14 +101,14 @@ components:
 		Expect(err).ToNot(HaveOccurred())
 		Expect(buffer).To(ContainSubstring("CORE PLATFORM"))
 		Expect(buffer).To(ContainSubstring("suse-core-test"))
-		Expect(buffer).To(ContainSubstring("registry.suse.com/beta/uc/uc-base-os-kernel-default:16.0-55.79"))
+		Expect(buffer).To(ContainSubstring("registry.suse.com/elemental/base-os-kernel-default:16.0-2.4"))
 
 		Expect(buffer).To(ContainSubstring("INFRASTRUCTURE COMPONENTS"))
 		Expect(buffer).To(ContainSubstring("SLES 16.0"))
-		Expect(buffer).To(ContainSubstring("registry.suse.com/beta/uc/rke2:1.35_1.42-1.77"))
+		Expect(buffer).To(ContainSubstring("registry.suse.com/elemental/rke2/rke2:1.35.5_rke2r1"))
 
 		Expect(buffer).To(ContainSubstring("SYSTEMD EXTENSIONS"))
-		Expect(buffer).To(ContainSubstring("registry.suse.com/beta/uc/elemental3ctl:0.6_19.2-3.151"))
+		Expect(buffer).To(ContainSubstring("registry.suse.com/elemental/elemental3ctl:0.6_19.2-3.151"))
 
 		Expect(buffer).To(ContainSubstring("CHART NAME"))
 		Expect(buffer).To(ContainSubstring("https://metallb.github.io/metallb"))
