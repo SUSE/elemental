@@ -87,7 +87,7 @@ disks:
         - path: /opt
         - path: /srv
         - path: /home`
-		expectedISO = "https://registry.foo.bar/uc-base-kernel-default-iso:0.0.1"
+		expectedISO = "https://registry.foo.bar/base-os-kernel-default-iso:0.0.1"
 	)
 
 	var fs vfs.FS
