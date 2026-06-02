@@ -345,6 +345,51 @@ var _ = Describe("Kubernetes", func() {
 			Expect(confScript).ToNot(BeEmpty())
 		})
 
+		It("Uses server config for a single explicitly configured server node", func() {
+			conf := kubernetes.Kubernetes{
+				Nodes: kubernetes.Nodes{
+					{Hostname: "node01", Type: kubernetes.NodeTypeServer},
+				},
+			}
+
+			confScript, err := writeK8sConfigDeployScript(
+				fs,
+				output,
+				conf,
+				"/opt/k8s/install",
+				"/opt/k8s/install/install.sh",
+			)
+			Expect(err).NotTo(HaveOccurred())
+
+			b, err := fs.ReadFile(filepath.Join(output.OverlaysDir(), confScript))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(string(b)).To(ContainSubstring(`CONFIGFILE="/var/lib/elemental/kubernetes/${NODETYPE}.yaml"`))
+			Expect(string(b)).ToNot(ContainSubstring("init.yaml"))
+		})
+
+		It("Uses init config only for multi-node clusters", func() {
+			conf := kubernetes.Kubernetes{
+				Nodes: kubernetes.Nodes{
+					{Hostname: "server01", Type: kubernetes.NodeTypeServer},
+					{Hostname: "agent01", Type: kubernetes.NodeTypeAgent},
+				},
+			}
+
+			confScript, err := writeK8sConfigDeployScript(
+				fs,
+				output,
+				conf,
+				"/opt/k8s/install",
+				"/opt/k8s/install/install.sh",
+			)
+			Expect(err).NotTo(HaveOccurred())
+
+			b, err := fs.ReadFile(filepath.Join(output.OverlaysDir(), confScript))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(string(b)).To(ContainSubstring(`if [[ "${HOSTNAME}" = "server01" ]]; then`))
+			Expect(string(b)).To(ContainSubstring("CONFIGFILE=/var/lib/elemental/kubernetes/init.yaml"))
+		})
+
 		It("Succeeds to configure RKE2 with additional resources and auth", func() {
 			additionalManifests := make(map[string][]byte)
 			additionalManifests["example-auth-priority.yaml"] = []byte("apiVersion: v1\nkind: Secret\nmetadata:\n    namespace: kube-system\n    name: example-auth\ntype: kubernetes.io/dockerconfigjson\ndata:\n    .dockerconfigjson: eyJhdXRocyI6eyJleGFtcGxlLmlvIjp7InVzZXJuYW1lIjoiZXhhbXBsZS11c2VyIiwicGFzc3dvcmQiOiJleGFtcGxlLXBhc3MiLCJhdXRoIjoiWlhoaGJYQnNaUzExYzJWeU9tVjRZVzF3YkdVdGNHRnpjdz09In19fQ==\n")

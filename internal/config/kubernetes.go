@@ -182,7 +182,7 @@ func writeK8sConfigDeployScript(fs vfs.FS, output Output, k kubernetes.Kubernete
 		err      error
 	)
 
-	if len(k.Nodes) > 0 {
+	if len(k.Nodes) > 1 {
 		initNode, err = kubernetes.FindInitNode(k.Nodes)
 		if err != nil {
 			return "", fmt.Errorf("finding init node: %w", err)
