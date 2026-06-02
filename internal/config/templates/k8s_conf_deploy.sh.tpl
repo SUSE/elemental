@@ -17,10 +17,12 @@ NODETYPE="${hosts[${HOSTNAME}]:-server}"
 CONFIGFILE="{{ .KubernetesDir }}/${NODETYPE}.yaml"
 REGFILE="{{ .KubernetesDir }}/registries.yaml"
 
+{{- if .InitNode.Hostname }}
 if [[ "${HOSTNAME}" = "{{ .InitNode.Hostname }}" ]]; then
   echo "Setting up init node"
   CONFIGFILE={{ .KubernetesDir }}/init.yaml
 fi
+{{- end }}
 
 # Better to append if a file exist
 # Useful if some custom configuration are done at boot
