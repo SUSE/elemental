@@ -119,6 +119,36 @@ var _ = Describe("Cluster", func() {
 
 		Expect(cluster.AgentConfig).To(BeNil())
 	})
+	It("Loads values from single-node server config when one server node is explicitly configured", func() {
+		kubernetes := &Kubernetes{
+			Network: Network{
+				APIHost: "api.suse.com",
+				APIVIP4: "192.168.122.50",
+			},
+			Nodes: Nodes{
+				{
+					Hostname: "node01",
+					Type:     NodeTypeServer,
+				},
+			},
+			Config: Config{
+				ServerFilePath: "/etc/kubernetes/single-node/server.yaml",
+			},
+		}
+
+		cluster, err := NewCluster(s, kubernetes)
+		Expect(err).ToNot(HaveOccurred())
+
+		Expect(cluster.ServerConfig).ToNot(BeEmpty())
+		Expect(cluster.ServerConfig["cni"]).To(Equal("calico"))
+		Expect(cluster.ServerConfig["token"]).To(Equal("token123"))
+		Expect(cluster.ServerConfig["tls-san"]).To(ContainElements([]string{"10.10.10.1", "cluster1.suse.com", "192.168.122.50", "api.suse.com"}))
+		Expect(cluster.ServerConfig["selinux"]).To(BeTrue())
+		Expect(cluster.ServerConfig["server"]).To(BeNil())
+
+		Expect(cluster.InitServerConfig).To(BeNil())
+		Expect(cluster.AgentConfig).To(BeNil())
+	})
 	It("Loads values from multi-node config", func() {
 		kubernetes := &Kubernetes{
 			Network: Network{
