@@ -13,12 +13,15 @@
 ---
 
 .default_products: &default_products
-  distri: sle
+  distri: unified-core
 
 .common_settings: &common_settings
   CONSOLE: ttyS0
+  # This sounds like a (and it is!) a workaround as UC is based on SLE
+  +DISTRI: sle
+  +VERSION: '%OS_VERSION%'
   K8S: rke2
-  KERNEL_CMD_LINE: 'console=%CONSOLE% testframework=openqa'
+  KERNEL_CMD_LINE: 'console=%CONSOLE% testframework=openqa net.ifnames=0'
   TEST_PASSWORD: Elemental@R00t
 
 .common_test_settings: &common_test_settings
@@ -97,9 +100,103 @@
   QEMURAM: '4096'
   RANCHER_VERSION: v2.14.1
   TESTED_CMD: customize
-  TEST_FRAMEWORK_REPO: https://github.com/ldevulder/distros-test-framework@for-openqa-tests
+  TEST_FRAMEWORK_REPO: https://github.com/rancher/distros-test-framework
   TESTS_TO_RUN: validatecluster,deployrancher
   YAML_SCHEDULE: schedule/elemental3/master.yaml
+
+# Tests
+.extract_iso: &extract_iso
+  <<: *generate_settings
+  TESTED_CMD: extract_iso
+.test_extract_iso: &test_extract_iso
+  <<: *test_iso_settings
+  TESTED_CMD: extract_iso
+  START_AFTER_TEST: '%TESTED_CMD%'
+.generate_with_install: &generate_with_install
+  <<: *generate_settings
+  TESTED_CMD: install
+.generate_with_build_installer_iso: &generate_with_build_installer_iso
+   <<: *generate_settings
+   ISO_CMD_LINE: 'console=%CONSOLE% enforcing=0'
+   TESTED_CMD: build_installer_iso
+.test_with_install: &test_with_install
+   <<: *test_raw_settings
+   TESTED_CMD: install
+   START_AFTER_TEST: generate_with_%TESTED_CMD%
+.test_with_build_installer_iso: &test_with_build_installer_iso
+   <<: *test_iso_settings
+   TESTED_CMD: build_installer_iso
+   START_AFTER_TEST: generate_with_%TESTED_CMD%
+.generate_iso: &generate_iso
+   <<: *generate_settings
+   CRYPTO_POLICY: fips
+   IMAGE_TYPE: iso
+   TESTED_CMD: customize
+.generate_raw: &generate_raw
+   <<: *generate_settings
+   IMAGE_TYPE: raw
+   TESTED_CMD: customize
+.generate_raw_multinode: &generate_raw_multinode
+   <<: *generate_settings
+   IMAGE_TYPE: raw
+   TESTED_CMD: customize
+   CLUSTER_TYPE: multinode
+.generate_raw_recovery: &generate_raw_recovery
+   <<: *generate_settings
+   IMAGE_TYPE: raw
+   TEMPLATE: build-tpl_recovery.tar.gz
+   TESTED_CMD: customize_recovery
+.generate_raw_singlenode: &generate_raw_singlenode
+    <<: *generate_settings
+    IMAGE_TYPE: raw
+    TESTED_CMD: customize
+    CLUSTER_TYPE: singlenode
+.test_iso_fips: &test_iso_fips
+    <<: *test_iso_settings
+    CRYPTO_POLICY: fips
+    TESTED_CMD: customize
+    START_AFTER_TEST: generate_iso
+.test_raw: &test_raw
+    <<: *test_raw_settings
+    TESTED_CMD: customize
+    START_AFTER_TEST: generate_raw
+.test_raw_recovery: &test_raw_recovery
+   <<: *test_raw_settings
+   TEMPLATE: build-tpl_recovery.tar.gz
+   TESTED_CMD: customize_recovery
+   TEST_TYPE: 'recovery'
+   START_AFTER_TEST: generate_raw_recovery
+.master_singlenode: &master_singlenode
+   <<: *master_k8s_validation_settings
+   NODES_LIST: node01
+   TESTS_TO_RUN: validatecluster
+   START_AFTER_TEST: generate_raw_singlenode
+.singlenode: &singlenode
+   <<: *singlenode_k8s_validation_settings
+   HOSTNAME: node01
+   NICMAC: '52:54:00:99:88:01'
+.master_multinode: &master_multinode
+   <<: *master_k8s_validation_settings
+   NICMAC: '52:54:00:99:88:00'
+   NODES_LIST: node01,node02,node03,node04
+   TESTS_TO_RUN: validatecluster
+   START_AFTER_TEST: generate_raw_multinode
+.node01: &node01
+   <<: *multinode_k8s_validation_settings
+   HOSTNAME: node01
+   NICMAC: '52:54:00:99:88:01'
+.node02: &node02
+   <<: *multinode_k8s_validation_settings
+   HOSTNAME: node02
+   NICMAC: '52:54:00:99:88:02'
+.node03: &node03
+   <<: *multinode_k8s_validation_settings
+   HOSTNAME: node03
+   NICMAC: '52:54:00:99:88:03'
+.node04: &node04
+   <<: *multinode_k8s_validation_settings
+   HOSTNAME: node04
+   NICMAC: '52:54:00:99:88:04'
 
 defaults:
   aarch64:
@@ -112,321 +209,445 @@ defaults:
       QEMUCPU: host
 
 products:
-  sle-16.0-uc-elemental_container:
+  uc-main-elemental_container:
     <<: *default_products
-    flavor: UnifiedCore-Elemental-Container
-    version : '16.0'
-  sle-16.0-uc-iso_image:
+    flavor: Elemental-Container
+    version: Main
+  uc-main-iso_image:
     <<: *default_products
-    flavor: UnifiedCore-ISO-Image
-    version : '16.0'
-  sle-16.0-uc-os_image:
+    flavor: ISO-Image
+    version: Main
+  uc-main-os_image:
     <<: *default_products
-    flavor: UnifiedCore-OS-Image
-    version : '16.0'
-  sle-16.0-uc-release_manifest:
+    flavor: OS-Image
+    version: Main
+  uc-main-release_manifest:
     <<: *default_products
-    flavor: UnifiedCore-Release-Manifest
-    version : '16.0'
-  sle-16.0-uc-rke2_container:
+    flavor: Release-Manifest
+    version: Main
+  uc-main-rke2_container:
     <<: *default_products
-    flavor: UnifiedCore-RKE2-Container
-    version : '16.0'
+    flavor: RKE2-Container
+    version: Main
+  uc-1.0-elemental_container:
+    <<: *default_products
+    flavor: Elemental-Container
+    version: '1.0'
+  uc-1.0-iso_image:
+    <<: *default_products
+    flavor: ISO-Image
+    version: '1.0'
+  uc-1.0-os_image:
+    <<: *default_products
+    flavor: OS-Image
+    version: '1.0'
+  uc-1.0-release_manifest:
+    <<: *default_products
+    flavor: Release-Manifest
+    version: '1.0'
+  uc-1.0-rke2_container:
+    <<: *default_products
+    flavor: RKE2-Container
+    version: '1.0'
 
 scenarios:
   aarch64:
-    sle-16.0-uc-elemental_container:
+    # UC Main
+    uc-main-elemental_container:
       - validate_container_image:
           testsuite: null
           settings:
             <<: *container_validation_settings
             TESTED_CONTAINER: elemental
-    sle-16.0-uc-iso_image:
+    uc-main-iso_image:
       - extract_iso:
           testsuite: null
           settings:
-            <<: *generate_settings
-            TESTED_CMD: extract_iso
+            <<: *extract_iso
       - test_extract_iso:
           testsuite: null
           settings:
-            <<: *test_iso_settings
-            TESTED_CMD: extract_iso
-            START_AFTER_TEST: '%TESTED_CMD%'
-    sle-16.0-uc-os_image:
+            <<: *test_extract_iso
+    uc-main-os_image:
       - generate_with_install:
           testsuite: null
           settings:
-            <<: *generate_settings
-            TESTED_CMD: install
+            <<: *generate_with_install
       - generate_with_build_installer_iso:
           testsuite: null
           settings:
-            <<: *generate_settings
-            ISO_CMD_LINE: 'console=%CONSOLE% enforcing=0'
-            TESTED_CMD: build_installer_iso
+            <<: *generate_with_build_installer_iso
       - test_with_install:
           testsuite: null
           settings:
-            <<: *test_raw_settings
-            TESTED_CMD: install
-            START_AFTER_TEST: generate_with_%TESTED_CMD%
+            <<: *test_with_install
       - test_with_build_installer_iso:
           testsuite: null
           settings:
-            <<: *test_iso_settings
-            TESTED_CMD: build_installer_iso
-            START_AFTER_TEST: generate_with_%TESTED_CMD%
-    sle-16.0-uc-release_manifest:
+            <<: *test_with_build_installer_iso
+    uc-main-release_manifest:
       - generate_iso:
           testsuite: null
           settings:
-            <<: *generate_settings
-            CRYPTO_POLICY: fips
-            IMAGE_TYPE: iso
-            TESTED_CMD: customize
+            <<: *generate_iso
       - generate_raw:
           testsuite: null
           settings:
-            <<: *generate_settings
-            IMAGE_TYPE: raw
-            TESTED_CMD: customize
+            <<: *generate_raw
       - generate_raw_multinode:
           testsuite: null
           settings:
-            <<: *generate_settings
-            IMAGE_TYPE: raw
-            TESTED_CMD: customize
-            CLUSTER_TYPE: multinode
+            <<: *generate_raw_multinode
       - generate_raw_recovery:
           testsuite: null
           settings:
-            <<: *generate_settings
-            IMAGE_TYPE: raw
-            TEMPLATE: build-tpl_recovery.tar.gz
-            TESTED_CMD: customize_recovery
+            <<: *generate_raw_recovery
       - generate_raw_singlenode:
           testsuite: null
           settings:
-            <<: *generate_settings
-            IMAGE_TYPE: raw
-            TESTED_CMD: customize
-            CLUSTER_TYPE: singlenode
+            <<: *generate_raw_singlenode
       - test_iso_fips:
           testsuite: null
           settings:
-            <<: *test_iso_settings
-            CRYPTO_POLICY: fips
-            TESTED_CMD: customize
-            START_AFTER_TEST: generate_iso
+            <<: *test_iso_fips
       - test_raw:
           testsuite: null
           settings:
-            <<: *test_raw_settings
-            TESTED_CMD: customize
-            START_AFTER_TEST: generate_raw
+            <<: *test_raw
       - test_raw_recovery:
           testsuite: null
           settings:
-            <<: *test_raw_settings
-            TEMPLATE: build-tpl_recovery.tar.gz
-            TESTED_CMD: customize_recovery
-            TEST_TYPE: 'recovery'
-            START_AFTER_TEST: generate_raw_recovery
+            <<: *test_raw_recovery
       - master_singlenode:
           testsuite: null
           settings:
-            <<: *master_k8s_validation_settings
-            NODES_LIST: node01
-            TESTS_TO_RUN: validatecluster
-            START_AFTER_TEST: generate_raw_singlenode
+            <<: *master_singlenode
       - singlenode:
           testsuite: null
           settings:
-            <<: *singlenode_k8s_validation_settings
-            HOSTNAME: node01
-            NICMAC: '52:54:00:99:88:01'
+            <<: *singlenode
       - master_multinode:
           testsuite: null
           settings:
-            <<: *master_k8s_validation_settings
-            NICMAC: '52:54:00:99:88:00'
-            NODES_LIST: node01,node02,node03,node04
-            TESTS_TO_RUN: validatecluster
-            START_AFTER_TEST: generate_raw_multinode
+            <<: *master_multinode
       - node01:
           testsuite: null
           settings:
-            <<: *multinode_k8s_validation_settings
-            HOSTNAME: node01
-            NICMAC: '52:54:00:99:88:01'
+            <<: *node01
       - node02:
           testsuite: null
           settings:
-            <<: *multinode_k8s_validation_settings
-            HOSTNAME: node02
-            NICMAC: '52:54:00:99:88:02'
+            <<: *node02
       - node03:
           testsuite: null
           settings:
-            <<: *multinode_k8s_validation_settings
-            HOSTNAME: node03
-            NICMAC: '52:54:00:99:88:03'
+            <<: *node03
       - node04:
           testsuite: null
           settings:
-            <<: *multinode_k8s_validation_settings
-            HOSTNAME: node04
-            NICMAC: '52:54:00:99:88:04'
-    sle-16.0-uc-rke2_container:
+            <<: *node04
+    uc-main-rke2_container:
+      - validate_container_image:
+          testsuite: null
+          settings:
+            <<: *container_validation_settings
+            TESTED_CONTAINER: rke2
+    # UC 1.0
+    uc-1.0-elemental_container:
+      - validate_container_image:
+          testsuite: null
+          settings:
+            <<: *container_validation_settings
+            TESTED_CONTAINER: elemental
+    uc-1.0-iso_image:
+      - extract_iso:
+          testsuite: null
+          settings:
+            <<: *extract_iso
+      - test_extract_iso:
+          testsuite: null
+          settings:
+            <<: *test_extract_iso
+    uc-1.0-os_image:
+      - generate_with_install:
+          testsuite: null
+          settings:
+            <<: *generate_with_install
+      - generate_with_build_installer_iso:
+          testsuite: null
+          settings:
+            <<: *generate_with_build_installer_iso
+      - test_with_install:
+          testsuite: null
+          settings:
+            <<: *test_with_install
+      - test_with_build_installer_iso:
+          testsuite: null
+          settings:
+            <<: *test_with_build_installer_iso
+    uc-1.0-release_manifest:
+      - generate_iso:
+          testsuite: null
+          settings:
+            <<: *generate_iso
+      - generate_raw:
+          testsuite: null
+          settings:
+            <<: *generate_raw
+      - generate_raw_multinode:
+          testsuite: null
+          settings:
+            <<: *generate_raw_multinode
+      - generate_raw_recovery:
+          testsuite: null
+          settings:
+            <<: *generate_raw_recovery
+      - generate_raw_singlenode:
+          testsuite: null
+          settings:
+            <<: *generate_raw_singlenode
+      - test_iso_fips:
+          testsuite: null
+          settings:
+            <<: *test_iso_fips
+      - test_raw:
+          testsuite: null
+          settings:
+            <<: *test_raw
+      - test_raw_recovery:
+          testsuite: null
+          settings:
+            <<: *test_raw_recovery
+      - master_singlenode:
+          testsuite: null
+          settings:
+            <<: *master_singlenode
+      - singlenode:
+          testsuite: null
+          settings:
+            <<: *singlenode
+      - master_multinode:
+          testsuite: null
+          settings:
+            <<: *master_multinode
+      - node01:
+          testsuite: null
+          settings:
+            <<: *node01
+      - node02:
+          testsuite: null
+          settings:
+            <<: *node02
+      - node03:
+          testsuite: null
+          settings:
+            <<: *node03
+      - node04:
+          testsuite: null
+          settings:
+            <<: *node04
+    uc-1.0-rke2_container:
       - validate_container_image:
           testsuite: null
           settings:
             <<: *container_validation_settings
             TESTED_CONTAINER: rke2
   x86_64:
-    sle-16.0-uc-elemental_container:
+    # UC Main 
+    uc-main-elemental_container:
       - validate_container_image:
           testsuite: null
           settings:
             <<: *container_validation_settings
             TESTED_CONTAINER: elemental
-    sle-16.0-uc-iso_image:
+    uc-main-iso_image:
       - extract_iso:
           testsuite: null
           settings:
-            <<: *generate_settings
-            TESTED_CMD: extract_iso
+            <<: *extract_iso
       - test_extract_iso:
           testsuite: null
           settings:
-            <<: *test_iso_settings
-            TESTED_CMD: extract_iso
-            START_AFTER_TEST: '%TESTED_CMD%'
-    sle-16.0-uc-os_image:
+            <<: *test_extract_iso
+    uc-main-os_image:
       - generate_with_install:
           testsuite: null
           settings:
-            <<: *generate_settings
-            TESTED_CMD: install
+            <<: *generate_with_install
       - generate_with_build_installer_iso:
           testsuite: null
           settings:
-            <<: *generate_settings
-            ISO_CMD_LINE: 'console=%CONSOLE% enforcing=0'
-            TESTED_CMD: build_installer_iso
+            <<: *generate_with_build_installer_iso
       - test_with_install:
           testsuite: null
           settings:
-            <<: *test_raw_settings
-            TESTED_CMD: install
-            START_AFTER_TEST: generate_with_%TESTED_CMD%
+            <<: *test_with_install
       - test_with_build_installer_iso:
           testsuite: null
           settings:
-            <<: *test_iso_settings
-            TESTED_CMD: build_installer_iso
-            START_AFTER_TEST: generate_with_%TESTED_CMD%
-    sle-16.0-uc-release_manifest:
+            <<: *test_with_build_installer_iso
+    uc-main-release_manifest:
       - generate_iso:
           testsuite: null
           settings:
-            <<: *generate_settings
-            CRYPTO_POLICY: fips
-            IMAGE_TYPE: iso
-            TESTED_CMD: customize
+            <<: *generate_iso
       - generate_raw:
           testsuite: null
           settings:
-            <<: *generate_settings
-            IMAGE_TYPE: raw
-            TESTED_CMD: customize
+            <<: *generate_raw
       - generate_raw_multinode:
           testsuite: null
           settings:
-            <<: *generate_settings
-            IMAGE_TYPE: raw
-            TESTED_CMD: customize
-            CLUSTER_TYPE: multinode
+            <<: *generate_raw_multinode
       - generate_raw_recovery:
           testsuite: null
           settings:
-            <<: *generate_settings
-            IMAGE_TYPE: raw
-            TEMPLATE: build-tpl_recovery.tar.gz
-            TESTED_CMD: customize_recovery
+            <<: *generate_raw_recovery
       - generate_raw_singlenode:
           testsuite: null
           settings:
-            <<: *generate_settings
-            IMAGE_TYPE: raw
-            TESTED_CMD: customize
-            CLUSTER_TYPE: singlenode
+            <<: *generate_raw_singlenode
       - test_iso_fips:
           testsuite: null
           settings:
-            <<: *test_iso_settings
-            CRYPTO_POLICY: fips
-            TESTED_CMD: customize
-            START_AFTER_TEST: generate_iso
+            <<: *test_iso_fips
       - test_raw:
           testsuite: null
           settings:
-            <<: *test_raw_settings
-            TESTED_CMD: customize
-            START_AFTER_TEST: generate_raw
+            <<: *test_raw
       - test_raw_recovery:
           testsuite: null
           settings:
-            <<: *test_raw_settings
-            TEMPLATE: build-tpl_recovery.tar.gz
-            TESTED_CMD: customize_recovery
-            TEST_TYPE: 'recovery'
-            START_AFTER_TEST: generate_raw_recovery
+            <<: *test_raw_recovery
       - master_singlenode:
           testsuite: null
           settings:
-            <<: *master_k8s_validation_settings
-            NODES_LIST: node01
-            START_AFTER_TEST: generate_raw_singlenode
+            <<: *master_singlenode
       - singlenode:
           testsuite: null
           settings:
-            <<: *singlenode_k8s_validation_settings
-            HOSTNAME: node01
-            NICMAC: '52:54:00:99:88:01'
+            <<: *singlenode
       - master_multinode:
           testsuite: null
           settings:
-            <<: *master_k8s_validation_settings
-            NICMAC: '52:54:00:99:88:00'
-            NODES_LIST: node01,node02,node03,node04
-            START_AFTER_TEST: generate_raw_multinode
+            <<: *master_multinode
       - node01:
           testsuite: null
           settings:
-            <<: *multinode_k8s_validation_settings
-            HOSTNAME: node01
-            NICMAC: '52:54:00:99:88:01'
+            <<: *node01
       - node02:
           testsuite: null
           settings:
-            <<: *multinode_k8s_validation_settings
-            HOSTNAME: node02
-            NICMAC: '52:54:00:99:88:02'
+            <<: *node02
       - node03:
           testsuite: null
           settings:
-            <<: *multinode_k8s_validation_settings
-            HOSTNAME: node03
-            NICMAC: '52:54:00:99:88:03'
+            <<: *node03
       - node04:
           testsuite: null
           settings:
-            <<: *multinode_k8s_validation_settings
-            HOSTNAME: node04
-            NICMAC: '52:54:00:99:88:04'
-    sle-16.0-uc-rke2_container:
+            <<: *node04
+    uc-main-rke2_container:
+      - validate_container_image:
+          testsuite: null
+          settings:
+            <<: *container_validation_settings
+            TESTED_CONTAINER: rke2
+    # UC 1.0
+    uc-1.0-elemental_container:
+      - validate_container_image:
+          testsuite: null
+          settings:
+            <<: *container_validation_settings
+            TESTED_CONTAINER: elemental
+    uc-1.0-iso_image:
+      - extract_iso:
+          testsuite: null
+          settings:
+            <<: *extract_iso
+      - test_extract_iso:
+          testsuite: null
+          settings:
+            <<: *test_extract_iso
+    uc-1.0-os_image:
+      - generate_with_install:
+          testsuite: null
+          settings:
+            <<: *generate_with_install
+      - generate_with_build_installer_iso:
+          testsuite: null
+          settings:
+            <<: *generate_with_build_installer_iso
+      - test_with_install:
+          testsuite: null
+          settings:
+            <<: *test_with_install
+      - test_with_build_installer_iso:
+          testsuite: null
+          settings:
+            <<: *test_with_build_installer_iso
+    uc-1.0-release_manifest:
+      - generate_iso:
+          testsuite: null
+          settings:
+            <<: *generate_iso
+      - generate_raw:
+          testsuite: null
+          settings:
+            <<: *generate_raw
+      - generate_raw_multinode:
+          testsuite: null
+          settings:
+            <<: *generate_raw_multinode
+      - generate_raw_recovery:
+          testsuite: null
+          settings:
+            <<: *generate_raw_recovery
+      - generate_raw_singlenode:
+          testsuite: null
+          settings:
+            <<: *generate_raw_singlenode
+      - test_iso_fips:
+          testsuite: null
+          settings:
+            <<: *test_iso_fips
+      - test_raw:
+          testsuite: null
+          settings:
+            <<: *test_raw
+      - test_raw_recovery:
+          testsuite: null
+          settings:
+            <<: *test_raw_recovery
+      - master_singlenode:
+          testsuite: null
+          settings:
+            <<: *master_singlenode
+      - singlenode:
+          testsuite: null
+          settings:
+            <<: *singlenode
+      - master_multinode:
+          testsuite: null
+          settings:
+            <<: *master_multinode
+      - node01:
+          testsuite: null
+          settings:
+            <<: *node01
+      - node02:
+          testsuite: null
+          settings:
+            <<: *node02
+      - node03:
+          testsuite: null
+          settings:
+            <<: *node03
+      - node04:
+          testsuite: null
+          settings:
+            <<: *node04
+    uc-1.0-rke2_container:
       - validate_container_image:
           testsuite: null
           settings:
