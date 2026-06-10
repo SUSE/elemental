@@ -1,0 +1,375 @@
+##########################################################
+#                        WARNING                         #
+#                                                        #
+#              This file is managed in GIT!              #
+# Any changes via the openQA WebUI could be overwritten! #
+#                                                        #
+# Job Group: Containers / Unified Core (Main)            #
+#                                                        #
+# https://github.com/suse/elemental                      #
+# Maintainers: Unified Core team <unified-core@suse.com> #
+##########################################################
+
+---
+
+.default_products: &default_products
+  distri: sle
+  version: '16.0'
+
+.common_settings: &common_settings
+  CONSOLE: ttyS0
+  K8S: rke2
+  KERNEL_CMD_LINE: 'console=%CONSOLE% testframework=openqa net.ifnames=0'
+  TEST_PASSWORD: Elemental@R00t
+
+.common_test_settings: &common_test_settings
+  <<: *common_settings
+  HDDSIZEGB: '30'
+  QEMUCPUS: '4'
+  QEMURAM: '8192'
+  YAML_SCHEDULE: schedule/elemental3/os_image.yaml
+
+.common_microos_boot_settings: &common_microos_boot_settings
+  BOOTFROM: disk
+  CONTAINER_RUNTIMES: podman
+  DESKTOP: textmode
+  EXCLUDE_MODULES: suseconnect_scc
+  HDD_1: 'SL-Micro.%ARCH%-6.2-Default-Updated.qcow2'
+  HDDSIZEGB: '30'
+  KEEP_GRUB_TIMEOUT: '0'
+  VIDEOMODE: text
+
+.container_validation_settings: &container_validation_settings
+  <<: [*common_settings, *common_microos_boot_settings]
+  YAML_SCHEDULE: schedule/elemental3/validate.yaml
+
+.generate_settings: &generate_settings
+  <<: [*common_settings, *common_microos_boot_settings]
+  IMG_NAME: 'elemental-%BUILD%-%ARCH%-%TESTED_CMD%'
+  QEMURAM: '2048'
+  YAML_SCHEDULE: schedule/elemental3/generate.yaml
+
+.test_raw_settings: &test_raw_settings
+  <<: *common_test_settings
+  HDD_1: 'elemental-%BUILD%-%ARCH%-%TESTED_CMD%.qcow2'
+  IMAGE_TYPE: raw
+  TEST_TYPE: test_image
+
+.test_iso_settings: &test_iso_settings
+  <<: *common_test_settings
+  BOOTFROM: disk
+  IMAGE_TYPE: iso
+  ISO: 'elemental-%BUILD%-%ARCH%-%TESTED_CMD%.iso'
+  TEST_TYPE: test_iso
+
+.k8s_test_settings: &k8s_test_settings
+  EXPECTED_NM_CONNECTIVITY: none
+  NICTYPE: tap
+  TEST_TYPE: k8s_validation
+
+.node_k8s_validation_settings: &node_k8s_validation_settings
+  <<: [*common_test_settings, *k8s_test_settings]
+  HDD_1: 'elemental-%BUILD%-%ARCH%-%TESTED_CMD%.qcow2'
+  TESTED_CMD: customize
+
+.singlenode_k8s_validation_settings: &singlenode_k8s_validation_settings
+  <<: *node_k8s_validation_settings
+  CLUSTER_TYPE: singlenode
+  NODES_LIST: node01
+  PARALLEL_WITH: master_singlenode
+
+.multinode_k8s_validation_settings: &multinode_k8s_validation_settings
+  <<: *node_k8s_validation_settings
+  CLUSTER_TYPE: multinode
+  NODES_LIST: node01,node02,node03,node04
+  PARALLEL_WITH: master_multinode
+
+.master_k8s_validation_settings: &master_k8s_validation_settings
+  <<: [*common_settings, *common_microos_boot_settings, *k8s_test_settings]
+  CERTMANAGER_VERSION: v1.19.1
+  +DISTRI: sle-micro
+  +HDD_1: 'openSUSE-MicroOS.%ARCH%-Updated.qcow2'
+  HOSTNAME: master
+  QEMURAM: '4096'
+  RANCHER_VERSION: v2.14.1
+  TESTED_CMD: customize
+  TEST_FRAMEWORK_REPO: https://github.com/rancher/distros-test-framework
+  TESTS_TO_RUN: validatecluster,deployrancher
+  YAML_SCHEDULE: schedule/elemental3/master.yaml
+
+defaults:
+  aarch64:
+    machine: aarch64-virtio
+    priority: 50
+  x86_64:
+    machine: uefi-virtio
+    priority: 50
+    settings:
+      QEMUCPU: host
+
+products:
+  elemental_container:
+    <<: *default_products
+    flavor: UnifiedCore-Elemental-Container
+  iso_image:
+    <<: *default_products
+    flavor: UnifiedCore-ISO-Image
+  os_image:
+    <<: *default_products
+    flavor: UnifiedCore-OS-Image
+  release_manifest:
+    <<: *default_products
+    flavor: UnifiedCore-Release-Manifest
+  rke2_container:
+    <<: *default_products
+    flavor: UnifiedCore-RKE2-Container
+
+scenarios:
+  aarch64:
+    elemental_container:
+      - validate_container_image:
+          testsuite: null
+          settings: &validate_container_image_elemental
+            <<: *container_validation_settings
+            TESTED_CONTAINER: elemental
+    iso_image:
+      - extract_iso:
+          testsuite: null
+          settings: &extract_iso
+            <<: *generate_settings
+            TESTED_CMD: extract_iso
+      - test_extract_iso:
+          testsuite: null
+          settings: &test_extract_iso
+            <<: *test_iso_settings
+            TESTED_CMD: extract_iso
+            START_AFTER_TEST: '%TESTED_CMD%'
+    os_image:
+      - generate_with_install:
+          testsuite: null
+          settings: &generate_with_install
+            <<: *generate_settings
+            TESTED_CMD: install
+      - generate_with_build_installer_iso:
+          testsuite: null
+          settings: &generate_with_build_installer_iso
+            <<: *generate_settings
+            ISO_CMD_LINE: 'console=%CONSOLE% enforcing=0'
+            TESTED_CMD: build_installer_iso
+      - test_with_install:
+          testsuite: null
+          settings: &test_with_install
+            <<: *test_raw_settings
+            TESTED_CMD: install
+            START_AFTER_TEST: generate_with_%TESTED_CMD%
+      - test_with_build_installer_iso:
+          testsuite: null
+          settings: &test_with_build_installer_iso
+            <<: *test_iso_settings
+            TESTED_CMD: build_installer_iso
+            START_AFTER_TEST: generate_with_%TESTED_CMD%
+    release_manifest:
+      - generate_iso:
+          testsuite: null
+          settings: &generate_iso
+            <<: *generate_settings
+            CRYPTO_POLICY: fips
+            IMAGE_TYPE: iso
+            TESTED_CMD: customize
+      - generate_raw:
+          testsuite: null
+          settings: &generate_raw
+            <<: *generate_settings
+            IMAGE_TYPE: raw
+            TESTED_CMD: customize
+      - generate_raw_multinode:
+          testsuite: null
+          settings: &generate_raw_multinode
+            <<: *generate_settings
+            IMAGE_TYPE: raw
+            TESTED_CMD: customize
+            CLUSTER_TYPE: multinode
+      - generate_raw_recovery:
+          testsuite: null
+          settings: &generate_raw_recovery
+            <<: *generate_settings
+            IMAGE_TYPE: raw
+            TEMPLATE: build-tpl_recovery.tar.gz
+            TESTED_CMD: customize_recovery
+      - generate_raw_singlenode:
+          testsuite: null
+          settings: &generate_raw_singlenode
+            <<: *generate_settings
+            IMAGE_TYPE: raw
+            TESTED_CMD: customize
+            CLUSTER_TYPE: singlenode
+      - test_iso_fips:
+          testsuite: null
+          settings: &test_iso_fips
+            <<: *test_iso_settings
+            CRYPTO_POLICY: fips
+            TESTED_CMD: customize
+            START_AFTER_TEST: generate_iso
+      - test_raw:
+          testsuite: null
+          settings: &test_raw
+            <<: *test_raw_settings
+            TESTED_CMD: customize
+            START_AFTER_TEST: generate_raw
+      - test_raw_recovery:
+          testsuite: null
+          settings: &test_raw_recovery
+            <<: *test_raw_settings
+            TEMPLATE: build-tpl_recovery.tar.gz
+            TESTED_CMD: customize_recovery
+            TEST_TYPE: 'recovery'
+            START_AFTER_TEST: generate_raw_recovery
+      - master_singlenode:
+          testsuite: null
+          settings: &master_singlenode
+            <<: *master_k8s_validation_settings
+            NODES_LIST: node01
+            TESTS_TO_RUN: validatecluster
+            START_AFTER_TEST: generate_raw_singlenode
+      - singlenode:
+          testsuite: null
+          settings: &singlenode
+            <<: *singlenode_k8s_validation_settings
+            HOSTNAME: node01
+            NICMAC: '52:54:00:99:88:01'
+      - master_multinode:
+          testsuite: null
+          settings: &master_multinode
+            <<: *master_k8s_validation_settings
+            NICMAC: '52:54:00:99:88:00'
+            NODES_LIST: node01,node02,node03,node04
+            TESTS_TO_RUN: validatecluster
+            START_AFTER_TEST: generate_raw_multinode
+      - node01:
+          testsuite: null
+          settings: &node01
+            <<: *multinode_k8s_validation_settings
+            HOSTNAME: node01
+            NICMAC: '52:54:00:99:88:01'
+      - node02:
+          testsuite: null
+          settings: &node02
+            <<: *multinode_k8s_validation_settings
+            HOSTNAME: node02
+            NICMAC: '52:54:00:99:88:02'
+      - node03:
+          testsuite: null
+          settings: &node03
+            <<: *multinode_k8s_validation_settings
+            HOSTNAME: node03
+            NICMAC: '52:54:00:99:88:03'
+      - node04:
+          testsuite: null
+          settings: &node04
+            <<: *multinode_k8s_validation_settings
+            HOSTNAME: node04
+            NICMAC: '52:54:00:99:88:04'
+    rke2_container:
+      - validate_container_image:
+          testsuite: null
+          settings:  &validate_container_image_rke2
+            <<: *container_validation_settings
+            TESTED_CONTAINER: rke2
+  x86_64:
+    elemental_container:
+      - validate_container_image:
+          testsuite: null
+          settings:
+            <<: *validate_container_image_elemental
+    iso_image:
+      - extract_iso:
+          testsuite: null
+          settings:
+            <<: *extract_iso
+      - test_extract_iso:
+          testsuite: null
+          settings:
+            <<: *test_extract_iso
+    os_image:
+      - generate_with_install:
+          testsuite: null
+          settings:
+            <<: *generate_with_install
+      - generate_with_build_installer_iso:
+          testsuite: null
+          settings:
+            <<: *generate_with_build_installer_iso
+      - test_with_install:
+          testsuite: null
+          settings:
+            <<: *test_with_install
+      - test_with_build_installer_iso:
+          testsuite: null
+          settings:
+            <<: *test_with_build_installer_iso
+    release_manifest:
+      - generate_iso:
+          testsuite: null
+          settings:
+            <<: *generate_iso
+      - generate_raw:
+          testsuite: null
+          settings:
+            <<: *generate_raw
+      - generate_raw_multinode:
+          testsuite: null
+          settings:
+            <<: *generate_raw_multinode
+      - generate_raw_recovery:
+          testsuite: null
+          settings:
+            <<: *generate_raw_recovery
+      - generate_raw_singlenode:
+          testsuite: null
+          settings:
+            <<: *generate_raw_singlenode
+      - test_iso_fips:
+          testsuite: null
+          settings:
+            <<: *test_iso_fips
+      - test_raw:
+          testsuite: null
+          settings:
+            <<: *test_raw
+      - test_raw_recovery:
+          testsuite: null
+          settings:
+            <<: *test_raw_recovery
+      - master_singlenode:
+          testsuite: null
+          settings:
+            <<: *master_singlenode
+      - singlenode:
+          testsuite: null
+          settings:
+            <<: *singlenode
+      - master_multinode:
+          testsuite: null
+          settings:
+            <<: *master_multinode
+      - node01:
+          testsuite: null
+          settings:
+            <<: *node01
+      - node02:
+          testsuite: null
+          settings:
+            <<: *node02
+      - node03:
+          testsuite: null
+          settings:
+            <<: *node03
+      - node04:
+          testsuite: null
+          settings:
+            <<: *node04
+    rke2_container:
+      - validate_container_image:
+          testsuite: null
+          settings:
+            <<: *validate_container_image_elemental
