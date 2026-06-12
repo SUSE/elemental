@@ -92,7 +92,7 @@ endif
 .PHONY: clean
 clean:
 	@rm -rfv $(BUILD_DIR)
-	@find . -type f -executable -name '*.test' -exec rm -f {} \+
+	@find . -type f -name '*.test' -exec test -x {} \; -exec rm -f {} \+
 
 .PHONY: lint
 lint:
