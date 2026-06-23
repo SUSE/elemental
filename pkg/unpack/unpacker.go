@@ -66,6 +66,26 @@ func WithVerify(verify bool) Opt {
 	}
 }
 
+func WithCacheDir(cacheDir string) Opt {
+	return func(srcType deployment.ImageSrcType, o *options) {
+		switch srcType {
+		case deployment.OCI:
+			o.ociOpts = append(o.ociOpts, WithCacheDirOCI(cacheDir))
+		default:
+		}
+	}
+}
+
+func WithOffline(offline bool) Opt {
+	return func(srcType deployment.ImageSrcType, o *options) {
+		switch srcType {
+		case deployment.OCI:
+			o.ociOpts = append(o.ociOpts, WithOfflineOCI(offline))
+		default:
+		}
+	}
+}
+
 func WithPlatformRef(platform string) Opt {
 	return func(srcType deployment.ImageSrcType, o *options) {
 		switch srcType {

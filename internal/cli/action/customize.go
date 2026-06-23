@@ -76,7 +76,13 @@ func Customize(ctx context.Context, cmd *cli.Command) error {
 	ctxCancel, cancelFunc := signal.NotifyContext(ctx, syscall.SIGTERM, syscall.SIGINT)
 	defer cancelFunc()
 
-	customizeRunner, err := setupCustomizeRunner(ctxCancel, system, args, output)
+	cacheDir, err := resolveCacheDir(args.Cache, args.CacheDir)
+	if err != nil {
+		logger.Error("Resolving cache directory failed")
+		return err
+	}
+
+	customizeRunner, err := setupCustomizeRunner(ctxCancel, system, args, output, cacheDir)
 	if err != nil {
 		logger.Error("Setting up customization runner failed")
 		return err
@@ -115,20 +121,21 @@ func setupCustomizeRunner(
 	s *sys.System,
 	args *cmdpkg.CustomizeFlags,
 	output config.Output,
+	cacheDir string,
 ) (*customize.Runner, error) {
-	extr, err := setupFileExtractor(ctx, s, output, args.Local)
+	extr, err := setupFileExtractor(ctx, s, output, cacheDir, args.Offline)
 	if err != nil {
 		return nil, fmt.Errorf("setting up file extractor: %w", err)
 	}
 
 	return &customize.Runner{
 		System:        s,
-		ConfigManager: setupConfigManager(s, args.ConfigDir, output, args.Local),
+		ConfigManager: setupConfigManager(s, args.ConfigDir, output, args.Airgap, cacheDir, args.Offline),
 		FileExtractor: extr,
 	}, nil
 }
 
-func setupConfigManager(s *sys.System, configDir string, output config.Output, local bool) *config.Manager {
+func setupConfigManager(s *sys.System, configDir string, output config.Output, airgap bool, cacheDir string, offline bool) *config.Manager {
 	valuesResolver := &helm.ValuesResolver{
 		FS:        s.FS(),
 		ValuesDir: v0.Dir(configDir).HelmValuesDir(),
@@ -138,11 +145,13 @@ func setupConfigManager(s *sys.System, configDir string, output config.Output, l
 		s,
 		config.NewHelm(s.FS(), valuesResolver, s.Logger(), output.OverlaysDir()),
 		config.WithDownloadFunc(http.DownloadFile),
-		config.WithLocal(local),
+		config.WithAirgap(airgap),
+		config.WithCacheDir(cacheDir),
+		config.WithOffline(offline),
 	)
 }
 
-func setupFileExtractor(ctx context.Context, s *sys.System, outDir config.Output, local bool) (extr *extractor.OCIFileExtractor, err error) {
+func setupFileExtractor(ctx context.Context, s *sys.System, outDir config.Output, cacheDir string, offline bool) (extr *extractor.OCIFileExtractor, err error) {
 	const isoSearchGlob = "/iso/*default-iso*.iso"
 
 	if err := vfs.MkdirAll(s.FS(), outDir.ISOStoreDir(), vfs.DirPerm); err != nil {
@@ -154,7 +163,8 @@ func setupFileExtractor(ctx context.Context, s *sys.System, outDir config.Output
 		extractor.WithStore(outDir.ISOStoreDir()),
 		extractor.WithFS(s.FS()),
 		extractor.WithContext(ctx),
-		extractor.WithLocal(local),
+		extractor.WithCacheDir(cacheDir),
+		extractor.WithOffline(offline),
 	)
 }
 

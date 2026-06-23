@@ -31,15 +31,15 @@ import (
 type OCIUnpacker interface {
 	// Unpack unpacks the file system of a given OCI image to the specified destination
 	// and returns its digest
-	Unpack(ctx context.Context, uri, dest string, local bool) (digest string, err error)
+	Unpack(ctx context.Context, uri, dest string, local bool, cacheDir string, offline bool) (digest string, err error)
 }
 
 type ociUnpacker struct {
 	system *sys.System
 }
 
-func (o *ociUnpacker) Unpack(ctx context.Context, uri, dest string, local bool) (digest string, err error) {
-	unpacker := unpack.NewOCIUnpacker(o.system, uri, unpack.WithLocalOCI(local))
+func (o *ociUnpacker) Unpack(ctx context.Context, uri, dest string, local bool, cacheDir string, offline bool) (digest string, err error) {
+	unpacker := unpack.NewOCIUnpacker(o.system, uri, unpack.WithLocalOCI(local), unpack.WithCacheDirOCI(cacheDir), unpack.WithOfflineOCI(offline))
 	return unpacker.Unpack(ctx, dest)
 }
 
@@ -59,6 +59,8 @@ type OCIFileExtractor struct {
 	fs       vfs.FS
 	ctx      context.Context
 	local    bool
+	cacheDir string
+	offline  bool
 }
 
 type OCIFileExtractorOpts func(o *OCIFileExtractor)
@@ -90,6 +92,18 @@ func WithContext(ctx context.Context) OCIFileExtractorOpts {
 func WithLocal(local bool) OCIFileExtractorOpts {
 	return func(r *OCIFileExtractor) {
 		r.local = local
+	}
+}
+
+func WithCacheDir(cacheDir string) OCIFileExtractorOpts {
+	return func(r *OCIFileExtractor) {
+		r.cacheDir = cacheDir
+	}
+}
+
+func WithOffline(offline bool) OCIFileExtractorOpts {
+	return func(r *OCIFileExtractor) {
+		r.offline = offline
 	}
 }
 
@@ -144,7 +158,7 @@ func (o *OCIFileExtractor) ExtractFrom(uri string) (path string, err error) {
 		_ = o.fs.RemoveAll(unpackDir)
 	}()
 
-	digest, err := o.unpacker.Unpack(o.ctx, uri, unpackDir, o.local)
+	digest, err := o.unpacker.Unpack(o.ctx, uri, unpackDir, o.local, o.cacheDir, o.offline)
 	if err != nil {
 		return "", fmt.Errorf("unpacking oci image: %w", err)
 	}
