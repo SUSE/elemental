@@ -47,6 +47,7 @@
   <<: [*common_settings, *common_microos_boot_settings]
   IMG_NAME: 'elemental-%BUILD%-%ARCH%-%TESTED_CMD%'
   QEMURAM: '2048'
+  TRANSACTIONAL: '1'
   YAML_SCHEDULE: schedule/elemental3/generate.yaml
 
 .test_raw_settings: &test_raw_settings
@@ -111,6 +112,15 @@ products:
   elemental_container:
     <<: *default_products
     flavor: UnifiedCore-Elemental-Container
+  lcm_container:
+    <<: *default_products
+    flavor: UnifiedCore-LCM-Container
+  longhorn_container:
+    <<: *default_products
+    flavor: UnifiedCore-Longhorn-Container
+  rke2_container:
+    <<: *default_products
+    flavor: UnifiedCore-RKE2-Container
   iso_image:
     <<: *default_products
     flavor: UnifiedCore-ISO-Image
@@ -120,18 +130,33 @@ products:
   release_manifest:
     <<: *default_products
     flavor: UnifiedCore-Release-Manifest
-  rke2_container:
-    <<: *default_products
-    flavor: UnifiedCore-RKE2-Container
 
 scenarios:
   aarch64:
     elemental_container:
-      - validate_container_image:
+      - validate_container_image_elemental:
           testsuite: null
           settings: &validate_container_image_elemental
             <<: *container_validation_settings
             TESTED_CONTAINER: elemental
+    lcm_container:
+      - validate_container_image_lcm:
+          testsuite: null
+          settings:  &validate_container_image_lcm
+            <<: *container_validation_settings
+            TESTED_CONTAINER: lcm
+    longhorn_container:
+      - validate_container_image_longhorn:
+          testsuite: null
+          settings:  &validate_container_image_longhorn
+            <<: *container_validation_settings
+            TESTED_CONTAINER: longhorn
+    rke2_container:
+      - validate_container_image_rke2:
+          testsuite: null
+          settings:  &validate_container_image_rke2
+            <<: *container_validation_settings
+            TESTED_CONTAINER: rke2
     iso_image:
       - extract_iso:
           testsuite: null
@@ -269,18 +294,27 @@ scenarios:
             <<: *multinode_k8s_validation_settings
             HOSTNAME: node04
             NICMAC: '52:54:00:99:88:04'
-    rke2_container:
-      - validate_container_image:
-          testsuite: null
-          settings:  &validate_container_image_rke2
-            <<: *container_validation_settings
-            TESTED_CONTAINER: rke2
   x86_64:
     elemental_container:
-      - validate_container_image:
+      - validate_container_image_elemental:
           testsuite: null
           settings:
             <<: *validate_container_image_elemental
+    lcm_container:
+      - validate_container_image_lcm:
+          testsuite: null
+          settings:
+            <<: *validate_container_image_lcm
+    longhorn_container:
+      - validate_container_image_longhorn:
+          testsuite: null
+          settings:
+            <<: *validate_container_image_longhorn
+    rke2_container:
+      - validate_container_image_rke2:
+          testsuite: null
+          settings:
+            <<: *validate_container_image_rke2
     iso_image:
       - extract_iso:
           testsuite: null
@@ -368,8 +402,3 @@ scenarios:
           testsuite: null
           settings:
             <<: *node04
-    rke2_container:
-      - validate_container_image:
-          testsuite: null
-          settings:
-            <<: *validate_container_image_elemental
