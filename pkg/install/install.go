@@ -259,7 +259,7 @@ func createPartitionVolumes(s *sys.System, cleanStack *cleanstack.CleanStack, pa
 				continue
 			}
 			subvolume := filepath.Join(mountPoint, btrfs.TopSubVol, rwVol.Path)
-			err = btrfs.CreateSubvolume(s, subvolume, true)
+			err = btrfs.CreateSubvolume(s, subvolume, !rwVol.NoCopyOnWrite)
 			if err != nil {
 				return fmt.Errorf("creating subvolume '%s': %w", subvolume, err)
 			}
