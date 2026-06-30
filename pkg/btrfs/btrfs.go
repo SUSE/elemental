@@ -40,7 +40,7 @@ func EnableQuota(s *sys.System, path string) error {
 
 // CreateSubvolume creates a btrfs subvolume to the given path
 func CreateSubvolume(s *sys.System, path string, copyOnWrite bool) error {
-	s.Logger().Debug("Creating subvolume: %s", path)
+	s.Logger().Debug("Creating subvolume %s, CoW: %t", path, copyOnWrite)
 	err := vfs.MkdirAll(s.FS(), filepath.Dir(path), vfs.DirPerm)
 	if err != nil {
 		return fmt.Errorf("creating subvolume path %s: %w", path, err)
