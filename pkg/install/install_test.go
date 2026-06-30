@@ -164,6 +164,7 @@ var _ = Describe("Install", Label("install"), func() {
 		Expect(runner.MatchMilestones([][]string{
 			{"systemd-repart"},
 			{"btrfs", "subvolume", "create"},
+			{"chattr", "+C"},
 			{"mksquashfs"},
 		}))
 	})
