@@ -18,6 +18,7 @@
 
 .common_settings: &common_settings
   CONSOLE: ttyS0
+  CONTAINER_RUNTIMES: podman
   K8S: rke2
   KERNEL_CMD_LINE: 'console=%CONSOLE% testframework=openqa net.ifnames=0'
   TEST_PASSWORD: Elemental@R00t
@@ -31,7 +32,6 @@
 
 .common_microos_boot_settings: &common_microos_boot_settings
   BOOTFROM: disk
-  CONTAINER_RUNTIMES: podman
   DESKTOP: textmode
   EXCLUDE_MODULES: suseconnect_scc
   HDD_1: 'SL-Micro.%ARCH%-6.2-Default-Updated.qcow2'
