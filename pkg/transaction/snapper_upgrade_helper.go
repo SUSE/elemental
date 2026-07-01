@@ -30,6 +30,7 @@ import (
 	"github.com/suse/elemental/v3/pkg/chroot"
 	"github.com/suse/elemental/v3/pkg/deployment"
 	"github.com/suse/elemental/v3/pkg/fstab"
+	"github.com/suse/elemental/v3/pkg/merge"
 	"github.com/suse/elemental/v3/pkg/rsync"
 	"github.com/suse/elemental/v3/pkg/snapper"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
@@ -197,13 +198,14 @@ func (sc snapperContext) configureRWVolumes(trans *Transaction) error {
 			description := fmt.Sprintf("stock %s contents", rwVol.Path)
 			metadata := map[string]string{"stock": "true"}
 
-			_, err = sc.snap.CreateSnapshot("/", config, 0, false, description, metadata)
+			newStockID, err := sc.snap.CreateSnapshot("/", config, 0, false, description, metadata)
 			if err != nil {
 				return fmt.Errorf("creating snapshot '%s': %w", rwVol.Path, err)
 			}
 
 			if _, ok := trans.Merges[rwVol.Path]; ok {
 				trans.Merges[rwVol.Path].New = filepath.Join(trans.Path, rwVol.Path)
+				trans.Merges[rwVol.Path].NewStock = filepath.Join(trans.Path, rwVol.Path, fmt.Sprintf(snapshotPathTmpl, newStockID))
 			}
 		}
 		return nil
@@ -212,8 +214,8 @@ func (sc snapperContext) configureRWVolumes(trans *Transaction) error {
 }
 
 // merge runs a 3 way merge for snapshotted RW volumes.
-// Current implementation solves potential conflicts by always keeping
-// custom changes over changes coming from the OS image.
+// User changes are always applied over OS changes. When both sides modified the
+// same file, user version wins and the conflict is reported to the user.
 func (sc snapperContext) merge(trans *Transaction) (err error) {
 	var status, tmpDir string
 
@@ -238,6 +240,29 @@ func (sc snapperContext) merge(trans *Transaction) (err error) {
 		err = sc.customChangesStatus(rwVol.Path, m, status)
 		if err != nil {
 			return err
+		}
+
+		userChanges, err := sc.parseSnapperStatus(status, rwVol.Path)
+		if err != nil {
+			return fmt.Errorf("parsing user changes for %s: %w", rwVol.Path, err)
+		}
+
+		// Compute the defaults delta (old stock -> new stock) via a file-system
+		// walk, intersected with userChanges. Unlike the user delta above --
+		// where both snapshots live in the same snapper config (old root, IDs
+		// comparable with `snapper status`) -- the old and new stocks live in
+		// independent snapper configs (old root vs the new root's freshly
+		// created config), so their IDs aren't comparable through snapper.
+		// Both trees are plain directories on disk, though, so we diff them
+		// directly.
+		if m.NewStock != "" {
+			conflicts, err := merge.DetectConflicts(sc.s.FS(), userChanges, m.Old, m.NewStock)
+			if err != nil {
+				sc.s.Logger().Warn("Could not compute OS changes for %s: %v", rwVol.Path, err)
+			} else if len(conflicts) > 0 {
+				conflictSummary := merge.FormatConflictSummary(rwVol.Path, conflicts)
+				sc.s.Logger().Warn(conflictSummary)
+			}
 		}
 
 		err = sc.applyCustomChanges(status, rwVol.Path, m)
@@ -272,6 +297,48 @@ func (sc snapperContext) customChangesStatus(volPath string, merge *Merge, outpu
 	}
 
 	return nil
+}
+
+// parseSnapperStatus parses snapper status output into a map of rel-path →
+// ChangeType describing the user's customisations delta.
+func (sc snapperContext) parseSnapperStatus(statusFile, rwVolPath string) (map[string]merge.ChangeType, error) {
+	statusF, err := sc.s.FS().OpenFile(statusFile, os.O_RDONLY, vfs.FilePerm)
+	if err != nil {
+		return nil, err
+	}
+	defer statusF.Close()
+
+	changes := make(map[string]merge.ChangeType)
+	r := regexp.MustCompile(`(([-+ct.])[p.][u.][g.][x.][a.])\s+(.*)`)
+
+	scanner := bufio.NewScanner(statusF)
+	for scanner.Scan() {
+		line := scanner.Text()
+		match := r.FindStringSubmatch(line)
+
+		if len(match) == 0 {
+			continue
+		}
+		if strings.HasPrefix(match[1], "....") {
+			// Ignore lines whose only differences are in xattr/ACL columns
+			// (positions 5-6). The old stock snapshot was taken before SELinux
+			// relabelling, so xattr-only diffs would otherwise list almost every
+			// file.
+			continue
+		}
+
+		filePath := strings.TrimPrefix(match[3], rwVolPath)
+		switch match[2] {
+		case "+":
+			changes[filePath] = merge.ChangeTypeAdded
+		case "-":
+			changes[filePath] = merge.ChangeTypeDeleted
+		case "c", "t", ".":
+			changes[filePath] = merge.ChangeTypeModified
+		}
+	}
+
+	return changes, nil
 }
 
 // applyCustomChanges reads the given status file and applies reported changes in to the target destination.
