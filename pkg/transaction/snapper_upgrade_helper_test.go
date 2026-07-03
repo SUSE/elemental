@@ -151,14 +151,19 @@ var _ = Describe("SnapperUpgradeHelper", Label("transaction"), func() {
 		})
 	})
 	Describe("upgrade helper for an upgrade transaction", func() {
-		BeforeEach(func() {
-			root = "/"
-			upgradeH = initSnapperUpgrade(root)
-			trans = startUpgradeTransaction()
-		})
-		It("configures snapper and merges RW volumes", func() {
-			etcStatus := "/tmp/snapStatus/snap_status_etc"
-			homeStatus := "/tmp/snapStatus/snap_status_home"
+		// seedUpgradeMergeFS lays down the snapper config templates, status
+		// files, and the old/modified/new /etc trees the merge logic reads.
+		// Returns the /etc merge so callers can assert on its New tree.
+		//
+		// The snapper status fixture reports four /etc entries: a created,
+		// a modified, a deleted, and an xattr-only (relabelled) file. The
+		// old and new stock trees are seeded so per-file merge.FileChange
+		// lookups see realistic content:
+		//   - modifiedFile: in old and new with different content (OS delta)
+		//   - deletedFile:  in old and new (OS keeps a differing version)
+		//   - relabelledFile: xattr-only user diff, filtered out
+		//   - createdFile:  absent from old and new (user added it fresh)
+		seedUpgradeMergeFS := func() *transaction.Merge {
 			snapshotP := ".snapshots/5/snapshot"
 			snTemplate := "/usr/share/snapper/config-templates/default"
 			snSysConf := filepath.Join(root, snapshotP, "/etc/sysconfig/snapper")
@@ -166,15 +171,10 @@ var _ = Describe("SnapperUpgradeHelper", Label("transaction"), func() {
 			configsDir := filepath.Join(root, snapshotP, "/etc/snapper/configs")
 			newEtc := filepath.Join(root, snapshotP, "etc")
 			newHome := filepath.Join(root, snapshotP, "home")
-
-			// Run a real rsync process to check merge works as intended
-			realRunner := sysrunner.NewRunner()
-			sideEffects["rsync"] = func(args ...string) ([]byte, error) {
-				return realRunner.Run("rsync", args...)
-			}
+			etcStatus := "/tmp/snapStatus/snap_status_etc"
+			homeStatus := "/tmp/snapStatus/snap_status_home"
 
 			Expect(vfs.MkdirAll(tfs, configsDir, vfs.DirPerm)).To(Succeed())
-			Expect(vfs.MkdirAll(tfs, filepath.Dir(template), vfs.DirPerm)).To(Succeed())
 			Expect(vfs.MkdirAll(tfs, filepath.Dir(template), vfs.DirPerm)).To(Succeed())
 			Expect(tfs.WriteFile(template, []byte{}, vfs.FilePerm)).To(Succeed())
 			Expect(vfs.MkdirAll(tfs, filepath.Dir(snSysConf), vfs.DirPerm)).To(Succeed())
@@ -186,8 +186,7 @@ var _ = Describe("SnapperUpgradeHelper", Label("transaction"), func() {
 			etcMerge := trans.Merges["/etc"]
 			Expect(etcMerge).NotTo(BeNil())
 
-			// Creating files to aligned with snapper status for etc
-			// Customized files
+			// Customized files (the modified tree rsync copies from).
 			Expect(vfs.MkdirAll(tfs, etcMerge.Modified, vfs.DirPerm)).To(Succeed())
 			Expect(tfs.WriteFile(filepath.Join(etcMerge.Modified, "createdFile"), []byte("custom created file"), vfs.FilePerm)).To(Succeed())
 			Expect(tfs.WriteFile(filepath.Join(etcMerge.Modified, "modifiedFile"), []byte("custom modified file"), vfs.FilePerm)).To(Succeed())
@@ -195,27 +194,12 @@ var _ = Describe("SnapperUpgradeHelper", Label("transaction"), func() {
 			Expect(tfs.WriteFile(filepath.Join(etcMerge.Modified, "unmodifiedFile"), []byte("non modified file"), vfs.FilePerm)).To(Succeed())
 			Expect(vfs.MkdirAll(tfs, trans.Merges["/home"].Modified, vfs.DirPerm)).To(Succeed())
 
-			// Old stock (the pre-upgrade /etc baseline). modifiedFile is the
-			// shared baseline with the customisations; relabelledFile and
-			// unmodifiedFile match the user version (no user delta on these
-			// in the modified vs old comparison).
+			// Old stock (the pre-upgrade /etc baseline).
 			Expect(vfs.MkdirAll(tfs, etcMerge.Old, vfs.DirPerm)).To(Succeed())
 			Expect(tfs.WriteFile(filepath.Join(etcMerge.Old, "modifiedFile"), []byte("old defaults modified file"), vfs.FilePerm)).To(Succeed())
-
-			// New stock (snapshot of the new image's /etc, captured BEFORE
-			// applyCustomChanges). configureRWVolumes sets etcMerge.NewStock
-			// during Merge — predict the path here so we can seed it: the
-			// mocked snapper.create returns id 5, so NewStock lands at
-			// <trans.Path>/etc/.snapshots/5/snapshot. modifiedFile differs
-			// from old → defaults delta touches it, colliding with the user
-			// customisation.
-			etcNewStock := filepath.Join(root, ".snapshots/5/snapshot/etc/.snapshots/5/snapshot")
-			homeNewStock := filepath.Join(root, ".snapshots/5/snapshot/home/.snapshots/5/snapshot")
-			Expect(vfs.MkdirAll(tfs, etcNewStock, vfs.DirPerm)).To(Succeed())
-			Expect(tfs.WriteFile(filepath.Join(etcNewStock, "modifiedFile"), []byte("new defaults modified file"), vfs.FilePerm)).To(Succeed())
-
+			Expect(tfs.WriteFile(filepath.Join(etcMerge.Old, "deletedFile"), []byte("old deletedFile content"), vfs.FilePerm)).To(Succeed())
+			Expect(tfs.WriteFile(filepath.Join(etcMerge.Old, "relabelledFile"), []byte("relabelled file content"), vfs.FilePerm)).To(Succeed())
 			Expect(vfs.MkdirAll(tfs, trans.Merges["/home"].Old, vfs.DirPerm)).To(Succeed())
-			Expect(vfs.MkdirAll(tfs, homeNewStock, vfs.DirPerm)).To(Succeed())
 
 			// New defaults already unpacked into the new snapshot tree.
 			Expect(vfs.MkdirAll(tfs, newEtc, vfs.DirPerm)).To(Succeed())
@@ -224,6 +208,24 @@ var _ = Describe("SnapperUpgradeHelper", Label("transaction"), func() {
 			Expect(tfs.WriteFile(filepath.Join(newEtc, "relabelledFile"), []byte("new defaults relabelled file"), vfs.FilePerm)).To(Succeed())
 			Expect(tfs.WriteFile(filepath.Join(newEtc, "unmodifiedFile"), []byte("new defaults non modified file"), vfs.FilePerm)).To(Succeed())
 			Expect(vfs.MkdirAll(tfs, newHome, vfs.DirPerm)).To(Succeed())
+
+			return etcMerge
+		}
+
+		BeforeEach(func() {
+			root = "/"
+			upgradeH = initSnapperUpgrade(root)
+			trans = startUpgradeTransaction()
+		})
+		It("configures snapper and merges RW volumes", func() {
+			// Run a real rsync process to check the content merge works as
+			// intended (byte-for-byte precedence of customizations).
+			realRunner := sysrunner.NewRunner()
+			sideEffects["rsync"] = func(args ...string) ([]byte, error) {
+				return realRunner.Run("rsync", args...)
+			}
+
+			etcMerge := seedUpgradeMergeFS()
 
 			Expect(upgradeH.Merge(trans)).To(Succeed())
 
@@ -256,6 +258,27 @@ var _ = Describe("SnapperUpgradeHelper", Label("transaction"), func() {
 
 			// Verify unmodified files are not copied over
 			Expect(tfs.ReadFile(filepath.Join(etcMerge.New, "unmodifiedFile"))).To(Equal([]byte("new defaults non modified file")))
+		})
+		It("detects and reports merge conflicts", func() {
+			// No real rsync override here: conflict detection runs before
+			// rsync and is independent of it, so the default mock (which
+			// succeeds) keeps this test platform-independent.
+			_ = seedUpgradeMergeFS()
+
+			Expect(upgradeH.Merge(trans)).To(Succeed())
+
+			logs := logBuf.String()
+			Expect(logs).To(ContainSubstring("Merge conflicts detected for /etc (2 file(s))"))
+			Expect(logs).To(ContainSubstring("/deletedFile — user: deleted, OS: modified"),
+				"user-deleted while the new image still ships a differing version")
+			Expect(logs).To(ContainSubstring("/modifiedFile — user: modified, OS: modified"),
+				"touched by both sides (user modification vs OS content change)")
+			Expect(logs).NotTo(ContainSubstring("/createdFile"),
+				"absent from old and new, so it has no OS delta")
+			Expect(logs).NotTo(ContainSubstring("/relabelledFile"),
+				"filtered out (xattr only)")
+			Expect(logs).NotTo(ContainSubstring("Merge conflicts detected for /home"),
+				"/home was empty status, so no conflicts to report")
 		})
 		It("updates fstab", func() {
 			fstab := filepath.Join(root, ".snapshots/5/snapshot/etc/fstab")

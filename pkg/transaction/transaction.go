@@ -52,7 +52,6 @@ type Merge struct {
 	Old      string // old unmodified tree
 	New      string // new base tree where modifications should be applied
 	Modified string // modified tree on top of the old tree
-	NewStock string // new stock snapshot path (for conflict detection)
 }
 
 type Transaction struct {

@@ -23,8 +23,6 @@ import (
 	"io"
 	iofs "io/fs"
 	"os"
-	"path/filepath"
-	"slices"
 	"strings"
 
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
@@ -41,6 +39,11 @@ const (
 	ChangeTypeDeleted  ChangeType = "deleted"
 )
 
+// MaxContentCompareSize bounds how large a regular file may be before
+// FileChange stops comparing its content byte-for-byte. Files above this
+// size whose stat metadata matches are reported as modified rather than
+// read in full; this trades a small false-positive risk for bounded I/O
+// on user-supplied blobs.
 const MaxContentCompareSize = 16 * 1024 * 1024
 
 // Conflict represents a file the user and the OS both changed relative to
@@ -53,47 +56,6 @@ type Conflict struct {
 
 func (c Conflict) String() string {
 	return fmt.Sprintf("  %s — user: %s, OS: %s", c.Path, c.UserChange, c.OSChange)
-}
-
-var skippedDirNames = map[string]bool{
-	".snapshots": true,
-}
-
-// DetectConflicts walks oldRoot and newRoot to derive the OS defaults delta,
-// then returns the files that also appear in userChanges (i.e. that both the
-// user and the OS modified relative to the common ancestor).
-//
-// userChanges is keyed by rel-path with a leading "/" (e.g. "/sshd_config"),
-// matching what the walk produces.
-//
-// Regular files are compared by size and then content (up to
-// MaxContentCompareSize -- larger matched-size files are conservatively
-// flagged as modified without being read). Symlinks compared by target.
-// Type changes (file->dir, file->symlink, ...) reported as modified.
-// Directories whose basename is in skippedDirNames (e.g. snapper's
-// ".snapshots") are not descended into.
-func DetectConflicts(fs vfs.FS, userChanges map[string]ChangeType, oldRoot, newRoot string) ([]Conflict, error) {
-	osChanges, err := computeOSChanges(fs, oldRoot, newRoot)
-	if err != nil {
-		return nil, err
-	}
-
-	var conflicts []Conflict
-	for path, userChange := range userChanges {
-		osChange, ok := osChanges[path]
-		if !ok {
-			continue
-		}
-		conflicts = append(conflicts, Conflict{
-			Path:       path,
-			UserChange: userChange,
-			OSChange:   osChange,
-		})
-	}
-	slices.SortFunc(conflicts, func(a, b Conflict) int {
-		return strings.Compare(a.Path, b.Path)
-	})
-	return conflicts, nil
 }
 
 // FormatConflictSummary returns a human-readable summary of detected
@@ -114,79 +76,51 @@ func FormatConflictSummary(volumePath string, conflicts []Conflict) string {
 	return b.String()
 }
 
-func computeOSChanges(fs vfs.FS, oldRoot, newRoot string) (map[string]ChangeType, error) {
-	oldEntries, err := walkEntries(fs, oldRoot)
-	if err != nil {
-		return nil, fmt.Errorf("walking %s: %w", oldRoot, err)
+// FileChange reports how a single file changed between oldPath and newPath.
+// Returns empty string if the file is unchanged (or absent from both sides).
+//
+// Regular files are compared by size and then content (up to
+// MaxContentCompareSize; larger matched-size files are conservatively
+// flagged as modified without being read). Symlinks compared by target.
+// Type changes (file->dir, file->symlink, ...) reported as modified.
+// Directory-only additions/deletions are ignored (contents at those paths
+// are what's meaningful, and snapper reports them individually).
+func FileChange(fs vfs.FS, oldPath, newPath string) (ChangeType, error) {
+	oldInfo, oldErr := fs.Lstat(oldPath)
+	if oldErr != nil && !os.IsNotExist(oldErr) {
+		return "", oldErr
+	}
+	newInfo, newErr := fs.Lstat(newPath)
+	if newErr != nil && !os.IsNotExist(newErr) {
+		return "", newErr
 	}
 
-	newEntries, err := walkEntries(fs, newRoot)
-	if err != nil {
-		return nil, fmt.Errorf("walking %s: %w", newRoot, err)
-	}
+	oldExists := oldErr == nil
+	newExists := newErr == nil
 
-	changes := make(map[string]ChangeType)
-	for rel, newInfo := range newEntries {
-		oldInfo, ok := oldEntries[rel]
-		if !ok {
-			if !newInfo.IsDir() {
-				changes[rel] = ChangeTypeAdded
-			}
-			continue
+	switch {
+	case !oldExists && !newExists:
+		return "", nil
+	case !oldExists:
+		if newInfo.IsDir() {
+			return "", nil
 		}
-		delete(oldEntries, rel)
-
-		differs, err := entriesDiffer(fs, oldInfo, newInfo, filepath.Join(oldRoot, rel), filepath.Join(newRoot, rel))
-		if err != nil {
-			return nil, err
-		}
-		if differs {
-			changes[rel] = ChangeTypeModified
-		}
-	}
-
-	for rel, oldInfo := range oldEntries {
+		return ChangeTypeAdded, nil
+	case !newExists:
 		if oldInfo.IsDir() {
-			continue
+			return "", nil
 		}
-		changes[rel] = ChangeTypeDeleted
+		return ChangeTypeDeleted, nil
 	}
-	return changes, nil
-}
 
-// walkEntries walks root and returns a map of rel-path → FileInfo. The root
-// itself is excluded and directories listed in skippedDirNames are not
-// descended into. Returns an empty map (no error) if root does not exist.
-func walkEntries(fs vfs.FS, root string) (map[string]iofs.FileInfo, error) {
-	entries := make(map[string]iofs.FileInfo)
-	if _, err := fs.Stat(root); err != nil {
-		if os.IsNotExist(err) {
-			return entries, nil
-		}
-		return nil, err
-	}
-	err := vfs.WalkDirFs(fs, root, func(path string, d iofs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if path == root {
-			return nil
-		}
-		if d.IsDir() && skippedDirNames[d.Name()] {
-			return filepath.SkipDir
-		}
-		rel := strings.TrimPrefix(path, root)
-		info, err := d.Info()
-		if err != nil {
-			return err
-		}
-		entries[rel] = info
-		return nil
-	})
+	differs, err := entriesDiffer(fs, oldInfo, newInfo, oldPath, newPath)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
-	return entries, nil
+	if differs {
+		return ChangeTypeModified, nil
+	}
+	return "", nil
 }
 
 // entriesDiffer compares two entries that exist at the same relative path on
@@ -216,7 +150,7 @@ func entriesDiffer(fs vfs.FS, oldInfo, newInfo iofs.FileInfo, oldPath, newPath s
 		return true, nil
 	}
 	if oldInfo.Size() > MaxContentCompareSize {
-		// Bigger than the cap — conservatively report modified instead of
+		// Bigger than the cap; conservatively report modified instead of
 		// reading the file. Worst case is a false-positive conflict warning.
 		return true, nil
 	}
