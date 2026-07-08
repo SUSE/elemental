@@ -211,6 +211,9 @@ func parseDeployment(
 		Bootloader:    install.Bootloader,
 		KernelCmdline: install.KernelCmdLine,
 	}
+	if initrdExt, _ := vfs.Exists(fs, output.InitrdExtensionFile()); initrdExt {
+		d.BootConfig.InitrdExtensions = []string{output.InitrdExtensionFile()}
+	}
 
 	d.Security = &deployment.SecurityConfig{
 		CryptoPolicy: install.CryptoPolicy,
