@@ -177,7 +177,7 @@ var _ = Describe("Systemd-repart tests", Label("systemd-repart"), func() {
 
 	It("fails if systemd-repart reports partitions not matching the deployment", func() {
 		d := deployment.DefaultDeployment()
-		deployment.WithConfigPartition(0)(d)
+		deployment.WithConfigPartition(0, "configLabel")(d)
 		Expect(len(d.Disks)).To(Equal(1))
 		d.Disks[0].Device = "/dev/device"
 		Expect(repart.PartitionAndFormatDevice(s, d.Disks[0])).To(
