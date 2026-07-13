@@ -20,7 +20,23 @@ package cmd
 const (
 	// --local flag name and description
 	localFlg  = "local"
-	localDesc = "Load OCI images from the local container storage instead of a remote registry"
+	localDesc = "Load OCI images from local container storage instead of a remote registry"
+
+	// --airgap flag name and description
+	airgapFlg  = "airgap"
+	airgapDesc = "Embed container images for air-gapped Kubernetes deployments"
+
+	// --cache flag name and description
+	cacheFlg  = "cache"
+	cacheDesc = "Use the OCI image cache while preparing build artifacts"
+
+	// --cache-dir flag name and description
+	cacheDirFlg  = "cache-dir"
+	cacheDirDesc = "Path to the OCI image cache directory"
+
+	// --offline flag name and description
+	offlineFlg  = "offline"
+	offlineDesc = "Use only cached OCI images without pulling from remote registries"
 
 	// --verify flag name and description
 	verifyFlg  = "verify"
