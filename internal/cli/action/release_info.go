@@ -253,7 +253,7 @@ func printBasicData(cm *core.ReleaseManifest, sm *solution.ReleaseManifest, arg 
 		table.Header([]string{"Attribute", "Core Platform (Base)"})
 		data = append(data, []string{"Name", cmBasic.Name})
 		data = append(data, []string{versionHdr, cmBasic.Version})
-		data = append(data, []string{"Release Data", cmBasic.CreationDate})
+		data = append(data, []string{"Release Date", cmBasic.CreationDate})
 		data = append(data, []string{sourceHdr, cmBasic.Source})
 
 	}
