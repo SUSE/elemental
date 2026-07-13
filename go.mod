@@ -5,7 +5,7 @@ go 1.26.3
 require (
 	dario.cat/mergo v1.0.2
 	github.com/cenkalti/backoff/v4 v4.3.0
-	github.com/containerd/containerd/v2 v2.3.2
+	github.com/containerd/containerd/v2 v2.3.3
 	github.com/containerd/platforms v1.0.0-rc.4
 	github.com/coreos/butane v0.29.0
 	github.com/coreos/ignition/v2 v2.26.0
@@ -25,8 +25,8 @@ require (
 	github.com/twpayne/go-vfs/v4 v4.3.0
 	github.com/urfave/cli/v3 v3.10.1
 	go.yaml.in/yaml/v3 v3.0.4
-	golang.org/x/crypto v0.53.0
-	golang.org/x/sys v0.46.0
+	golang.org/x/crypto v0.54.0
+	golang.org/x/sys v0.47.0
 	k8s.io/mount-utils v0.36.2
 )
 
@@ -122,10 +122,10 @@ require (
 	golang.org/x/exp v0.0.0-20241108190413-2d47ceb2692f // indirect
 	golang.org/x/mod v0.37.0 // indirect
 	golang.org/x/net v0.56.0 // indirect
-	golang.org/x/sync v0.21.0 // indirect
-	golang.org/x/term v0.44.0 // indirect
-	golang.org/x/text v0.38.0 // indirect
-	golang.org/x/tools v0.46.0 // indirect
+	golang.org/x/sync v0.22.0 // indirect
+	golang.org/x/term v0.45.0 // indirect
+	golang.org/x/text v0.40.0 // indirect
+	golang.org/x/tools v0.47.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260523011958-0a33c5d7ca68 // indirect
 	google.golang.org/grpc v1.80.0 // indirect
 	google.golang.org/protobuf v1.36.12-0.20260120151049-f2248ac996af // indirect
