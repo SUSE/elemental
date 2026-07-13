@@ -187,7 +187,7 @@ disks:
 			},
 		}
 
-		// Simulate first boot configuration
+		// Simulate first boot configuration without Ignition
 		Expect(vfs.MkdirAll(fs, output.FirstbootConfigDir(), vfs.DirPerm)).To(Succeed())
 
 		err := customizeRunner.Run(context.Background(), def, output)
@@ -201,7 +201,7 @@ disks:
 		Expect(customizeDeployment.Disks[0].Partitions[1]).To(Equal(&deployment.Partition{}))
 		Expect(customizeDeployment.Disks[0].Partitions[2]).To(BeNil())
 		Expect(customizeDeployment.Disks[0].Partitions[3]).To(Equal(&deployment.Partition{
-			Label:      deployment.ConfigLabel,
+			Label:      deployment.CatalystLabel,
 			MountPoint: deployment.ConfigMnt,
 			Role:       deployment.Config,
 			FileSystem: deployment.Ext4,
@@ -296,11 +296,22 @@ disks:
 			},
 		}
 
-		Expect(vfs.MkdirAll(fs, output.FirstbootConfigDir(), vfs.DirPerm)).To(Succeed())
+		// Simulate first boot configuration with Ignition file
+		ignFile := filepath.Join(output.FirstbootConfigDir(), image.IgnitionFilePath())
+		Expect(vfs.MkdirAll(fs, filepath.Dir(ignFile), vfs.DirPerm)).To(Succeed())
+		Expect(fs.WriteFile(ignFile, []byte("ignition data"), vfs.FilePerm)).To(Succeed())
 
 		err := customizeRunner.Run(context.Background(), def, output)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(customizeDeployment.BootConfig.InitrdExtensions).To(Equal([]string{output.InitrdExtensionFile()}))
+		Expect(customizeDeployment.Disks[0].Partitions[3]).To(Equal(&deployment.Partition{
+			Label:      deployment.IgnitionLabel,
+			MountPoint: deployment.ConfigMnt,
+			Role:       deployment.Config,
+			FileSystem: deployment.Ext4,
+			Size:       256,
+			Hidden:     true,
+		}))
 	})
 
 	It("does not include initrd extensions in deployment when no CPIO file exists", func() {
