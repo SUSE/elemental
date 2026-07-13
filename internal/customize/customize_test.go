@@ -271,6 +271,68 @@ disks:
 		Expect(len(customizeDeployment.Disks[0].Partitions)).To(Equal(0))
 	})
 
+	It("includes initrd extension in deployment when CPIO file exists", func() {
+		Expect(fs.WriteFile(output.InitrdExtensionFile(), []byte("fake cpio content"), vfs.FilePerm)).To(Succeed())
+
+		customizeDeployment := &deployment.Deployment{}
+		customizeRunner.Media = &mediaMock{
+			customizeFunc: func(d *deployment.Deployment) error {
+				customizeDeployment = d
+				return nil
+			},
+		}
+
+		def := &image.Definition{
+			Image: image.Image{
+				ImageType: "iso",
+			},
+			Configuration: &image.Configuration{
+				Installation: install.Installation{
+					Bootloader: "grub",
+					ISO: install.ISO{
+						Device: "/dev/sda",
+					},
+				},
+			},
+		}
+
+		Expect(vfs.MkdirAll(fs, output.FirstbootConfigDir(), vfs.DirPerm)).To(Succeed())
+
+		err := customizeRunner.Run(context.Background(), def, output)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(customizeDeployment.BootConfig.InitrdExtensions).To(Equal([]string{output.InitrdExtensionFile()}))
+	})
+
+	It("does not include initrd extensions in deployment when no CPIO file exists", func() {
+		customizeDeployment := &deployment.Deployment{}
+		customizeRunner.Media = &mediaMock{
+			customizeFunc: func(d *deployment.Deployment) error {
+				customizeDeployment = d
+				return nil
+			},
+		}
+
+		def := &image.Definition{
+			Image: image.Image{
+				ImageType: "iso",
+			},
+			Configuration: &image.Configuration{
+				Installation: install.Installation{
+					Bootloader: "grub",
+					ISO: install.ISO{
+						Device: "/dev/sda",
+					},
+				},
+			},
+		}
+
+		Expect(vfs.MkdirAll(fs, output.FirstbootConfigDir(), vfs.DirPerm)).To(Succeed())
+
+		err := customizeRunner.Run(context.Background(), def, output)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(customizeDeployment.BootConfig.InitrdExtensions).To(BeEmpty())
+	})
+
 	It("fails to configure components", func() {
 		customizeRunner.ConfigManager = &configManagerMock{
 			configFunc: func(ctx context.Context, conf *image.Configuration, output config.Output) (*resolver.ResolvedManifest, error) {

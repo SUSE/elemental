@@ -18,6 +18,8 @@ limitations under the License.
 package config_test
 
 import (
+	"path/filepath"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -25,6 +27,13 @@ import (
 	v0 "github.com/suse/elemental/v3/internal/config/v0"
 	sysmock "github.com/suse/elemental/v3/pkg/sys/mock"
 )
+
+var _ = Describe("Output", func() {
+	It("InitrdExtensionFile returns the CPIO path relative to RootPath", func() {
+		output := config.Output{RootPath: "/my/root"}
+		Expect(output.InitrdExtensionFile()).To(Equal(filepath.Join("/my/root", "initrdExt.cpio")))
+	})
+})
 
 var _ = Describe("Schema", func() {
 
