@@ -51,6 +51,10 @@ func Customize(ctx context.Context, cmd *cli.Command) error {
 	args := &cmdpkg.CustomizeArgs
 
 	imagePath, configPath := resolveOutputPaths(fs, args)
+	if imagePathExists, err := vfs.Exists(fs, imagePath); err == nil && imagePathExists {
+		logger.Error("Output image path %s already exists, will not overwrite", imagePath)
+		return fmt.Errorf("output image path %s already exists", imagePath)
+	}
 
 	logger.Info("Customizing image at %s", imagePath)
 
