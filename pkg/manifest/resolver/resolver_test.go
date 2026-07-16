@@ -36,8 +36,8 @@ const (
 	expectedSolutionManifestImage = "sol.example.com/bar/release-manifest:0.0.1"
 )
 
-var coreManifestPath = filepath.Join("..", "testdata", "full_core_release_manifest.yaml")
-var solManifestPath = filepath.Join("..", "testdata", "full_solution_release_manifest.yaml")
+var coreManifestPath = filepath.Join("testdata", "full_core_release_manifest.yaml")
+var solManifestPath = filepath.Join("testdata", "full_solution_release_manifest.yaml")
 
 func TestResolverSuite(t *testing.T) {
 	RegisterFailHandler(Fail)

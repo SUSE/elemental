@@ -18,53 +18,30 @@ limitations under the License.
 package solution
 
 import (
-	"bytes"
-	"errors"
 	"fmt"
 
-	"go.yaml.in/yaml/v3"
-
-	"github.com/go-playground/validator/v10"
-	"github.com/suse/elemental/v3/pkg/manifest/api"
+	api "github.com/suse/elemental/v3/pkg/manifest/api"
+	solutionv0 "github.com/suse/elemental/v3/pkg/manifest/api/internal/v0/solution"
 )
 
-type ReleaseManifest struct {
-	Schema       api.SchemaVersion `yaml:"schema,omitempty"`
-	Metadata     *api.Metadata     `yaml:"metadata,omitempty"`
-	CorePlatform *CorePlatform     `yaml:"corePlatform" validate:"required"`
-	Components   Components        `yaml:"components,omitempty"`
-}
-
-type CorePlatform struct {
-	Image string `yaml:"image" validate:"required"`
-}
-
-type Components struct {
-	Systemd api.Systemd `yaml:"systemd,omitempty"`
-	Helm    *api.Helm   `yaml:"helm,omitempty"`
-}
+type ReleaseManifest = solutionv0.ReleaseManifest
+type CorePlatform = solutionv0.CorePlatform
+type Components = solutionv0.Components
 
 func Parse(data []byte) (*ReleaseManifest, error) {
-	if _, err := api.LoadSchemaVersion(data); err != nil {
-		return nil, fmt.Errorf("parsing 'solution' release manifest: %w", err)
+	version, err := api.LoadSchemaVersion(data)
+	if err != nil {
+		return nil, fmt.Errorf("parsing 'core' release manifest: %w", err)
 	}
 
-	rm := &ReleaseManifest{}
-	decoder := yaml.NewDecoder(bytes.NewReader(data))
-	decoder.KnownFields(true)
-
-	if err := decoder.Decode(rm); err != nil {
-		return nil, fmt.Errorf("unmarshaling 'solution' release manifest: %w", err)
+	switch version {
+	case api.SchemaV0:
+		return parseV0(data)
+	default:
+		return nil, fmt.Errorf("unknown release manifest version %q", version)
 	}
+}
 
-	if err := api.NewValidator(api.WithYAMLFieldNames()).Struct(rm); err != nil {
-		var validationErrors validator.ValidationErrors
-		if errors.As(err, &validationErrors) {
-			err = api.FormatErrors(validationErrors)
-		}
-
-		return nil, fmt.Errorf("validating 'solution' release manifest: %w", err)
-	}
-
-	return rm, nil
+func parseV0(data []byte) (*ReleaseManifest, error) {
+	return api.Parse[solutionv0.ReleaseManifest](data)
 }

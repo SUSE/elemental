@@ -67,7 +67,7 @@ func TestCoreManifestSuite(t *testing.T) {
 
 var _ = Describe("ReleaseManifest", Label("release-manifest"), func() {
 	It("is parsed correctly", func() {
-		data, err := os.ReadFile(filepath.Join("..", "..", "testdata", "full_core_release_manifest.yaml"))
+		data, err := os.ReadFile(filepath.Join("..", "internal", "v0", "testdata", "full_core_release_manifest.yaml"))
 		Expect(err).NotTo(HaveOccurred())
 
 		rm, err := core.Parse(data)

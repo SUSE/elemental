@@ -18,64 +18,32 @@ limitations under the License.
 package core
 
 import (
-	"bytes"
-	"errors"
 	"fmt"
 
-	"go.yaml.in/yaml/v3"
-
-	"github.com/go-playground/validator/v10"
 	"github.com/suse/elemental/v3/pkg/manifest/api"
+	corev0 "github.com/suse/elemental/v3/pkg/manifest/api/internal/v0/core"
 )
 
-type ReleaseManifest struct {
-	Schema     api.SchemaVersion `yaml:"schema,omitempty"`
-	Metadata   *api.Metadata     `yaml:"metadata,omitempty"`
-	Components Components        `yaml:"components" validate:"required"`
-}
-
-type Components struct {
-	OperatingSystem *OperatingSystem `yaml:"operatingSystem" validate:"required"`
-	Kubernetes      *Kubernetes      `yaml:"kubernetes"`
-	Systemd         api.Systemd      `yaml:"systemd,omitempty"`
-	Helm            *api.Helm        `yaml:"helm,omitempty"`
-}
-
-type OperatingSystem struct {
-	Image Image `yaml:"image" validate:"required"`
-}
-
-type Kubernetes struct {
-	Version string `yaml:"version" validate:"required"`
-	Image   string `yaml:"image" validate:"required"`
-}
-
-type Image struct {
-	Base string `yaml:"base" validate:"required"`
-	ISO  string `yaml:"iso" validate:"required"`
-}
+type ReleaseManifest = corev0.ReleaseManifest
+type Components = corev0.Components
+type OperatingSystem = corev0.OperatingSystem
+type Kubernetes = corev0.Kubernetes
+type Image = corev0.Image
 
 func Parse(data []byte) (*ReleaseManifest, error) {
-	if _, err := api.LoadSchemaVersion(data); err != nil {
+	version, err := api.LoadSchemaVersion(data)
+	if err != nil {
 		return nil, fmt.Errorf("parsing 'core' release manifest: %w", err)
 	}
 
-	rm := &ReleaseManifest{}
-	decoder := yaml.NewDecoder(bytes.NewReader(data))
-	decoder.KnownFields(true)
-
-	if err := decoder.Decode(rm); err != nil {
-		return nil, fmt.Errorf("unmarshaling 'core' release manifest: %w", err)
+	switch version {
+	case api.SchemaV0:
+		return parseV0(data)
+	default:
+		return nil, fmt.Errorf("unknown release manifest version %q", version)
 	}
+}
 
-	if err := api.NewValidator(api.WithYAMLFieldNames()).Struct(rm); err != nil {
-		var validationErrors validator.ValidationErrors
-		if errors.As(err, &validationErrors) {
-			err = api.FormatErrors(validationErrors)
-		}
-
-		return nil, fmt.Errorf("validating 'core' release manifest: %w", err)
-	}
-
-	return rm, nil
+func parseV0(data []byte) (*ReleaseManifest, error) {
+	return api.Parse[corev0.ReleaseManifest](data)
 }

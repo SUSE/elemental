@@ -20,16 +20,26 @@ package api
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
+	"reflect"
 
 	"go.yaml.in/yaml/v3"
 
-	"github.com/suse/elemental/v3/pkg/helm"
+	"github.com/go-playground/validator/v10"
+	v0 "github.com/suse/elemental/v3/pkg/manifest/api/internal/v0"
 )
 
-type SchemaVersion string
-
-const SchemaV0 SchemaVersion = "v0"
+type SchemaVersion = v0.SchemaVersion
+type DependencyType = v0.DependencyType
+type Metadata = v0.Metadata
+type Helm = v0.Helm
+type HelmChart = v0.HelmChart
+type HelmChartImage = v0.HelmChartImage
+type HelmChartDependency = v0.HelmChartDependency
+type HelmRepository = v0.HelmRepository
+type Systemd = v0.Systemd
+type SystemdExtension = v0.SystemdExtension
 
 type schemaHeader struct {
 	SchemaVersion SchemaVersion `yaml:"schema"`
@@ -58,85 +68,38 @@ func LoadSchemaVersion(data []byte) (SchemaVersion, error) {
 	}
 }
 
-type DependencyType string
+func Parse[R any](data []byte) (*R, error) {
+	typeR := reflect.TypeFor[R]().String()
 
-const (
-	DependencyTypeExtension DependencyType = "sysext"
-	DependencyTypeHelm      DependencyType = "helm"
-)
-
-type Metadata struct {
-	Name         string `yaml:"name" validate:"required"`
-	Version      string `yaml:"version" validate:"required"`
-	CreationDate string `yaml:"creationDate,omitempty"`
-}
-
-type Helm struct {
-	Charts       []*HelmChart      `yaml:"charts" validate:"dive"`
-	Repositories []*HelmRepository `yaml:"repositories" validate:"dive"`
-}
-
-type HelmChart struct {
-	Name       string                `yaml:"name,omitempty"`
-	Chart      string                `yaml:"chart" validate:"required"`
-	Version    string                `yaml:"version" validate:"required"`
-	Namespace  string                `yaml:"namespace,omitempty"`
-	Repository string                `yaml:"repository,omitempty"`
-	Values     map[string]any        `yaml:"values,omitempty"`
-	DependsOn  []HelmChartDependency `yaml:"dependsOn,omitempty" validate:"dive"`
-	Images     []HelmChartImage      `yaml:"images,omitempty"`
-}
-
-func (c *HelmChart) GetName() string {
-	return c.Chart
-}
-
-func (c *HelmChart) GetInlineValues() map[string]any {
-	return c.Values
-}
-
-func (c *HelmChart) GetRepositoryName() string {
-	return c.Repository
-}
-
-func (c *HelmChart) ToCRD(values []byte, repository string, hasAuth bool, skipTLSVerify bool) *helm.CRD {
-	return helm.NewCRD(c.Namespace, c.Chart, c.Version, string(values), repository, hasAuth, skipTLSVerify)
-}
-
-func (c *HelmChart) ExtensionDependencies() []string {
-	var dependencies []string
-
-	for _, dependency := range c.DependsOn {
-		if dependency.Type == DependencyTypeExtension {
-			dependencies = append(dependencies, dependency.Name)
-		}
+	if _, err := LoadSchemaVersion(data); err != nil {
+		return nil, fmt.Errorf("parsing %q release manifest: %w", typeR, err)
 	}
 
-	return dependencies
+	decoder := yaml.NewDecoder(bytes.NewReader(data))
+	decoder.KnownFields(true)
+
+	rm := new(R)
+	if err := decoder.Decode(rm); err != nil {
+		return nil, fmt.Errorf("unmarshaling %q release manifest: %w", typeR, err)
+	}
+
+	if err := NewValidator(WithYAMLFieldNames()).Struct(rm); err != nil {
+		var validationErrors validator.ValidationErrors
+		if errors.As(err, &validationErrors) {
+			err = FormatErrors(validationErrors)
+		}
+
+		return nil, fmt.Errorf("validating %q release manifest: %w", typeR, err)
+	}
+
+	return rm, nil
 }
 
-type HelmChartImage struct {
-	Name  string `yaml:"name"`
-	Image string `yaml:"image"`
-}
+const (
+	SchemaV0 SchemaVersion = v0.SchemaV0
+)
 
-type HelmChartDependency struct {
-	Name string         `yaml:"name" validate:"required"`
-	Type DependencyType `yaml:"type" validate:"required,oneof=sysext helm"`
-}
-
-type HelmRepository struct {
-	Name string `yaml:"name" validate:"required"`
-	URL  string `yaml:"url" validate:"required,url"`
-}
-
-type Systemd struct {
-	Extensions []SystemdExtension `yaml:"extensions,omitempty" validate:"dive"`
-}
-
-type SystemdExtension struct {
-	Name          string   `yaml:"name" validate:"required"`
-	Image         string   `yaml:"image" validate:"required"`
-	Required      bool     `yaml:"required,omitempty"`
-	KernelModules []string `yaml:"kernelModules,omitempty"`
-}
+const (
+	DependencyTypeExtension DependencyType = v0.DependencyTypeExtension
+	DependencyTypeHelm      DependencyType = v0.DependencyTypeHelm
+)
