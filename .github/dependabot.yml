@@ -12,10 +12,10 @@ updates:
   - package-ecosystem: "gomod"
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: "daily"
     allow:
       - dependency-type: "direct"
-    open-pull-requests-limit: 0 # https://stackoverflow.com/a/68254421/395670
+    security-updates-only: true
     target-branch: release-3.0
     labels:
       - dependencies
