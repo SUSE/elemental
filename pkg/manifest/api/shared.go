@@ -27,18 +27,19 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	v0 "github.com/suse/elemental/v3/pkg/manifest/api/internal/v0"
+	v1 "github.com/suse/elemental/v3/pkg/manifest/api/internal/v1"
 )
 
-type SchemaVersion = v0.SchemaVersion
-type DependencyType = v0.DependencyType
-type Metadata = v0.Metadata
-type Helm = v0.Helm
-type HelmChart = v0.HelmChart
-type HelmChartImage = v0.HelmChartImage
-type HelmChartDependency = v0.HelmChartDependency
-type HelmRepository = v0.HelmRepository
-type Systemd = v0.Systemd
-type SystemdExtension = v0.SystemdExtension
+type SchemaVersion = v1.SchemaVersion
+type DependencyType = v1.DependencyType
+type Metadata = v1.Metadata
+type Helm = v1.Helm
+type HelmChart = v1.HelmChart
+type HelmChartImage = v1.HelmChartImage
+type HelmChartDependency = v1.HelmChartDependency
+type HelmRepository = v1.HelmRepository
+type Systemd = v1.Systemd
+type SystemdExtension = v1.SystemdExtension
 
 type schemaHeader struct {
 	SchemaVersion SchemaVersion `yaml:"schema"`
@@ -62,6 +63,8 @@ func LoadSchemaVersion(data []byte) (SchemaVersion, error) {
 	switch header.SchemaVersion {
 	case SchemaV0:
 		return SchemaV0, nil
+	case SchemaV1:
+		return SchemaV1, nil
 	default:
 		return "", fmt.Errorf("unsupported manifest schema version: %q", header.SchemaVersion)
 	}
@@ -96,6 +99,7 @@ func Parse[R any](data []byte) (*R, error) {
 
 const (
 	SchemaV0 SchemaVersion = v0.SchemaV0
+	SchemaV1 SchemaVersion = v1.SchemaV1
 )
 
 const (
