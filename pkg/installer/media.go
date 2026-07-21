@@ -639,9 +639,13 @@ func (i Media) addInstallationAssets(root string, d *deployment.Deployment) erro
 	}
 
 	if d.BootConfig != nil && len(d.BootConfig.InitrdExtensions) > 0 {
+		var extFile string
 		extensions := []string{}
 		for j, extension := range d.BootConfig.InitrdExtensions {
-			extFile := fmt.Sprintf("%d-%s", j, filepath.Base(extension))
+			extFile = filepath.Base(extension)
+			if ok, _ := vfs.Exists(i.s.FS(), filepath.Join(installPath, extFile)); ok {
+				extFile = fmt.Sprintf("%d_%s", j, extFile)
+			}
 			err = vfs.CopyFile(i.s.FS(), extension, filepath.Join(installPath, extFile))
 			if err != nil {
 				return fmt.Errorf("copying initrd extension %q: %w", extension, err)
