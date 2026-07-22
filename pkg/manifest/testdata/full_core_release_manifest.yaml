@@ -23,11 +23,6 @@ components:
     image:
       base: "registry.com/foo/bar/os-base:6.2"
       iso: "registry.com/foo/bar/installer-iso:6.2"
-  systemd:
-    extensions:
-      - name: "elemental3ctl"
-        image: "https://example.com/elemental3ctl_0.0.raw"
-        required: true
   kubernetes:
     version: "v1.35.0+rke2r1"
     image: "registry.example.com/rke2:1.35_1.0"
