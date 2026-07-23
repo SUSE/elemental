@@ -7,3 +7,4 @@ components:
     - chart: metallb # from core release
     - chart: rancher # from solution release
       valuesFile: rancher.yaml
+    - chart: elemental-lifecycle-manager
