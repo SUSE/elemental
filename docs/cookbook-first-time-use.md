@@ -317,7 +317,7 @@ sudo virt-install --name single-node \
                   --network network=default,model=virtio,mac=FE:C4:05:42:8B:AB \
                   --virt-type kvm \
                   --import \
-                  --boot uefi,loader=/usr/share/qemu/ovmf-x86_64-ms-code.bin,nvram.template=/usr/share/qemu/ovmf-x86_64-ms-vars.bin
+                  --boot uefi,loader=/usr/share/qemu/ovmf-x86_64-ms-4m-code.bin,nvram.template=/usr/share/qemu/ovmf-x86_64-ms-4m-vars.bin
 ```
 
 After a few seconds, a new VM will be created, booted and the terminal will be connected to the console (to disconnect from the console you can use *ctrl+\]*). You should see the VM booting.
@@ -411,7 +411,7 @@ sudo virt-install --name node1.example.com \
              --network network=default,model=virtio,mac=FE:C4:05:42:8B:AB \
              --virt-type kvm \
              --import \
-             --boot uefi,loader=/usr/share/qemu/ovmf-x86_64-ms-code.bin,nvram.template=/usr/share/qemu/ovmf-x86_64-ms-vars.bin
+             --boot uefi,loader=/usr/share/qemu/ovmf-x86_64-ms-4m-code.bin,nvram.template=/usr/share/qemu/ovmf-x86_64-ms-4m-vars.bin
 
 sudo virt-install --name node2.example.com \
              --ram 16000 \
@@ -424,7 +424,7 @@ sudo virt-install --name node2.example.com \
              --network network=default,model=virtio,mac=FE:C4:05:42:8B:AC \
              --virt-type kvm \
              --import \
-             --boot uefi,loader=/usr/share/qemu/ovmf-x86_64-ms-code.bin,nvram.template=/usr/share/qemu/ovmf-x86_64-ms-vars.bin
+             --boot uefi,loader=/usr/share/qemu/ovmf-x86_64-ms-4m-code.bin,nvram.template=/usr/share/qemu/ovmf-x86_64-ms-4m-vars.bin
 
 sudo virt-install --name node3.example.com \
              --ram 16000 \
@@ -437,7 +437,7 @@ sudo virt-install --name node3.example.com \
              --network network=default,model=virtio,mac=FE:C4:05:42:8B:AD \
              --virt-type kvm \
              --import \
-             --boot uefi,loader=/usr/share/qemu/ovmf-x86_64-ms-code.bin,nvram.template=/usr/share/qemu/ovmf-x86_64-ms-vars.bin
+             --boot uefi,loader=/usr/share/qemu/ovmf-x86_64-ms-4m-code.bin,nvram.template=/usr/share/qemu/ovmf-x86_64-ms-4m-vars.bin
 
 sudo virt-install --name node4.example.com \
              --ram 16000 \
@@ -450,7 +450,7 @@ sudo virt-install --name node4.example.com \
              --network network=default,model=virtio,mac=FE:C4:05:42:8B:AE \
              --virt-type kvm \
              --import \
-             --boot uefi,loader=/usr/share/qemu/ovmf-x86_64-ms-code.bin,nvram.template=/usr/share/qemu/ovmf-x86_64-ms-vars.bin
+             --boot uefi,loader=/usr/share/qemu/ovmf-x86_64-ms-4m-code.bin,nvram.template=/usr/share/qemu/ovmf-x86_64-ms-4m-vars.bin
 
 ```
 

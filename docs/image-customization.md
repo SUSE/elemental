@@ -139,7 +139,7 @@ The customized image can be booted as any other regular image. Below you can fin
 
      > **NOTE:** This is needed in order to persist any new EFI entries included during the ISO installer boot.
      ```shell
-     cp /usr/share/qemu/ovmf-x86_64-vars.bin .
+     cp /usr/share/qemu/ovmf-x86_64-ms-4m-vars.bin .
      ```
 
    * Boot a VM using the previously created resources, namely the `customized.iso`, `disk.img` and local EFI store:
@@ -151,7 +151,7 @@ The customized image can be booted as any other regular image. Below you can fin
                 --import \
                 --disk path=disk.img,format=raw \
                 --cdrom "customized.iso" \
-                --boot loader=/usr/share/qemu/ovmf-x86_64-code.bin,loader.readonly=yes,loader.type=pflash,nvram=ovmf-x86_64-vars.bin \
+                --boot loader=/usr/share/qemu/ovmf-x86_64-code.bin,loader.readonly=yes,loader.type=pflash,nvram=ovmf-x86_64-ms-4m-vars.bin \
                 --graphics none \
                 --console pty,target_type=serial \
                 --network network=default,model=virtio,mac=FE:C4:05:42:8B:01 \
