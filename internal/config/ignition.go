@@ -74,8 +74,8 @@ var (
 // * Systemd extensions
 // * Kubernetes distribution installation
 //
-// if baseConfig is set to true it builds a CPIO file containing the Ignition configuration at /usr/lib/ignition/base.d
-// the CPIO file can be used as an initrd extension allowing the user to provide user configuration that is merged on top.
+// it builds a CPIO file containing the Ignition configuration at /usr/lib/ignition/base.d the CPIO file can be used as an initrd extension
+// allowing the user to provide user configuration that is merged on top.
 func (m *Manager) configureIgnition(conf *image.Configuration, output Output, k8sScript, k8sConfScript string, ext []api.SystemdExtension) error {
 	if len(conf.ButaneConfig) == 0 &&
 		k8sScript == "" &&
@@ -138,29 +138,7 @@ func (m *Manager) configureIgnition(conf *image.Configuration, output Output, k8
 		config.AddSystemdUnit(updateLinkerCacheUnitName, updateLinkerCacheUnit, true)
 	}
 
-	if m.merge {
-		return m.writeBaseIgnitionConfig(output, config, conf.ButaneConfig)
-	}
-
-	return m.writeUserIgnitionConfig(output, config, conf.ButaneConfig)
-}
-
-// writeUserIgnitionConfig renders the Ignition configuration including the provided butane configuration as a single
-// <ignition_device>/ignition/config.ign file. From Ignition's PoV this represents the user configuration which gets merged
-// with the stock configuration, if any.
-func (m *Manager) writeUserIgnitionConfig(output Output, config butane.Config, butaneConfing map[string]any) error {
-	if len(butaneConfing) > 0 {
-		m.system.Logger().Info("Translating butane configuration to Ignition syntax")
-
-		ignitionBytes, err := butane.TranslateBytes(m.system, butaneConfing)
-		if err != nil {
-			return fmt.Errorf("failed translating butane configuration: %w", err)
-		}
-		config.MergeInlineIgnition(string(ignitionBytes))
-	}
-
-	ignitionFile := filepath.Join(output.FirstbootConfigDir(), image.IgnitionFilePath())
-	return butane.WriteIgnitionFile(m.system, config, ignitionFile)
+	return m.writeBaseIgnitionConfig(output, config, conf.ButaneConfig)
 }
 
 // writeBaseIgnitionConfig renders the generated Ignition configuration including the user provided butane configuration
