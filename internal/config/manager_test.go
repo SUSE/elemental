@@ -235,7 +235,7 @@ passwd:
 		Expect(err).ToNot(HaveOccurred())
 		_, err = fs.Stat(filepath.Join(output.OverlaysDir(), image.ExtensionsPath(), "remote-foo-image"))
 		Expect(err).ToNot(HaveOccurred())
-		_, err = fs.Stat(filepath.Join(output.FirstbootConfigDir(), image.IgnitionFilePath()))
+		_, err = fs.Stat(output.InitrdExtensionFile())
 		Expect(err).ToNot(HaveOccurred())
 	})
 
