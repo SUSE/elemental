@@ -100,15 +100,13 @@ passwd:
 
 		Expect(err).NotTo(HaveOccurred())
 
-		ignitionFile := filepath.Join(output.FirstbootConfigDir(), image.IgnitionFilePath())
-
 		Expect(m.configureIgnition(conf, output, "", "", nil)).To(Succeed())
-		ok, err := vfs.Exists(system.FS(), ignitionFile)
+		ok, err := vfs.Exists(system.FS(), output.InitrdExtensionFile())
 		Expect(err).NotTo(HaveOccurred())
 		Expect(ok).To(BeTrue())
-		ignition, err := system.FS().ReadFile(ignitionFile)
+		ignition, err := system.FS().ReadFile(output.InitrdExtensionFile())
 		Expect(err).NotTo(HaveOccurred())
-		Expect(ignition).To(ContainSubstring("merge"))
+		Expect(ignition).To(ContainSubstring(filepath.Join(image.IgnitionBaseConfigPath(), ignitionFromButaneFileName)))
 	})
 
 	It("Configures kubernetes via Ignition with the given k8s script", func() {
@@ -120,16 +118,15 @@ passwd:
 				},
 			},
 		}
-		ignitionFile := filepath.Join(output.FirstbootConfigDir(), image.IgnitionFilePath())
 
 		k8sScript := filepath.Join(output.OverlaysDir(), "path/to/k8s/script.sh")
 		k8sConfScript := filepath.Join(output.OverlaysDir(), "path/to/k8s/conf_script.sh")
 
 		Expect(m.configureIgnition(conf, output, k8sScript, k8sConfScript, nil)).To(Succeed())
-		ok, err := vfs.Exists(system.FS(), ignitionFile)
+		ok, err := vfs.Exists(system.FS(), output.InitrdExtensionFile())
 		Expect(err).NotTo(HaveOccurred())
 		Expect(ok).To(BeTrue())
-		ignition, err := system.FS().ReadFile(ignitionFile)
+		ignition, err := system.FS().ReadFile(output.InitrdExtensionFile())
 		Expect(err).NotTo(HaveOccurred())
 		Expect(ignition).NotTo(ContainSubstring("merge"))
 		Expect(ignition).NotTo(ContainSubstring("/etc/elemental/extensions.yaml"))
@@ -141,15 +138,14 @@ passwd:
 	It("Writes systemd extension via Ignition", func() {
 		conf := &image.Configuration{}
 		ext := []api.SystemdExtension{{Name: "ext1", Image: "ext1-image"}}
-		ignitionFile := filepath.Join(output.FirstbootConfigDir(), image.IgnitionFilePath())
 
 		Expect(m.configureIgnition(conf, output, "", "", ext)).To(Succeed())
 
-		ok, err := vfs.Exists(system.FS(), ignitionFile)
+		ok, err := vfs.Exists(system.FS(), output.InitrdExtensionFile())
 		Expect(err).NotTo(HaveOccurred())
 		Expect(ok).To(BeTrue())
 
-		ignition, err := system.FS().ReadFile(ignitionFile)
+		ignition, err := system.FS().ReadFile(output.InitrdExtensionFile())
 		Expect(err).NotTo(HaveOccurred())
 
 		Expect(ignition).To(ContainSubstring("/etc/elemental/extensions.yaml"))
@@ -182,12 +178,10 @@ passwd:
 			ButaneConfig: butane,
 		}
 
-		ignitionFile := filepath.Join(output.FirstbootConfigDir(), image.IgnitionFilePath())
-
 		Expect(m.configureIgnition(conf, output, k8sScript, k8sConfScript, nil)).To(MatchError(
 			ContainSubstring("No translator exists for variant unknown with version"),
 		))
-		ok, err := vfs.Exists(system.FS(), ignitionFile)
+		ok, err := vfs.Exists(system.FS(), output.InitrdExtensionFile())
 		Expect(err).NotTo(HaveOccurred())
 		Expect(ok).To(BeFalse())
 	})
@@ -208,14 +202,14 @@ passwd:
 			ButaneConfig: butane,
 		}
 
-		ignitionFile := filepath.Join(output.FirstbootConfigDir(), image.IgnitionFilePath())
 		Expect(m.configureIgnition(conf, output, "", "", nil)).To(Succeed())
-		ok, err := vfs.Exists(system.FS(), ignitionFile)
+
+		// Igntion files are generated inside the CPIO extension
+		cpioContent, err := system.FS().ReadFile(output.InitrdExtensionFile())
 		Expect(err).NotTo(HaveOccurred())
-		Expect(ok).To(BeTrue())
-		ignition, err := system.FS().ReadFile(ignitionFile)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(ignition).To(ContainSubstring("merge"))
+		Expect(string(cpioContent)).To(ContainSubstring(ignitionFileName))
+		Expect(string(cpioContent)).To(ContainSubstring(ignitionFromButaneFileName))
+
 		Expect(buffer.String()).To(ContainSubstring("translating Butane to Ignition reported non-fatal entries"))
 	})
 })

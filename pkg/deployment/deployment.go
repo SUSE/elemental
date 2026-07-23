@@ -63,8 +63,9 @@ const (
 	SystemMnt            = "/"
 	AllAvailableSize MiB = 0
 
-	ConfigLabel = "ignition"
-	ConfigMnt   = "/run/elemental/firstboot"
+	IgnitionLabel = "ignition"
+	CatalystLabel = "CATALYST"
+	ConfigMnt     = "/run/elemental/firstboot"
 
 	deploymentFile = "/etc/elemental/deployment.yaml"
 
@@ -1039,10 +1040,10 @@ func WithPartitions(num int, parts ...*Partition) Opt {
 // to the systemd disk. The given size is the amount of data expected to store in
 // the partition, then the partition is sized to be aligned with 128MiB and to ensure
 // at least 128MiB of free space is available.
-func WithConfigPartition(size MiB) Opt {
+func WithConfigPartition(size MiB, label string) Opt {
 	size = (size/128)*128 + 256
 	part := &Partition{
-		Label:      ConfigLabel,
+		Label:      label,
 		MountPoint: ConfigMnt,
 		Role:       Config,
 		FileSystem: Ext4,

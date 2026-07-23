@@ -18,6 +18,7 @@ limitations under the License.
 package config
 
 import (
+	"context"
 	_ "embed"
 	"fmt"
 	"path/filepath"
@@ -27,12 +28,14 @@ import (
 	"go.yaml.in/yaml/v3"
 
 	"github.com/suse/elemental/v3/internal/butane"
+	"github.com/suse/elemental/v3/internal/cpio"
 	"github.com/suse/elemental/v3/internal/image"
 	"github.com/suse/elemental/v3/internal/image/kubernetes"
 	"github.com/suse/elemental/v3/internal/template"
 	"github.com/suse/elemental/v3/pkg/extensions"
 	"github.com/suse/elemental/v3/pkg/manifest/api"
 	"github.com/suse/elemental/v3/pkg/sys"
+	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
 
 const (
@@ -41,6 +44,8 @@ const (
 	updateLinkerCacheUnitName   = "update-linker-cache.service"
 	k8sResourcesUnitName        = "k8s-resource-installer.service"
 	k8sConfigUnitName           = "k8s-config-installer.service"
+	ignitionFileName            = "10-elemental.ign"
+	ignitionFromButaneFileName  = "90-butane.ign"
 )
 
 var (
@@ -68,6 +73,9 @@ var (
 // * Kubernetes configuration and deployment files
 // * Systemd extensions
 // * Kubernetes distribution installation
+//
+// it builds a CPIO file containing the Ignition configuration at /usr/lib/ignition/base.d the CPIO file can be used as an initrd extension
+// allowing the user to provide user configuration that is merged on top.
 func (m *Manager) configureIgnition(conf *image.Configuration, output Output, k8sScript, k8sConfScript string, ext []api.SystemdExtension) error {
 	if len(conf.ButaneConfig) == 0 &&
 		k8sScript == "" &&
@@ -85,18 +93,6 @@ func (m *Manager) configureIgnition(conf *image.Configuration, output Output, k8
 
 	config.Variant = variant
 	config.Version = version
-
-	if len(conf.ButaneConfig) > 0 {
-		m.system.Logger().Info("Translating butane configuration to Ignition syntax")
-
-		ignitionBytes, err := butane.TranslateBytes(m.system, conf.ButaneConfig)
-		if err != nil {
-			return fmt.Errorf("failed translating butane configuration: %w", err)
-		}
-		config.MergeInlineIgnition(string(ignitionBytes))
-	} else {
-		m.system.Logger().Info("No butane configuration to translate into Ignition syntax")
-	}
 
 	if k8sScript != "" {
 		initHostname := "*"
@@ -142,8 +138,41 @@ func (m *Manager) configureIgnition(conf *image.Configuration, output Output, k8
 		config.AddSystemdUnit(updateLinkerCacheUnitName, updateLinkerCacheUnit, true)
 	}
 
-	ignitionFile := filepath.Join(output.FirstbootConfigDir(), image.IgnitionFilePath())
-	return butane.WriteIgnitionFile(m.system, config, ignitionFile)
+	return m.writeBaseIgnitionConfig(output, config, conf.ButaneConfig)
+}
+
+// writeBaseIgnitionConfig renders the generated Ignition configuration including the user provided butane configuration
+// as part of a CPIO file, which can be used to extend the OS initrd and include ignition base configuration the expected
+// /usr/lib/ignition/base.d path
+func (m *Manager) writeBaseIgnitionConfig(output Output, config butane.Config, butaneConfing map[string]any) (err error) {
+	tmpDir, err := vfs.TempDir(m.system.FS(), output.RootPath, "initrd")
+	if err != nil {
+		return fmt.Errorf("creating temporary directory for ignition initrd extension: %w", err)
+	}
+	defer func() {
+		e := m.system.FS().RemoveAll(tmpDir)
+		if err == nil && e != nil {
+			err = e
+		}
+	}()
+
+	ignitionFile := filepath.Join(tmpDir, image.IgnitionBaseConfigPath(), ignitionFileName)
+	err = butane.WriteIgnitionFile(m.system, config, ignitionFile)
+	if err != nil {
+		return fmt.Errorf("writing ignition file %q: %w", ignitionFile, err)
+	}
+
+	if len(butaneConfing) > 0 {
+		m.system.Logger().Info("Translating butane configuration to Ignition syntax")
+
+		butaneFile := filepath.Join(tmpDir, image.IgnitionBaseConfigPath(), ignitionFromButaneFileName)
+		err = butane.WriteIgnitionFile(m.system, butaneConfing, butaneFile)
+		if err != nil {
+			return fmt.Errorf("writing ignition file %q: %w", butaneFile, err)
+		}
+	}
+
+	return cpio.CreateCPIO(context.Background(), m.system, tmpDir, output.InitrdExtensionFile())
 }
 
 func generateK8sResourcesUnit(deployScript, initHostname string) (string, error) {

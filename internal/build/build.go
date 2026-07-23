@@ -21,6 +21,7 @@ package build
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/suse/elemental/v3/internal/config"
@@ -141,7 +142,12 @@ func newDeployment(
 			return nil, fmt.Errorf("computing configuration partition size: %w", err)
 		}
 
-		deploymentOpts = append(deploymentOpts, deployment.WithConfigPartition(deployment.MiB(configSize)))
+		configLabel := deployment.CatalystLabel
+		if ignDir, _ := vfs.Exists(system.FS(), filepath.Join(output.FirstbootConfigDir(), image.IgnitionFilePath())); ignDir {
+			configLabel = deployment.IgnitionLabel
+		}
+
+		deploymentOpts = append(deploymentOpts, deployment.WithConfigPartition(deployment.MiB(configSize), configLabel))
 	}
 
 	d := deployment.New(deploymentOpts...)

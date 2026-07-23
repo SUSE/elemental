@@ -98,6 +98,10 @@ func (o Output) ISOStoreDir() string {
 	return filepath.Join(o.ExtractedFilesStoreDir(), "ISOs")
 }
 
+func (o Output) InitrdExtensionFile() string {
+	return filepath.Join(o.RootPath, "initrdExt.cpio")
+}
+
 func (o Output) Cleanup(fs vfs.FS) error {
 	return fs.RemoveAll(o.RootPath)
 }

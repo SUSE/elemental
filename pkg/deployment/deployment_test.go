@@ -81,10 +81,10 @@ var _ = Describe("Deployment", Label("deployment"), func() {
 			Expect(d.Sanitize(s)).NotTo(Succeed())
 		})
 		It("creates a default deployment with a configuration partition and without a device assigned", func() {
-			d := deployment.New(deployment.WithConfigPartition(127))
+			d := deployment.New(deployment.WithConfigPartition(127, deployment.CatalystLabel))
 			d.SourceOS = deployment.NewDirSrc("/some/dir")
 			Expect(d.Sanitize(s, deployment.CheckDiskDevice)).To(Succeed())
-			Expect(d.Disks[0].Partitions[1].Label).To(Equal(deployment.ConfigLabel))
+			Expect(d.Disks[0].Partitions[1].Label).To(Equal(deployment.CatalystLabel))
 			Expect(d.Disks[0].Partitions[1].Size).To(Equal(deployment.MiB(256)))
 			Expect(d.Disks[0].Device).To(Equal(""))
 		})

@@ -30,6 +30,10 @@ func IgnitionFilePath() string {
 	return filepath.Join("ignition", "config.ign")
 }
 
+func IgnitionBaseConfigPath() string {
+	return filepath.Join("usr", "lib", "ignition", "base.d")
+}
+
 func ElementalPath() string {
 	return filepath.Join("var", "lib", "elemental")
 }

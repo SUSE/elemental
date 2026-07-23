@@ -187,7 +187,7 @@ disks:
 			},
 		}
 
-		// Simulate first boot configuration
+		// Simulate first boot configuration without Ignition
 		Expect(vfs.MkdirAll(fs, output.FirstbootConfigDir(), vfs.DirPerm)).To(Succeed())
 
 		err := customizeRunner.Run(context.Background(), def, output)
@@ -201,7 +201,7 @@ disks:
 		Expect(customizeDeployment.Disks[0].Partitions[1]).To(Equal(&deployment.Partition{}))
 		Expect(customizeDeployment.Disks[0].Partitions[2]).To(BeNil())
 		Expect(customizeDeployment.Disks[0].Partitions[3]).To(Equal(&deployment.Partition{
-			Label:      deployment.ConfigLabel,
+			Label:      deployment.CatalystLabel,
 			MountPoint: deployment.ConfigMnt,
 			Role:       deployment.Config,
 			FileSystem: deployment.Ext4,
@@ -269,6 +269,79 @@ disks:
 		defaultCustomizeDeploymentValidation(customizeDeployment, def)
 		Expect(customizeDeployment.Disks[0].Device).To(BeEmpty())
 		Expect(len(customizeDeployment.Disks[0].Partitions)).To(Equal(0))
+	})
+
+	It("includes initrd extension in deployment when CPIO file exists", func() {
+		Expect(fs.WriteFile(output.InitrdExtensionFile(), []byte("fake cpio content"), vfs.FilePerm)).To(Succeed())
+
+		customizeDeployment := &deployment.Deployment{}
+		customizeRunner.Media = &mediaMock{
+			customizeFunc: func(d *deployment.Deployment) error {
+				customizeDeployment = d
+				return nil
+			},
+		}
+
+		def := &image.Definition{
+			Image: image.Image{
+				ImageType: "iso",
+			},
+			Configuration: &image.Configuration{
+				Installation: install.Installation{
+					Bootloader: "grub",
+					ISO: install.ISO{
+						Device: "/dev/sda",
+					},
+				},
+			},
+		}
+
+		// Simulate first boot configuration with Ignition file
+		ignFile := filepath.Join(output.FirstbootConfigDir(), image.IgnitionFilePath())
+		Expect(vfs.MkdirAll(fs, filepath.Dir(ignFile), vfs.DirPerm)).To(Succeed())
+		Expect(fs.WriteFile(ignFile, []byte("ignition data"), vfs.FilePerm)).To(Succeed())
+
+		err := customizeRunner.Run(context.Background(), def, output)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(customizeDeployment.BootConfig.InitrdExtensions).To(Equal([]string{output.InitrdExtensionFile()}))
+		Expect(customizeDeployment.Disks[0].Partitions[3]).To(Equal(&deployment.Partition{
+			Label:      deployment.IgnitionLabel,
+			MountPoint: deployment.ConfigMnt,
+			Role:       deployment.Config,
+			FileSystem: deployment.Ext4,
+			Size:       256,
+			Hidden:     true,
+		}))
+	})
+
+	It("does not include initrd extensions in deployment when no CPIO file exists", func() {
+		customizeDeployment := &deployment.Deployment{}
+		customizeRunner.Media = &mediaMock{
+			customizeFunc: func(d *deployment.Deployment) error {
+				customizeDeployment = d
+				return nil
+			},
+		}
+
+		def := &image.Definition{
+			Image: image.Image{
+				ImageType: "iso",
+			},
+			Configuration: &image.Configuration{
+				Installation: install.Installation{
+					Bootloader: "grub",
+					ISO: install.ISO{
+						Device: "/dev/sda",
+					},
+				},
+			},
+		}
+
+		Expect(vfs.MkdirAll(fs, output.FirstbootConfigDir(), vfs.DirPerm)).To(Succeed())
+
+		err := customizeRunner.Run(context.Background(), def, output)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(customizeDeployment.BootConfig.InitrdExtensions).To(BeEmpty())
 	})
 
 	It("fails to configure components", func() {

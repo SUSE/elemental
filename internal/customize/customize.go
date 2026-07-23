@@ -182,9 +182,13 @@ func parseDeployment(
 		if err != nil {
 			return nil, fmt.Errorf("computing configuration partition size: %w", err)
 		}
+		configLabel := deployment.CatalystLabel
+		if ignFile, _ := vfs.Exists(fs, filepath.Join(output.FirstbootConfigDir(), image.IgnitionFilePath())); ignFile {
+			configLabel = deployment.IgnitionLabel
+		}
 
 		configPart := &deployment.Partition{
-			Label:      deployment.ConfigLabel,
+			Label:      configLabel,
 			MountPoint: deployment.ConfigMnt,
 			Role:       deployment.Config,
 			FileSystem: deployment.Ext4,
@@ -210,6 +214,9 @@ func parseDeployment(
 	d.BootConfig = &deployment.BootConfig{
 		Bootloader:    install.Bootloader,
 		KernelCmdline: install.KernelCmdLine,
+	}
+	if initrdExt, _ := vfs.Exists(fs, output.InitrdExtensionFile()); initrdExt {
+		d.BootConfig.InitrdExtensions = []string{output.InitrdExtensionFile()}
 	}
 
 	d.Security = &deployment.SecurityConfig{
