@@ -65,18 +65,18 @@ func TestSolutionManifestSuite(t *testing.T) {
 
 var _ = Describe("ReleaseManifest", Label("release-manifest"), func() {
 	It("is parsed correctly", func() {
-		data, err := os.ReadFile(filepath.Join("..", "..", "testdata", "full_solution_release_manifest.yaml"))
+		data, err := os.ReadFile(filepath.Join("..", "internal", "v0", "testdata", "full_solution_release_manifest.yaml"))
 		Expect(err).NotTo(HaveOccurred())
 
 		rm, err := solution.Parse(data)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(rm).ToNot(BeNil())
 
-		Expect(rm.Schema).To(BeEquivalentTo("v0"))
+		// v0 is translated to v1
+		Expect(rm.Schema).To(BeEquivalentTo("v1"))
 
 		Expect(rm.Metadata).ToNot(BeNil())
 		Expect(rm.Metadata.Name).To(Equal("suse-edge"))
-		Expect(rm.Metadata.Version).To(Equal("3.2.0"))
 		Expect(rm.Metadata.CreationDate).To(Equal("2025-01-20"))
 
 		Expect(rm.CorePlatform).ToNot(BeNil())
@@ -117,16 +117,19 @@ corePlatform:
 		Expect(rm).ToNot(BeNil())
 	})
 
-	It("succeeds with explicit schema v0", func() {
+	It("succeeds with explicit schema v1", func() {
 		data := []byte(`
-schema: v0
+schema: v1
+metadata:
+  name: "foobar"
+  creationDate: "20260720"
 corePlatform:
   image: "foo.example.com/bar/release-manifest:1.0"
 `)
 		rm, err := solution.Parse(data)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(rm).ToNot(BeNil())
-		Expect(rm.Schema).To(BeEquivalentTo("v0"))
+		Expect(rm.Schema).To(BeEquivalentTo("v1"))
 	})
 
 	It("fails with unknown schema version", func() {

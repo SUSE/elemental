@@ -36,8 +36,8 @@ const (
 	expectedSolutionManifestImage = "sol.example.com/bar/release-manifest:0.0.1"
 )
 
-var coreManifestPath = filepath.Join("..", "testdata", "full_core_release_manifest.yaml")
-var solManifestPath = filepath.Join("..", "testdata", "full_solution_release_manifest.yaml")
+var coreManifestPath = filepath.Join("testdata", "full_core_release_manifest.yaml")
+var solManifestPath = filepath.Join("testdata", "full_solution_release_manifest.yaml")
 
 func TestResolverSuite(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -147,7 +147,6 @@ func validateResolvedManifest(rm *resolver.ResolvedManifest, coreOnly bool) {
 
 	Expect(rm.CorePlatform.Metadata).ToNot(BeNil())
 	Expect(rm.CorePlatform.Metadata.Name).To(Equal("suse-core"))
-	Expect(rm.CorePlatform.Metadata.Version).To(Equal("1.0"))
 	Expect(rm.CorePlatform.Metadata.CreationDate).To(Equal("2000-01-01"))
 
 	Expect(rm.CorePlatform.Components).ToNot(BeNil())
@@ -183,7 +182,6 @@ func validateResolvedManifest(rm *resolver.ResolvedManifest, coreOnly bool) {
 
 		Expect(rm.SolutionExtension.Metadata).ToNot(BeNil())
 		Expect(rm.SolutionExtension.Metadata.Name).To(Equal("suse-edge"))
-		Expect(rm.SolutionExtension.Metadata.Version).To(Equal("3.2.0"))
 		Expect(rm.SolutionExtension.Metadata.CreationDate).To(Equal("2025-01-20"))
 
 		Expect(rm.SolutionExtension.CorePlatform).ToNot(BeNil())

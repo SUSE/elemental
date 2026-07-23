@@ -229,7 +229,6 @@ func printBasicData(cm *core.ReleaseManifest, sm *solution.ReleaseManifest, arg 
 
 	cmBasic = &basicInfo{
 		Name:         cm.Metadata.Name,
-		Version:      cm.Metadata.Version,
 		CreationDate: cm.Metadata.CreationDate,
 		Source:       arg,
 	}
@@ -237,7 +236,6 @@ func printBasicData(cm *core.ReleaseManifest, sm *solution.ReleaseManifest, arg 
 		// we are dealing with a solution manifest
 		smBasic = &basicInfo{
 			Name:         sm.Metadata.Name,
-			Version:      sm.Metadata.Version,
 			CreationDate: sm.Metadata.CreationDate,
 			Source:       arg,
 		}
@@ -245,7 +243,6 @@ func printBasicData(cm *core.ReleaseManifest, sm *solution.ReleaseManifest, arg 
 
 		table.Header([]string{"Attribute", "Core Platform (Base)", "Solution Manifest (Extension)"})
 		data = append(data, []string{"Name", cmBasic.Name, smBasic.Name})
-		data = append(data, []string{versionHdr, cmBasic.Version, sm.Metadata.Version})
 		data = append(data, []string{"Release Date", cmBasic.CreationDate, sm.Metadata.CreationDate})
 		data = append(data, []string{sourceHdr, cmBasic.Source, smBasic.Source})
 	} else {

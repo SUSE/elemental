@@ -1,0 +1,109 @@
+/*
+Copyright © 2025-2026 SUSE LLC
+SPDX-License-Identifier: Apache-2.0
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package v0
+
+import (
+	"github.com/suse/elemental/v3/pkg/helm"
+)
+
+type SchemaVersion string
+
+const SchemaV0 SchemaVersion = "v0"
+
+type DependencyType string
+
+const (
+	DependencyTypeExtension DependencyType = "sysext"
+	DependencyTypeHelm      DependencyType = "helm"
+)
+
+type Metadata struct {
+	Name         string `yaml:"name" validate:"required"`
+	Version      string `yaml:"version" validate:"required"`
+	CreationDate string `yaml:"creationDate,omitempty"`
+}
+
+type Helm struct {
+	Charts       []*HelmChart      `yaml:"charts" validate:"dive"`
+	Repositories []*HelmRepository `yaml:"repositories" validate:"dive"`
+}
+
+type HelmChart struct {
+	Name       string                `yaml:"name,omitempty"`
+	Chart      string                `yaml:"chart" validate:"required"`
+	Version    string                `yaml:"version" validate:"required"`
+	Namespace  string                `yaml:"namespace,omitempty"`
+	Repository string                `yaml:"repository,omitempty"`
+	Values     map[string]any        `yaml:"values,omitempty"`
+	DependsOn  []HelmChartDependency `yaml:"dependsOn,omitempty" validate:"dive"`
+	Images     []HelmChartImage      `yaml:"images,omitempty"`
+}
+
+func (c *HelmChart) GetName() string {
+	return c.Chart
+}
+
+func (c *HelmChart) GetInlineValues() map[string]any {
+	return c.Values
+}
+
+func (c *HelmChart) GetRepositoryName() string {
+	return c.Repository
+}
+
+func (c *HelmChart) ToCRD(values []byte, repository string, hasAuth bool, skipTLSVerify bool) *helm.CRD {
+	return helm.NewCRD(c.Namespace, c.Chart, c.Version, string(values), repository, hasAuth, skipTLSVerify)
+}
+
+func (c *HelmChart) ExtensionDependencies() []string {
+	var dependencies []string
+
+	for _, dependency := range c.DependsOn {
+		if dependency.Type == DependencyTypeExtension {
+			dependencies = append(dependencies, dependency.Name)
+		}
+	}
+
+	return dependencies
+}
+
+type HelmChartImage struct {
+	Name  string `yaml:"name"`
+	Image string `yaml:"image"`
+}
+
+type HelmChartDependency struct {
+	Name string         `yaml:"name" validate:"required"`
+	Type DependencyType `yaml:"type" validate:"required,oneof=sysext helm"`
+}
+
+type HelmRepository struct {
+	Name string `yaml:"name" validate:"required"`
+	URL  string `yaml:"url" validate:"required,url"`
+}
+
+type Systemd struct {
+	Extensions []SystemdExtension `yaml:"extensions,omitempty" validate:"dive"`
+}
+
+type SystemdExtension struct {
+	Name          string   `yaml:"name" validate:"required"`
+	Image         string   `yaml:"image" validate:"required"`
+	Required      bool     `yaml:"required,omitempty"`
+	KernelModules []string `yaml:"kernelModules,omitempty"`
+}
