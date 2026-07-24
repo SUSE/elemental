@@ -95,7 +95,9 @@
   RANCHER_VERSION: v2.14.1
   TESTED_CMD: customize
   TEST_FRAMEWORK_REPO: https://github.com/rancher/distros-test-framework
-  TESTS_TO_RUN: validatecluster,deployrancher
+  # Disable 'deployrancher' for now, as RKE2 v1.36 is not supported yet
+  # TESTS_TO_RUN: validatecluster,deployrancher
+  TESTS_TO_RUN: validatecluster
   YAML_SCHEDULE: schedule/elemental3/master.yaml
 
 defaults:
@@ -219,7 +221,7 @@ scenarios:
           settings: &generate_raw_recovery
             <<: *generate_settings
             IMAGE_TYPE: raw
-            TEMPLATE: build-tpl_recovery.tar.gz
+            TEMPLATE: recovery
             TESTED_CMD: customize_recovery
       - generate_raw_singlenode:
           testsuite: null
@@ -228,48 +230,35 @@ scenarios:
             IMAGE_TYPE: raw
             TESTED_CMD: customize
             CLUSTER_TYPE: singlenode
-      - test_iso_fips:
+      - generate_raw_singlenode_stable:
           testsuite: null
-          settings: &test_iso_fips
-            <<: *test_iso_settings
-            CRYPTO_POLICY: fips
+          settings: &generate_raw_singlenode_stable
+            <<: *generate_settings
+            IMAGE_TYPE: raw
             TESTED_CMD: customize
-            START_AFTER_TEST: generate_iso
-      - test_raw:
-          testsuite: null
-          settings: &test_raw
-            <<: *test_raw_settings
-            TESTED_CMD: customize
-            START_AFTER_TEST: generate_raw
-      - test_raw_recovery:
-          testsuite: null
-          settings: &test_raw_recovery
-            <<: *test_raw_settings
-            TEMPLATE: build-tpl_recovery.tar.gz
-            TESTED_CMD: customize_recovery
-            TEST_TYPE: 'recovery'
-            START_AFTER_TEST: generate_raw_recovery
-      - master_singlenode:
-          testsuite: null
-          settings: &master_singlenode
-            <<: *master_k8s_validation_settings
-            NODES_LIST: node01
-            TESTS_TO_RUN: validatecluster
-            START_AFTER_TEST: generate_raw_singlenode
-      - singlenode:
-          testsuite: null
-          settings: &singlenode
-            <<: *singlenode_k8s_validation_settings
-            HOSTNAME: node01
-            NICMAC: '52:54:00:99:88:01'
+            CLUSTER_TYPE: singlenode
+            STATIC_HOSTS: 'dist.suse.de,dist.nue.suse.com,registry.suse.de'
+            +TOTEST_PATH: https://dist.suse.de/ibs/Devel:/UnifiedCore:/Releases:/16.0
       - master_multinode:
           testsuite: null
           settings: &master_multinode
             <<: *master_k8s_validation_settings
             NICMAC: '52:54:00:99:88:00'
             NODES_LIST: node01,node02,node03,node04
-            TESTS_TO_RUN: validatecluster
             START_AFTER_TEST: generate_raw_multinode
+      - master_singlenode:
+          testsuite: null
+          settings: &master_singlenode
+            <<: *master_k8s_validation_settings
+            NODES_LIST: node01
+            START_AFTER_TEST: generate_raw_singlenode
+      - master_singlenode_upgrade:
+          testsuite: null
+          settings: &master_singlenode_upgrade
+            <<: *master_k8s_validation_settings
+            NODES_LIST: node01
+            TEST_TYPE: upgrade
+            START_AFTER_TEST: generate_raw_singlenode_stable
       - node01:
           testsuite: null
           settings: &node01
@@ -294,6 +283,43 @@ scenarios:
             <<: *multinode_k8s_validation_settings
             HOSTNAME: node04
             NICMAC: '52:54:00:99:88:04'
+      - singlenode:
+          testsuite: null
+          settings: &singlenode
+            <<: *singlenode_k8s_validation_settings
+            HOSTNAME: node01
+            NICMAC: '52:54:00:99:88:01'
+      - test_iso_fips:
+          testsuite: null
+          settings: &test_iso_fips
+            <<: *test_iso_settings
+            CRYPTO_POLICY: fips
+            TESTED_CMD: customize
+            START_AFTER_TEST: generate_iso
+      - test_raw:
+          testsuite: null
+          settings: &test_raw
+            <<: *test_raw_settings
+            TESTED_CMD: customize
+            START_AFTER_TEST: generate_raw
+      - test_raw_recovery:
+          testsuite: null
+          settings: &test_raw_recovery
+            <<: *test_raw_settings
+            TEMPLATE: recovery
+            TESTED_CMD: customize_recovery
+            TEST_TYPE: 'recovery'
+            START_AFTER_TEST: generate_raw_recovery
+      - upgrade:
+          testsuite: null
+          settings: &upgrade
+            <<: *singlenode_k8s_validation_settings
+            HOSTNAME: node01
+            NICMAC: '52:54:00:99:88:01'
+            TEST_TYPE: upgrade
+            TESTED_CMD: customize
+            HDD_1: 'elemental-%BUILD%-%ARCH%-%TESTED_CMD%.qcow2'
+            PARALLEL_WITH: master_singlenode_upgrade
   x86_64:
     elemental_container:
       - validate_container_image_elemental:
@@ -362,30 +388,22 @@ scenarios:
           testsuite: null
           settings:
             <<: *generate_raw_singlenode
-      - test_iso_fips:
+      - generate_raw_singlenode_stable:
           testsuite: null
           settings:
-            <<: *test_iso_fips
-      - test_raw:
-          testsuite: null
-          settings:
-            <<: *test_raw
-      - test_raw_recovery:
-          testsuite: null
-          settings:
-            <<: *test_raw_recovery
-      - master_singlenode:
-          testsuite: null
-          settings:
-            <<: *master_singlenode
-      - singlenode:
-          testsuite: null
-          settings:
-            <<: *singlenode
+            <<: *generate_raw_singlenode_stable
       - master_multinode:
           testsuite: null
           settings:
             <<: *master_multinode
+      - master_singlenode:
+          testsuite: null
+          settings:
+            <<: *master_singlenode
+      - master_singlenode_upgrade:
+          testsuite: null
+          settings:
+            <<: *master_singlenode_upgrade
       - node01:
           testsuite: null
           settings:
@@ -402,3 +420,23 @@ scenarios:
           testsuite: null
           settings:
             <<: *node04
+      - singlenode:
+          testsuite: null
+          settings:
+            <<: *singlenode
+      - test_iso_fips:
+          testsuite: null
+          settings:
+            <<: *test_iso_fips
+      - test_raw:
+          testsuite: null
+          settings:
+            <<: *test_raw
+      - test_raw_recovery:
+          testsuite: null
+          settings:
+            <<: *test_raw_recovery
+      - upgrade:
+          testsuite: null
+          settings:
+            <<: *upgrade
