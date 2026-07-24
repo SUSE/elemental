@@ -23,6 +23,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -30,6 +31,7 @@ import (
 	"github.com/suse/elemental/v3/pkg/chroot"
 	"github.com/suse/elemental/v3/pkg/deployment"
 	"github.com/suse/elemental/v3/pkg/fstab"
+	"github.com/suse/elemental/v3/pkg/merge"
 	"github.com/suse/elemental/v3/pkg/rsync"
 	"github.com/suse/elemental/v3/pkg/snapper"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
@@ -212,8 +214,8 @@ func (sc snapperContext) configureRWVolumes(trans *Transaction) error {
 }
 
 // merge runs a 3 way merge for snapshotted RW volumes.
-// Current implementation solves potential conflicts by always keeping
-// custom changes over changes coming from the OS image.
+// User changes are always applied over OS changes. When both sides modified the
+// same file, user version wins and the conflict is reported to the user.
 func (sc snapperContext) merge(trans *Transaction) (err error) {
 	var status, tmpDir string
 
@@ -240,9 +242,13 @@ func (sc snapperContext) merge(trans *Transaction) (err error) {
 			return err
 		}
 
-		err = sc.applyCustomChanges(status, rwVol.Path, m)
+		conflicts, err := sc.applyCustomChanges(status, rwVol.Path, m)
 		if err != nil {
 			return err
+		}
+		if len(conflicts) > 0 {
+			conflictSummary := merge.FormatConflictSummary(rwVol.Path, conflicts)
+			sc.s.Logger().Warn("%s", conflictSummary)
 		}
 	}
 	return nil
@@ -274,13 +280,34 @@ func (sc snapperContext) customChangesStatus(volPath string, merge *Merge, outpu
 	return nil
 }
 
-// applyCustomChanges reads the given status file and applies reported changes in to the target destination.
-// This method is the responsible of applying customizations to the new volume
-func (sc snapperContext) applyCustomChanges(status, rwVolPath string, merge *Merge) (err error) {
+// userChangeTypeFromSnapper maps snapper's status prefix character to a
+// ChangeType. Returns "" for prefixes that don't represent a merge-relevant
+// user change (which the caller should skip).
+func userChangeTypeFromSnapper(c string) merge.ChangeType {
+	switch c {
+	case "+":
+		return merge.ChangeTypeAdded
+	case "-":
+		return merge.ChangeTypeDeleted
+	case "c", "t", ".":
+		return merge.ChangeTypeModified
+	}
+	return ""
+}
+
+// applyCustomChanges reads the given snapper status file, applies each user
+// change to the new snapshot, and reports files the new image also touches (conflicts).
+//
+// For each user-changed file it attempts to detect changes from the old snapshot --
+// at this point m.New still holds the pristine new-image content, so that diff
+// IS the OS defaults delta for that path. Deletes are buffered and applied
+// after the scan so their side-effects can't disturb later per-file checks.
+// Non-deletes are appended to the rsync files-from list as before.
+func (sc snapperContext) applyCustomChanges(status, rwVolPath string, m *Merge) (conflicts []merge.Conflict, err error) {
 	sc.s.Logger().Debug("rw volume path: %s", rwVolPath)
 	statusF, err := sc.s.FS().OpenFile(status, os.O_RDONLY, vfs.FilePerm)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer func() {
 		e := statusF.Close()
@@ -292,41 +319,70 @@ func (sc snapperContext) applyCustomChanges(status, rwVolPath string, merge *Mer
 	syncFiles := filepath.Join(filepath.Dir(status), fmt.Sprintf("sync_%s", snapper.ConfigName(rwVolPath)))
 	syncF, err := sc.s.FS().OpenFile(syncFiles, os.O_CREATE|os.O_WRONLY, vfs.FilePerm)
 	if err != nil {
-		return fmt.Errorf("failed opening modified files list: %w", err)
+		return nil, fmt.Errorf("failed opening modified files list: %w", err)
 	}
 
 	r := regexp.MustCompile(`(([-+ct.])[p.][u.][g.][x.][a.])\s+(.*)`)
 
+	var pendingDeletes []string
 	scanner := bufio.NewScanner(statusF)
 	for scanner.Scan() {
 		line := scanner.Text()
 		match := r.FindStringSubmatch(line)
+		if len(match) == 0 {
+			continue
+		}
+		if strings.HasPrefix(match[1], "....") {
+			// Ignore extended attributes changes because the stock snapshot used
+			// for comparison was taken before SELinux relabelling, hence this is
+			// likely to list almost every single file.
+			continue
+		}
 
-		switch {
-		case len(match) == 0:
+		userChange := userChangeTypeFromSnapper(match[2])
+		if userChange == "" {
 			continue
-		case strings.HasPrefix(match[1], "...."):
-			// Ignore extended attributes changes because the stock snapshot used for
-			// comparison was taken before SELINUX relabelling, hence this is likely to
-			// list almost every single file.
+		}
+
+		// Per-file OS delta check. m.New is still pristine here: rsync runs
+		// after this loop and deletes are buffered, so no earlier iteration
+		// can have mutated the path we're about to inspect.
+		relPath := strings.TrimPrefix(match[3], rwVolPath)
+
+		// .snapshots is snapper's own metadata store and a subvolume boundary,
+		// never user or OS content to merge. Skip it so it can't be reported as
+		// a bogus conflict or added to the sync list (consistent with the rsync exclude below).
+		snapshotsDir := "/" + snapper.SnapshotsPath
+		if relPath == snapshotsDir || strings.HasPrefix(relPath, snapshotsDir+"/") {
 			continue
-		case match[2] == "-":
-			err = sc.s.FS().RemoveAll(filepath.Join(merge.New, strings.TrimPrefix(match[3], rwVolPath)))
-			if err != nil {
-				_ = syncF.Close()
-				return err
-			}
-		default:
-			_, err = fmt.Fprintln(syncF, strings.TrimPrefix(match[3], rwVolPath)) // #nosec G705
-			if err != nil {
-				_ = syncF.Close()
-				return err
-			}
+		}
+
+		osChange, ferr := merge.FileChange(sc.s.FS(), filepath.Join(m.Old, relPath), filepath.Join(m.New, relPath))
+		if ferr != nil {
+			sc.s.Logger().Warn("Could not compute OS change for %s: %v", relPath, ferr)
+		} else if osChange != "" {
+			conflicts = append(conflicts, merge.Conflict{
+				Path: relPath, UserChange: userChange, OSChange: osChange,
+			})
+		}
+
+		if userChange == merge.ChangeTypeDeleted {
+			pendingDeletes = append(pendingDeletes, relPath)
+			continue
+		}
+		if _, err = fmt.Fprintln(syncF, relPath); err != nil { // #nosec G705
+			_ = syncF.Close()
+			return nil, err
 		}
 	}
-	err = syncF.Close()
-	if err != nil {
-		return fmt.Errorf("failed closing modified files list: %w", err)
+	if err = syncF.Close(); err != nil {
+		return nil, fmt.Errorf("failed closing modified files list: %w", err)
+	}
+
+	for _, rel := range pendingDeletes {
+		if err = sc.s.FS().RemoveAll(filepath.Join(m.New, rel)); err != nil {
+			return nil, err
+		}
 	}
 
 	// Ensure rsync gets the raw path in testing environments
@@ -336,12 +392,14 @@ func (sc snapperContext) applyCustomChanges(status, rwVolPath string, merge *Mer
 	syncFlags := append(rsync.DefaultFlags(), "--files-from", syncFiles)
 
 	sync := rsync.NewRsync(sc.s, rsync.WithContext(sc.ctx), rsync.WithFlags(syncFlags...))
-	err = sync.SyncData(merge.Modified, merge.New, snapper.SnapshotsPath)
-	if err != nil {
-		return err
+	if err = sync.SyncData(m.Modified, m.New, snapper.SnapshotsPath); err != nil {
+		return nil, err
 	}
 
-	return nil
+	slices.SortFunc(conflicts, func(a, b merge.Conflict) int {
+		return strings.Compare(a.Path, b.Path)
+	})
+	return conflicts, nil
 }
 
 // snapshotIDFromPath determines the snapshot ID form the snapshot root path
