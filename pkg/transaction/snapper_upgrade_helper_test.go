@@ -36,6 +36,7 @@ const snapperStatus = `{
 +..... /etc/createdFile
 c..... /etc/modifiedFile
 ....x. /etc/relabelledFile
+c..... /etc/.snapshots/4/info.xml
 `
 
 var _ = Describe("SnapperUpgradeHelper", Label("transaction"), func() {
@@ -163,6 +164,8 @@ var _ = Describe("SnapperUpgradeHelper", Label("transaction"), func() {
 		//   - deletedFile:  in old and new (OS keeps a differing version)
 		//   - relabelledFile: xattr-only user diff, filtered out
 		//   - createdFile:  absent from old and new (user added it fresh)
+		//   - .snapshots/4/info.xml: in old and new with different content (would
+		//     be an OS-delta conflict if not skipped as snapper metadata)
 		seedUpgradeMergeFS := func() *transaction.Merge {
 			snapshotP := ".snapshots/5/snapshot"
 			snTemplate := "/usr/share/snapper/config-templates/default"
@@ -199,6 +202,8 @@ var _ = Describe("SnapperUpgradeHelper", Label("transaction"), func() {
 			Expect(tfs.WriteFile(filepath.Join(etcMerge.Old, "modifiedFile"), []byte("old defaults modified file"), vfs.FilePerm)).To(Succeed())
 			Expect(tfs.WriteFile(filepath.Join(etcMerge.Old, "deletedFile"), []byte("old deletedFile content"), vfs.FilePerm)).To(Succeed())
 			Expect(tfs.WriteFile(filepath.Join(etcMerge.Old, "relabelledFile"), []byte("relabelled file content"), vfs.FilePerm)).To(Succeed())
+			Expect(vfs.MkdirAll(tfs, filepath.Join(etcMerge.Old, ".snapshots/4"), vfs.DirPerm)).To(Succeed())
+			Expect(tfs.WriteFile(filepath.Join(etcMerge.Old, ".snapshots/4/info.xml"), []byte("old snapshot metadata"), vfs.FilePerm)).To(Succeed())
 			Expect(vfs.MkdirAll(tfs, trans.Merges["/home"].Old, vfs.DirPerm)).To(Succeed())
 
 			// New defaults already unpacked into the new snapshot tree.
@@ -207,6 +212,8 @@ var _ = Describe("SnapperUpgradeHelper", Label("transaction"), func() {
 			Expect(tfs.WriteFile(filepath.Join(newEtc, "modifiedFile"), []byte("new defaults modified file"), vfs.FilePerm)).To(Succeed())
 			Expect(tfs.WriteFile(filepath.Join(newEtc, "relabelledFile"), []byte("new defaults relabelled file"), vfs.FilePerm)).To(Succeed())
 			Expect(tfs.WriteFile(filepath.Join(newEtc, "unmodifiedFile"), []byte("new defaults non modified file"), vfs.FilePerm)).To(Succeed())
+			Expect(vfs.MkdirAll(tfs, filepath.Join(newEtc, ".snapshots/4"), vfs.DirPerm)).To(Succeed())
+			Expect(tfs.WriteFile(filepath.Join(newEtc, ".snapshots/4/info.xml"), []byte("new snapshot metadata"), vfs.FilePerm)).To(Succeed())
 			Expect(vfs.MkdirAll(tfs, newHome, vfs.DirPerm)).To(Succeed())
 
 			return etcMerge
@@ -277,6 +284,8 @@ var _ = Describe("SnapperUpgradeHelper", Label("transaction"), func() {
 				"absent from old and new, so it has no OS delta")
 			Expect(logs).NotTo(ContainSubstring("/relabelledFile"),
 				"filtered out (xattr only)")
+			Expect(logs).NotTo(ContainSubstring(".snapshots/4/info.xml"),
+				"snapper metadata under .snapshots is skipped even with an OS delta")
 			Expect(logs).NotTo(ContainSubstring("Merge conflicts detected for /home"),
 				"/home was empty status, so no conflicts to report")
 		})
