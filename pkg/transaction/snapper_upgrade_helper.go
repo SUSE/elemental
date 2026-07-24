@@ -349,6 +349,14 @@ func (sc snapperContext) applyCustomChanges(status, rwVolPath string, m *Merge) 
 		// can have mutated the path we're about to inspect.
 		relPath := strings.TrimPrefix(match[3], rwVolPath)
 
+		// .snapshots is snapper's own metadata store and a subvolume boundary,
+		// never user or OS content to merge. Skip it so it can't be reported as
+		// a bogus conflict or added to the sync list (consistent with the rsync exclude below).
+		snapshotsDir := "/" + snapper.SnapshotsPath
+		if relPath == snapshotsDir || strings.HasPrefix(relPath, snapshotsDir+"/") {
+			continue
+		}
+
 		osChange, ferr := merge.FileChange(sc.s.FS(), filepath.Join(m.Old, relPath), filepath.Join(m.New, relPath))
 		if ferr != nil {
 			sc.s.Logger().Warn("Could not compute OS change for %s: %v", relPath, ferr)
