@@ -27,6 +27,7 @@ RUN ARCH=$(uname -m); \
     zypper --non-interactive install --no-recommends xfsprogs \
         util-linux-systemd \
         e2fsprogs \
+        cpio \
         udev \
         rsync \
         grub2 \
