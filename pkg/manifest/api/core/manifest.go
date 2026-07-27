@@ -31,6 +31,8 @@ type Components = corev1.Components
 type OperatingSystem = corev1.OperatingSystem
 type Kubernetes = corev1.Kubernetes
 type Image = corev1.Image
+type Metadata = corev1.Metadata
+type Elemental = corev1.Elemental
 
 func Parse(data []byte) (*ReleaseManifest, error) {
 	version, err := api.LoadSchemaVersion(data)
