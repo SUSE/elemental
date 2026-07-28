@@ -354,11 +354,11 @@ var _ = Describe("Helm tests", Label("helm"), func() {
 						Repositories: []*kubernetes.HelmRepository{
 							{
 								Name: "apache",
-								URL:  "https://example.com/apache",
+								URL:  "https://example.com/apache/",
 							},
 							{
 								Name: "nginx",
-								URL:  "oci://example.com/web",
+								URL:  "oci://example.com/web/",
 							},
 						},
 					},
@@ -481,7 +481,7 @@ metadata:
 spec:
     chart: apache
     version: 10.7.0
-    repo: https://example.com/apache
+    repo: https://example.com/apache/
     valuesContent: |
         image:
             debug: true
@@ -576,7 +576,7 @@ spec:
 							},
 							{
 								Name: "nginx",
-								URL:  "oci://example.com/web",
+								URL:  "oci://example.com/web/", // trailing slash
 							},
 							{
 								Name: "storage",
