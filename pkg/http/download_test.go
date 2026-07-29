@@ -15,7 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package http
+package http_test
 
 import (
 	"context"
@@ -24,6 +24,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"github.com/suse/elemental/v3/pkg/http"
 	"github.com/suse/elemental/v3/pkg/sys/mock"
 )
 
@@ -33,21 +34,27 @@ func TestDownloadSuite(t *testing.T) {
 }
 
 var _ = Describe("Invalid download attempts", func() {
+	var d *http.Downloader
+
+	BeforeEach(func() {
+		d = &http.Downloader{}
+	})
+
 	It("Fails to create a request for nil context", func() {
-		err := DownloadFile(nil, nil, "", "")
+		err := d.File(nil, nil, "", "")
 		Expect(err).To(HaveOccurred())
 		Expect(err).To(MatchError("creating request: net/http: nil Context"))
 	})
 
 	It("Fails to execute a request for invalid URL", func() {
-		err := DownloadFile(context.Background(), nil, "invalid-url", "")
+		err := d.File(context.Background(), nil, "invalid-url", "")
 		Expect(err).To(HaveOccurred())
 		Expect(err).To(MatchError("executing request: Get \"invalid-url\": unsupported protocol scheme \"\""))
 	})
 
 	It("Fails to download a request due to unexpected status code", func() {
 		url := "https://github.com/suse/elemental3"
-		err := DownloadFile(context.Background(), nil, url, "")
+		err := d.File(context.Background(), nil, url, "")
 		Expect(err).To(HaveOccurred())
 		Expect(err).To(MatchError("unexpected status code: 404"))
 	})
@@ -58,8 +65,16 @@ var _ = Describe("Invalid download attempts", func() {
 		DeferCleanup(cleanup)
 
 		url := "https://github.com/suse/elemental"
-		err = DownloadFile(context.Background(), fs, url, "downloads/abc")
+		err = d.File(context.Background(), fs, url, "downloads/abc")
 		Expect(err).To(HaveOccurred())
 		Expect(err).To(MatchError("creating file: Create downloads/abc: operation not permitted"))
+	})
+
+	It("Returns an io.ReadCloser to download the URL", func() {
+		url := "https://github.com/suse/elemental"
+		rc, err := d.URLBody(context.Background(), url)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(rc).NotTo(BeNil())
+		Expect(rc.Close()).To(Succeed())
 	})
 })

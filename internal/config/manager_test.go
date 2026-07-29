@@ -20,12 +20,14 @@ package config
 import (
 	"context"
 	"fmt"
+	"io"
 	"path/filepath"
 	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"github.com/suse/elemental/v3/internal/butane"
 	v0 "github.com/suse/elemental/v3/internal/config/v0"
 	"github.com/suse/elemental/v3/internal/image"
 	"github.com/suse/elemental/v3/internal/image/kubernetes"
@@ -46,15 +48,24 @@ func TestConfigurationSuite(t *testing.T) {
 }
 
 type helmConfiguratorMock struct {
-	configureFunc func(*image.Configuration, *resolver.ResolvedManifest) ([]string, map[string][]byte, error)
+	configureFunc func(*image.Configuration, *resolver.ResolvedManifest, *butane.Config) ([]string, error)
 }
 
-func (h *helmConfiguratorMock) Configure(conf *image.Configuration, manifest *resolver.ResolvedManifest) ([]string, map[string][]byte, error) {
+func (h *helmConfiguratorMock) Configure(conf *image.Configuration, manifest *resolver.ResolvedManifest, bConf *butane.Config) ([]string, error) {
 	if h.configureFunc != nil {
-		return h.configureFunc(conf, manifest)
+		return h.configureFunc(conf, manifest, bConf)
 	}
 
 	panic("not implemented")
+}
+
+func findFileContentsInConfig(config *butane.Config, name string) *string {
+	for _, f := range config.Storage.Files {
+		if f.Path == name {
+			return f.Contents.Inline
+		}
+	}
+	return nil
 }
 
 type resolverMock struct {
@@ -69,6 +80,43 @@ func (r *resolverMock) Resolve(uri string) (*resolver.ResolvedManifest, error) {
 	panic("not implemented")
 }
 
+type downloaderMock struct {
+	fileFunc    func(ctx context.Context, fs vfs.FS, url, path string) error
+	urlBodyFunc func(ctx context.Context, url string) (io.ReadCloser, error)
+}
+type rcloser struct {
+	readFunc  func(p []byte) (n int, err error)
+	closeFunc func() error
+}
+
+func (r rcloser) Close() error {
+	if r.closeFunc != nil {
+		return r.closeFunc()
+	}
+	return nil
+}
+
+func (r rcloser) Read(p []byte) (n int, err error) {
+	if r.readFunc != nil {
+		return r.readFunc(p)
+	}
+	return 0, io.EOF
+}
+
+func (d downloaderMock) File(ctx context.Context, fs vfs.FS, url, path string) error {
+	if d.fileFunc != nil {
+		return d.fileFunc(ctx, fs, url, path)
+	}
+	return nil
+}
+
+func (d downloaderMock) URLBody(ctx context.Context, url string) (io.ReadCloser, error) {
+	if d.urlBodyFunc != nil {
+		return d.urlBodyFunc(ctx, url)
+	}
+	return rcloser{}, nil
+}
+
 var _ = Describe("Manager", func() {
 	var output = Output{
 		RootPath: "/_out",
@@ -78,7 +126,7 @@ var _ = Describe("Manager", func() {
 	var cleanup func()
 	var err error
 	var system *sys.System
-	var defaultHelmFunc func(c *image.Configuration, rm *resolver.ResolvedManifest) ([]string, map[string][]byte, error)
+	var defaultHelmFunc func(c *image.Configuration, rm *resolver.ResolvedManifest, bc *butane.Config) ([]string, error)
 	var defaultResolveFunc func(uri string) (*resolver.ResolvedManifest, error)
 	var butaneConfigString = `
 version: 1.6.0
@@ -156,8 +204,8 @@ passwd:
 		)
 		Expect(err).ToNot(HaveOccurred())
 
-		defaultHelmFunc = func(c *image.Configuration, rm *resolver.ResolvedManifest) ([]string, map[string][]byte, error) {
-			return nil, nil, nil
+		defaultHelmFunc = func(c *image.Configuration, rm *resolver.ResolvedManifest, bc *butane.Config) ([]string, error) {
+			return nil, nil
 		}
 
 		defaultResolveFunc = func(uri string) (*resolver.ResolvedManifest, error) {
@@ -176,18 +224,18 @@ passwd:
 	})
 
 	It("Successfully applies configurations to output directory", func() {
-		var butane map[string]any
-		Expect(v0.ParseAny([]byte(butaneConfigString), &butane)).To(Succeed())
+		var bConf map[string]any
+		Expect(v0.ParseAny([]byte(butaneConfigString), &bConf)).To(Succeed())
 
 		conf := activeConfig
-		conf.ButaneConfig = butane
+		conf.ButaneConfig = bConf
 
 		m := NewManager(
 			system,
-			&helmConfiguratorMock{configureFunc: func(c *image.Configuration, rm *resolver.ResolvedManifest) ([]string, map[string][]byte, error) {
+			&helmConfiguratorMock{configureFunc: func(c *image.Configuration, rm *resolver.ResolvedManifest, bc *butane.Config) ([]string, error) {
 				helmPath := filepath.Join(output.OverlaysDir(), image.HelmPath())
 				if err := vfs.MkdirAll(fs, helmPath, vfs.DirPerm); err != nil {
-					return nil, nil, err
+					return nil, err
 				}
 
 				files := []string{}
@@ -195,10 +243,10 @@ passwd:
 					files = append(files, chart.Name)
 					_, err := fs.Create(filepath.Join(helmPath, chart.Name))
 					if err != nil {
-						return nil, nil, err
+						return nil, err
 					}
 				}
-				return files, nil, nil
+				return files, nil
 			}},
 			WithManifestResolver(&resolverMock{resolveFunc: func(uri string) (*resolver.ResolvedManifest, error) {
 				if uri == activeConfig.Release.ManifestURI {
@@ -207,10 +255,11 @@ passwd:
 
 				panic("missing release manifest")
 			}}),
-			WithDownloadFunc(func(ctx context.Context, fs vfs.FS, url, path string) error {
-				_, err := fs.Create(filepath.Join(path))
-				return err
-			}),
+			WithDownloader(&downloaderMock{
+				fileFunc: func(_ context.Context, fs vfs.FS, _, path string) error {
+					_, err := fs.Create(filepath.Join(path))
+					return err
+				}}),
 			WithUnpackFunc(func(ctx context.Context, imageRef, destDir string) error {
 				installSh := filepath.Join(destDir, "install.sh")
 				return fs.WriteFile(installSh, []byte("#!/bin/sh\necho test"), 0755)
@@ -227,9 +276,7 @@ passwd:
 		Expect(err).ToNot(HaveOccurred())
 		_, err = fs.Stat(filepath.Join(output.OverlaysDir(), image.KubernetesInstallPath(), "install.sh"))
 		Expect(err).ToNot(HaveOccurred())
-		_, err = fs.Stat(filepath.Join(output.OverlaysDir(), image.KubernetesManifestsPath(), "remote-manifest1.yaml"))
-		Expect(err).ToNot(HaveOccurred())
-		_, err = fs.Stat(filepath.Join(output.OverlaysDir(), image.KubernetesManifestsPath(), "local-manifest1.yaml"))
+		_, err = fs.Stat(output.InitrdExtensionFile())
 		Expect(err).ToNot(HaveOccurred())
 		_, err = fs.Stat(filepath.Join(output.CatalystConfigDir(), "network", "nmstate1.yaml"))
 		Expect(err).ToNot(HaveOccurred())
@@ -298,10 +345,14 @@ passwd:
 		By("Failing helm configuration")
 		m := NewManager(
 			system,
-			&helmConfiguratorMock{configureFunc: func(c *image.Configuration, rm *resolver.ResolvedManifest) ([]string, map[string][]byte, error) {
-				return nil, nil, fmt.Errorf("unable to configure helm charts")
+			&helmConfiguratorMock{configureFunc: func(c *image.Configuration, rm *resolver.ResolvedManifest, _ *butane.Config) ([]string, error) {
+				return nil, fmt.Errorf("unable to configure helm charts")
 			}},
 			WithManifestResolver(&resolverMock{resolveFunc: defaultResolveFunc}),
+			WithUnpackFunc(func(ctx context.Context, imageRef, destDir string) error {
+				installSh := filepath.Join(destDir, "install.sh")
+				return fs.WriteFile(installSh, []byte("#!/bin/sh\necho test"), 0755)
+			}),
 		)
 		conf := &image.Configuration{
 			Kubernetes: kubernetes.Kubernetes{
@@ -318,7 +369,7 @@ passwd:
 		r, err := m.ConfigureComponents(context.Background(), conf, output)
 		Expect(r).To(BeNil())
 		Expect(err).To(HaveOccurred())
-		Expect(err).To(MatchError("configuring kubernetes: configuring helm charts: unable to configure helm charts"))
+		Expect(err).To(MatchError("configuring ignition: configuring helm charts: unable to configure helm charts"))
 
 		By("Failing to setup local Kubernetes manifests")
 		conf = &image.Configuration{
@@ -337,8 +388,13 @@ passwd:
 			system,
 			&helmConfiguratorMock{configureFunc: defaultHelmFunc},
 			WithManifestResolver(&resolverMock{resolveFunc: defaultResolveFunc}),
-			WithDownloadFunc(func(ctx context.Context, fs vfs.FS, url, path string) error {
-				return fmt.Errorf("download unavailable")
+			WithDownloader(&downloaderMock{
+				urlBodyFunc: func(ctx context.Context, url string) (io.ReadCloser, error) {
+					return nil, fmt.Errorf("download unavailable")
+				}}),
+			WithUnpackFunc(func(ctx context.Context, imageRef, destDir string) error {
+				installSh := filepath.Join(destDir, "install.sh")
+				return fs.WriteFile(installSh, []byte("#!/bin/sh\necho test"), 0755)
 			}),
 		)
 		conf = &image.Configuration{

@@ -20,8 +20,10 @@ package config
 import (
 	"context"
 	"fmt"
+	"io"
 	"path/filepath"
 
+	"github.com/suse/elemental/v3/internal/butane"
 	"github.com/suse/elemental/v3/internal/image"
 	"github.com/suse/elemental/v3/pkg/extractor"
 	"github.com/suse/elemental/v3/pkg/http"
@@ -32,25 +34,29 @@ import (
 	"github.com/suse/elemental/v3/pkg/unpack"
 )
 
-type downloadFunc func(ctx context.Context, fs vfs.FS, url, path string) error
 type unpackFunc func(ctx context.Context, imageRef, destDir string) error
 
 type helmConfigurator interface {
-	Configure(conf *image.Configuration, manifest *resolver.ResolvedManifest) ([]string, map[string][]byte, error)
+	Configure(conf *image.Configuration, manifest *resolver.ResolvedManifest, bConfig *butane.Config) ([]string, error)
 }
 
 type releaseManifestResolver interface {
 	Resolve(uri string) (*resolver.ResolvedManifest, error)
 }
 
+type downloader interface {
+	URLBody(ctx context.Context, url string) (io.ReadCloser, error)
+	File(ctx context.Context, fs vfs.FS, url, path string) error
+}
+
 type Manager struct {
 	system *sys.System
 	local  bool
 
-	rmResolver   releaseManifestResolver
-	downloadFile downloadFunc
-	unpackImage  unpackFunc
-	helm         helmConfigurator
+	rmResolver  releaseManifestResolver
+	downloader  downloader
+	unpackImage unpackFunc
+	helm        helmConfigurator
 }
 
 type Opts func(m *Manager)
@@ -61,9 +67,9 @@ func WithManifestResolver(r releaseManifestResolver) Opts {
 	}
 }
 
-func WithDownloadFunc(d downloadFunc) Opts {
+func WithDownloader(d downloader) Opts {
 	return func(m *Manager) {
-		m.downloadFile = d
+		m.downloader = d
 	}
 }
 
@@ -89,8 +95,8 @@ func NewManager(sys *sys.System, helm helmConfigurator, opts ...Opts) *Manager {
 		o(m)
 	}
 
-	if m.downloadFile == nil {
-		m.downloadFile = http.DownloadFile
+	if m.downloader == nil {
+		m.downloader = &http.Downloader{}
 	}
 
 	if m.unpackImage == nil {
@@ -128,11 +134,6 @@ func (m *Manager) ConfigureComponents(ctx context.Context, conf *image.Configura
 		return nil, fmt.Errorf("configuring custom scripts: %w", err)
 	}
 
-	k8sScript, k8sConfScript, err := m.configureKubernetes(ctx, conf, rm, output)
-	if err != nil {
-		return nil, fmt.Errorf("configuring kubernetes: %w", err)
-	}
-
 	extensions, err := enabledExtensions(rm, conf, m.system.Logger())
 	if err != nil {
 		return nil, fmt.Errorf("filtering enabled systemd extensions: %w", err)
@@ -144,7 +145,7 @@ func (m *Manager) ConfigureComponents(ctx context.Context, conf *image.Configura
 		}
 	}
 
-	if err = m.configureIgnition(conf, output, k8sScript, k8sConfScript, extensions); err != nil {
+	if err = m.configureSystem(ctx, conf, output, rm, extensions); err != nil {
 		return nil, fmt.Errorf("configuring ignition: %w", err)
 	}
 

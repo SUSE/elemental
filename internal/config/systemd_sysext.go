@@ -50,7 +50,7 @@ func (m *Manager) downloadSystemExtensions(ctx context.Context, extensions []api
 
 		if isRemoteURL(extension.Image) {
 			extensionPath := filepath.Join(extensionsDir, filepath.Base(extension.Image))
-			if err := m.downloadFile(ctx, fs, extension.Image, extensionPath); err != nil {
+			if err := m.downloader.File(ctx, fs, extension.Image, extensionPath); err != nil {
 				return fmt.Errorf("downloading systemd extension %s: %w", extension.Name, err)
 			}
 

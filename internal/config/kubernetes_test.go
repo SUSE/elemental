@@ -24,6 +24,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/suse/elemental/v3/internal/butane"
 	"github.com/suse/elemental/v3/internal/image"
 	"github.com/suse/elemental/v3/internal/image/auth"
 	"github.com/suse/elemental/v3/internal/image/kubernetes"
@@ -32,16 +33,13 @@ import (
 	"github.com/suse/elemental/v3/pkg/manifest/api/core"
 	"github.com/suse/elemental/v3/pkg/manifest/resolver"
 	"github.com/suse/elemental/v3/pkg/sys"
-	sysmock "github.com/suse/elemental/v3/pkg/sys/mock"
-	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
 
 var _ = Describe("Kubernetes", func() {
 	Describe("Resources trigger", func() {
 		It("Skips manifests setup if manifests are not provided", func() {
 			conf := &image.Configuration{}
-			var additionalManifests map[string][]byte
-			Expect(needsManifestsSetup(conf, additionalManifests)).To(BeFalse())
+			Expect(needsManifestsSetup(conf)).To(BeFalse())
 		})
 
 		It("Requires manifests setup if local manifests are provided", func() {
@@ -50,15 +48,7 @@ var _ = Describe("Kubernetes", func() {
 					LocalManifests: []string{"/apache.yaml"},
 				},
 			}
-			var additionalManifests map[string][]byte
-			Expect(needsManifestsSetup(conf, additionalManifests)).To(BeTrue())
-		})
-
-		It("Requires manifests setup if there are runtime secrets", func() {
-			conf := &image.Configuration{}
-			additionalManifests := make(map[string][]byte)
-			additionalManifests["example"] = []byte("test")
-			Expect(needsManifestsSetup(conf, additionalManifests)).To(BeTrue())
+			Expect(needsManifestsSetup(conf)).To(BeTrue())
 		})
 
 		It("Requires manifests setup if remote manifests are provided", func() {
@@ -67,8 +57,7 @@ var _ = Describe("Kubernetes", func() {
 					RemoteManifests: []string{"https://raw.githubusercontent.com/rancher/local-path-provisioner/v0.0.31/deploy/local-path-storage.yaml"},
 				},
 			}
-			var additionalManifests map[string][]byte
-			Expect(needsManifestsSetup(conf, additionalManifests)).To(BeTrue())
+			Expect(needsManifestsSetup(conf)).To(BeTrue())
 		})
 
 		It("Skips Helm setup if charts are not provided", func() {
@@ -123,52 +112,34 @@ var _ = Describe("Kubernetes", func() {
 	})
 
 	Describe("Configuration", func() {
-		var output = Output{
-			RootPath: "/_out",
-		}
-
 		var system *sys.System
-		var fs vfs.FS
-		var cleanup func()
 		var err error
+		var config *butane.Config
 
 		BeforeEach(func() {
-			fs, cleanup, err = sysmock.TestFS(nil)
-			Expect(err).ToNot(HaveOccurred())
-
-			Expect(vfs.MkdirAll(fs, output.RootPath, vfs.DirPerm)).To(Succeed())
+			config = &butane.Config{}
 
 			system, err = sys.NewSystem(
 				sys.WithLogger(log.New(log.WithDiscardAll())),
-				sys.WithFS(fs),
 			)
 			Expect(err).ToNot(HaveOccurred())
 		})
 
-		AfterEach(func() {
-			cleanup()
-		})
-
 		It("Fails to configure Helm charts", func() {
 			helmMock := &helmConfiguratorMock{
-				configureFunc: func(conf *image.Configuration, manifest *resolver.ResolvedManifest) ([]string, map[string][]byte, error) {
-					return nil, nil, fmt.Errorf("helm error")
+				configureFunc: func(conf *image.Configuration, manifest *resolver.ResolvedManifest, _ *butane.Config) ([]string, error) {
+					return nil, fmt.Errorf("helm error")
 				},
 			}
 
-			dlFunc := func(ctx context.Context, fs vfs.FS, url, path string) error {
-				return nil
-			}
-
 			unpackFunc := func(ctx context.Context, imageRef, destDir string) error {
-				installSh := filepath.Join(destDir, "install.sh")
-				return fs.WriteFile(installSh, []byte("#!/bin/sh\necho test"), 0755)
+				return nil
 			}
 
 			m := NewManager(
 				system,
 				helmMock,
-				WithDownloadFunc(dlFunc),
+				WithDownloader(&downloaderMock{}),
 				WithUnpackFunc(unpackFunc),
 			)
 
@@ -194,69 +165,26 @@ var _ = Describe("Kubernetes", func() {
 				},
 			}
 
-			script, confScript, err := m.configureKubernetes(context.Background(), conf, manifest, output)
+			err := m.configureKubernetes(context.Background(), conf, manifest, config)
 			Expect(err).To(HaveOccurred())
 			Expect(err).To(MatchError("configuring helm charts: helm error"))
-			Expect(script).To(BeEmpty())
-			Expect(confScript).To(BeEmpty())
-		})
-
-		It("Fails to unpack Kubernetes artifacts", func() {
-			unpackFunc := func(ctx context.Context, imageRef, destDir string) error {
-				return fmt.Errorf("unpacking error")
-			}
-
-			m := NewManager(
-				system,
-				nil,
-				WithUnpackFunc(unpackFunc),
-			)
-
-			manifest := &resolver.ResolvedManifest{
-				CorePlatform: &core.ReleaseManifest{
-					Components: core.Components{
-						Kubernetes: &core.Kubernetes{
-							Version: "v1.35.0+rke2r1",
-							Image:   "registry.example.com/rke2:1.35_1.0",
-						},
-					},
-				},
-			}
-			conf := &image.Configuration{
-				Release: release.Release{
-					Components: release.Components{
-						Kubernetes: &struct{}{},
-					},
-				},
-			}
-
-			script, confScript, err := m.configureKubernetes(context.Background(), conf, manifest, output)
-			Expect(err).To(HaveOccurred())
-			Expect(err).To(MatchError("unpacking kubernetes artifacts: unpacking error"))
-			Expect(script).To(BeEmpty())
-			Expect(confScript).To(BeEmpty())
 		})
 
 		It("Succeeds to configure RKE2 with additional resources", func() {
 			helmMock := &helmConfiguratorMock{
-				configureFunc: func(conf *image.Configuration, manifest *resolver.ResolvedManifest) ([]string, map[string][]byte, error) {
-					return []string{"rancher.yaml"}, nil, nil
+				configureFunc: func(conf *image.Configuration, manifest *resolver.ResolvedManifest, _ *butane.Config) ([]string, error) {
+					return []string{"rancher.yaml"}, nil
 				},
 			}
 
-			dlFunc := func(ctx context.Context, fs vfs.FS, url, path string) error {
-				return nil
-			}
-
 			unpackFunc := func(ctx context.Context, imageRef, destDir string) error {
-				installSh := filepath.Join(destDir, "install.sh")
-				return fs.WriteFile(installSh, []byte("#!/bin/sh\necho test"), 0755)
+				return nil
 			}
 
 			m := NewManager(
 				system,
 				helmMock,
-				WithDownloadFunc(dlFunc),
+				WithDownloader(&downloaderMock{}),
 				WithUnpackFunc(unpackFunc),
 			)
 
@@ -288,36 +216,31 @@ var _ = Describe("Kubernetes", func() {
 				},
 			}
 
-			script, confScript, err := m.configureKubernetes(context.Background(), conf, manifest, output)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(script).To(Equal("/var/lib/elemental/kubernetes/k8s_res_deploy.sh"))
+			Expect(m.configureKubernetes(context.Background(), conf, manifest, config)).To(Succeed())
 
 			// Verify deployment script contents
-			b, err := fs.ReadFile(filepath.Join(output.OverlaysDir(), script))
-			Expect(err).NotTo(HaveOccurred())
-			Expect(string(b)).To(ContainSubstring("deployHelmCharts"))
-			Expect(string(b)).To(ContainSubstring("rancher.yaml"))
-			Expect(string(b)).To(ContainSubstring("deployManifests"))
-			Expect(string(b)).To(ContainSubstring("deployPriorityManifests"))
+			data := findFileContentsInConfig(config, filepath.Join("/", image.KubernetesPath(), k8sResDeployScriptName))
+			Expect(data).NotTo(BeNil())
 
-			_, err = fs.ReadFile(filepath.Join(output.OverlaysDir(), confScript))
-			Expect(err).NotTo(HaveOccurred())
+			Expect(*data).To(ContainSubstring("deployHelmCharts"))
+			Expect(*data).To(ContainSubstring("rancher.yaml"))
+			Expect(*data).To(ContainSubstring("deployManifests"))
+			Expect(*data).To(ContainSubstring("deployPriorityManifests"))
+
+			// k8s configuration script is generated
+			Expect(findFileContentsInConfig(config, filepath.Join("/", image.KubernetesPath(), k8sConfDeployScriptName))).NotTo(BeNil())
 		})
 
 		It("Succeeds to configure RKE2 without additional resources", func() {
-			dlFunc := func(ctx context.Context, fs vfs.FS, url, path string) error {
-				return nil
-			}
 
 			unpackFunc := func(ctx context.Context, imageRef, destDir string) error {
-				installSh := filepath.Join(destDir, "install.sh")
-				return fs.WriteFile(installSh, []byte("#!/bin/sh\necho test"), 0755)
+				return nil
 			}
 
 			m := NewManager(
 				system,
 				nil,
-				WithDownloadFunc(dlFunc),
+				WithDownloader(&downloaderMock{}),
 				WithUnpackFunc(unpackFunc),
 			)
 
@@ -339,80 +262,66 @@ var _ = Describe("Kubernetes", func() {
 				},
 			}
 
-			script, confScript, err := m.configureKubernetes(context.Background(), conf, manifest, output)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(script).To(BeEmpty())
-			Expect(confScript).ToNot(BeEmpty())
+			Expect(m.configureKubernetes(context.Background(), conf, manifest, config)).To(Succeed())
+
+			Expect(findFileContentsInConfig(config, filepath.Join("/", image.KubernetesPath(), k8sConfDeployScriptName))).NotTo(BeNil())
 		})
 
 		It("Uses server config for a single explicitly configured server node", func() {
-			conf := kubernetes.Kubernetes{
+			k8s := kubernetes.Kubernetes{
 				Nodes: kubernetes.Nodes{
 					{Hostname: "node01", Type: kubernetes.NodeTypeServer},
 				},
 			}
 
-			confScript, err := writeK8sConfigDeployScript(
-				fs,
-				output,
-				conf,
-				"/opt/k8s/install",
-				"/opt/k8s/install/install.sh",
-			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(appendK8sConfigDeployScript(config, k8s)).To(Succeed())
 
-			b, err := fs.ReadFile(filepath.Join(output.OverlaysDir(), confScript))
-			Expect(err).NotTo(HaveOccurred())
-			Expect(string(b)).To(ContainSubstring(`CONFIGFILE="/var/lib/elemental/kubernetes/${NODETYPE}.yaml"`))
-			Expect(string(b)).ToNot(ContainSubstring("init.yaml"))
+			data := findFileContentsInConfig(config, filepath.Join("/", image.KubernetesPath(), k8sConfDeployScriptName))
+			Expect(data).NotTo(BeNil())
+
+			Expect(*data).To(ContainSubstring(`CONFIGFILE="/var/lib/elemental/kubernetes/${NODETYPE}.yaml"`))
+			Expect(*data).ToNot(ContainSubstring("init.yaml"))
 		})
 
 		It("Uses init config only for multi-node clusters", func() {
-			conf := kubernetes.Kubernetes{
+			k8s := kubernetes.Kubernetes{
 				Nodes: kubernetes.Nodes{
 					{Hostname: "server01", Type: kubernetes.NodeTypeServer},
 					{Hostname: "agent01", Type: kubernetes.NodeTypeAgent},
 				},
 			}
 
-			confScript, err := writeK8sConfigDeployScript(
-				fs,
-				output,
-				conf,
-				"/opt/k8s/install",
-				"/opt/k8s/install/install.sh",
-			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(appendK8sConfigDeployScript(config, k8s)).To(Succeed())
 
-			b, err := fs.ReadFile(filepath.Join(output.OverlaysDir(), confScript))
-			Expect(err).NotTo(HaveOccurred())
-			Expect(string(b)).To(ContainSubstring(`if [[ "${HOSTNAME}" = "server01" ]]; then`))
-			Expect(string(b)).To(ContainSubstring("CONFIGFILE=/var/lib/elemental/kubernetes/init.yaml"))
+			data := findFileContentsInConfig(config, filepath.Join("/", image.KubernetesPath(), k8sConfDeployScriptName))
+			Expect(data).NotTo(BeNil())
+
+			Expect(*data).To(ContainSubstring(`if [[ "${HOSTNAME}" = "server01" ]]; then`))
+			Expect(*data).To(ContainSubstring("CONFIGFILE=/var/lib/elemental/kubernetes/init.yaml"))
 		})
 
 		It("Succeeds to configure RKE2 with additional resources and auth", func() {
 			additionalManifests := make(map[string][]byte)
 			additionalManifests["example-auth-priority.yaml"] = []byte("apiVersion: v1\nkind: Secret\nmetadata:\n    namespace: kube-system\n    name: example-auth\ntype: kubernetes.io/dockerconfigjson\ndata:\n    .dockerconfigjson: eyJhdXRocyI6eyJleGFtcGxlLmlvIjp7InVzZXJuYW1lIjoiZXhhbXBsZS11c2VyIiwicGFzc3dvcmQiOiJleGFtcGxlLXBhc3MiLCJhdXRoIjoiWlhoaGJYQnNaUzExYzJWeU9tVjRZVzF3YkdVdGNHRnpjdz09In19fQ==\n")
 			additionalManifests["endpoint-copier-operator-auth-priority.yaml"] = []byte("apiVersion: v1\nkind: Secret\nmetadata:\n    namespace: kube-system\n    name: endpoint-copier-operator-auth\ntype: kubernetes.io/dockerconfigjson\ndata:\n    .dockerconfigjson: eyJhdXRocyI6eyJleGFtcGxlLTEuY29tIjp7InVzZXJuYW1lIjoiZWNvLXVzZXIiLCJwYXNzd29yZCI6ImVjby1wYXNzIiwiYXV0aCI6IlpXTnZMWFZ6WlhJNlpXTnZMWEJoYzNNPSJ9fX0=\n")
+
 			helmMock := &helmConfiguratorMock{
-				configureFunc: func(conf *image.Configuration, manifest *resolver.ResolvedManifest) ([]string, map[string][]byte, error) {
-					return []string{"rancher.yaml"}, additionalManifests, nil
+				configureFunc: func(conf *image.Configuration, manifest *resolver.ResolvedManifest, bc *butane.Config) ([]string, error) {
+					for k, v := range additionalManifests {
+						bc.AddFileInline(filepath.Join("/", image.KubernetesManifestsPath(), k), new(string(v)), 0o644)
+					}
+					return []string{"rancher.yaml"}, nil
 				},
 			}
 
-			dlFunc := func(ctx context.Context, fs vfs.FS, url, path string) error {
-				return nil
-			}
-
 			unpackFunc := func(ctx context.Context, imageRef, destDir string) error {
-				installSh := filepath.Join(destDir, "install.sh")
-				return fs.WriteFile(installSh, []byte("#!/bin/sh\necho test"), 0755)
+				return nil
 			}
 
 			m := NewManager(
 				system,
 				helmMock,
-				WithDownloadFunc(dlFunc),
+				WithDownloader(&downloaderMock{}),
 				WithUnpackFunc(unpackFunc),
 			)
 
@@ -471,20 +380,20 @@ var _ = Describe("Kubernetes", func() {
 				},
 			}
 
-			script, confScript, err := m.configureKubernetes(context.Background(), conf, manifest, output)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(script).To(Equal("/var/lib/elemental/kubernetes/k8s_res_deploy.sh"))
+			Expect(m.configureKubernetes(context.Background(), conf, manifest, config)).To(Succeed())
 
 			// Verify deployment script contents
-			b, err := fs.ReadFile(filepath.Join(output.OverlaysDir(), script))
-			Expect(err).NotTo(HaveOccurred())
-			Expect(string(b)).To(ContainSubstring("deployHelmCharts"))
-			Expect(string(b)).To(ContainSubstring("rancher.yaml"))
-			Expect(string(b)).To(ContainSubstring("deployManifests"))
-			Expect(string(b)).To(ContainSubstring("deployPriorityManifests"))
+			data := findFileContentsInConfig(config, filepath.Join("/", image.KubernetesPath(), k8sResDeployScriptName))
+			Expect(data).NotTo(BeNil())
 
-			_, err = fs.ReadFile(filepath.Join(output.OverlaysDir(), confScript))
-			Expect(err).NotTo(HaveOccurred())
+			Expect(*data).To(ContainSubstring("deployHelmCharts"))
+			Expect(*data).To(ContainSubstring("rancher.yaml"))
+			Expect(*data).To(ContainSubstring("deployManifests"))
+			Expect(*data).To(ContainSubstring("deployPriorityManifests"))
+
+			// Verify config script contents
+			data = findFileContentsInConfig(config, filepath.Join("/", image.KubernetesPath(), k8sConfDeployScriptName))
+			Expect(data).NotTo(BeNil())
 
 			expectedECOManifestContents := `apiVersion: v1
 kind: Secret
@@ -494,12 +403,10 @@ metadata:
 type: kubernetes.io/dockerconfigjson
 data:
     .dockerconfigjson: eyJhdXRocyI6eyJleGFtcGxlLTEuY29tIjp7InVzZXJuYW1lIjoiZWNvLXVzZXIiLCJwYXNzd29yZCI6ImVjby1wYXNzIiwiYXV0aCI6IlpXTnZMWFZ6WlhJNlpXTnZMWEJoYzNNPSJ9fX0=`
-			ecoSecretManifests := "endpoint-copier-operator-auth-priority.yaml"
-			relativeManifestsPath := filepath.Join("/", image.KubernetesManifestsPath())
-			manifestsDir := filepath.Join(output.OverlaysDir(), relativeManifestsPath)
-			b, err = fs.ReadFile(filepath.Join(manifestsDir, ecoSecretManifests))
-			Expect(err).NotTo(HaveOccurred())
-			Expect(string(b)).To(ContainSubstring(expectedECOManifestContents))
+
+			data = findFileContentsInConfig(config, filepath.Join("/", image.KubernetesManifestsPath(), "endpoint-copier-operator-auth-priority.yaml"))
+			Expect(data).NotTo(BeNil())
+			Expect(*data).To(ContainSubstring(expectedECOManifestContents))
 
 			expectedExampleManifestContents := `apiVersion: v1
 kind: Secret
@@ -509,10 +416,10 @@ metadata:
 type: kubernetes.io/dockerconfigjson
 data:
     .dockerconfigjson: eyJhdXRocyI6eyJleGFtcGxlLmlvIjp7InVzZXJuYW1lIjoiZXhhbXBsZS11c2VyIiwicGFzc3dvcmQiOiJleGFtcGxlLXBhc3MiLCJhdXRoIjoiWlhoaGJYQnNaUzExYzJWeU9tVjRZVzF3YkdVdGNHRnpjdz09In19fQ==`
-			exampleSecretManifests := "example-auth-priority.yaml"
-			b, err = fs.ReadFile(filepath.Join(manifestsDir, exampleSecretManifests))
-			Expect(err).NotTo(HaveOccurred())
-			Expect(string(b)).To(ContainSubstring(expectedExampleManifestContents))
+
+			data = findFileContentsInConfig(config, filepath.Join("/", image.KubernetesManifestsPath(), "example-auth-priority.yaml"))
+			Expect(data).NotTo(BeNil())
+			Expect(*data).To(ContainSubstring(expectedExampleManifestContents))
 		})
 	})
 })

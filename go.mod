@@ -8,7 +8,6 @@ require (
 	github.com/containerd/containerd/v2 v2.3.3
 	github.com/containerd/platforms v1.0.0-rc.4
 	github.com/coreos/butane v0.29.0
-	github.com/coreos/ignition/v2 v2.26.0
 	github.com/distribution/reference v0.6.0
 	github.com/docker/go-units v0.5.0
 	github.com/go-playground/validator/v10 v10.30.3
@@ -55,6 +54,7 @@ require (
 	github.com/coreos/go-json v0.0.0-20230131223807-18775e0fb4fb // indirect
 	github.com/coreos/go-semver v0.3.1 // indirect
 	github.com/coreos/go-systemd/v22 v22.7.0 // indirect
+	github.com/coreos/ignition/v2 v2.26.0 // indirect
 	github.com/coreos/vcontext v0.0.0-20231102161604-685dc7299dc5 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/docker/cli v29.6.2+incompatible // indirect

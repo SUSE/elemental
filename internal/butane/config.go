@@ -18,7 +18,10 @@ limitations under the License.
 package butane
 
 import (
+	"errors"
 	"fmt"
+	"io"
+	"io/fs"
 	"path/filepath"
 
 	base "github.com/coreos/butane/base/v0_6"
@@ -29,6 +32,8 @@ import (
 	"github.com/suse/elemental/v3/pkg/sys"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
+
+const maxResourceSize int64 = 16 * 1024 * 1024
 
 // Config represents a basic butane configuration
 type Config struct {
@@ -47,6 +52,35 @@ func (c *Config) MergeInlineIgnition(ignitionConf string) {
 	merge.Inline = &ignitionConf
 
 	c.Ignition.Config.Merge = append(c.Ignition.Config.Merge, merge)
+}
+
+// AddFileInline adds the given filepath and inline content to the butane config
+func (c *Config) AddFileInline(filename string, data *string, mode fs.FileMode) {
+	c.Storage.Files = append(c.Storage.Files, base.File{
+		Path: filename,
+		Contents: base.Resource{
+			Inline: data,
+		},
+		Mode: toButaneMode(mode),
+	})
+}
+
+// AddFileInlineFromReader adds the given filepath and inline content from the given reader, closes the reader.
+// It does not support data payloads bigger than 16MiB as this is meant for text files
+func (c *Config) AddFileInlineFromReader(filename string, rc io.ReadCloser, mode fs.FileMode) error {
+
+	resource, err := resourceFromText(rc, maxResourceSize)
+	if err != nil {
+		return nil
+	}
+
+	c.Storage.Files = append(c.Storage.Files, base.File{
+		Path:     filename,
+		Contents: resource,
+		Mode:     toButaneMode(mode),
+	})
+
+	return nil
 }
 
 // AddSystemdUnit adds an inline unit object in butane configuration
@@ -98,4 +132,48 @@ func TranslateBytes(s *sys.System, butane any) ([]byte, error) {
 	}
 	s.Logger().Debug("Butane configuration translated:\n--- Generated Ignition Config ---\n%s", string(ignitionBytes))
 	return ignitionBytes, nil
+}
+
+// toButaneMode converts fs.FileMode into *int
+func toButaneMode(fm fs.FileMode) *int {
+	// Start with the standard 9 permissions
+	mode := uint32(fm.Perm())
+
+	// Add special bits back if they exist in the fs.FileMode
+	if fm&fs.ModeSetuid != 0 {
+		mode |= 04000
+	}
+	if fm&fs.ModeSetgid != 0 {
+		mode |= 02000
+	}
+	if fm&fs.ModeSticky != 0 {
+		mode |= 01000
+	}
+
+	modeInt := int(mode)
+	return &modeInt
+}
+
+// resourceFromText is meant for plain text files, closes the reader
+func resourceFromText(rc io.ReadCloser, maxBytes int64) (_ base.Resource, err error) {
+	defer func() {
+		err = errors.Join(err, rc.Close())
+	}()
+
+	// Limit to maxBytes + 1 so we can detect if it overflows
+	lr := io.LimitReader(rc, maxBytes+1)
+
+	data, err := io.ReadAll(lr)
+	if err != nil {
+		return base.Resource{}, err
+	}
+
+	// If we read more than maxBytes, the source was too large
+	if int64(len(data)) > maxBytes {
+		return base.Resource{}, fmt.Errorf("input exceeds maximum allowed size of %d bytes", maxBytes)
+	}
+
+	return base.Resource{
+		Inline: new(string(data)),
+	}, nil
 }
