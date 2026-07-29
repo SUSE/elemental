@@ -19,6 +19,7 @@ package config
 
 import (
 	"bytes"
+	"context"
 	"path/filepath"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -27,8 +28,11 @@ import (
 	v0 "github.com/suse/elemental/v3/internal/config/v0"
 	"github.com/suse/elemental/v3/internal/image"
 	"github.com/suse/elemental/v3/internal/image/kubernetes"
+	"github.com/suse/elemental/v3/internal/image/release"
 	"github.com/suse/elemental/v3/pkg/log"
 	"github.com/suse/elemental/v3/pkg/manifest/api"
+	"github.com/suse/elemental/v3/pkg/manifest/api/core"
+	"github.com/suse/elemental/v3/pkg/manifest/resolver"
 	"github.com/suse/elemental/v3/pkg/sys"
 	sysmock "github.com/suse/elemental/v3/pkg/sys/mock"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
@@ -45,8 +49,10 @@ var _ = Describe("Ignition configuration", func() {
 	var err error
 	var m *Manager
 	var buffer *bytes.Buffer
+	var ctx context.Context
 
 	BeforeEach(func() {
+		ctx = context.Background()
 		buffer = &bytes.Buffer{}
 		fs, cleanup, err = sysmock.TestFS(map[string]any{
 			"/etc/kubernetes/config/server.yaml":     "",
@@ -62,7 +68,12 @@ var _ = Describe("Ignition configuration", func() {
 		)
 		Expect(err).ToNot(HaveOccurred())
 
-		m = NewManager(system, nil)
+		m = NewManager(system, nil,
+			WithUnpackFunc(func(ctx context.Context, imageRef, destDir string) error {
+				installSh := filepath.Join(destDir, "install.sh")
+				return fs.WriteFile(installSh, []byte("#!/bin/sh\necho test"), 0755)
+			}),
+		)
 	})
 
 	AfterEach(func() {
@@ -74,7 +85,7 @@ var _ = Describe("Ignition configuration", func() {
 
 		ignitionFile := filepath.Join(output.FirstbootConfigDir(), image.IgnitionFilePath())
 
-		Expect(m.configureIgnition(conf, output, "", "", nil)).To(Succeed())
+		Expect(m.configureSystem(ctx, conf, output, nil, nil)).To(Succeed())
 		ok, err := vfs.Exists(system.FS(), ignitionFile)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(ok).To(BeFalse())
@@ -100,7 +111,7 @@ passwd:
 
 		Expect(err).NotTo(HaveOccurred())
 
-		Expect(m.configureIgnition(conf, output, "", "", nil)).To(Succeed())
+		Expect(m.configureSystem(ctx, conf, output, nil, nil)).To(Succeed())
 		ok, err := vfs.Exists(system.FS(), output.InitrdExtensionFile())
 		Expect(err).NotTo(HaveOccurred())
 		Expect(ok).To(BeTrue())
@@ -112,6 +123,11 @@ passwd:
 	It("Configures kubernetes via Ignition with the given k8s script", func() {
 		// includes registries configuration
 		conf := &image.Configuration{
+			Release: release.Release{
+				Components: release.Components{
+					Kubernetes: &struct{}{},
+				},
+			},
 			Kubernetes: kubernetes.Kubernetes{
 				Config: kubernetes.Config{
 					RegistriesFilePath: "/etc/kubernetes/config/registries.yaml",
@@ -119,18 +135,25 @@ passwd:
 			},
 		}
 
-		k8sScript := filepath.Join(output.OverlaysDir(), "path/to/k8s/script.sh")
-		k8sConfScript := filepath.Join(output.OverlaysDir(), "path/to/k8s/conf_script.sh")
+		rm := &resolver.ResolvedManifest{
+			CorePlatform: &core.ReleaseManifest{
+				Components: core.Components{
+					Kubernetes: &core.Kubernetes{},
+				},
+			},
+		}
 
-		Expect(m.configureIgnition(conf, output, k8sScript, k8sConfScript, nil)).To(Succeed())
+		Expect(m.configureSystem(ctx, conf, output, rm, nil)).To(Succeed())
 		ok, err := vfs.Exists(system.FS(), output.InitrdExtensionFile())
 		Expect(err).NotTo(HaveOccurred())
 		Expect(ok).To(BeTrue())
 		ignition, err := system.FS().ReadFile(output.InitrdExtensionFile())
 		Expect(err).NotTo(HaveOccurred())
+
+		// No butane.yaml, manifests or helm charts only the registries.yaml and k8s
 		Expect(ignition).NotTo(ContainSubstring("merge"))
 		Expect(ignition).NotTo(ContainSubstring("/etc/elemental/extensions.yaml"))
-		Expect(ignition).To(ContainSubstring("Kubernetes Resources Installer"))
+		Expect(ignition).NotTo(ContainSubstring("Kubernetes Resources Installer"))
 		Expect(ignition).To(ContainSubstring("Kubernetes Installation and Configuration"))
 		Expect(ignition).To(ContainSubstring("/var/lib/elemental/kubernetes/registries.yaml"))
 	})
@@ -139,7 +162,7 @@ passwd:
 		conf := &image.Configuration{}
 		ext := []api.SystemdExtension{{Name: "ext1", Image: "ext1-image"}}
 
-		Expect(m.configureIgnition(conf, output, "", "", ext)).To(Succeed())
+		Expect(m.configureSystem(ctx, conf, output, nil, ext)).To(Succeed())
 
 		ok, err := vfs.Exists(system.FS(), output.InitrdExtensionFile())
 		Expect(err).NotTo(HaveOccurred())
@@ -170,15 +193,12 @@ passwd:
     ssh_authorized_keys:
     - key1
 `
-		k8sScript := filepath.Join(output.OverlaysDir(), "path/to/k8s/script.sh")
-		k8sConfScript := filepath.Join(output.OverlaysDir(), "path/to/k8s/conf_script.sh")
-
 		Expect(v0.ParseAny([]byte(butaneConfigString), &butane)).To(Succeed())
 		conf := &image.Configuration{
 			ButaneConfig: butane,
 		}
 
-		Expect(m.configureIgnition(conf, output, k8sScript, k8sConfScript, nil)).To(MatchError(
+		Expect(m.configureSystem(ctx, conf, output, nil, nil)).To(MatchError(
 			ContainSubstring("No translator exists for variant unknown with version"),
 		))
 		ok, err := vfs.Exists(system.FS(), output.InitrdExtensionFile())
@@ -202,7 +222,7 @@ passwd:
 			ButaneConfig: butane,
 		}
 
-		Expect(m.configureIgnition(conf, output, "", "", nil)).To(Succeed())
+		Expect(m.configureSystem(ctx, conf, output, nil, nil)).To(Succeed())
 
 		// Igntion files are generated inside the CPIO extension
 		cpioContent, err := system.FS().ReadFile(output.InitrdExtensionFile())

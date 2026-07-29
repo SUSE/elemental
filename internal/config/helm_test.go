@@ -23,6 +23,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/suse/elemental/v3/internal/butane"
 	"github.com/suse/elemental/v3/internal/image"
 	"github.com/suse/elemental/v3/internal/image/auth"
 	"github.com/suse/elemental/v3/internal/image/kubernetes"
@@ -53,11 +54,18 @@ func (v *valuesResolverMock) Resolve(*helm.ValueSource) ([]byte, error) {
 }
 
 var _ = Describe("Helm tests", Label("helm"), func() {
+
 	logger := log.New(log.WithDiscardAll())
 	overlaysPath := "/etc/overlays"
 	helmPath := "helm"
 
 	Describe("Complete setup", func() {
+		var config *butane.Config
+
+		BeforeEach(func() {
+			config = &butane.Config{}
+		})
+
 		rm := &resolver.ResolvedManifest{
 			CorePlatform: &core.ReleaseManifest{
 				Components: core.Components{
@@ -154,11 +162,11 @@ var _ = Describe("Helm tests", Label("helm"), func() {
 
 			h := &Helm{ValuesResolver: resolver, Logger: logger}
 
-			charts, secrets, err := h.Configure(conf, rm)
+			charts, err := h.Configure(conf, rm, config)
 			Expect(err).To(HaveOccurred())
 			Expect(err).To(MatchError("retrieving helm charts: collecting helm charts: resolving values for chart metallb: resolving failed"))
 			Expect(charts).To(BeNil())
-			Expect(secrets).To(BeNil())
+			Expect(len(config.Storage.Files)).To(Equal(0))
 		})
 
 		It("Fails resolving values of solution Helm chart", func() {
@@ -177,11 +185,11 @@ var _ = Describe("Helm tests", Label("helm"), func() {
 
 			h := &Helm{ValuesResolver: resolver, Logger: logger}
 
-			charts, secrets, err := h.Configure(conf, rm)
+			charts, err := h.Configure(conf, rm, config)
 			Expect(err).To(HaveOccurred())
 			Expect(err).To(MatchError("retrieving helm charts: collecting helm charts: resolving values for chart neuvector-crd: resolving failed"))
 			Expect(charts).To(BeNil())
-			Expect(secrets).To(BeNil())
+			Expect(len(config.Storage.Files)).To(Equal(0))
 		})
 
 		It("Fails resolving values of user Helm chart", func() {
@@ -210,11 +218,11 @@ var _ = Describe("Helm tests", Label("helm"), func() {
 
 			h := &Helm{ValuesResolver: resolver}
 
-			charts, secrets, err := h.Configure(conf, rm)
+			charts, err := h.Configure(conf, rm, config)
 			Expect(err).To(HaveOccurred())
 			Expect(err).To(MatchError("retrieving helm charts: collecting user helm charts: resolving values for chart apache: resolving failed"))
 			Expect(charts).To(BeNil())
-			Expect(secrets).To(BeNil())
+			Expect(len(config.Storage.Files)).To(Equal(0))
 		})
 
 		It("Fails to collect chart with a missing repository", func() {
@@ -236,11 +244,11 @@ var _ = Describe("Helm tests", Label("helm"), func() {
 			}
 
 			h := &Helm{ValuesResolver: resolver}
-			charts, secrets, err := h.Configure(conf, rm)
+			charts, err := h.Configure(conf, rm, config)
 			Expect(err).To(HaveOccurred())
 			Expect(err).To(MatchError("retrieving helm charts: collecting user helm charts: repository not found for chart: apache"))
 			Expect(charts).To(BeNil())
-			Expect(secrets).To(BeNil())
+			Expect(len(config.Storage.Files)).To(Equal(0))
 		})
 
 		It("Fails with same repository defined multiple times", func() {
@@ -272,11 +280,11 @@ var _ = Describe("Helm tests", Label("helm"), func() {
 			}
 
 			h := &Helm{ValuesResolver: resolver}
-			charts, secrets, err := h.Configure(conf, rm)
+			charts, err := h.Configure(conf, rm, config)
 			Expect(err).To(HaveOccurred())
 			Expect(err).To(MatchError("retrieving helm charts: creating helm chart auth map: helm repository 'apache-repo' defined multiple times"))
 			Expect(charts).To(BeNil())
-			Expect(secrets).To(BeNil())
+			Expect(len(config.Storage.Files)).To(Equal(0))
 		})
 
 		It("Fails enabling a missing release chart", func() {
@@ -295,35 +303,11 @@ var _ = Describe("Helm tests", Label("helm"), func() {
 
 			h := &Helm{ValuesResolver: resolver, Logger: logger}
 
-			charts, secrets, err := h.Configure(conf, rm)
+			charts, err := h.Configure(conf, rm, config)
 			Expect(err).To(HaveOccurred())
 			Expect(err).To(MatchError("retrieving helm charts: filtering enabled helm charts: adding helm chart 'rancher': helm chart does not exist"))
 			Expect(charts).To(BeNil())
-			Expect(secrets).To(BeNil())
-		})
-
-		It("Fails writing Helm charts to the FS", func() {
-			fs, cleanup, err := sysmock.TestFS(nil)
-			Expect(err).NotTo(HaveOccurred())
-			DeferCleanup(cleanup)
-
-			fs, err = sysmock.ReadOnlyTestFS(fs)
-			Expect(err).NotTo(HaveOccurred())
-
-			conf := &image.Configuration{}
-
-			h := &Helm{
-				FS:             fs,
-				ValuesResolver: &valuesResolverMock{},
-				DestinationDir: overlaysPath,
-				RelativePath:   helmPath,
-			}
-
-			charts, secrets, err := h.Configure(conf, rm)
-			Expect(err).To(HaveOccurred())
-			Expect(err).To(MatchError("writing helm chart resources: creating directory: Mkdir /etc/overlays/helm: operation not permitted"))
-			Expect(charts).To(BeNil())
-			Expect(secrets).To(BeNil())
+			Expect(len(config.Storage.Files)).To(Equal(0))
 		})
 
 		It("Collects and writes core, solution and user Helm charts to the FS", func() {
@@ -382,16 +366,13 @@ var _ = Describe("Helm tests", Label("helm"), func() {
 			}
 
 			h := &Helm{
-				FS:             fs,
 				ValuesResolver: resolver,
-				DestinationDir: overlaysPath,
 				RelativePath:   helmPath,
 				Logger:         logger,
 			}
 
-			charts, secrets, err := h.Configure(conf, rm)
+			charts, err := h.Configure(conf, rm, config)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(secrets).To(BeEmpty())
 			Expect(charts).To(ConsistOf(
 				"/helm/metallb.yaml",
 				"/helm/endpoint-copier-operator.yaml",
@@ -400,6 +381,8 @@ var _ = Describe("Helm tests", Label("helm"), func() {
 				"/helm/kubevirt.yaml",
 				"/helm/apache.yaml",
 				"/helm/nginx.yaml"))
+
+			Expect(len(config.Storage.Files)).To(Equal(7))
 
 			// Verify the contents of the various written Helm resources
 			contents := `apiVersion: helm.cattle.io/v1
@@ -415,9 +398,9 @@ spec:
     createNamespace: true
     backOffLimit: 20
 `
-			b, err := fs.ReadFile(filepath.Join(overlaysPath, helmPath, "neuvector.yaml"))
-			Expect(err).NotTo(HaveOccurred())
-			Expect(string(b)).To(Equal(contents))
+			data := findFileContentsInConfig(config, filepath.Join("/", helmPath, "neuvector.yaml"))
+			Expect(data).NotTo(BeNil())
+			Expect(*data).To(Equal(contents))
 
 			contents = `apiVersion: helm.cattle.io/v1
 kind: HelmChart
@@ -432,9 +415,9 @@ spec:
     createNamespace: true
     backOffLimit: 20
 `
-			b, err = fs.ReadFile(filepath.Join(overlaysPath, helmPath, "neuvector-crd.yaml"))
-			Expect(err).NotTo(HaveOccurred())
-			Expect(string(b)).To(Equal(contents))
+			data = findFileContentsInConfig(config, filepath.Join("/", helmPath, "neuvector-crd.yaml"))
+			Expect(data).NotTo(BeNil())
+			Expect(*data).To(Equal(contents))
 
 			contents = `apiVersion: helm.cattle.io/v1
 kind: HelmChart
@@ -454,9 +437,9 @@ spec:
     createNamespace: true
     backOffLimit: 20
 `
-			b, err = fs.ReadFile(filepath.Join(overlaysPath, helmPath, "metallb.yaml"))
-			Expect(err).NotTo(HaveOccurred())
-			Expect(string(b)).To(Equal(contents))
+			data = findFileContentsInConfig(config, filepath.Join("/", helmPath, "metallb.yaml"))
+			Expect(data).NotTo(BeNil())
+			Expect(*data).To(Equal(contents))
 
 			contents = `apiVersion: helm.cattle.io/v1
 kind: HelmChart
@@ -470,9 +453,9 @@ spec:
     createNamespace: true
     backOffLimit: 20
 `
-			b, err = fs.ReadFile(filepath.Join(overlaysPath, helmPath, "endpoint-copier-operator.yaml"))
-			Expect(err).NotTo(HaveOccurred())
-			Expect(string(b)).To(Equal(contents))
+			data = findFileContentsInConfig(config, filepath.Join("/", helmPath, "endpoint-copier-operator.yaml"))
+			Expect(data).NotTo(BeNil())
+			Expect(*data).To(Equal(contents))
 
 			contents = `apiVersion: helm.cattle.io/v1
 kind: HelmChart
@@ -486,9 +469,9 @@ spec:
     createNamespace: true
     backOffLimit: 20
 `
-			b, err = fs.ReadFile(filepath.Join(overlaysPath, helmPath, "kubevirt.yaml"))
-			Expect(err).NotTo(HaveOccurred())
-			Expect(string(b)).To(Equal(contents))
+			data = findFileContentsInConfig(config, filepath.Join("/", helmPath, "kubevirt.yaml"))
+			Expect(data).NotTo(BeNil())
+			Expect(*data).To(Equal(contents))
 
 			contents = `apiVersion: helm.cattle.io/v1
 kind: HelmChart
@@ -507,9 +490,9 @@ spec:
     createNamespace: true
     backOffLimit: 20
 `
-			b, err = fs.ReadFile(filepath.Join(overlaysPath, helmPath, "apache.yaml"))
-			Expect(err).NotTo(HaveOccurred())
-			Expect(string(b)).To(Equal(contents))
+			data = findFileContentsInConfig(config, filepath.Join("/", helmPath, "apache.yaml"))
+			Expect(data).NotTo(BeNil())
+			Expect(*data).To(Equal(contents))
 
 			contents = `apiVersion: helm.cattle.io/v1
 kind: HelmChart
@@ -523,9 +506,10 @@ spec:
     createNamespace: true
     backOffLimit: 20
 `
-			b, err = fs.ReadFile(filepath.Join(overlaysPath, helmPath, "nginx.yaml"))
-			Expect(err).NotTo(HaveOccurred())
-			Expect(string(b)).To(Equal(contents))
+
+			data = findFileContentsInConfig(config, filepath.Join("/", helmPath, "nginx.yaml"))
+			Expect(data).NotTo(BeNil())
+			Expect(*data).To(Equal(contents))
 		})
 
 		It("Collects and writes core, solution and user Helm charts with auth to the FS", func() {
@@ -617,14 +601,12 @@ spec:
 			}
 
 			h := &Helm{
-				FS:             fs,
 				ValuesResolver: resolver,
-				DestinationDir: overlaysPath,
 				RelativePath:   helmPath,
 				Logger:         logger,
 			}
 
-			charts, secrets, err := h.Configure(conf, rm)
+			charts, err := h.Configure(conf, rm, config)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(charts).To(ConsistOf(
 				"/helm/metallb.yaml",
@@ -634,15 +616,28 @@ spec:
 				"/helm/postgres.yaml",
 				"/helm/suse-storage.yaml"))
 
+			Expect(len(config.Storage.Files)).To(Equal(10))
+
 			apacheAuthSecret := "apiVersion: v1\nkind: Secret\nmetadata:\n    namespace: kube-system\n    name: apache-auth\ntype: kubernetes.io/basic-auth\ndata:\n    username: YXBhY2hlLXVzZXI=\n    password: YXBhY2hlLXBhc3M=\n"
 			postgresAuthSecret := "apiVersion: v1\nkind: Secret\nmetadata:\n    namespace: kube-system\n    name: postgres-auth\ntype: kubernetes.io/basic-auth\ndata:\n    username: cG9zdGdyZXMtdXNlcg==\n    password: cG9zdGdyZXMtcGFzcw==\n"
 			storageAuthSecret := "apiVersion: v1\nkind: Secret\nmetadata:\n    namespace: kube-system\n    name: suse-storage-auth\ntype: kubernetes.io/dockerconfigjson\ndata:\n    .dockerconfigjson: eyJhdXRocyI6eyJleGFtcGxlLTEuY29tIjp7InVzZXJuYW1lIjoic3RvcmFnZS11c2VyIiwicGFzc3dvcmQiOiJzdG9yYWdlLXBhc3MiLCJhdXRoIjoiYzNSdmNtRm5aUzExYzJWeU9uTjBiM0poWjJVdGNHRnpjdz09In19fQ==\n"
 			ecoAuthSecret := "apiVersion: v1\nkind: Secret\nmetadata:\n    namespace: kube-system\n    name: endpoint-copier-operator-auth\ntype: kubernetes.io/dockerconfigjson\ndata:\n    .dockerconfigjson: eyJhdXRocyI6eyJleGFtcGxlLTEuY29tIjp7InVzZXJuYW1lIjoiZWNvLXVzZXIiLCJwYXNzd29yZCI6ImVjby1wYXNzIiwiYXV0aCI6IlpXTnZMWFZ6WlhJNlpXTnZMWEJoYzNNPSJ9fX0=\n"
 
-			Expect(string(secrets["apache-auth-priority.yaml"])).To(Equal(apacheAuthSecret))
-			Expect(string(secrets["postgres-auth-priority.yaml"])).To(Equal(postgresAuthSecret))
-			Expect(string(secrets["endpoint-copier-operator-auth-priority.yaml"])).To(Equal(ecoAuthSecret))
-			Expect(string(secrets["suse-storage-auth-priority.yaml"])).To(Equal(storageAuthSecret))
+			data := findFileContentsInConfig(config, filepath.Join("/", image.KubernetesManifestsPath(), "apache-auth-priority.yaml"))
+			Expect(data).NotTo(BeNil())
+			Expect(*data).To(Equal(apacheAuthSecret))
+
+			data = findFileContentsInConfig(config, filepath.Join("/", image.KubernetesManifestsPath(), "postgres-auth-priority.yaml"))
+			Expect(data).NotTo(BeNil())
+			Expect(*data).To(Equal(postgresAuthSecret))
+
+			data = findFileContentsInConfig(config, filepath.Join("/", image.KubernetesManifestsPath(), "endpoint-copier-operator-auth-priority.yaml"))
+			Expect(data).NotTo(BeNil())
+			Expect(*data).To(Equal(ecoAuthSecret))
+
+			data = findFileContentsInConfig(config, filepath.Join("/", image.KubernetesManifestsPath(), "suse-storage-auth-priority.yaml"))
+			Expect(data).NotTo(BeNil())
+			Expect(*data).To(Equal(storageAuthSecret))
 
 			// Verify the contents of the various written Helm resources
 			contents := `apiVersion: helm.cattle.io/v1
@@ -661,9 +656,9 @@ spec:
     createNamespace: true
     backOffLimit: 20
 `
-			b, err := fs.ReadFile(filepath.Join(overlaysPath, helmPath, "metallb.yaml"))
-			Expect(err).NotTo(HaveOccurred())
-			Expect(string(b)).To(Equal(contents))
+			data = findFileContentsInConfig(config, filepath.Join("/", helmPath, "metallb.yaml"))
+			Expect(data).NotTo(BeNil())
+			Expect(*data).To(Equal(contents))
 
 			contents = `apiVersion: helm.cattle.io/v1
 kind: HelmChart
@@ -679,10 +674,9 @@ spec:
     dockerRegistrySecret:
         name: endpoint-copier-operator-auth
 `
-			b, err = fs.ReadFile(filepath.Join(overlaysPath, helmPath, "endpoint-copier-operator.yaml"))
-			Expect(err).NotTo(HaveOccurred())
-			Expect(string(b)).To(Equal(contents), "full actual:\n%s", string(b))
-			Expect(string(b)).To(Equal(contents))
+			data = findFileContentsInConfig(config, filepath.Join("/", helmPath, "endpoint-copier-operator.yaml"))
+			Expect(data).NotTo(BeNil())
+			Expect(*data).To(Equal(contents))
 
 			contents = `apiVersion: helm.cattle.io/v1
 kind: HelmChart
@@ -699,9 +693,10 @@ spec:
     authSecret:
         name: apache-auth
 `
-			b, err = fs.ReadFile(filepath.Join(overlaysPath, helmPath, "apache.yaml"))
-			Expect(err).NotTo(HaveOccurred())
-			Expect(string(b)).To(Equal(contents))
+
+			data = findFileContentsInConfig(config, filepath.Join("/", helmPath, "apache.yaml"))
+			Expect(data).NotTo(BeNil())
+			Expect(*data).To(Equal(contents))
 
 			contents = `apiVersion: helm.cattle.io/v1
 kind: HelmChart
@@ -715,9 +710,9 @@ spec:
     createNamespace: true
     backOffLimit: 20
 `
-			b, err = fs.ReadFile(filepath.Join(overlaysPath, helmPath, "nginx.yaml"))
-			Expect(err).NotTo(HaveOccurred())
-			Expect(string(b)).To(Equal(contents))
+			data = findFileContentsInConfig(config, filepath.Join("/", helmPath, "nginx.yaml"))
+			Expect(data).NotTo(BeNil())
+			Expect(*data).To(Equal(contents))
 
 			contents = `apiVersion: helm.cattle.io/v1
 kind: HelmChart
@@ -735,11 +730,10 @@ spec:
         name: postgres-auth
     insecureSkipTLSVerify: true
 `
-			b, err = fs.ReadFile(filepath.Join(overlaysPath, helmPath, "postgres.yaml"))
-			Expect(err).NotTo(HaveOccurred())
-			fmt.Println(string(b))
-			Expect(string(b)).To(Equal(contents))
 
+			data = findFileContentsInConfig(config, filepath.Join("/", helmPath, "postgres.yaml"))
+			Expect(data).NotTo(BeNil())
+			Expect(*data).To(Equal(contents))
 		})
 	})
 

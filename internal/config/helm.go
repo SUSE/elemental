@@ -25,6 +25,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/suse/elemental/v3/internal/butane"
 	"github.com/suse/elemental/v3/internal/image/auth"
 	"github.com/suse/elemental/v3/internal/image/kubernetes"
 	"go.yaml.in/yaml/v3"
@@ -35,7 +36,6 @@ import (
 	"github.com/suse/elemental/v3/pkg/log"
 	"github.com/suse/elemental/v3/pkg/manifest/api"
 	"github.com/suse/elemental/v3/pkg/manifest/resolver"
-	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
 
 type helmValuesResolver interface {
@@ -50,24 +50,20 @@ type helmChart interface {
 }
 
 type Helm struct {
-	FS             vfs.FS
 	RelativePath   string
-	DestinationDir string
 	ValuesResolver helmValuesResolver
 	Logger         log.Logger
 }
 
-func NewHelm(fs vfs.FS, valuesResolver helmValuesResolver, logger log.Logger, destinationDir string) *Helm {
+func NewHelm(valuesResolver helmValuesResolver, logger log.Logger) *Helm {
 	return &Helm{
-		FS:             fs,
 		RelativePath:   image.HelmPath(),
-		DestinationDir: destinationDir,
 		ValuesResolver: valuesResolver,
 		Logger:         logger,
 	}
 }
 
-func (h *Helm) Configure(conf *image.Configuration, rm *resolver.ResolvedManifest) ([]string, map[string][]byte, error) {
+func (h *Helm) Configure(conf *image.Configuration, rm *resolver.ResolvedManifest, butaneCfg *butane.Config) ([]string, error) {
 	if len(conf.Release.Components.HelmCharts) > 0 {
 		var charts []string
 		for _, c := range conf.Release.Components.HelmCharts {
@@ -79,27 +75,23 @@ func (h *Helm) Configure(conf *image.Configuration, rm *resolver.ResolvedManifes
 
 	charts, secrets, err := h.retrieveHelmCharts(rm, conf)
 	if err != nil {
-		return nil, nil, fmt.Errorf("retrieving helm charts: %w", err)
+		return nil, fmt.Errorf("retrieving helm charts: %w", err)
 	}
 
-	chartFiles, err := h.writeHelmCharts(charts)
+	chartFiles, err := h.writeHelmCharts(butaneCfg, charts)
 	if err != nil {
-		return nil, nil, fmt.Errorf("writing helm chart resources: %w", err)
+		return nil, fmt.Errorf("writing helm chart resources: %w", err)
 	}
 
-	helmSecrets, err := h.createHelmSecretFileMap(secrets)
+	err = h.writeHelmSecrets(secrets, butaneCfg)
 	if err != nil {
-		return nil, nil, fmt.Errorf("creating helm secrets: %w", err)
+		return nil, fmt.Errorf("creating helm secrets: %w", err)
 	}
 
-	return chartFiles, helmSecrets, nil
+	return chartFiles, nil
 }
 
-func (h *Helm) writeHelmCharts(crds []*helm.CRD) ([]string, error) {
-	if err := vfs.MkdirAll(h.FS, filepath.Join(h.DestinationDir, h.RelativePath), vfs.DirPerm); err != nil {
-		return nil, fmt.Errorf("creating directory: %w", err)
-	}
-
+func (h *Helm) writeHelmCharts(butaneCfg *butane.Config, crds []*helm.CRD) ([]string, error) {
 	var charts []string
 
 	for _, crd := range crds {
@@ -110,10 +102,8 @@ func (h *Helm) writeHelmCharts(crds []*helm.CRD) ([]string, error) {
 
 		chartName := fmt.Sprintf("%s.yaml", crd.Metadata.Name)
 		relativePath := filepath.Join("/", h.RelativePath, chartName)
-		fullPath := filepath.Join(h.DestinationDir, relativePath)
-		if err = h.FS.WriteFile(fullPath, data, 0o644); err != nil {
-			return nil, fmt.Errorf("writing helm chart: %w", err)
-		}
+
+		butaneCfg.AddFileInline(relativePath, new(string(data)), 0o644)
 
 		charts = append(charts, relativePath)
 	}
@@ -121,19 +111,19 @@ func (h *Helm) writeHelmCharts(crds []*helm.CRD) ([]string, error) {
 	return charts, nil
 }
 
-func (h *Helm) createHelmSecretFileMap(secrets []*helm.Secret) (map[string][]byte, error) {
-	helmSecrets := make(map[string][]byte)
+func (h *Helm) writeHelmSecrets(secrets []*helm.Secret, butaneCfg *butane.Config) error {
+
 	for _, secret := range secrets {
 		data, err := yaml.Marshal(secret)
 		if err != nil {
-			return nil, fmt.Errorf("marshaling secret %s: %w", secret.Metadata.Name, err)
+			return fmt.Errorf("marshaling secret %s: %w", secret.Metadata.Name, err)
 		}
 
 		secretName := fmt.Sprintf("%s-priority.yaml", secret.Metadata.Name)
-		helmSecrets[secretName] = data
+		butaneCfg.AddFileInline(filepath.Join("/", image.KubernetesManifestsPath(), secretName), new(string(data)), 0o644)
 	}
 
-	return helmSecrets, nil
+	return nil
 }
 
 func (h *Helm) retrieveHelmCharts(rm *resolver.ResolvedManifest, conf *image.Configuration) ([]*helm.CRD, []*helm.Secret, error) {

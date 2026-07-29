@@ -34,7 +34,6 @@ import (
 	v0 "github.com/suse/elemental/v3/internal/config/v0"
 	"github.com/suse/elemental/v3/internal/image"
 	"github.com/suse/elemental/v3/pkg/helm"
-	"github.com/suse/elemental/v3/pkg/http"
 	"github.com/suse/elemental/v3/pkg/sys"
 	"github.com/suse/elemental/v3/pkg/sys/platform"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
@@ -89,8 +88,7 @@ func Build(ctx context.Context, cmd *cli.Command) error {
 
 	configManager := config.NewManager(
 		system,
-		config.NewHelm(system.FS(), valuesResolver, logger, output.OverlaysDir()),
-		config.WithDownloadFunc(http.DownloadFile),
+		config.NewHelm(valuesResolver, logger),
 		config.WithLocal(args.Local),
 	)
 

@@ -28,29 +28,21 @@ import (
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
 
-func DownloadFile(ctx context.Context, fs vfs.FS, url, path string) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return fmt.Errorf("creating request: %w", err)
-	}
+type Downloader struct{}
 
-	httpClient := &http.Client{Timeout: 90 * time.Second}
-	resp, err := httpClient.Do(req) // #nosec G704 -- url is assumed to be trusted.
+func (d Downloader) File(ctx context.Context, fs vfs.FS, url, path string) error {
+	r, err := d.URLBody(ctx, url)
 	if err != nil {
-		return fmt.Errorf("executing request: %w", err)
+		return err
 	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
-	}
+	defer func() { _ = r.Close() }()
 
 	file, err := fs.Create(path)
 	if err != nil {
 		return fmt.Errorf("creating file: %w", err)
 	}
 
-	_, err = io.Copy(file, resp.Body)
+	_, err = io.Copy(file, r)
 	if err != nil {
 		_ = file.Close()
 		return fmt.Errorf("copying file contents: %w", err)
@@ -61,4 +53,24 @@ func DownloadFile(ctx context.Context, fs vfs.FS, url, path string) error {
 	}
 
 	return nil
+}
+
+func (Downloader) URLBody(ctx context.Context, url string) (io.ReadCloser, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("creating request: %w", err)
+	}
+
+	httpClient := &http.Client{Timeout: 90 * time.Second}
+	resp, err := httpClient.Do(req) // #nosec G704 -- url is assumed to be trusted.
+	if err != nil {
+		return nil, fmt.Errorf("executing request: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		_ = resp.Body.Close()
+		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
+	return resp.Body, nil
 }

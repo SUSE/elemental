@@ -23,26 +23,44 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"go.yaml.in/yaml/v3"
+
+	"github.com/suse/elemental/v3/internal/butane"
 	"github.com/suse/elemental/v3/internal/image"
 	"github.com/suse/elemental/v3/internal/image/kubernetes"
 	"github.com/suse/elemental/v3/internal/template"
 	"github.com/suse/elemental/v3/pkg/manifest/resolver"
+	"github.com/suse/elemental/v3/pkg/sys"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
 
 const (
 	k8sResDeployScriptName  = "k8s_res_deploy.sh"
 	k8sConfDeployScriptName = "k8s_conf_deploy.sh"
+	k8sResourcesUnitName    = "k8s-resource-installer.service"
+	k8sConfigUnitName       = "k8s-config-installer.service"
+	k8sInstallSh            = "install.sh"
 )
 
-//go:embed templates/k8s_res_deploy.sh.tpl
-var k8sResDeployScriptTpl string
+var (
+	//go:embed templates/k8s-resource-installer.service.tpl
+	k8sResourceUnitTpl string
 
-//go:embed templates/k8s_conf_deploy.sh.tpl
-var k8sConfDeployScriptTpl string
+	//go:embed templates/k8s-config-installer.service.tpl
+	k8sConfigUnitTpl string
 
-func needsManifestsSetup(conf *image.Configuration, additionalManifests map[string][]byte) bool {
-	return len(conf.Kubernetes.RemoteManifests) > 0 || len(conf.Kubernetes.LocalManifests) > 0 || conf.Kubernetes.Network.IsHA() || additionalManifests != nil
+	//go:embed templates/k8s-vip.yaml.tpl
+	k8sVIPManifestTpl string
+
+	//go:embed templates/k8s_res_deploy.sh.tpl
+	k8sResDeployScriptTpl string
+
+	//go:embed templates/k8s_conf_deploy.sh.tpl
+	k8sConfDeployScriptTpl string
+)
+
+func needsManifestsSetup(conf *image.Configuration) bool {
+	return len(conf.Kubernetes.RemoteManifests) > 0 || len(conf.Kubernetes.LocalManifests) > 0 || conf.Kubernetes.Network.IsHA()
 }
 
 func needsHelmChartsSetup(conf *image.Configuration) bool {
@@ -50,100 +68,103 @@ func needsHelmChartsSetup(conf *image.Configuration) bool {
 }
 
 func isKubernetesEnabled(conf *image.Configuration) bool {
-	return conf.Release.Components.Kubernetes != nil || needsHelmChartsSetup(conf) || needsManifestsSetup(conf, nil)
+	return conf.Release.Components.Kubernetes != nil || needsHelmChartsSetup(conf) || needsManifestsSetup(conf)
 }
 
 func (m *Manager) configureKubernetes(
 	ctx context.Context,
 	conf *image.Configuration,
 	manifest *resolver.ResolvedManifest,
-	output Output,
-) (k8sResourceScript, k8sConfScript string, err error) {
-	if !isKubernetesEnabled(conf) {
-		m.system.Logger().Info("Kubernetes is not enabled, skipping configuration")
-		return "", "", nil
-	} else if manifest.CorePlatform.Components.Kubernetes == nil {
+	butaneCfg *butane.Config,
+) (err error) {
+	if manifest == nil ||
+		manifest.CorePlatform == nil ||
+		manifest.CorePlatform.Components.Kubernetes == nil {
 		m.system.Logger().Error("Kubernetes is enabled, but not part of the release")
-		return "", "", fmt.Errorf("kubernetes release not found")
+		return fmt.Errorf("kubernetes release not found")
 	}
 
 	var runtimeHelmCharts []string
-	var additionalManifests map[string][]byte
+
 	if needsHelmChartsSetup(conf) {
 		m.system.Logger().Info("Configuring Helm charts")
 
-		runtimeHelmCharts, additionalManifests, err = m.helm.Configure(conf, manifest)
+		runtimeHelmCharts, err = m.helm.Configure(conf, manifest, butaneCfg)
 		if err != nil {
-			return "", "", fmt.Errorf("configuring helm charts: %w", err)
+			return fmt.Errorf("configuring helm charts: %w", err)
 		}
 	}
 
 	var runtimeManifestsDir string
-	if needsManifestsSetup(conf, additionalManifests) {
+	if needsManifestsSetup(conf) {
 		m.system.Logger().Info("Configuring Kubernetes manifests")
 
-		runtimeManifestsDir, err = m.setupManifests(ctx, &conf.Kubernetes, additionalManifests, output)
+		runtimeManifestsDir, err = m.setupManifests(ctx, &conf.Kubernetes, butaneCfg)
 		if err != nil {
-			return "", "", fmt.Errorf("configuring kubernetes manifests: %w", err)
+			return fmt.Errorf("configuring kubernetes manifests: %w", err)
 		}
 	}
 
 	if len(runtimeHelmCharts) > 0 || runtimeManifestsDir != "" {
-		k8sResourceScript, err = writeK8sResDeployScript(m.system.FS(), output, runtimeManifestsDir, runtimeHelmCharts)
+		err = appendK8sResDeployScript(butaneCfg, runtimeManifestsDir, runtimeHelmCharts)
 		if err != nil {
-			return "", "", fmt.Errorf("writing kubernetes resource deployment script: %w", err)
+			return fmt.Errorf("generating kubernetes resource deployment script: %w", err)
+		}
+
+		err = appendK8sResUnit(conf, butaneCfg)
+		if err != nil {
+			return fmt.Errorf("generating kubernetes resource deployment unit: %w", err)
 		}
 	}
 
-	artifactsDir, installScript, err := m.unpackKubernetesArtifacts(ctx, manifest, output)
+	err = appendK8sConfigDeployScript(butaneCfg, conf.Kubernetes)
 	if err != nil {
-		return "", "", fmt.Errorf("unpacking kubernetes artifacts: %w", err)
+		return fmt.Errorf("generating kubernetes config deployment script: %w", err)
 	}
 
-	k8sConfScript, err = writeK8sConfigDeployScript(m.system.FS(), output, conf.Kubernetes, artifactsDir, installScript)
+	err = appendRke2Configuration(m.system, butaneCfg, &conf.Kubernetes)
 	if err != nil {
-		return "", "", fmt.Errorf("writing kubernetes config deployment script: %w", err)
+		return fmt.Errorf("generating RKE2 configuration: %w", err)
 	}
 
-	return k8sResourceScript, k8sConfScript, nil
+	return nil
 }
 
-func (m *Manager) setupManifests(ctx context.Context, k *kubernetes.Kubernetes, additionalManifests map[string][]byte, output Output) (string, error) {
+func (m *Manager) setupManifests(ctx context.Context, k *kubernetes.Kubernetes, butaneCfg *butane.Config) (string, error) {
 	fs := m.system.FS()
 
 	relativeManifestsPath := filepath.Join("/", image.KubernetesManifestsPath())
-	manifestsDir := filepath.Join(output.OverlaysDir(), relativeManifestsPath)
-
-	if err := vfs.MkdirAll(fs, manifestsDir, vfs.DirPerm); err != nil {
-		return "", fmt.Errorf("setting up manifests directory '%s': %w", manifestsDir, err)
-	}
 
 	for _, manifest := range k.RemoteManifests {
-		path := filepath.Join(manifestsDir, filepath.Base(manifest))
+		targetPath := filepath.Join(relativeManifestsPath, filepath.Base(manifest))
 
-		if err := m.downloadFile(ctx, fs, manifest, path); err != nil {
+		rc, err := m.downloader.URLBody(ctx, manifest)
+		if err != nil {
 			return "", fmt.Errorf("downloading remote Kubernetes manifest '%s': %w", manifest, err)
+		}
+
+		err = butaneCfg.AddFileInlineFromReader(targetPath, rc, 0o644)
+		if err != nil {
+			return "", fmt.Errorf("reading contents for manifest %q: %w", manifest, err)
 		}
 	}
 
 	for _, manifest := range k.LocalManifests {
-		overlayPath := filepath.Join(manifestsDir, filepath.Base(manifest))
-		if err := vfs.CopyFile(fs, manifest, overlayPath); err != nil {
-			return "", fmt.Errorf("copying local manifest '%s' to '%s': %w", manifest, overlayPath, err)
+		targetPath := filepath.Join(relativeManifestsPath, filepath.Base(manifest))
+		mfst, err := fs.Open(manifest)
+		if err != nil {
+			return "", fmt.Errorf("opening local manifest %q: %w", manifest, err)
 		}
-	}
-
-	for name, manifest := range additionalManifests {
-		secretPath := filepath.Join(manifestsDir, filepath.Base(name))
-		if err := fs.WriteFile(secretPath, manifest, 0o644); err != nil {
-			return "", fmt.Errorf("writing secret %q: %w", secretPath, err)
+		err = butaneCfg.AddFileInlineFromReader(targetPath, mfst, 0o644)
+		if err != nil {
+			return "", fmt.Errorf("reading local manifest %q: %w", manifest, err)
 		}
 	}
 
 	return relativeManifestsPath, nil
 }
 
-func writeK8sResDeployScript(fs vfs.FS, output Output, runtimeManifestsDir string, runtimeHelmCharts []string) (string, error) {
+func appendK8sResDeployScript(butaneCfg *butane.Config, runtimeManifestsDir string, runtimeHelmCharts []string) error {
 	values := struct {
 		HelmCharts   []string
 		ManifestsDir string
@@ -154,28 +175,41 @@ func writeK8sResDeployScript(fs vfs.FS, output Output, runtimeManifestsDir strin
 
 	data, err := template.Parse(k8sResDeployScriptName, k8sResDeployScriptTpl, &values)
 	if err != nil {
-		return "", fmt.Errorf("parsing deployment template: %w", err)
+		return fmt.Errorf("parsing deployment template: %w", err)
 	}
 
-	relativeK8sPath := filepath.Join("/", image.KubernetesPath())
-	destDir := filepath.Join(output.OverlaysDir(), relativeK8sPath)
-
-	if err = vfs.MkdirAll(fs, destDir, vfs.DirPerm); err != nil {
-		return "", fmt.Errorf("creating destination directory: %w", err)
-	}
-
-	fullPath := filepath.Join(destDir, k8sResDeployScriptName)
-	relativePath := filepath.Join(relativeK8sPath, k8sResDeployScriptName)
-
-	if err = fs.WriteFile(fullPath, []byte(data), 0o744); err != nil {
-		return "", fmt.Errorf("writing deployment script %q: %w", fullPath, err)
-	}
-
-	return relativePath, nil
+	relativePath := filepath.Join("/", image.KubernetesPath(), k8sResDeployScriptName)
+	butaneCfg.AddFileInline(relativePath, &data, 0o744)
+	return nil
 }
 
-func writeK8sConfigDeployScript(fs vfs.FS, output Output, k kubernetes.Kubernetes, artifactsDir, installScript string) (string, error) {
+func appendK8sResUnit(conf *image.Configuration, butaneCfg *butane.Config) error {
+	k8sScript := filepath.Join("/", image.KubernetesPath(), k8sResDeployScriptName)
+	initHostname := "*"
+
+	if len(conf.Kubernetes.Nodes) > 0 {
+		initNode, err := kubernetes.FindInitNode(conf.Kubernetes.Nodes)
+		if err != nil {
+			return err
+		}
+
+		if initNode != nil {
+			initHostname = initNode.Hostname
+		}
+	}
+
+	k8sResourcesUnit, err := generateK8sResourcesUnit(k8sScript, initHostname)
+	if err != nil {
+		return err
+	}
+
+	butaneCfg.AddSystemdUnit(k8sResourcesUnitName, k8sResourcesUnit, true)
+	return nil
+}
+
+func appendK8sConfigDeployScript(butaneCfg *butane.Config, k kubernetes.Kubernetes) error {
 	relativeK8sPath := filepath.Join("/", image.KubernetesPath())
+	k8sInstallPath := filepath.Join("/", image.KubernetesInstallPath())
 
 	var (
 		initNode *kubernetes.Node
@@ -185,7 +219,7 @@ func writeK8sConfigDeployScript(fs vfs.FS, output Output, k kubernetes.Kubernete
 	if len(k.Nodes) > 1 {
 		initNode, err = kubernetes.FindInitNode(k.Nodes)
 		if err != nil {
-			return "", fmt.Errorf("finding init node: %w", err)
+			return fmt.Errorf("finding init node: %w", err)
 		}
 	}
 
@@ -205,8 +239,8 @@ func writeK8sConfigDeployScript(fs vfs.FS, output Output, k kubernetes.Kubernete
 		APIHost:       k.Network.APIHost,
 		KubernetesDir: relativeK8sPath,
 		InitNode:      kubernetes.Node{},
-		InstallPath:   artifactsDir,
-		InstallScript: installScript,
+		InstallPath:   k8sInstallPath,
+		InstallScript: filepath.Join(k8sInstallPath, k8sInstallSh),
 	}
 
 	if initNode != nil {
@@ -215,50 +249,153 @@ func writeK8sConfigDeployScript(fs vfs.FS, output Output, k kubernetes.Kubernete
 
 	data, err := template.Parse(k8sConfDeployScriptName, k8sConfDeployScriptTpl, &values)
 	if err != nil {
-		return "", fmt.Errorf("parsing deployment template: %w", err)
+		return fmt.Errorf("parsing deployment template: %w", err)
 	}
 
-	destDir := filepath.Join(output.OverlaysDir(), relativeK8sPath)
-
-	if err = vfs.MkdirAll(fs, destDir, vfs.DirPerm); err != nil {
-		return "", fmt.Errorf("creating destination directory: %w", err)
-	}
-
-	fullPath := filepath.Join(destDir, k8sConfDeployScriptName)
 	relativePath := filepath.Join(relativeK8sPath, k8sConfDeployScriptName)
+	butaneCfg.AddFileInline(relativePath, &data, 0o744)
+	return nil
+}
 
-	if err = fs.WriteFile(fullPath, []byte(data), 0o744); err != nil {
-		return "", fmt.Errorf("writing deployment script %q: %w", fullPath, err)
+func generateK8sResourcesUnit(deployScript, initHostname string) (string, error) {
+	values := struct {
+		KubernetesDir        string
+		ManifestDeployScript string
+		InitHostname         string
+	}{
+		KubernetesDir:        filepath.Dir(deployScript),
+		ManifestDeployScript: deployScript,
+		InitHostname:         initHostname,
 	}
 
-	return relativePath, nil
+	data, err := template.Parse(k8sResourcesUnitName, k8sResourceUnitTpl, &values)
+	if err != nil {
+		return "", fmt.Errorf("parsing resources unit template: %w", err)
+	}
+	return data, nil
+}
+
+func generateK8sConfigUnit(deployScript string) (string, error) {
+	values := struct {
+		ConfigDeployScript string
+	}{
+		ConfigDeployScript: deployScript,
+	}
+
+	data, err := template.Parse(k8sConfigUnitName, k8sConfigUnitTpl, &values)
+	if err != nil {
+		return "", fmt.Errorf("parsing config unit template: %w", err)
+	}
+	return data, nil
+}
+
+func kubernetesVIPManifest(k *kubernetes.Kubernetes) (string, error) {
+	vars := struct {
+		APIAddress4 string
+		APIAddress6 string
+	}{
+		APIAddress4: k.Network.APIVIP4,
+		APIAddress6: k.Network.APIVIP6,
+	}
+
+	return template.Parse("k8s-vip", k8sVIPManifestTpl, &vars)
+}
+
+func appendRke2Configuration(s *sys.System, butaneCfg *butane.Config, k *kubernetes.Kubernetes) error {
+	configScript := filepath.Join("/", image.KubernetesPath(), k8sConfDeployScriptName)
+
+	c, err := kubernetes.NewCluster(s, k)
+	if err != nil {
+		return fmt.Errorf("failed parsing cluster: %w", err)
+	}
+
+	k8sConfigUnit, err := generateK8sConfigUnit(configScript)
+	if err != nil {
+		return fmt.Errorf("failed generating k8s config unit: %w", err)
+	}
+
+	butaneCfg.AddSystemdUnit(k8sConfigUnitName, k8sConfigUnit, true)
+
+	k8sPath := filepath.Join("/", image.KubernetesPath())
+
+	serverBytes, err := marshalConfig(c.ServerConfig)
+	if err != nil {
+		return fmt.Errorf("failed marshaling server config: %w", err)
+	}
+
+	butaneCfg.AddFileInline(filepath.Join(k8sPath, "server.yaml"), new(string(serverBytes)), 0o644)
+
+	if c.InitServerConfig != nil {
+		initServerBytes, err := marshalConfig(c.InitServerConfig)
+		if err != nil {
+			return fmt.Errorf("failed marshaling init-server config: %w", err)
+		}
+
+		butaneCfg.AddFileInline(filepath.Join(k8sPath, "init.yaml"), new(string(initServerBytes)), 0o644)
+	}
+
+	if c.AgentConfig != nil {
+		agentBytes, err := marshalConfig(c.AgentConfig)
+		if err != nil {
+			return fmt.Errorf("failed marshaling agent config: %w", err)
+		}
+
+		butaneCfg.AddFileInline(filepath.Join(k8sPath, "agent.yaml"), new(string(agentBytes)), 0o644)
+	}
+
+	if c.RegistriesConfig != nil {
+		registriesBytes, err := marshalConfig(c.RegistriesConfig)
+		if err != nil {
+			return fmt.Errorf("failed marshaling agent config: %w", err)
+		}
+
+		butaneCfg.AddFileInline(filepath.Join(k8sPath, "registries.yaml"), new(string(registriesBytes)), 0o644)
+	}
+
+	if k.Network.APIVIP4 != "" || k.Network.APIVIP6 != "" {
+		manifestsPath := filepath.Join("/", image.KubernetesManifestsPath())
+
+		vip, err := kubernetesVIPManifest(k)
+		if err != nil {
+			return fmt.Errorf("failed marshaling agent config: %w", err)
+		}
+
+		butaneCfg.AddFileInline(filepath.Join(manifestsPath, "k8s-vip.yaml"), new(string(vip)), 0o644)
+	}
+
+	return nil
+}
+
+func marshalConfig(config map[string]any) ([]byte, error) {
+	data, err := yaml.Marshal(config)
+	if err != nil {
+		return nil, fmt.Errorf("serializing kubernetes config: %w", err)
+	}
+
+	return data, nil
 }
 
 // unpackKubernetesArtifacts extracts Kubernetes distribution artifacts from an OCI image for installation at firstboot.
-func (m *Manager) unpackKubernetesArtifacts(ctx context.Context, manifest *resolver.ResolvedManifest, output Output) (artifactsDir, installScript string, err error) {
-	const k8sInstallSh = "install.sh"
-
+func (m *Manager) unpackKubernetesArtifacts(ctx context.Context, manifest *resolver.ResolvedManifest, output Output) error {
 	k8s := manifest.CorePlatform.Components.Kubernetes
 	fs := m.system.FS()
 
-	artifactsDir = filepath.Join("/", image.KubernetesInstallPath())
-	overlaysDir := filepath.Join(output.OverlaysDir(), artifactsDir)
+	overlaysDir := filepath.Join(output.OverlaysDir(), image.KubernetesInstallPath())
+	installScript := filepath.Join(overlaysDir, k8sInstallSh)
 
-	installScript = filepath.Join(artifactsDir, k8sInstallSh)
-
-	if err = vfs.MkdirAll(fs, overlaysDir, 0755); err != nil {
-		return "", "", fmt.Errorf("creating kubernetes artifacts directory: %w", err)
+	if err := vfs.MkdirAll(fs, overlaysDir, vfs.DirPerm); err != nil {
+		return fmt.Errorf("creating kubernetes artifacts directory: %w", err)
 	}
 
 	m.system.Logger().Info("Extracting Kubernetes artifacts from OCI image: %s", k8s.Image)
-	if err = m.unpackImage(ctx, k8s.Image, overlaysDir); err != nil {
-		return "", "", err
+	if err := m.unpackImage(ctx, k8s.Image, overlaysDir); err != nil {
+		return err
 	}
 
-	exists, _ := vfs.Exists(fs, filepath.Join(output.OverlaysDir(), installScript))
+	exists, _ := vfs.Exists(fs, installScript)
 	if !exists {
-		return "", "", fmt.Errorf("kubernetes install script %q not found", installScript)
+		return fmt.Errorf("kubernetes install script %q not found", installScript)
 	}
 
-	return artifactsDir, installScript, nil
+	return nil
 }
