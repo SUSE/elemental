@@ -33,7 +33,10 @@ type CustomizeFlags struct {
 	Mode       string
 	Platform   string
 	MediaType  string
-	Local      bool
+	Airgap     bool
+	Cache      bool
+	CacheDir   string
+	Offline    bool
 }
 
 var CustomizeArgs CustomizeFlags
@@ -47,6 +50,10 @@ func NewCustomizeCommand(appName string, action func(context.Context, *cli.Comma
 			modes := []string{"", "embedded", "split"}
 			if !slices.Contains(modes, CustomizeArgs.Mode) {
 				return ctx, cli.Exit("Error: Unsupported --mode option.", 1)
+			}
+
+			if err := ValidateCacheFlags(CustomizeArgs.Cache, CustomizeArgs.CacheDir, CustomizeArgs.Offline); err != nil {
+				return ctx, cli.Exit(fmt.Sprintf("Error: %v.", err), 1)
 			}
 
 			return ctx, nil
@@ -86,9 +93,27 @@ func NewCustomizeCommand(appName string, action func(context.Context, *cli.Comma
 				Value:       fmt.Sprintf("linux/%s", runtime.GOARCH),
 			},
 			&cli.BoolFlag{
-				Name:        localFlg,
-				Usage:       localDesc,
-				Destination: &CustomizeArgs.Local,
+				Name:        airgapFlg,
+				Usage:       airgapDesc,
+				Destination: &CustomizeArgs.Airgap,
+				Value:       true,
+			},
+			&cli.BoolFlag{
+				Name:        cacheFlg,
+				Usage:       cacheDesc,
+				Destination: &CustomizeArgs.Cache,
+				Value:       true,
+			},
+			&cli.StringFlag{
+				Name:        cacheDirFlg,
+				Usage:       cacheDirDesc,
+				Destination: &CustomizeArgs.CacheDir,
+				Value:       defaultCacheDir,
+			},
+			&cli.BoolFlag{
+				Name:        offlineFlg,
+				Usage:       offlineDesc,
+				Destination: &CustomizeArgs.Offline,
 			},
 		},
 	}

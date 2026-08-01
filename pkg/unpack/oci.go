@@ -25,13 +25,13 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/cenkalti/backoff/v4"
 	"github.com/schollz/progressbar/v3"
 
 	"github.com/suse/elemental/v3/pkg/containerd"
 	"github.com/suse/elemental/v3/pkg/sys"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 
-	backoff "github.com/cenkalti/backoff/v4"
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
 	containerregistry "github.com/google/go-containerregistry/pkg/v1"
@@ -51,6 +51,8 @@ type OCI struct {
 	s           *sys.System
 	platformRef string
 	local       bool
+	cacheDir    string
+	offline     bool
 	verify      bool
 	imageRef    string
 	rsyncFlags  []string
@@ -69,6 +71,18 @@ func WithLocalOCI(local bool) OCIOpt {
 func WithVerifyOCI(verify bool) OCIOpt {
 	return func(o *OCI) {
 		o.verify = verify
+	}
+}
+
+func WithCacheDirOCI(cacheDir string) OCIOpt {
+	return func(o *OCI) {
+		o.cacheDir = cacheDir
+	}
+}
+
+func WithOfflineOCI(offline bool) OCIOpt {
+	return func(o *OCI) {
+		o.offline = offline
 	}
 }
 

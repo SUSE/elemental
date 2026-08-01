@@ -85,7 +85,7 @@ func (m *Manager) unpackExtension(ctx context.Context, extension api.SystemdExte
 		_ = fs.RemoveAll(tempDir)
 	}()
 
-	unpacker := unpack.NewOCIUnpacker(m.system, extension.Image, unpack.WithLocalOCI(m.local))
+	unpacker := unpack.NewOCIUnpacker(m.system, extension.Image, unpack.WithCacheDirOCI(m.cacheDir), unpack.WithOfflineOCI(m.offline))
 	if _, err = unpacker.Unpack(ctx, tempDir); err != nil {
 		return fmt.Errorf("unpacking extension: %w", err)
 	}
