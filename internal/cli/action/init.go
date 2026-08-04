@@ -89,9 +89,6 @@ func defaultConfiguration() *image.Configuration {
 							Password: "release-pass",
 						},
 					},
-					{
-						Name: "elemental-lifecycle-manager",
-					},
 				},
 			},
 		},
