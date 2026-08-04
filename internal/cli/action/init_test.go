@@ -41,8 +41,7 @@ var expectedReleaseSubstring = `components:
     - chart: endpoint-copier-operator
       credentials:
         username: release-user
-        password: release-pass
-    - chart: elemental-lifecycle-manager`
+        password: release-pass`
 var expectedClusterSubstring = `helm:
   charts:
     - name: example-chart
