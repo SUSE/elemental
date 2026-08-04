@@ -49,7 +49,7 @@ func needsHelmChartsSetup(conf *image.Configuration) bool {
 	return (len(conf.Release.Components.HelmCharts) > 0) || conf.Kubernetes.Helm != nil
 }
 
-func IsKubernetesEnabled(conf *image.Configuration) bool {
+func isKubernetesEnabled(conf *image.Configuration) bool {
 	return conf.Release.Components.Kubernetes != nil || needsHelmChartsSetup(conf) || needsManifestsSetup(conf, nil)
 }
 
@@ -59,7 +59,7 @@ func (m *Manager) configureKubernetes(
 	manifest *resolver.ResolvedManifest,
 	output Output,
 ) (k8sResourceScript, k8sConfScript string, err error) {
-	if !IsKubernetesEnabled(conf) {
+	if !isKubernetesEnabled(conf) {
 		m.system.Logger().Info("Kubernetes is not enabled, skipping configuration")
 		return "", "", nil
 	} else if manifest.CorePlatform.Components.Kubernetes == nil {
