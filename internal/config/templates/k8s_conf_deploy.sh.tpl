@@ -13,7 +13,16 @@ HOSTNAME=$(</etc/hostname)
 [[ -z "${HOSTNAME}" ]] \
   && HOSTNAME=$(</proc/sys/kernel/hostname)
 
-NODETYPE="${hosts[${HOSTNAME}]:-server}"
+{{- if .Nodes }}
+if [[ ! -v "hosts[${HOSTNAME}]" ]]; then
+  echo "Error: hostname '${HOSTNAME}' does not match any declared node" >&2
+  exit 1
+fi
+
+NODETYPE="${hosts[${HOSTNAME}]}"
+{{- else }}
+NODETYPE="server"
+{{- end }}
 CONFIGFILE="{{ .KubernetesDir }}/${NODETYPE}.yaml"
 REGFILE="{{ .KubernetesDir }}/registries.yaml"
 
