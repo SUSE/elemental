@@ -268,8 +268,17 @@ func printInfraData(cm *core.ReleaseManifest, out io.Writer) error {
 		if len(parts) > 1 {
 			osVersion = "SLES " + strings.Split(parts[1], "-")[0]
 		}
-		data = append(data, []string{"Operating System", osVersion, cm.Components.OperatingSystem.Image.Base})
 	}
+	data = append(data, []string{"Operating System", osVersion, cm.Components.OperatingSystem.Image.Base})
+
+	installerVersion := "Unknown"
+	if cm.Components.OperatingSystem.Image.ISO != "" {
+		parts := strings.Split(cm.Components.OperatingSystem.Image.ISO, ":")
+		if len(parts) > 1 {
+			installerVersion = "SLES" + " " + strings.Split(parts[1], "-")[0]
+		}
+	}
+	data = append(data, []string{"Installer", installerVersion, cm.Components.OperatingSystem.Image.ISO})
 
 	if cm.Components.Kubernetes != nil {
 		data = append(data, []string{"Kubernetes", cm.Components.Kubernetes.Version, cm.Components.Kubernetes.Image})
