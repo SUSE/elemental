@@ -12,7 +12,6 @@ ExecStartPre=/bin/sh -c 'until [ "$(systemctl show -p SubState --value rke2-serv
 ExecStart=/bin/bash "{{ .ManifestDeployScript }}" 
 ExecStartPost=/bin/sh -c "systemctl disable k8s-resource-installer.service"
 ExecStartPost=/bin/sh -c "rm -rf /etc/systemd/system/k8s-resource-installer.service"
-ExecStartPost=/bin/sh -c 'rm -rf "{{ .KubernetesDir }}"'
 
 [Install]
 WantedBy=multi-user.target
