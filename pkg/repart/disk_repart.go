@@ -20,9 +20,11 @@ package repart
 import (
 	_ "embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -45,6 +47,8 @@ const (
 	// Do not change these values as this could break backward compatibility on already installed systems (e.g. reseting a system)
 	configType   = "2ecf8b13-6846-4e8a-9bc3-284ff5e2ac22"
 	recoveryType = "3265f37b-3105-4777-bd97-cfcd9cc7cf99"
+
+	blkdiscardNotSupported = 2 // blkdiscard exit code for devices that do not support discard requests
 )
 
 //go:embed templates/partition.conf.tpl
@@ -176,7 +180,34 @@ func repartDisk(s *sys.System, d *deployment.Disk, empty string) (err error) {
 		parts[i] = Partition{Partition: part}
 	}
 
-	return runSystemdRepart(s, d.Device, parts, fmt.Sprintf("--empty=%s", empty))
+	// systemd-repart trimming the disk could result in the entire disk waiting to be fully zero'd out. This could hang
+	// installs on large drives. Now, before systemd-repart is triggered, we manually discard the entire disk in one pass
+	// through blkdiscard. This results in a native TRIM being executed whenever the drive typically runs the TRIM engine.
+	if empty == "force" {
+		err = discardDevice(s, d.Device)
+		if err != nil {
+			return err
+		}
+	}
+
+	return runSystemdRepart(s, d.Device, parts, fmt.Sprintf("--empty=%s", empty), "--discard=no")
+}
+
+// discardDevice discards the given device in a single pass. Devices not
+// supporting discard requests fail silently, unexpected failures, such as "device in us" exit immediately.
+// Runs without '--force' on to prevent accidentally trimming an in-use disk.
+func discardDevice(s *sys.System, device string) error {
+	_, err := s.Runner().Run("blkdiscard", device)
+	if err == nil {
+		return nil
+	}
+
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) && exitErr.ExitCode() == blkdiscardNotSupported {
+		s.Logger().Warn("Device '%s' does not support discard, continuing without trimming it", device)
+		return nil
+	}
+	return fmt.Errorf("failed discarding device '%s': %w", device, err)
 }
 
 // runSystemdRepart runs systemd-repart for the given partitions and target device. It appends to the generated command the
