@@ -267,6 +267,26 @@ var _ = Describe("Kubernetes", func() {
 			Expect(findFileContentsInConfig(config, filepath.Join("/", image.KubernetesPath(), k8sConfDeployScriptName))).NotTo(BeNil())
 		})
 
+		It("Defaults to a server node for a single-node cluster with no declared nodes", func() {
+			conf := kubernetes.Kubernetes{}
+
+			confScript, err := writeK8sConfigDeployScript(
+				fs,
+				output,
+				conf,
+				"/opt/k8s/install",
+				"/opt/k8s/install/install.sh",
+			)
+			Expect(err).NotTo(HaveOccurred())
+
+			b, err := fs.ReadFile(filepath.Join(output.OverlaysDir(), confScript))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(string(b)).To(ContainSubstring(`NODETYPE="server"`))
+			Expect(string(b)).To(ContainSubstring(`CONFIGFILE="/var/lib/elemental/kubernetes/${NODETYPE}.yaml"`))
+			Expect(string(b)).ToNot(ContainSubstring("does not match any declared node"))
+			Expect(string(b)).ToNot(ContainSubstring("init.yaml"))
+		})
+
 		It("Uses server config for a single explicitly configured server node", func() {
 			k8s := kubernetes.Kubernetes{
 				Nodes: kubernetes.Nodes{
@@ -298,6 +318,29 @@ var _ = Describe("Kubernetes", func() {
 
 			Expect(*data).To(ContainSubstring(`if [[ "${HOSTNAME}" = "server01" ]]; then`))
 			Expect(*data).To(ContainSubstring("CONFIGFILE=/var/lib/elemental/kubernetes/init.yaml"))
+		})
+
+		It("Aborts when the hostname matches no declared node", func() {
+			conf := kubernetes.Kubernetes{
+				Nodes: kubernetes.Nodes{
+					{Hostname: "server01", Type: kubernetes.NodeTypeServer},
+				},
+			}
+
+			confScript, err := writeK8sConfigDeployScript(
+				fs,
+				output,
+				conf,
+				"/opt/k8s/install",
+				"/opt/k8s/install/install.sh",
+			)
+			Expect(err).NotTo(HaveOccurred())
+
+			b, err := fs.ReadFile(filepath.Join(output.OverlaysDir(), confScript))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(string(b)).To(ContainSubstring(`if [[ ! -v "hosts[${HOSTNAME}]" ]]; then`))
+			Expect(string(b)).To(ContainSubstring("does not match any declared node"))
+			Expect(string(b)).ToNot(ContainSubstring(":-server"))
 		})
 
 		It("Succeeds to configure RKE2 with additional resources and auth", func() {
