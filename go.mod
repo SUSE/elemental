@@ -20,7 +20,7 @@ require (
 	github.com/opencontainers/image-spec v1.1.1
 	github.com/pkg/errors v0.9.1
 	github.com/schollz/progressbar/v3 v3.19.1
-	github.com/sirupsen/logrus v1.9.4
+	github.com/sirupsen/logrus v1.10.0
 	github.com/twpayne/go-vfs/v4 v4.3.0
 	github.com/urfave/cli/v3 v3.10.1
 	go.yaml.in/yaml/v3 v3.0.5
