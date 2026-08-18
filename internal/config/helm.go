@@ -293,17 +293,16 @@ func enabledHelmCharts(rm *resolver.ResolvedManifest, enabled []release.HelmChar
 	var addChart func(name string) error
 
 	// Add a chart and its direct dependencies, avoiding duplicates.
-	// Prioritize charts from solution releases over core ones.
 	addChart = func(name string) error {
-		source := "solution"
+		source := "core"
 
-		chart, ok := solutionCharts[name]
+		chart, ok := coreCharts[name]
 		if !ok {
-			chart, ok = coreCharts[name]
+			chart, ok = solutionCharts[name]
 			if !ok {
 				return fmt.Errorf("helm chart does not exist")
 			}
-			source = "core"
+			source = "solution"
 		}
 
 		if logger != nil {
