@@ -129,12 +129,17 @@ func (h *Helm) writeHelmSecrets(secrets []*helm.Secret, butaneCfg *butane.Config
 func (h *Helm) retrieveHelmCharts(rm *resolver.ResolvedManifest, conf *image.Configuration) ([]*helm.CRD, []*helm.Secret, error) {
 	var crds []*helm.CRD
 
+	valueFiles := conf.Release.Components.HelmValueFiles()
+
+	err := evaluateLCMDeps(conf.Release.Components.HelmCharts, rm.CorePlatform, valueFiles, h.ValuesResolver)
+	if err != nil {
+		return nil, nil, fmt.Errorf("evaluating %s dependencies: %w", elementalLifecycleManager, err)
+	}
+
 	charts, repositories, err := enabledHelmCharts(rm, conf.Release.Components.HelmCharts, h.Logger)
 	if err != nil {
 		return nil, nil, fmt.Errorf("filtering enabled helm charts: %w", err)
 	}
-
-	valueFiles := conf.Release.Components.HelmValueFiles()
 
 	authMap, err := createAuthMap(charts, repositories, conf)
 	if err != nil {
