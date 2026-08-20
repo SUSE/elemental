@@ -46,7 +46,7 @@ type helmChart interface {
 	GetName() string
 	GetInlineValues() map[string]any
 	GetRepositoryName() string
-	ToCRD(values []byte, repository string, hasAuth, skipTLSVerify bool) *helm.CRD
+	ToCRD(values []byte, repository string, hasAuth, skipTLSVerify bool) (*helm.CRD, error)
 }
 
 type Helm struct {
@@ -264,7 +264,10 @@ func (h *Helm) appendHelmChart(chart helmChart, repositories, valueFiles map[str
 		return fmt.Errorf("resolving values for chart %s: %w", name, err)
 	}
 
-	crd := chart.ToCRD(values, repository, needsAuth, skipTLSVerify)
+	crd, err := chart.ToCRD(values, repository, needsAuth, skipTLSVerify)
+	if err != nil {
+		return fmt.Errorf("constructing HelmChart custom resource: %w", err)
+	}
 	*crds = append(*crds, crd)
 
 	return nil
