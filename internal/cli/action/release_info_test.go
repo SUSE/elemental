@@ -102,6 +102,7 @@ components:
 		Expect(buffer).To(ContainSubstring("CORE PLATFORM"))
 		Expect(buffer).To(ContainSubstring("suse-core-test"))
 		Expect(buffer).To(ContainSubstring("registry.suse.com/elemental/base-os-kernel-default:16.0-2.4"))
+		Expect(buffer).To(ContainSubstring("registry.suse.com/elemental/base-os-kernel-default-iso:16.0-2.7"))
 
 		Expect(buffer).To(ContainSubstring("INFRASTRUCTURE COMPONENTS"))
 		Expect(buffer).To(ContainSubstring("SLES 16.0"))
