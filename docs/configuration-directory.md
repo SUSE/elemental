@@ -147,6 +147,7 @@ network:
     apiVIP: 192.168.122.100
     apiHost: api.cluster01.example.com
     apiVIP6: fd12:3456:789a::21
+    apiVIPMode: managed
 ```
 
 * `manifests` - Optional; Defines remote Kubernetes manifests to be deployed on the cluster.
@@ -170,8 +171,9 @@ network:
   * `type` - Required; Selects the Kubernetes node type, either server (for control plane nodes) or agent (for worker nodes).
   * `init` - Optional; Indicates which node should function as the cluster initializer. The initializer node is the server node which bootstraps the cluster and allows other nodes to join it. If unset, the first server in the node list will be selected as the initializer.
 * `network`:
-  * `apiVIP` - Required for multi-node clusters if not using `apiVIP6`; Specifies the IPv4 address which will serve as the cluster LoadBalancer, backed by MetalLB.
-  * `apiVIP6` -  Required for multi-node clusters if not using `apiVIP`; Specifies the IPv6 address which will serve as the cluster LoadBalancer, backed by MetalLB.
+  * `apiVIP` - Required for multi-node clusters if not using `apiVIP6`; Specifies the IPv4 address which will serve as the cluster LoadBalancer. By default, setting this field adds MetalLB and endpoint-copier-operator to the image build.
+  * `apiVIP6` -  Required for multi-node clusters if not using `apiVIP`; Specifies the IPv6 address which will serve as the cluster LoadBalancer. By default, setting this field adds MetalLB and endpoint-copier-operator to the image build.
+  * `apiVIPMode` - Optional; Selects how the API VIP is provided. Omitted or `managed` keeps the default built-in MetalLB and endpoint-copier-operator install. `external` keeps `apiVIP` or `apiVIP6` configured but disables adding those built-in Helm charts at image build time.
   * `apiHost` - Optional; Specifies the domain address for accessing the cluster.
 
 ### Kubernetes Directory

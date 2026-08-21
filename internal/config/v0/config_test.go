@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -172,6 +173,37 @@ var _ = Describe("Configuration", Label("configuration"), func() {
 			"version": "1.6.0",
 			"variant": "fcos",
 		}))
+	})
+
+	It("Adds managed HA load balancer charts when apiVIPMode is managed", func() {
+		clusterYAML := strings.Replace(kubernetesClusterYAML, "  apiVIP: 192.168.120.100.sslip.io", "  apiVIP: 192.168.120.100.sslip.io\n  apiVIPMode: managed", 1)
+		Expect(fs.WriteFile(configDir.ClusterFilepath(), []byte(clusterYAML), 0644)).To(Succeed())
+
+		conf, err := Parse(fs, configDir)
+		Expect(err).ToNot(HaveOccurred())
+
+		Expect(containsChart("metallb", conf.Release.Components.HelmCharts)).To(BeTrue())
+		Expect(containsChart("endpoint-copier-operator", conf.Release.Components.HelmCharts)).To(BeTrue())
+	})
+
+	It("Skips managed HA load balancer charts when apiVIPMode is external", func() {
+		clusterYAML := strings.Replace(kubernetesClusterYAML, "  apiVIP: 192.168.120.100.sslip.io", "  apiVIP: 192.168.120.100.sslip.io\n  apiVIPMode: external", 1)
+		Expect(fs.WriteFile(configDir.ClusterFilepath(), []byte(clusterYAML), 0644)).To(Succeed())
+
+		conf, err := Parse(fs, configDir)
+		Expect(err).ToNot(HaveOccurred())
+
+		Expect(containsChart("metallb", conf.Release.Components.HelmCharts)).To(BeFalse())
+		Expect(containsChart("endpoint-copier-operator", conf.Release.Components.HelmCharts)).To(BeFalse())
+	})
+
+	It("Fails to parse an invalid apiVIPMode", func() {
+		clusterYAML := strings.Replace(kubernetesClusterYAML, "  apiVIP: 192.168.120.100.sslip.io", "  apiVIP: 192.168.120.100.sslip.io\n  apiVIPMode: invalid", 1)
+		Expect(fs.WriteFile(configDir.ClusterFilepath(), []byte(clusterYAML), 0644)).To(Succeed())
+
+		_, err := Parse(fs, configDir)
+
+		Expect(err).To(MatchError(`validating configuration: validation failed: field "Configuration.Kubernetes.Network.APIVIPMode" must be one of [managed external], but got "invalid"`))
 	})
 
 	It("Successfully parses relative release manifest URI", func() {

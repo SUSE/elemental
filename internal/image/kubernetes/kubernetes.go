@@ -133,9 +133,10 @@ func FindInitNode(nodes Nodes) (*Node, error) {
 }
 
 type Network struct {
-	APIHost string `yaml:"apiHost"`
-	APIVIP4 string `yaml:"apiVIP,omitempty" validate:"omitempty"`
-	APIVIP6 string `yaml:"apiVIP6,omitempty" validate:"omitempty,ipv6"`
+	APIHost    string `yaml:"apiHost"`
+	APIVIP4    string `yaml:"apiVIP,omitempty" validate:"omitempty"`
+	APIVIP6    string `yaml:"apiVIP6,omitempty" validate:"omitempty,ipv6"`
+	APIVIPMode string `yaml:"apiVIPMode,omitempty" validate:"omitempty,oneof=managed external"`
 }
 
 func (n Network) IsHA() bool {
