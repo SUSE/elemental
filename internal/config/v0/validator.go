@@ -70,7 +70,7 @@ func Validate(conf *image.Configuration) error {
 				messages = append(messages, fmt.Sprintf("field %q must be one of [%s], but got %q", vErr.Namespace(), vErr.Param(), vErr.Value()))
 			case "disksize":
 				messages = append(messages, fmt.Sprintf("field %q must be a valid disk size (e.g., 10G, 500M), but got %q", vErr.Namespace(), vErr.Value()))
-			case "url":
+			case "url", "http_url":
 				messages = append(messages, fmt.Sprintf("field %q must be a valid URL, but got %q", vErr.Namespace(), vErr.Value()))
 			case "hostname":
 				messages = append(messages, fmt.Sprintf("field %q must be a valid hostname, but got %q", vErr.Namespace(), vErr.Value()))

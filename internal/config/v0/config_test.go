@@ -49,6 +49,7 @@ raw:
   diskSize: 35G
 iso:
   device: /dev/sda
+  netbootURL: http://server/installer.iso
 `
 
 var butaneYAML = `
@@ -128,6 +129,7 @@ var _ = Describe("Configuration", Label("configuration"), func() {
 		Expect(conf.Installation.KernelCmdLine).To(Equal("console=ttyS0 quiet loglevel=3"))
 		Expect(conf.Installation.RAW.DiskSize).To(Equal(install.DiskSize("35G")))
 		Expect(conf.Installation.ISO.Device).To(Equal("/dev/sda"))
+		Expect(conf.Installation.ISO.NetbootURL).To(Equal("http://server/installer.iso"))
 		Expect(conf.Installation.CryptoPolicy).To(Equal(crypto.FIPSPolicy))
 
 		Expect(conf.Kubernetes.Config.AgentFilePath).To(Equal(configDir.KubernetesAgentFilepath()))
@@ -280,6 +282,8 @@ schema: v0
 bootloader: invalid
 raw:
   diskSize: 35X
+iso:
+  netbootURL: server/installer.iso
 `
 		Expect(fs.WriteFile(installFile, []byte(invalidInstallYAML), 0644)).To(Succeed())
 
@@ -288,6 +292,7 @@ raw:
 		Expect(err.Error()).To(ContainSubstring("validating configuration"))
 		Expect(err.Error()).To(ContainSubstring("field \"Configuration.Installation.Bootloader\" must be one of [grub none], but got \"invalid\""))
 		Expect(err.Error()).To(ContainSubstring("field \"Configuration.Installation.RAW.DiskSize\" must be a valid disk size (e.g., 10G, 500M), but got \"35X\""))
+		Expect(err.Error()).To(ContainSubstring("field \"Configuration.Installation.ISO.NetbootURL\" must be a valid URL, but got \"server/installer.iso\""))
 	})
 
 	It("Fails on missing required release configuration", func() {

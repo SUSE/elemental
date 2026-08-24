@@ -37,7 +37,7 @@ StartLimitBurst=3
 
 [Service]
 Type=oneshot
-{{- if eq .MediaType "iso" }}
+{{- if or (eq .MediaType "iso") (eq .MediaType "netboot") }}
 ExecStart=/usr/bin/elemental3ctl --debug install
 {{- else }}
 ExecStart=/usr/bin/elemental3ctl --debug reset
