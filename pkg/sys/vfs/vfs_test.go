@@ -624,6 +624,25 @@ var _ = Describe("FS", Label("fs"), func() {
 			_, _, err := vfs.FindKernel(tfs, "/no-kernel-here")
 			Expect(err).To(HaveOccurred())
 		})
+		It("finds kernels not named vmlinuz", func() {
+			armKernel := "/usr/lib/modules/6.14.4-2-default/Image"
+			Expect(vfs.MkdirAll(tfs, filepath.Join(rootDir, filepath.Dir(armKernel)), vfs.DirPerm)).To(Succeed())
+			Expect(tfs.WriteFile(filepath.Join(rootDir, armKernel), []byte("Image-6.14.4-2-default"), vfs.FilePerm)).To(Succeed())
+
+			k, kver, err := vfs.FindKernel(tfs, rootDir)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(k).To(Equal(filepath.Join(rootDir, armKernel)))
+			Expect(kver).To(Equal("6.14.4-2-default"))
+		})
+	})
+	Describe("KernelPatterns", func() {
+		It("prefixes every kernel name with the directory pattern", func() {
+			patterns := vfs.KernelPatterns("/boot/*/*")
+			Expect(patterns).To(ContainElements("/boot/*/*/vmlinuz*", "/boot/*/*/Image*", "/boot/*/*/zImage*", "/boot/*/*/uImage*"))
+			for _, p := range patterns {
+				Expect(p).To(HavePrefix("/boot/*/*/"))
+			}
+		})
 	})
 	Describe("WriteEnvFile", func() {
 		BeforeEach(func() {

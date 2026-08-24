@@ -126,6 +126,11 @@ func (r *Runner) Run(ctx context.Context, def *image.Definition, output config.O
 		mediaOpts = append(mediaOpts, installer.WithRawDiskSize(deployment.MiB(diskMiB)))
 	}
 
+	netbootURL := def.Configuration.Installation.ISO.NetbootURL
+	if netbootURL != "" && mediaType == installer.ISO {
+		mediaOpts = append(mediaOpts, installer.WithNetbootURL(netbootURL))
+	}
+
 	// TODO(ipetrov117): Consider refactoring installer.Media, as right now
 	// it is hiding too much information when exposing the Customize() command.
 	// This makes abstracting the object behind an interface hard. Perhaps we should separate

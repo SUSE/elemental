@@ -50,6 +50,7 @@ raw:
   diskSize: 35G
 iso:
   device: /dev/sda
+  netbootURL: http://server/installer.iso
 `
 
 var butaneYAML = `
@@ -129,6 +130,7 @@ var _ = Describe("Configuration", Label("configuration"), func() {
 		Expect(conf.Installation.KernelCmdLine).To(Equal("console=ttyS0 quiet loglevel=3"))
 		Expect(conf.Installation.RAW.DiskSize).To(Equal(install.DiskSize("35G")))
 		Expect(conf.Installation.ISO.Device).To(Equal("/dev/sda"))
+		Expect(conf.Installation.ISO.NetbootURL).To(Equal("http://server/installer.iso"))
 		Expect(conf.Installation.CryptoPolicy).To(Equal(crypto.FIPSPolicy))
 
 		Expect(conf.Kubernetes.Config.AgentFilePath).To(Equal(configDir.KubernetesAgentFilepath()))
@@ -303,6 +305,8 @@ schema: v0
 bootloader: invalid
 raw:
   diskSize: 35X
+iso:
+  netbootURL: server/installer.iso
 `
 		Expect(fs.WriteFile(installFile, []byte(invalidInstallYAML), 0644)).To(Succeed())
 
@@ -311,6 +315,42 @@ raw:
 		Expect(err.Error()).To(ContainSubstring("validating configuration"))
 		Expect(err.Error()).To(ContainSubstring("field \"Configuration.Installation.Bootloader\" must be one of [grub none], but got \"invalid\""))
 		Expect(err.Error()).To(ContainSubstring("field \"Configuration.Installation.RAW.DiskSize\" must be a valid disk size (e.g., 10G, 500M), but got \"35X\""))
+		Expect(err.Error()).To(ContainSubstring("field \"Configuration.Installation.ISO.NetbootURL\" must be an http, https, or nfs URL, but got \"server/installer.iso\""))
+	})
+
+	It("Validates the netboot URL scheme", func() {
+		installFile := filepath.Join(string(configDir), "install.yaml")
+		netbootInstallYAML := `
+schema: v0
+bootloader: grub
+iso:
+  device: /dev/sda
+  netbootURL: %s
+`
+		for _, tc := range []struct {
+			url   string
+			valid bool
+		}{
+			{url: "http://server/installer.iso", valid: true},
+			{url: "https://server:8443/installer.iso", valid: true},
+			{url: "nfs://10.0.2.2/srv/netboot/installer.iso", valid: true},
+			{url: "NFS://server/installer.iso", valid: true},
+			{url: "ftp://server/installer.iso", valid: false},
+			{url: "nfs:///installer.iso", valid: false},
+			{url: "server/installer.iso", valid: false},
+		} {
+			Expect(fs.WriteFile(installFile, []byte(fmt.Sprintf(netbootInstallYAML, tc.url)), vfs.FilePerm)).To(Succeed())
+
+			conf, err := Parse(fs, configDir)
+			if tc.valid {
+				Expect(err).NotTo(HaveOccurred(), tc.url)
+				Expect(conf.Installation.ISO.NetbootURL).To(Equal(tc.url))
+				continue
+			}
+
+			Expect(err).To(HaveOccurred(), tc.url)
+			Expect(err.Error()).To(ContainSubstring(fmt.Sprintf("must be an http, https, or nfs URL, but got %q", tc.url)))
+		}
 	})
 
 	It("Fails on missing required release configuration", func() {

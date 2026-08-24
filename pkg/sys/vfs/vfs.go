@@ -663,22 +663,26 @@ func WriteEnvFile(fs FS, envs map[string]string, filename string) error {
 	return nil
 }
 
+// kernelNames are the kernel image patterns across the supported architectures
+var kernelNames = []string{"uImage*", "Image*", "zImage*", "vmlinuz*", "image*"}
+
+// KernelPatterns returns the glob patterns matching a kernel image within the given directory pattern
+func KernelPatterns(dirPattern string) []string {
+	patterns := make([]string, 0, len(kernelNames))
+	for _, name := range kernelNames {
+		patterns = append(patterns, filepath.Join(dirPattern, name))
+	}
+	return patterns
+}
+
 // FindKernel finds for kernel files inside a given root tree path.
 // Returns kernel file and version. It assumes kernel files match certain patterns
 func FindKernel(fs FS, rootDir string) (string, string, error) {
 	var kernel, version string
 
-	kernelPatterns := []string{
-		"/usr/lib/modules/*/uImage*",
-		"/usr/lib/modules/*/Image*",
-		"/usr/lib/modules/*/zImage*",
-		"/usr/lib/modules/*/vmlinuz*",
-		"/usr/lib/modules/*/image*",
-	}
-
 	kernels := []string{}
 
-	for _, pattern := range kernelPatterns {
+	for _, pattern := range KernelPatterns("/usr/lib/modules/*") {
 		files, err := findFiles(fs, rootDir, pattern, false)
 		if err != nil {
 			return kernel, version, err
