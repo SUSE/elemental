@@ -20,6 +20,7 @@ package bootloader_test
 import (
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -178,7 +179,80 @@ var _ = Describe("Grub tests", Label("bootloader", "grub"), func() {
 
 		err = grub.Install(i)
 		Expect(err).To(HaveOccurred())
-		Expect(err).To(MatchError("installing kernel+initrd: initrd not found"))
+		Expect(err).To(MatchError("installing kernel+initrd: finding initrd path: initrd not found"))
+	})
+	It("Installs grub for netboot from a LiveOS tree", func() {
+		i.Target = "/iso/dir"
+		Expect(grub.InstallLive(i)).To(Succeed())
+
+		err := grub.InstallNetboot(bootloader.InstallCtx{
+			RootDir:       "/iso/dir",
+			Target:        "/netboot/dir",
+			KernelCmdline: "root=live:http://server/installer.iso rd.neednet=1",
+		})
+		Expect(err).ToNot(HaveOccurred())
+
+		// Shim, MokManager and grub.efi are copied from the live tree
+		Expect(vfs.Exists(tfs, "/netboot/dir/EFI/BOOT/bootx64.efi")).To(BeTrue())
+		Expect(vfs.Exists(tfs, "/netboot/dir/EFI/BOOT/MokManager.efi")).To(BeTrue())
+		Expect(vfs.Exists(tfs, "/netboot/dir/EFI/BOOT/grub.efi")).To(BeTrue())
+
+		// Kernel and initrd are flattened into /boot and world readable
+		Expect(vfs.Exists(tfs, "/netboot/dir/boot/vmlinuz")).To(BeTrue())
+		info, err := tfs.Stat("/netboot/dir/boot/initrd")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(info.Mode().Perm()).To(Equal(os.FileMode(0o644)))
+
+		// Grub config is written to both locations with the full boot entry
+		data, err := tfs.ReadFile("/netboot/dir/EFI/BOOT/grub.cfg")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(string(data)).To(ContainSubstring(`menuentry "Elemental (Netboot Installer)"`))
+		Expect(string(data)).To(ContainSubstring("linux /boot/vmlinuz root=live:http://server/installer.iso rd.neednet=1"))
+		Expect(string(data)).To(ContainSubstring("initrd /boot/initrd"))
+
+		data, err = tfs.ReadFile("/netboot/dir/boot/grub2/grub.cfg")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(string(data)).To(ContainSubstring(`menuentry "Elemental (Netboot Installer)"`))
+		Expect(string(data)).To(ContainSubstring("linux /boot/vmlinuz root=live:http://server/installer.iso rd.neednet=1"))
+		Expect(string(data)).To(ContainSubstring("initrd /boot/initrd"))
+	})
+	It("Installs grub for netboot from a LiveOS tree with a non-vmlinuz kernel", func() {
+		i.Target = "/iso/dir"
+		Expect(grub.InstallLive(i)).To(Succeed())
+
+		// aarch64 kernels are shipped as 'Image' rather than 'vmlinuz'
+		kernelDir := "/iso/dir/boot/opensuse-tumbleweed/6.14.4-1-default"
+		Expect(tfs.Rename(filepath.Join(kernelDir, "vmlinuz"), filepath.Join(kernelDir, "Image"))).To(Succeed())
+
+		err := grub.InstallNetboot(bootloader.InstallCtx{
+			RootDir:       "/iso/dir",
+			Target:        "/netboot/dir",
+			KernelCmdline: "root=live:http://server/installer.iso rd.neednet=1",
+		})
+		Expect(err).ToNot(HaveOccurred())
+
+		// The kernel is found regardless of its name and always flattened as vmlinuz
+		Expect(vfs.Exists(tfs, "/netboot/dir/boot/vmlinuz")).To(BeTrue())
+		Expect(vfs.Exists(tfs, "/netboot/dir/boot/initrd")).To(BeTrue())
+
+		data, err := tfs.ReadFile("/netboot/dir/EFI/BOOT/grub.cfg")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(string(data)).To(ContainSubstring("linux /boot/vmlinuz root=live:http://server/installer.iso rd.neednet=1"))
+		Expect(string(data)).To(ContainSubstring("initrd /boot/initrd"))
+	})
+	It("Fails to create grub for netboot if tree has no kernel", func() {
+		err := grub.InstallNetboot(bootloader.InstallCtx{RootDir: "/empty/dir", Target: "/netboot/dir"})
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("installing netboot kernel+initrd: finding kernel"))
+	})
+	It("Fails to create grub for netboot if tree has no initrd", func() {
+		i.Target = "/iso/dir"
+		Expect(grub.InstallLive(i)).To(Succeed())
+		Expect(tfs.Remove("/iso/dir/boot/opensuse-tumbleweed/6.14.4-1-default/initrd")).To(Succeed())
+
+		err := grub.InstallNetboot(bootloader.InstallCtx{RootDir: "/iso/dir", Target: "/netboot/dir"})
+		Expect(err).To(HaveOccurred())
+		Expect(err).To(MatchError("installing netboot kernel+initrd: finding initrd path: initrd not found"))
 	})
 	It("Leaves old snapshots and overwrites 'active' entry", func() {
 		i.EntryID = "1"

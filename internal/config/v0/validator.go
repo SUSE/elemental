@@ -20,6 +20,7 @@ package v0
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"strings"
 	"sync"
 
@@ -38,8 +39,23 @@ func getValidator() *validator.Validate {
 	once.Do(func() {
 		validate = validator.New(validator.WithRequiredStructEnabled())
 		_ = validate.RegisterValidation("disksize", validateDiskSize)
+		_ = validate.RegisterValidation("netbooturl", validateNetbootURL)
 	})
 	return validate
+}
+
+func validateNetbootURL(fl validator.FieldLevel) bool {
+	u, err := url.Parse(fl.Field().String())
+	if err != nil || u.Host == "" {
+		return false
+	}
+
+	switch strings.ToLower(u.Scheme) {
+	case "http", "https", "nfs":
+		return true
+	default:
+		return false
+	}
 }
 
 func validateDiskSize(fl validator.FieldLevel) bool {
@@ -72,6 +88,8 @@ func Validate(conf *image.Configuration) error {
 				messages = append(messages, fmt.Sprintf("field %q must be a valid disk size (e.g., 10G, 500M), but got %q", vErr.Namespace(), vErr.Value()))
 			case "url":
 				messages = append(messages, fmt.Sprintf("field %q must be a valid URL, but got %q", vErr.Namespace(), vErr.Value()))
+			case "netbooturl":
+				messages = append(messages, fmt.Sprintf("field %q must be an http, https, or nfs URL, but got %q", vErr.Namespace(), vErr.Value()))
 			case "hostname":
 				messages = append(messages, fmt.Sprintf("field %q must be a valid hostname, but got %q", vErr.Namespace(), vErr.Value()))
 			default:

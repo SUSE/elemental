@@ -96,7 +96,6 @@ func Customize(ctx context.Context, cmd *cli.Command) error {
 func resolveOutputPaths(fs vfs.FS, args *cmdpkg.CustomizeFlags) (imagePath, configPath string) {
 	imagePath = args.OutputPath
 	imageName := fmt.Sprintf("image-%s.%s", time.Now().UTC().Format("2006-01-02T15-04-05"), args.MediaType)
-
 	if imagePath == "" {
 		imagePath = filepath.Join(args.ConfigDir, imageName)
 	} else if isDir, err := vfs.IsDir(fs, imagePath); err == nil && isDir {

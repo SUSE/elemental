@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"strings"
 
 	"go.yaml.in/yaml/v3"
 
@@ -63,12 +64,17 @@ const (
 	Disk
 )
 
+const (
+	iso = "iso"
+	raw = "raw"
+)
+
 func (m MediaType) String() string {
 	switch m {
 	case ISO:
-		return "iso"
+		return iso
 	case Disk:
-		return "raw"
+		return raw
 	default:
 		return "unknown"
 	}
@@ -76,9 +82,9 @@ func (m MediaType) String() string {
 
 func StringToMediaType(mType string) (MediaType, error) {
 	switch mType {
-	case "raw":
+	case raw:
 		return Disk, nil
-	case "iso":
+	case iso:
 		return ISO, nil
 	default:
 		return 0, fmt.Errorf("unsupported media type %s: %w", mType, errors.ErrUnsupported)
@@ -100,6 +106,7 @@ type Media struct {
 	bl          bootloader.Bootloader
 	outputFile  string
 	rawDiskSize deployment.MiB
+	netbootURL  string
 }
 
 // WithBootloader allows to create an ISO object with the given bootloader interface instance
@@ -125,6 +132,14 @@ func WithRawDiskSize(size deployment.MiB) Option {
 func WithOutputFile(outputFile string) Option {
 	return func(i *Media) {
 		i.outputFile = outputFile
+	}
+}
+
+// WithNetbootURL makes ISO media also produce a netboot directory next to the ISO,
+// holding the bootloader, kernel and initrd that fetch the ISO from the given URL.
+func WithNetbootURL(url string) Option {
+	return func(i *Media) {
+		i.netbootURL = url
 	}
 }
 
@@ -398,7 +413,7 @@ func (i *Media) Customize(d *deployment.Deployment) (err error) {
 
 	switch i.mType {
 	case ISO:
-		err = i.customizeISO(i.InputFile, i.outputFile, m)
+		err = i.customizeISOMedia(tempDir, installDesc, m)
 	case Disk:
 		err = i.customizeDisk(tempDir, installDesc, m)
 	default:
@@ -506,6 +521,48 @@ func (i *Media) sanitize() error {
 		if ok, _ := vfs.Exists(i.s.FS(), i.outputFile); ok {
 			return fmt.Errorf("target output file %s is an already existing file", i.outputFile)
 		}
+	}
+
+	return nil
+}
+
+// customizeISOMedia builds the customized ISO and. It also customizes the netboot directory
+// holding the artifacts required for netboot when configured.
+func (i Media) customizeISOMedia(tempDir string, d *deployment.Deployment, fileMap map[string]string) error {
+	err := i.customizeISO(i.InputFile, i.outputFile, fileMap)
+	if err != nil {
+		return err
+	}
+
+	if i.netbootURL == "" {
+		return nil
+	}
+
+	return i.customizeNetbootDir(tempDir, d)
+}
+
+func (i Media) customizeNetbootDir(tempDir string, d *deployment.Deployment) error {
+	extractDir := filepath.Join(tempDir, "netboot")
+	err := extractISO(i.s, i.outputFile, "/boot", filepath.Join(extractDir, "boot"))
+	if err != nil {
+		return err
+	}
+	err = extractISO(i.s, i.outputFile, "/EFI/BOOT", filepath.Join(extractDir, "EFI", "BOOT"))
+	if err != nil {
+		return err
+	}
+
+	netbootDir := strings.TrimSuffix(i.outputFile, filepath.Ext(i.outputFile)) + "-netboot"
+	if ok, _ := vfs.Exists(i.s.FS(), netbootDir); ok {
+		return fmt.Errorf("netboot directory %s already exists", netbootDir)
+	}
+	i.s.Logger().Info("Preparing netboot directory at %s", netbootDir)
+
+	cmdline := fmt.Sprintf("%s %s", deployment.NetbootKernelCmdline(i.netbootURL), d.Installer.KernelCmdline)
+
+	err = i.bl.InstallNetboot(bootloader.InstallCtx{RootDir: extractDir, Target: netbootDir, KernelCmdline: cmdline})
+	if err != nil {
+		return fmt.Errorf("installing netboot bootloader: %w", err)
 	}
 
 	return nil

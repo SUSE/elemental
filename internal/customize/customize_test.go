@@ -225,6 +225,51 @@ disks:
 
 	})
 
+	It("passes deployment object for ISO media with a netboot URL", func() {
+		customizeRunner.FileExtractor = &fileExtractorMock{
+			extractFunc: func(uri string) (path string, err error) {
+				Expect(uri).To(Equal(expectedISO))
+				return "", nil
+			},
+		}
+
+		customizeDeployment := &deployment.Deployment{}
+		customizeRunner.Media = &mediaMock{
+			customizeFunc: func(d *deployment.Deployment) error {
+				customizeDeployment = d
+				return nil
+			},
+		}
+		def := &image.Definition{
+			Image: image.Image{
+				ImageType: "iso",
+			},
+			Configuration: &image.Configuration{
+				Installation: install.Installation{
+					Bootloader:    "grub",
+					KernelCmdLine: "console=ttyS0",
+					CryptoPolicy:  crypto.FIPSPolicy,
+					ISO: install.ISO{
+						Device:     "/dev/sda",
+						NetbootURL: "http://server/installer.iso",
+					},
+				},
+			},
+		}
+
+		// Simulate first boot configuration without Ignition
+		Expect(vfs.MkdirAll(fs, output.FirstbootConfigDir(), vfs.DirPerm)).To(Succeed())
+
+		err := customizeRunner.Run(context.Background(), def, output)
+		Expect(err).ToNot(HaveOccurred())
+		defaultCustomizeDeploymentValidation(customizeDeployment, def)
+
+		Expect(customizeDeployment.Disks[0].Device).To(Equal("/dev/sda"))
+		// [{}, {}, nil, ignition, SYSTEM]
+		Expect(len(customizeDeployment.Disks[0].Partitions)).To(Equal(5))
+		Expect(customizeDeployment.Disks[0].Partitions[4].Label).To(Equal(deployment.SystemLabel))
+	})
+
 	It("passes deployment object for RAW media without additional partitions", func() {
 		customizeRunner.FileExtractor = &fileExtractorMock{
 			extractFunc: func(uri string) (path string, err error) {

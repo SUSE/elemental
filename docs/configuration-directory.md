@@ -65,6 +65,7 @@ raw:
   diskSize: 8G
 iso:
   device: "/dev/sda"
+  netbootURL: http://localhost:8080/elemental.iso
 ```
 
 * `bootloader` - Required; Specifies the bootloader that will load the operating system.
@@ -74,6 +75,7 @@ iso:
   * `diskSize` - Required; Specifies the size of the resulting disk image.
 * `iso` - Required for ISO images; Specifies ISO image configurations.
   * `device` - Required; Specifies the disk that will be used as the install device.
+  * `netbootURL` - Required for netboot; When set, a netboot directory with the necessary netboot artifacts will be created next to the ISO for network booting. Specifies the URL that the customized ISO is fetched from. Supports `http://`, `https://`, and `nfs://`
 
 ### butane.yaml
 

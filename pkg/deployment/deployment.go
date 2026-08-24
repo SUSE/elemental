@@ -546,6 +546,11 @@ func LiveKernelCmdline(label string) string {
 	return fmt.Sprintf("root=live:LABEL=%s rd.live.overlay.overlayfs=1", label)
 }
 
+// NetbootKernelCmdline returns the default kernel command line to fetch the boot ISO from
+func NetbootKernelCmdline(url string) string {
+	return fmt.Sprintf("root=live:%s rd.live.overlay.overlayfs=1 rd.neednet=1", url)
+}
+
 // GetSnapshottedVolumes returns a list of snapshotted rw volumes defined in the
 // given partitions list.
 func (p Partitions) GetSnapshottedVolumes() RWVolumes {
