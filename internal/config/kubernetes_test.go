@@ -267,6 +267,20 @@ var _ = Describe("Kubernetes", func() {
 			Expect(findFileContentsInConfig(config, filepath.Join("/", image.KubernetesPath(), k8sConfDeployScriptName))).NotTo(BeNil())
 		})
 
+		It("Defaults to a server node for a single-node cluster with no declared nodes", func() {
+			k8s := kubernetes.Kubernetes{}
+
+			Expect(appendK8sConfigDeployScript(config, k8s)).To(Succeed())
+
+			data := findFileContentsInConfig(config, filepath.Join("/", image.KubernetesPath(), k8sConfDeployScriptName))
+			Expect(data).NotTo(BeNil())
+
+			Expect(*data).To(ContainSubstring(`NODETYPE="server"`))
+			Expect(*data).To(ContainSubstring(`CONFIGFILE="/var/lib/elemental/kubernetes/${NODETYPE}.yaml"`))
+			Expect(*data).ToNot(ContainSubstring("does not match any declared node"))
+			Expect(*data).ToNot(ContainSubstring("init.yaml"))
+		})
+
 		It("Uses server config for a single explicitly configured server node", func() {
 			k8s := kubernetes.Kubernetes{
 				Nodes: kubernetes.Nodes{
@@ -298,6 +312,23 @@ var _ = Describe("Kubernetes", func() {
 
 			Expect(*data).To(ContainSubstring(`if [[ "${HOSTNAME}" = "server01" ]]; then`))
 			Expect(*data).To(ContainSubstring("CONFIGFILE=/var/lib/elemental/kubernetes/init.yaml"))
+		})
+
+		It("Aborts when the hostname matches no declared node", func() {
+			k8s := kubernetes.Kubernetes{
+				Nodes: kubernetes.Nodes{
+					{Hostname: "server01", Type: kubernetes.NodeTypeServer},
+				},
+			}
+
+			Expect(appendK8sConfigDeployScript(config, k8s)).To(Succeed())
+
+			data := findFileContentsInConfig(config, filepath.Join("/", image.KubernetesPath(), k8sConfDeployScriptName))
+			Expect(data).NotTo(BeNil())
+
+			Expect(*data).To(ContainSubstring(`if [[ ! -v "hosts[${HOSTNAME}]" ]]; then`))
+			Expect(*data).To(ContainSubstring("does not match any declared node"))
+			Expect(*data).ToNot(ContainSubstring("NODETYPE=\"server\""))
 		})
 
 		It("Succeeds to configure RKE2 with additional resources and auth", func() {
