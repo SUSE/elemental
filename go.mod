@@ -6,7 +6,7 @@ require (
 	dario.cat/mergo v1.0.2
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/containerd/containerd/v2 v2.3.4
-	github.com/containerd/platforms v1.0.0-rc.4
+	github.com/containerd/platforms v1.0.0-rc.5
 	github.com/coreos/butane v0.29.0
 	github.com/distribution/reference v0.6.0
 	github.com/docker/go-units v0.5.0
