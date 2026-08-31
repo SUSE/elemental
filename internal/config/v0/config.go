@@ -229,7 +229,7 @@ func parseKubernetes(f vfs.FS, configDir Dir, k *kubernetes.Kubernetes, r *relea
 		return fmt.Errorf("reading config file: %w", err)
 	}
 
-	if k.Network.APIVIP4 != "" || k.Network.APIVIP6 != "" {
+	if k.Network.IsHA() && k.Network.APIVIPMode != "external" {
 		containsChart := func(name string) bool {
 			return slices.ContainsFunc(r.Components.HelmCharts, func(c release.HelmChart) bool {
 				return c.Name == name
