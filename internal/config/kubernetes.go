@@ -318,12 +318,12 @@ func appendRke2Configuration(s *sys.System, butaneCfg *butane.Config, k *kuberne
 
 	k8sPath := filepath.Join("/", image.KubernetesPath())
 
-	serverBytes, err := marshalConfig(c.ServerConfig)
+	joiningServerBytes, err := marshalConfig(c.JoiningServerConfig)
 	if err != nil {
 		return fmt.Errorf("failed marshaling server config: %w", err)
 	}
 
-	butaneCfg.AddFileInline(filepath.Join(k8sPath, "server.yaml"), new(string(serverBytes)), 0o644)
+	butaneCfg.AddFileInline(filepath.Join(k8sPath, "server.yaml"), new(string(joiningServerBytes)), 0o644)
 
 	if c.InitServerConfig != nil {
 		initServerBytes, err := marshalConfig(c.InitServerConfig)
