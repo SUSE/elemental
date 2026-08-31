@@ -112,9 +112,15 @@ type Node struct {
 
 type Nodes []Node
 
-// FindInitNode loops through the nodes and returns the first one with init field set to true, or if none found, picks the first server Node.
+// FindInitNode loops through all available node definitions and returns the first one with
+// 'init: true', or if none is found, picks the first server Node. Returns an error if list consists only
+// of agent nodes. Returns nil if node list is empty.
 func FindInitNode(nodes Nodes) (*Node, error) {
 	var pick *Node
+	if len(nodes) == 0 {
+		return nil, nil
+	}
+
 	for _, n := range nodes {
 		if n.Init {
 			return &n, nil
@@ -126,7 +132,7 @@ func FindInitNode(nodes Nodes) (*Node, error) {
 	}
 
 	if pick == nil {
-		return nil, fmt.Errorf("finding suitable init-node")
+		return nil, fmt.Errorf("could not find suitable init node from node list: %+v", nodes)
 	}
 
 	return pick, nil
