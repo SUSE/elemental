@@ -2,6 +2,11 @@
 
 set -uo pipefail
 
+: "${K8S_DIR:={{ .KubernetesDir }}}"
+: "${INIT_PATH:=${K8S_DIR}/init.yaml}"
+: "${REGFILE:=${K8S_DIR}/registries.yaml}"
+: "${BASE_CONF_NAME:=00-elemental-base-rke2-config.yaml}"
+
 declare -A hosts
 
 {{- range .Nodes }}
@@ -13,32 +18,24 @@ HOSTNAME=$(</etc/hostname)
 [[ -z "${HOSTNAME}" ]] \
   && HOSTNAME=$(</proc/sys/kernel/hostname)
 
-{{- if .Nodes }}
-if [[ ! -v "hosts[${HOSTNAME}]" ]]; then
-  echo "Error: hostname '${HOSTNAME}' does not match any declared node" >&2
+: "${NODETYPE:=${hosts[$HOSTNAME]:-}}"
+[[ -z "${NODETYPE}" ]] && {
+  echo "Error: Undeclared 'NODETYPE' for hostname '${HOSTNAME}'" >&2
   exit 1
-fi
+}
 
-NODETYPE="${hosts[${HOSTNAME}]}"
-{{- else }}
-NODETYPE="server"
-{{- end }}
-
-CONFIGFILE="{{ .KubernetesDir }}/${NODETYPE}.yaml"
-REGFILE="{{ .KubernetesDir }}/registries.yaml"
-
+is_init_node=false
 {{- if .InitNode.Hostname }}
-if [[ "${HOSTNAME}" = "{{ .InitNode.Hostname }}" ]]; then
-  echo "Setting up init node"
-  CONFIGFILE={{ .KubernetesDir }}/init.yaml
-fi
+[[ "${HOSTNAME}" == "{{ .InitNode.Hostname }}" ]] && is_init_node=true
 {{- end }}
 
-# Better to append if a file exist
-# Useful if some custom configuration are done at boot
-mkdir -p /etc/rancher/rke2
-echo "Copying RKE2 config file ${CONFIGFILE}"
-cat ${CONFIGFILE} >> /etc/rancher/rke2/config.yaml
+: "${IS_INIT_NODE:=${is_init_node}}"
+CONFIGFILE="${K8S_DIR}/${NODETYPE}.yaml"
+[[ "${IS_INIT_NODE}" == "true" ]] && CONFIGFILE="${INIT_PATH}"
+
+RKE2_CFG_DROP_IN_PATH="/etc/rancher/rke2/config.yaml.d"
+mkdir -p "${RKE2_CFG_DROP_IN_PATH}"
+cp "${CONFIGFILE}" "${RKE2_CFG_DROP_IN_PATH}/${BASE_CONF_NAME}"
 
 if [[ -e "${REGFILE}" ]]; then
   cp "${REGFILE}" /etc/rancher/rke2/registries.yaml
@@ -64,4 +61,4 @@ if ! sh "{{ .InstallScript }}"; then
   exit 1
 fi
 
-systemctl enable --now rke2-${NODETYPE}.service
+systemctl enable --now "rke2-${NODETYPE}.service"

@@ -22,6 +22,7 @@ import (
 	_ "embed"
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	"go.yaml.in/yaml/v3"
 
@@ -107,7 +108,12 @@ func (m *Manager) configureKubernetes(
 
 	var initNode *kubernetes.Node
 	if len(conf.Kubernetes.Nodes) == 0 {
-		// TODO(ivpe): to be added in a separate commit
+		// Utilise the new runtime configuration approach to ensure that we specify a default
+		// 'initialiser server' setup if no nodes are defined. This ensures that both statically
+		// and runtime defined nodes will work with the same approach, without having to expose
+		// a static/runtime specific configuration flag to the user.
+		envContent := strings.Join([]string{"IS_INIT_NODE=true", "NODETYPE=server"}, "\n")
+		butaneCfg.AddFileInline(filepath.Join("/", image.RuntimeEnvPath()), &envContent, 0o644)
 	} else {
 		initNode, err = kubernetes.FindInitNode(conf.Kubernetes.Nodes)
 		if err != nil {
@@ -268,8 +274,10 @@ func generateK8sResourcesUnit(deployScript string, initNode *kubernetes.Node) (s
 func generateK8sConfigUnit(deployScript string) (string, error) {
 	values := struct {
 		ConfigDeployScript string
+		RuntimeEnvPath     string
 	}{
 		ConfigDeployScript: deployScript,
+		RuntimeEnvPath:     filepath.Join("/", image.RuntimeEnvPath()),
 	}
 
 	data, err := template.Parse(k8sConfigUnitName, k8sConfigUnitTpl, &values)

@@ -8,6 +8,7 @@ Type=oneshot
 TimeoutSec=900
 Restart=on-failure
 RestartSec=60
+EnvironmentFile=-{{ .RuntimeEnvPath }}
 # TODO (atanasdinov): Figure out a declarative, non-hardcoded approach for installing selinux modules
 ExecStartPre=/bin/sh -c "semodule -i /usr/share/selinux/packages/rke2.pp"
 ExecStart=/bin/bash "{{ .ConfigDeployScript }}"
