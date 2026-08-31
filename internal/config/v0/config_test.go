@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -186,6 +187,28 @@ var _ = Describe("Configuration", Label("configuration"), func() {
 		Expect(conf.Release.ManifestURI).To(Equal("file:/tmp/config-dir/release-manifest.yaml"))
 	})
 
+	It("Successfully parses apiVIPMode managed internally", func() {
+		clusterYAML := strings.Replace(kubernetesClusterYAML, "  apiVIP: 192.168.120.100.sslip.io", "  apiVIP: 192.168.120.100.sslip.io\n  apiVIPMode: managed", 1)
+		Expect(fs.WriteFile(configDir.ClusterFilepath(), []byte(clusterYAML), 0644)).To(Succeed())
+
+		conf, err := Parse(fs, configDir)
+		Expect(err).ToNot(HaveOccurred())
+
+		Expect(containsChart("metallb", conf.Release.Components.HelmCharts)).To(BeTrue())
+		Expect(containsChart("endpoint-copier-operator", conf.Release.Components.HelmCharts)).To(BeTrue())
+	})
+
+	It("Successfully parses apiVIPMode managed externally", func() {
+		clusterYAML := strings.Replace(kubernetesClusterYAML, "  apiVIP: 192.168.120.100.sslip.io", "  apiVIP: 192.168.120.100.sslip.io\n  apiVIPMode: external", 1)
+		Expect(fs.WriteFile(configDir.ClusterFilepath(), []byte(clusterYAML), 0644)).To(Succeed())
+
+		conf, err := Parse(fs, configDir)
+		Expect(err).ToNot(HaveOccurred())
+
+		Expect(containsChart("metallb", conf.Release.Components.HelmCharts)).To(BeFalse())
+		Expect(containsChart("endpoint-copier-operator", conf.Release.Components.HelmCharts)).To(BeFalse())
+	})
+
 	It("Successfully parses network script", func() {
 		Expect(fs.Remove(filepath.Join(configDir.NetworkDir(), "node1.foo.yaml"))).To(Succeed())
 
@@ -298,6 +321,15 @@ raw:
 		Expect(err).To(HaveOccurred())
 		// Parse will fail first on reading the file
 		Expect(err.Error()).To(ContainSubstring("reading config file"))
+	})
+
+	It("Fails on invalid apiVIPMode value", func() {
+		clusterYAML := strings.Replace(kubernetesClusterYAML, "  apiVIP: 192.168.120.100.sslip.io", "  apiVIP: 192.168.120.100.sslip.io\n  apiVIPMode: invalid", 1)
+		Expect(fs.WriteFile(configDir.ClusterFilepath(), []byte(clusterYAML), 0644)).To(Succeed())
+
+		_, err := Parse(fs, configDir)
+
+		Expect(err.Error()).To(ContainSubstring(`validation failed: field "Configuration.Kubernetes.Network.APIVIPMode" must be one of [managed external], but got "invalid"`))
 	})
 })
 

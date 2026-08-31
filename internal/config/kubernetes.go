@@ -60,7 +60,7 @@ var (
 )
 
 func needsManifestsSetup(conf *image.Configuration) bool {
-	return len(conf.Kubernetes.RemoteManifests) > 0 || len(conf.Kubernetes.LocalManifests) > 0 || conf.Kubernetes.Network.IsHA()
+	return len(conf.Kubernetes.RemoteManifests) > 0 || len(conf.Kubernetes.LocalManifests) > 0 || conf.Kubernetes.Network.IsManagedInternally()
 }
 
 func needsHelmChartsSetup(conf *image.Configuration) bool {
@@ -352,7 +352,7 @@ func appendRke2Configuration(s *sys.System, butaneCfg *butane.Config, k *kuberne
 		butaneCfg.AddFileInline(filepath.Join(k8sPath, "registries.yaml"), new(string(registriesBytes)), 0o644)
 	}
 
-	if k.Network.APIVIP4 != "" || k.Network.APIVIP6 != "" {
+	if k.Network.IsManagedInternally() {
 		manifestsPath := filepath.Join("/", image.KubernetesManifestsPath())
 
 		vip, err := kubernetesVIPManifest(k)
