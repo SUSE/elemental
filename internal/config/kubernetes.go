@@ -254,10 +254,12 @@ func generateK8sResourcesUnit(deployScript string, initNode *kubernetes.Node) (s
 		KubernetesDir        string
 		ManifestDeployScript string
 		InitNode             kubernetes.Node
+		RuntimeEnvPath       string
 	}{
 		KubernetesDir:        filepath.Dir(deployScript),
 		ManifestDeployScript: deployScript,
 		InitNode:             kubernetes.Node{},
+		RuntimeEnvPath:       filepath.Join("/", image.RuntimeEnvPath()),
 	}
 
 	if initNode != nil {
