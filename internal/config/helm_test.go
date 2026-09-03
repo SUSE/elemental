@@ -855,4 +855,61 @@ spec:
 			Expect(repositories).To(BeNil())
 		})
 	})
+
+	Describe("prioritizing charts", func() {
+		var rm *resolver.ResolvedManifest
+
+		BeforeEach(func() {
+			rm = &resolver.ResolvedManifest{
+				CorePlatform: &core.ReleaseManifest{
+					Components: core.Components{
+						Helm: &api.Helm{
+							Charts: []*api.HelmChart{
+								{
+									Name:       "Common Chart",
+									Chart:      "common-chart",
+									Version:    "core",
+									Namespace:  "default",
+									Repository: "common-repo",
+								},
+							},
+							Repositories: []*api.HelmRepository{
+								{
+									Name: "common-repo",
+									URL:  "https://charts.common-repo.lol",
+								},
+							},
+						},
+					},
+				},
+				SolutionExtension: &solution.ReleaseManifest{
+					Components: solution.Components{
+						Helm: &api.Helm{
+							Charts: []*api.HelmChart{
+								{
+									Name:       "Common Chart",
+									Chart:      "common-chart",
+									Version:    "solution",
+									Namespace:  "default",
+									Repository: "common-repo",
+								},
+							},
+							Repositories: []*api.HelmRepository{
+								{
+									Name: "common-repo",
+									URL:  "https://charts.common-repo.lol",
+								},
+							},
+						},
+					},
+				},
+			}
+		})
+
+		It("should prioritze core over solution", func() {
+			charts, _, err := enabledHelmCharts(rm, []release.HelmChart{{Name: "common-chart"}}, logger)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(charts[0].Version).To(Equal("core"))
+		})
+	})
 })

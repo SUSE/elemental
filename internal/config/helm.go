@@ -129,12 +129,17 @@ func (h *Helm) writeHelmSecrets(secrets []*helm.Secret, butaneCfg *butane.Config
 func (h *Helm) retrieveHelmCharts(rm *resolver.ResolvedManifest, conf *image.Configuration) ([]*helm.CRD, []*helm.Secret, error) {
 	var crds []*helm.CRD
 
+	valueFiles := conf.Release.Components.HelmValueFiles()
+
+	err := evaluateLCMDeps(conf.Release.Components.HelmCharts, rm.CorePlatform, valueFiles, h.ValuesResolver)
+	if err != nil {
+		return nil, nil, fmt.Errorf("evaluating %s dependencies: %w", elementalLifecycleManager, err)
+	}
+
 	charts, repositories, err := enabledHelmCharts(rm, conf.Release.Components.HelmCharts, h.Logger)
 	if err != nil {
 		return nil, nil, fmt.Errorf("filtering enabled helm charts: %w", err)
 	}
-
-	valueFiles := conf.Release.Components.HelmValueFiles()
 
 	authMap, err := createAuthMap(charts, repositories, conf)
 	if err != nil {
@@ -291,17 +296,16 @@ func enabledHelmCharts(rm *resolver.ResolvedManifest, enabled []release.HelmChar
 	var addChart func(name string) error
 
 	// Add a chart and its direct dependencies, avoiding duplicates.
-	// Prioritize charts from solution releases over core ones.
 	addChart = func(name string) error {
-		source := "solution"
+		source := "core"
 
-		chart, ok := solutionCharts[name]
+		chart, ok := coreCharts[name]
 		if !ok {
-			chart, ok = coreCharts[name]
+			chart, ok = solutionCharts[name]
 			if !ok {
 				return fmt.Errorf("helm chart does not exist")
 			}
-			source = "core"
+			source = "solution"
 		}
 
 		if logger != nil {
