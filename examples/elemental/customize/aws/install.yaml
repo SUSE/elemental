@@ -1,0 +1,8 @@
+schema: v0
+bootloader: grub
+kernelCmdLine: "console=ttyS0 quiet ignition.platform.id=aws"
+# If you are using this configuration outside of the example documentation,
+# ensure that all cluster nodes (both control-plane and worker) are FIPS-ready. Otherwise, remove this property.
+cryptoPolicy: fips
+raw:
+  diskSize: 5G
