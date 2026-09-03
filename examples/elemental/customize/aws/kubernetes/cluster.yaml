@@ -1,0 +1,4 @@
+network:
+    apiVIP: <CHANGE_ME>
+    apiHost: <CHANGE_ME>
+    apiVIPMode: "external"
