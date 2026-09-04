@@ -115,6 +115,9 @@ var _ = Describe("Kubernetes", func() {
 		var system *sys.System
 		var err error
 		var config *butane.Config
+		var defaultManifest *resolver.ResolvedManifest
+		var defaultUnpack func(ctx context.Context, imageRef, destDir string) error
+		var defaultHelm *helmConfiguratorMock
 
 		BeforeEach(func() {
 			config = &butane.Config{}
@@ -123,27 +126,8 @@ var _ = Describe("Kubernetes", func() {
 				sys.WithLogger(log.New(log.WithDiscardAll())),
 			)
 			Expect(err).ToNot(HaveOccurred())
-		})
 
-		It("Fails to configure Helm charts", func() {
-			helmMock := &helmConfiguratorMock{
-				configureFunc: func(conf *image.Configuration, manifest *resolver.ResolvedManifest, _ *butane.Config) ([]string, error) {
-					return nil, fmt.Errorf("helm error")
-				},
-			}
-
-			unpackFunc := func(ctx context.Context, imageRef, destDir string) error {
-				return nil
-			}
-
-			m := NewManager(
-				system,
-				helmMock,
-				WithDownloader(&downloaderMock{}),
-				WithUnpackFunc(unpackFunc),
-			)
-
-			manifest := &resolver.ResolvedManifest{
+			defaultManifest = &resolver.ResolvedManifest{
 				CorePlatform: &core.ReleaseManifest{
 					Components: core.Components{
 						Kubernetes: &core.Kubernetes{
@@ -153,6 +137,32 @@ var _ = Describe("Kubernetes", func() {
 					},
 				},
 			}
+
+			defaultUnpack = func(ctx context.Context, imageRef, destDir string) error {
+				return nil
+			}
+
+			defaultHelm = &helmConfiguratorMock{
+				configureFunc: func(conf *image.Configuration, manifest *resolver.ResolvedManifest, _ *butane.Config) ([]string, error) {
+					return []string{}, nil
+				},
+			}
+		})
+
+		It("Fails to configure Helm charts", func() {
+			helmMock := &helmConfiguratorMock{
+				configureFunc: func(conf *image.Configuration, manifest *resolver.ResolvedManifest, _ *butane.Config) ([]string, error) {
+					return nil, fmt.Errorf("helm error")
+				},
+			}
+
+			m := NewManager(
+				system,
+				helmMock,
+				WithDownloader(&downloaderMock{}),
+				WithUnpackFunc(defaultUnpack),
+			)
+
 			conf := &image.Configuration{
 				Release: release.Release{
 					Components: release.Components{
@@ -165,7 +175,7 @@ var _ = Describe("Kubernetes", func() {
 				},
 			}
 
-			err := m.configureKubernetes(context.Background(), conf, manifest, config)
+			err := m.configureKubernetes(context.Background(), conf, defaultManifest, config)
 			Expect(err).To(HaveOccurred())
 			Expect(err).To(MatchError("configuring helm charts: helm error"))
 		})
@@ -177,27 +187,13 @@ var _ = Describe("Kubernetes", func() {
 				},
 			}
 
-			unpackFunc := func(ctx context.Context, imageRef, destDir string) error {
-				return nil
-			}
-
 			m := NewManager(
 				system,
 				helmMock,
 				WithDownloader(&downloaderMock{}),
-				WithUnpackFunc(unpackFunc),
+				WithUnpackFunc(defaultUnpack),
 			)
 
-			manifest := &resolver.ResolvedManifest{
-				CorePlatform: &core.ReleaseManifest{
-					Components: core.Components{
-						Kubernetes: &core.Kubernetes{
-							Version: "v1.35.0+rke2r1",
-							Image:   "registry.example.com/rke2:1.35_1.0",
-						},
-					},
-				},
-			}
 			conf := &image.Configuration{
 				Kubernetes: kubernetes.Kubernetes{
 					RemoteManifests: []string{"some-url"},
@@ -216,7 +212,7 @@ var _ = Describe("Kubernetes", func() {
 				},
 			}
 
-			Expect(m.configureKubernetes(context.Background(), conf, manifest, config)).To(Succeed())
+			Expect(m.configureKubernetes(context.Background(), conf, defaultManifest, config)).To(Succeed())
 
 			// Verify deployment script contents
 			data := findFileContentsInConfig(config, filepath.Join("/", image.KubernetesPath(), k8sResDeployScriptName))
@@ -232,28 +228,13 @@ var _ = Describe("Kubernetes", func() {
 		})
 
 		It("Succeeds to configure RKE2 without additional resources", func() {
-
-			unpackFunc := func(ctx context.Context, imageRef, destDir string) error {
-				return nil
-			}
-
 			m := NewManager(
 				system,
 				nil,
 				WithDownloader(&downloaderMock{}),
-				WithUnpackFunc(unpackFunc),
+				WithUnpackFunc(defaultUnpack),
 			)
 
-			manifest := &resolver.ResolvedManifest{
-				CorePlatform: &core.ReleaseManifest{
-					Components: core.Components{
-						Kubernetes: &core.Kubernetes{
-							Version: "v1.35.0+rke2r1",
-							Image:   "registry.example.com/rke2:1.35_1.0",
-						},
-					},
-				},
-			}
 			conf := &image.Configuration{
 				Release: release.Release{
 					Components: release.Components{
@@ -262,73 +243,90 @@ var _ = Describe("Kubernetes", func() {
 				},
 			}
 
-			Expect(m.configureKubernetes(context.Background(), conf, manifest, config)).To(Succeed())
+			Expect(m.configureKubernetes(context.Background(), conf, defaultManifest, config)).To(Succeed())
 
 			Expect(findFileContentsInConfig(config, filepath.Join("/", image.KubernetesPath(), k8sConfDeployScriptName))).NotTo(BeNil())
 		})
 
-		It("Defaults to a server node for a single-node cluster with no declared nodes", func() {
-			k8s := kubernetes.Kubernetes{}
+		It("Defaults to a server init node for a single-node cluster with no declared nodes", func() {
+			m := NewManager(
+				system,
+				defaultHelm,
+				WithDownloader(&downloaderMock{}),
+				WithUnpackFunc(defaultUnpack),
+			)
 
-			Expect(appendK8sConfigDeployScript(config, k8s)).To(Succeed())
+			conf := &image.Configuration{Kubernetes: kubernetes.Kubernetes{}}
+
+			Expect(m.configureKubernetes(context.Background(), conf, defaultManifest, config)).To(Succeed())
 
 			data := findFileContentsInConfig(config, filepath.Join("/", image.KubernetesPath(), k8sConfDeployScriptName))
 			Expect(data).NotTo(BeNil())
 
-			Expect(*data).To(ContainSubstring(`NODETYPE="server"`))
-			Expect(*data).To(ContainSubstring(`CONFIGFILE="/var/lib/elemental/kubernetes/${NODETYPE}.yaml"`))
-			Expect(*data).ToNot(ContainSubstring("does not match any declared node"))
-			Expect(*data).ToNot(ContainSubstring("init.yaml"))
+			Expect(*data).To(ContainSubstring(`: "${K8S_DIR:=/var/lib/elemental/kubernetes}"`))
+			Expect(*data).To(ContainSubstring(`: "${INIT_PATH:=${K8S_DIR}/init.yaml}"`))
+			Expect(*data).To(ContainSubstring(`: "${IS_INIT_NODE:=${is_init_node}}"`))
+			Expect(*data).To(ContainSubstring(`[[ "${IS_INIT_NODE}" == "true" ]] && CONFIGFILE="${INIT_PATH}"`))
+			// Configuration specific to statically defined init node should not be present when no nodes where defined.
+			Expect(*data).ToNot(ContainSubstring(`[[ "${HOSTNAME}" == "{{ .InitNode.Hostname }}" ]] && is_init_node=true`))
+
+			data = findFileContentsInConfig(config, filepath.Join("/", image.RuntimeEnvPath()))
+			Expect(data).NotTo(BeNil())
+
+			Expect(*data).To(ContainSubstring(`IS_INIT_NODE=true`))
+			Expect(*data).To(ContainSubstring(`NODETYPE=server`))
 		})
 
-		It("Uses server config for a single explicitly configured server node", func() {
-			k8s := kubernetes.Kubernetes{
-				Nodes: kubernetes.Nodes{
-					{Hostname: "node01", Type: kubernetes.NodeTypeServer},
+		It("Uses server init config for a single explicitly configured server node", func() {
+			m := NewManager(
+				system,
+				defaultHelm,
+				WithDownloader(&downloaderMock{}),
+				WithUnpackFunc(defaultUnpack),
+			)
+
+			conf := &image.Configuration{
+				Kubernetes: kubernetes.Kubernetes{
+					Nodes: kubernetes.Nodes{
+						{Hostname: "node01", Type: kubernetes.NodeTypeServer},
+					},
 				},
 			}
 
-			Expect(appendK8sConfigDeployScript(config, k8s)).To(Succeed())
+			Expect(m.configureKubernetes(context.Background(), conf, defaultManifest, config)).To(Succeed())
 
 			data := findFileContentsInConfig(config, filepath.Join("/", image.KubernetesPath(), k8sConfDeployScriptName))
 			Expect(data).NotTo(BeNil())
 
-			Expect(*data).To(ContainSubstring(`CONFIGFILE="/var/lib/elemental/kubernetes/${NODETYPE}.yaml"`))
-			Expect(*data).ToNot(ContainSubstring("init.yaml"))
+			Expect(*data).To(ContainSubstring(`: "${K8S_DIR:=/var/lib/elemental/kubernetes}"`))
+			Expect(*data).To(ContainSubstring(`: "${INIT_PATH:=${K8S_DIR}/init.yaml}"`))
+			Expect(*data).To(ContainSubstring(`: "${IS_INIT_NODE:=${is_init_node}}"`))
+			Expect(*data).To(ContainSubstring(`[[ "${HOSTNAME}" == "node01" ]] && is_init_node=true`))
+			Expect(*data).To(ContainSubstring(`[[ "${IS_INIT_NODE}" == "true" ]] && CONFIGFILE="${INIT_PATH}"`))
+
+			data = findFileContentsInConfig(config, filepath.Join("/", image.RuntimeEnvPath()))
+			Expect(data).To(BeNil())
 		})
 
-		It("Uses init config only for multi-node clusters", func() {
-			k8s := kubernetes.Kubernetes{
-				Nodes: kubernetes.Nodes{
-					{Hostname: "server01", Type: kubernetes.NodeTypeServer},
-					{Hostname: "agent01", Type: kubernetes.NodeTypeAgent},
+		It("Fails when there is no server in the static node configuration", func() {
+			m := NewManager(
+				system,
+				defaultHelm,
+				WithDownloader(&downloaderMock{}),
+				WithUnpackFunc(defaultUnpack),
+			)
+
+			conf := &image.Configuration{
+				Kubernetes: kubernetes.Kubernetes{
+					Nodes: kubernetes.Nodes{
+						{Hostname: "node01", Type: kubernetes.NodeTypeAgent},
+					},
 				},
 			}
 
-			Expect(appendK8sConfigDeployScript(config, k8s)).To(Succeed())
-
-			data := findFileContentsInConfig(config, filepath.Join("/", image.KubernetesPath(), k8sConfDeployScriptName))
-			Expect(data).NotTo(BeNil())
-
-			Expect(*data).To(ContainSubstring(`if [[ "${HOSTNAME}" = "server01" ]]; then`))
-			Expect(*data).To(ContainSubstring("CONFIGFILE=/var/lib/elemental/kubernetes/init.yaml"))
-		})
-
-		It("Aborts when the hostname matches no declared node", func() {
-			k8s := kubernetes.Kubernetes{
-				Nodes: kubernetes.Nodes{
-					{Hostname: "server01", Type: kubernetes.NodeTypeServer},
-				},
-			}
-
-			Expect(appendK8sConfigDeployScript(config, k8s)).To(Succeed())
-
-			data := findFileContentsInConfig(config, filepath.Join("/", image.KubernetesPath(), k8sConfDeployScriptName))
-			Expect(data).NotTo(BeNil())
-
-			Expect(*data).To(ContainSubstring(`if [[ ! -v "hosts[${HOSTNAME}]" ]]; then`))
-			Expect(*data).To(ContainSubstring("does not match any declared node"))
-			Expect(*data).ToNot(ContainSubstring("NODETYPE=\"server\""))
+			err := m.configureKubernetes(context.Background(), conf, defaultManifest, config)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring(`could not find suitable init node from node list: [{Hostname:node01 Type:agent Init:false}]`))
 		})
 
 		It("Succeeds to configure RKE2 with additional resources and auth", func() {
@@ -345,27 +343,13 @@ var _ = Describe("Kubernetes", func() {
 				},
 			}
 
-			unpackFunc := func(ctx context.Context, imageRef, destDir string) error {
-				return nil
-			}
-
 			m := NewManager(
 				system,
 				helmMock,
 				WithDownloader(&downloaderMock{}),
-				WithUnpackFunc(unpackFunc),
+				WithUnpackFunc(defaultUnpack),
 			)
 
-			manifest := &resolver.ResolvedManifest{
-				CorePlatform: &core.ReleaseManifest{
-					Components: core.Components{
-						Kubernetes: &core.Kubernetes{
-							Version: "v1.35.0+rke2r1",
-							Image:   "registry.example.com/rke2:1.35_1.0",
-						},
-					},
-				},
-			}
 			conf := &image.Configuration{
 				Kubernetes: kubernetes.Kubernetes{
 					RemoteManifests: []string{"some-url"},
@@ -411,7 +395,7 @@ var _ = Describe("Kubernetes", func() {
 				},
 			}
 
-			Expect(m.configureKubernetes(context.Background(), conf, manifest, config)).To(Succeed())
+			Expect(m.configureKubernetes(context.Background(), conf, defaultManifest, config)).To(Succeed())
 
 			// Verify deployment script contents
 			data := findFileContentsInConfig(config, filepath.Join("/", image.KubernetesPath(), k8sResDeployScriptName))

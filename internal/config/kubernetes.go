@@ -22,6 +22,7 @@ import (
 	_ "embed"
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	"go.yaml.in/yaml/v3"
 
@@ -60,7 +61,7 @@ var (
 )
 
 func needsManifestsSetup(conf *image.Configuration) bool {
-	return len(conf.Kubernetes.RemoteManifests) > 0 || len(conf.Kubernetes.LocalManifests) > 0 || conf.Kubernetes.Network.IsHA()
+	return len(conf.Kubernetes.RemoteManifests) > 0 || len(conf.Kubernetes.LocalManifests) > 0 || conf.Kubernetes.Network.IsManagedInternally()
 }
 
 func needsHelmChartsSetup(conf *image.Configuration) bool {
@@ -105,19 +106,34 @@ func (m *Manager) configureKubernetes(
 		}
 	}
 
+	var initNode *kubernetes.Node
+	if len(conf.Kubernetes.Nodes) == 0 {
+		// Utilise the new runtime configuration approach to ensure that we specify a default
+		// 'initialiser server' setup if no nodes are defined. This ensures that both statically
+		// and runtime defined nodes will work with the same approach, without having to expose
+		// a static/runtime specific configuration flag to the user.
+		envContent := strings.Join([]string{"IS_INIT_NODE=true", "NODETYPE=server"}, "\n")
+		butaneCfg.AddFileInline(filepath.Join("/", image.RuntimeEnvPath()), &envContent, 0o644)
+	} else {
+		initNode, err = kubernetes.FindInitNode(conf.Kubernetes.Nodes)
+		if err != nil {
+			return fmt.Errorf("attempting to find init node: %w", err)
+		}
+	}
+
 	if len(runtimeHelmCharts) > 0 || runtimeManifestsDir != "" {
 		err = appendK8sResDeployScript(butaneCfg, runtimeManifestsDir, runtimeHelmCharts)
 		if err != nil {
 			return fmt.Errorf("generating kubernetes resource deployment script: %w", err)
 		}
 
-		err = appendK8sResUnit(conf, butaneCfg)
+		err = appendK8sResUnit(butaneCfg, initNode)
 		if err != nil {
 			return fmt.Errorf("generating kubernetes resource deployment unit: %w", err)
 		}
 	}
 
-	err = appendK8sConfigDeployScript(butaneCfg, conf.Kubernetes)
+	err = appendK8sConfigDeployScript(butaneCfg, conf.Kubernetes, initNode)
 	if err != nil {
 		return fmt.Errorf("generating kubernetes config deployment script: %w", err)
 	}
@@ -183,22 +199,10 @@ func appendK8sResDeployScript(butaneCfg *butane.Config, runtimeManifestsDir stri
 	return nil
 }
 
-func appendK8sResUnit(conf *image.Configuration, butaneCfg *butane.Config) error {
+func appendK8sResUnit(butaneCfg *butane.Config, initNode *kubernetes.Node) error {
 	k8sScript := filepath.Join("/", image.KubernetesPath(), k8sResDeployScriptName)
-	initHostname := "*"
 
-	if len(conf.Kubernetes.Nodes) > 0 {
-		initNode, err := kubernetes.FindInitNode(conf.Kubernetes.Nodes)
-		if err != nil {
-			return err
-		}
-
-		if initNode != nil {
-			initHostname = initNode.Hostname
-		}
-	}
-
-	k8sResourcesUnit, err := generateK8sResourcesUnit(k8sScript, initHostname)
+	k8sResourcesUnit, err := generateK8sResourcesUnit(k8sScript, initNode)
 	if err != nil {
 		return err
 	}
@@ -207,21 +211,9 @@ func appendK8sResUnit(conf *image.Configuration, butaneCfg *butane.Config) error
 	return nil
 }
 
-func appendK8sConfigDeployScript(butaneCfg *butane.Config, k kubernetes.Kubernetes) error {
+func appendK8sConfigDeployScript(butaneCfg *butane.Config, k kubernetes.Kubernetes, initNode *kubernetes.Node) error {
 	relativeK8sPath := filepath.Join("/", image.KubernetesPath())
 	k8sInstallPath := filepath.Join("/", image.KubernetesInstallPath())
-
-	var (
-		initNode *kubernetes.Node
-		err      error
-	)
-
-	if len(k.Nodes) > 1 {
-		initNode, err = kubernetes.FindInitNode(k.Nodes)
-		if err != nil {
-			return fmt.Errorf("finding init node: %w", err)
-		}
-	}
 
 	values := struct {
 		Nodes         kubernetes.Nodes
@@ -257,15 +249,21 @@ func appendK8sConfigDeployScript(butaneCfg *butane.Config, k kubernetes.Kubernet
 	return nil
 }
 
-func generateK8sResourcesUnit(deployScript, initHostname string) (string, error) {
+func generateK8sResourcesUnit(deployScript string, initNode *kubernetes.Node) (string, error) {
 	values := struct {
 		KubernetesDir        string
 		ManifestDeployScript string
-		InitHostname         string
+		InitNode             kubernetes.Node
+		RuntimeEnvPath       string
 	}{
 		KubernetesDir:        filepath.Dir(deployScript),
 		ManifestDeployScript: deployScript,
-		InitHostname:         initHostname,
+		InitNode:             kubernetes.Node{},
+		RuntimeEnvPath:       filepath.Join("/", image.RuntimeEnvPath()),
+	}
+
+	if initNode != nil {
+		values.InitNode = *initNode
 	}
 
 	data, err := template.Parse(k8sResourcesUnitName, k8sResourceUnitTpl, &values)
@@ -278,8 +276,10 @@ func generateK8sResourcesUnit(deployScript, initHostname string) (string, error)
 func generateK8sConfigUnit(deployScript string) (string, error) {
 	values := struct {
 		ConfigDeployScript string
+		RuntimeEnvPath     string
 	}{
 		ConfigDeployScript: deployScript,
+		RuntimeEnvPath:     filepath.Join("/", image.RuntimeEnvPath()),
 	}
 
 	data, err := template.Parse(k8sConfigUnitName, k8sConfigUnitTpl, &values)
@@ -318,12 +318,12 @@ func appendRke2Configuration(s *sys.System, butaneCfg *butane.Config, k *kuberne
 
 	k8sPath := filepath.Join("/", image.KubernetesPath())
 
-	serverBytes, err := marshalConfig(c.ServerConfig)
+	joiningServerBytes, err := marshalConfig(c.JoiningServerConfig)
 	if err != nil {
 		return fmt.Errorf("failed marshaling server config: %w", err)
 	}
 
-	butaneCfg.AddFileInline(filepath.Join(k8sPath, "server.yaml"), new(string(serverBytes)), 0o644)
+	butaneCfg.AddFileInline(filepath.Join(k8sPath, "server.yaml"), new(string(joiningServerBytes)), 0o644)
 
 	if c.InitServerConfig != nil {
 		initServerBytes, err := marshalConfig(c.InitServerConfig)
@@ -352,7 +352,7 @@ func appendRke2Configuration(s *sys.System, butaneCfg *butane.Config, k *kuberne
 		butaneCfg.AddFileInline(filepath.Join(k8sPath, "registries.yaml"), new(string(registriesBytes)), 0o644)
 	}
 
-	if k.Network.APIVIP4 != "" || k.Network.APIVIP6 != "" {
+	if k.Network.IsManagedInternally() {
 		manifestsPath := filepath.Join("/", image.KubernetesManifestsPath())
 
 		vip, err := kubernetesVIPManifest(k)

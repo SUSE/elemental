@@ -38,6 +38,10 @@ func ElementalPath() string {
 	return filepath.Join("var", "lib", "elemental")
 }
 
+func RuntimeEnvPath() string {
+	return filepath.Join(ElementalPath(), "runtime.env")
+}
+
 func KubernetesPath() string {
 	return filepath.Join(ElementalPath(), "kubernetes")
 }

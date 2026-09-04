@@ -1,7 +1,7 @@
 package kubernetes
 
 import (
-	"net/netip"
+	"maps"
 	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -55,10 +55,9 @@ var _ = Describe("Cluster", func() {
 		var err error
 
 		fs, cleanup, err = sysmock.TestFS(map[string]any{
-			"/etc/kubernetes/single-node/server.yaml":    exampleServerYaml,
-			"/etc/kubernetes/multi-node/server.yaml":     exampleServerYaml,
-			"/etc/kubernetes/multi-node/agent.yaml":      exampleAgentYaml,
-			"/etc/kubernetes/multi-node/registries.yaml": exampleRegistriesYaml,
+			"/etc/kubernetes/config-dir/server.yaml":     exampleServerYaml,
+			"/etc/kubernetes/config-dir/agent.yaml":      exampleAgentYaml,
+			"/etc/kubernetes/config-dir/registries.yaml": exampleRegistriesYaml,
 			"/etc/kubernetes/empty/server.yaml":          "",
 		})
 		Expect(err).ToNot(HaveOccurred())
@@ -85,16 +84,28 @@ var _ = Describe("Cluster", func() {
 		cluster, err := NewCluster(s, kubernetes)
 		Expect(err).ToNot(HaveOccurred())
 
-		Expect(cluster.ServerConfig).ToNot(BeEmpty())
-		Expect(cluster.ServerConfig["tls-san"]).To(ContainElements([]string{"192.168.122.50", "api.suse.com"}))
-		Expect(cluster.ServerConfig["cni"]).To(BeNil())
-		Expect(cluster.ServerConfig["token"]).To(BeNil())
-		Expect(cluster.ServerConfig["server"]).To(BeNil())
-		Expect(cluster.ServerConfig["selinux"]).To(BeNil())
-		Expect(cluster.ServerConfig["disable"]).To(BeNil())
-		Expect(cluster.AgentConfig).To(BeEmpty())
+		Expect(cluster.JoiningServerConfig).ToNot(BeEmpty())
+		Expect(len(cluster.JoiningServerConfig)).To(Equal(3))
+		Expect(cluster.JoiningServerConfig["token"]).ToNot(BeNil())
+		Expect(cluster.JoiningServerConfig["server"]).To(Equal("https://192.168.122.50:9345"))
+		Expect(cluster.JoiningServerConfig["tls-san"]).To(ContainElements([]string{"192.168.122.50", "api.suse.com"}))
+		Expect(cluster.JoiningServerConfig["cni"]).To(BeNil())
+		Expect(cluster.JoiningServerConfig["selinux"]).To(BeNil())
+		Expect(cluster.JoiningServerConfig["disable"]).To(BeNil())
+
+		expectedAgent := ConfigMap{}
+		maps.Copy(expectedAgent, cluster.JoiningServerConfig)
+		delete(expectedAgent, "tls-san")
+		Expect(len(cluster.AgentConfig)).To(Equal(2))
+		Expect(cluster.AgentConfig).To(Equal(expectedAgent))
+
+		expectedInit := ConfigMap{}
+		maps.Copy(expectedInit, cluster.JoiningServerConfig)
+		delete(expectedInit, "server")
+		Expect(len(cluster.InitServerConfig)).To(Equal(2))
+		Expect(cluster.InitServerConfig).To(Equal(expectedInit))
 	})
-	It("Loads values from single-node server config", func() {
+	It("Loads configurations for runtime defined nodes", func() {
 		kubernetes := &Kubernetes{
 			Network: Network{
 				APIHost: "api.suse.com",
@@ -102,74 +113,9 @@ var _ = Describe("Cluster", func() {
 				APIVIP6: "fd12:3456:789a::21",
 			},
 			Config: Config{
-				ServerFilePath: "/etc/kubernetes/single-node/server.yaml",
-				AgentFilePath:  "",
-			},
-		}
-
-		cluster, err := NewCluster(s, kubernetes)
-		Expect(err).ToNot(HaveOccurred())
-
-		Expect(cluster.ServerConfig).ToNot(BeEmpty())
-		Expect(cluster.ServerConfig["cni"]).To(Equal("calico"))
-		Expect(cluster.ServerConfig["token"]).To(Equal("token123"))
-		Expect(cluster.ServerConfig["tls-san"]).To(ContainElements([]string{"10.10.10.1", "cluster1.suse.com", "192.168.122.50", "fd12:3456:789a::21", "api.suse.com"}))
-		Expect(cluster.ServerConfig["selinux"]).To(BeTrue())
-		Expect(cluster.ServerConfig["server"]).To(BeNil())
-
-		Expect(cluster.AgentConfig).To(BeNil())
-	})
-	It("Loads values from single-node server config when one server node is explicitly configured", func() {
-		kubernetes := &Kubernetes{
-			Network: Network{
-				APIHost: "api.suse.com",
-				APIVIP4: "192.168.122.50",
-			},
-			Nodes: Nodes{
-				{
-					Hostname: "node01",
-					Type:     NodeTypeServer,
-				},
-			},
-			Config: Config{
-				ServerFilePath: "/etc/kubernetes/single-node/server.yaml",
-			},
-		}
-
-		cluster, err := NewCluster(s, kubernetes)
-		Expect(err).ToNot(HaveOccurred())
-
-		Expect(cluster.ServerConfig).ToNot(BeEmpty())
-		Expect(cluster.ServerConfig["cni"]).To(Equal("calico"))
-		Expect(cluster.ServerConfig["token"]).To(Equal("token123"))
-		Expect(cluster.ServerConfig["tls-san"]).To(ContainElements([]string{"10.10.10.1", "cluster1.suse.com", "192.168.122.50", "api.suse.com"}))
-		Expect(cluster.ServerConfig["selinux"]).To(BeTrue())
-		Expect(cluster.ServerConfig["server"]).To(BeNil())
-
-		Expect(cluster.InitServerConfig).To(BeNil())
-		Expect(cluster.AgentConfig).To(BeNil())
-	})
-	It("Loads values from multi-node config", func() {
-		kubernetes := &Kubernetes{
-			Network: Network{
-				APIHost: "api.suse.com",
-				APIVIP4: "192.168.122.50",
-				APIVIP6: "fd12:3456:789a::21",
-			},
-			Nodes: Nodes{
-				{
-					Hostname: "host1.suse.com",
-					Type:     NodeTypeServer,
-				},
-				{
-					Hostname: "host2.suse.com",
-					Type:     NodeTypeAgent,
-				},
-			},
-			Config: Config{
-				ServerFilePath:     "/etc/kubernetes/multi-node/server.yaml",
-				AgentFilePath:      "/etc/kubernetes/multi-node/agent.yaml",
-				RegistriesFilePath: "/etc/kubernetes/multi-node/registries.yaml",
+				ServerFilePath:     "/etc/kubernetes/config-dir/server.yaml",
+				AgentFilePath:      "/etc/kubernetes/config-dir/agent.yaml",
+				RegistriesFilePath: "/etc/kubernetes/config-dir/registries.yaml",
 			},
 		}
 
@@ -187,56 +133,176 @@ var _ = Describe("Cluster", func() {
 		_, ok = example["endpoint"].([]any)
 		Expect(ok).To(BeTrue())
 
-		Expect(cluster.ServerConfig).ToNot(BeEmpty())
-		Expect(cluster.ServerConfig["cni"]).To(Equal("calico"))
-		Expect(cluster.ServerConfig["token"]).To(Equal("token123"))
-		Expect(cluster.ServerConfig["tls-san"]).To(ContainElements([]string{"10.10.10.1", "cluster1.suse.com", "192.168.122.50", "fd12:3456:789a::21", "api.suse.com"}))
-		Expect(cluster.ServerConfig["selinux"]).To(BeTrue())
-		Expect(cluster.ServerConfig["server"]).To(Equal("https://192.168.122.50:9345"))
+		Expect(cluster.JoiningServerConfig).ToNot(BeEmpty())
+		Expect(len(cluster.JoiningServerConfig)).To(Equal(6))
+		Expect(cluster.JoiningServerConfig["cni"]).To(Equal("calico"))
+		Expect(cluster.JoiningServerConfig["token"]).To(Equal("token123"))
+		Expect(cluster.JoiningServerConfig["tls-san"]).To(ContainElements([]string{"10.10.10.1", "cluster1.suse.com", "192.168.122.50", "fd12:3456:789a::21", "api.suse.com"}))
+		Expect(cluster.JoiningServerConfig["disable"]).To(ContainElement("rke2-coredns"))
+		Expect(cluster.JoiningServerConfig["selinux"]).To(BeTrue())
+		Expect(cluster.JoiningServerConfig["server"]).To(Equal("https://192.168.122.50:9345"))
 
-		Expect(cluster.InitServerConfig).ToNot(BeEmpty())
-		Expect(cluster.InitServerConfig["cni"]).To(Equal("calico"))
-		Expect(cluster.InitServerConfig["token"]).To(Equal("token123"))
-		Expect(cluster.InitServerConfig["tls-san"]).To(ContainElements([]string{"10.10.10.1", "cluster1.suse.com", "192.168.122.50", "fd12:3456:789a::21", "api.suse.com"}))
-		Expect(cluster.InitServerConfig["selinux"]).To(BeTrue())
-		Expect(cluster.InitServerConfig["server"]).To(BeNil())
+		expectedAgent := ConfigMap{}
+		maps.Copy(expectedAgent, cluster.JoiningServerConfig)
+		delete(expectedAgent, "tls-san")
+		delete(expectedAgent, "disable")
+		expectedAgent["debug"] = true
+		Expect(len(cluster.AgentConfig)).To(Equal(5))
+		Expect(cluster.AgentConfig).To(Equal(expectedAgent))
 
-		Expect(cluster.AgentConfig).ToNot(BeEmpty())
-		// server settings override the agent.yaml
-		Expect(cluster.AgentConfig["cni"]).To(Equal("calico"))
-		Expect(cluster.AgentConfig["token"]).To(Equal("token123"))
-		Expect(cluster.AgentConfig["server"]).To(Equal("https://192.168.122.50:9345"))
-		Expect(cluster.AgentConfig["selinux"]).To(BeTrue())
-		Expect(cluster.AgentConfig["debug"]).To(BeTrue())
+		expectedInit := ConfigMap{}
+		maps.Copy(expectedInit, cluster.JoiningServerConfig)
+		delete(expectedInit, "server")
+		Expect(len(cluster.InitServerConfig)).To(Equal(5))
+		Expect(cluster.InitServerConfig).To(Equal(expectedInit))
+	})
+
+	It("Loads configurations for statically defined nodes", func() {
+		kubernetes := &Kubernetes{
+			Network: Network{
+				APIHost: "api.suse.com",
+				APIVIP4: "192.168.122.50",
+				APIVIP6: "fd12:3456:789a::21",
+			},
+			Nodes: Nodes{
+				{
+					Hostname: "host1.suse.com",
+					Type:     NodeTypeServer,
+				},
+				{
+					Hostname: "host2.suse.com",
+					Type:     NodeTypeAgent,
+				},
+			},
+			Config: Config{
+				ServerFilePath:     "/etc/kubernetes/config-dir/server.yaml",
+				AgentFilePath:      "/etc/kubernetes/config-dir/agent.yaml",
+				RegistriesFilePath: "/etc/kubernetes/config-dir/registries.yaml",
+			},
+		}
+
+		cluster, err := NewCluster(s, kubernetes)
+		Expect(err).ToNot(HaveOccurred())
+
+		Expect(cluster.RegistriesConfig).ToNot(BeEmpty())
+		Expect(cluster.RegistriesConfig["mirrors"]).ToNot(BeEmpty())
+		mirrors, ok := cluster.RegistriesConfig["mirrors"].(ConfigMap)
+		Expect(ok).To(BeTrue())
+		Expect(mirrors["mirror.example.com"]).ToNot(BeEmpty())
+		example, ok := mirrors["mirror.example.com"].(ConfigMap)
+		Expect(ok).To(BeTrue())
+		Expect(example["endpoint"]).ToNot(BeEmpty())
+		_, ok = example["endpoint"].([]any)
+		Expect(ok).To(BeTrue())
+
+		Expect(cluster.JoiningServerConfig).ToNot(BeEmpty())
+		Expect(len(cluster.JoiningServerConfig)).To(Equal(6))
+		Expect(cluster.JoiningServerConfig["cni"]).To(Equal("calico"))
+		Expect(cluster.JoiningServerConfig["token"]).To(Equal("token123"))
+		Expect(cluster.JoiningServerConfig["tls-san"]).To(ContainElements([]string{"10.10.10.1", "cluster1.suse.com", "192.168.122.50", "fd12:3456:789a::21", "api.suse.com"}))
+		Expect(cluster.JoiningServerConfig["selinux"]).To(BeTrue())
+		Expect(cluster.JoiningServerConfig["server"]).To(Equal("https://192.168.122.50:9345"))
+
+		expectedAgent := ConfigMap{}
+		maps.Copy(expectedAgent, cluster.JoiningServerConfig)
+		delete(expectedAgent, "tls-san")
+		delete(expectedAgent, "disable")
+		expectedAgent["debug"] = true
+		Expect(len(cluster.AgentConfig)).To(Equal(5))
+		Expect(cluster.AgentConfig).To(Equal(expectedAgent))
+
+		expectedInit := ConfigMap{}
+		maps.Copy(expectedInit, cluster.JoiningServerConfig)
+		delete(expectedInit, "server")
+		Expect(len(cluster.InitServerConfig)).To(Equal(5))
+		Expect(cluster.InitServerConfig).To(Equal(expectedInit))
 	})
 })
 
 var _ = Describe("Cluster Helpers", func() {
-	It("sets cluster API address", func() {
-		config := map[string]any{}
+	It("sets default server configuration with IPv4 url", func() {
+		serverValues := ConfigMap{}
+		kubeConfig := Kubernetes{
+			Network: Network{
+				APIHost: "api.suse.com",
+				APIVIP4: "192.168.122.50",
+				APIVIP6: "fd12:3456:789a::21",
+			},
+		}
 
-		ip4, err := netip.ParseAddr("192.168.122.50")
+		err := setServerDefaults(log.New(log.WithDiscardAll()), &kubeConfig, serverValues)
 		Expect(err).ToNot(HaveOccurred())
 
-		ip6, err := netip.ParseAddr("fd12:3456:789a::21")
+		Expect(serverValues).ToNot(BeEmpty())
+		Expect(serverValues["server"]).To(Equal("https://192.168.122.50:9345"))
+		Expect(serverValues["tls-san"]).To(ContainElements([]string{"192.168.122.50", "fd12:3456:789a::21", "api.suse.com"}))
+		Expect(serverValues["token"]).ToNot(BeEmpty())
+	})
+
+	It("sets default server configuration with IPv6 url", func() {
+		serverValues := ConfigMap{}
+		kubeConfig := Kubernetes{
+			Network: Network{
+				APIHost: "api.suse.com",
+				APIVIP6: "fd12:3456:789a::21",
+			},
+		}
+
+		By("using IPv6 when IPv4 is missing")
+		err := setServerDefaults(log.New(log.WithDiscardAll()), &kubeConfig, serverValues)
 		Expect(err).ToNot(HaveOccurred())
 
-		var emptyIP netip.Addr
+		Expect(serverValues).ToNot(BeEmpty())
+		Expect(serverValues["server"]).To(Equal("https://[fd12:3456:789a::21]:9345"))
+		Expect(serverValues["tls-san"]).To(ContainElements([]string{"fd12:3456:789a::21", "api.suse.com"}))
+		Expect(serverValues["token"]).ToNot(BeEmpty())
 
-		setClusterAPIAddress(config, ip4, emptyIP, 9345, false)
-		Expect(config["server"]).To(Equal("https://192.168.122.50:9345"))
+		By("prioritizing IPv6")
+		serverValues = ConfigMap{"cluster-cidr": "fd12:3456:789b::/56"}
+		kubeConfig.Network.APIVIP4 = "192.168.122.50"
 
-		setClusterAPIAddress(config, ip4, ip6, 9345, false)
-		Expect(config["server"]).To(Equal("https://192.168.122.50:9345"))
+		err = setServerDefaults(log.New(log.WithDiscardAll()), &kubeConfig, serverValues)
+		Expect(err).ToNot(HaveOccurred())
 
-		setClusterAPIAddress(config, ip4, ip6, 9345, true)
-		Expect(config["server"]).To(Equal("https://[fd12:3456:789a::21]:9345"))
+		Expect(serverValues).ToNot(BeEmpty())
+		Expect(serverValues["server"]).To(Equal("https://[fd12:3456:789a::21]:9345"))
+		Expect(serverValues["tls-san"]).To(ContainElements([]string{"192.168.122.50", "fd12:3456:789a::21", "api.suse.com"}))
+		Expect(serverValues["token"]).ToNot(BeEmpty())
 
-		setClusterAPIAddress(config, emptyIP, ip6, 9345, true)
-		Expect(config["server"]).To(Equal("https://[fd12:3456:789a::21]:9345"))
+	})
 
-		setClusterAPIAddress(config, ip4, ip6, 9345, true)
-		Expect(config["server"]).To(Equal("https://[fd12:3456:789a::21]:9345"))
+	It("does not set server url if both IPv4 and IPv6 are missing", func() {
+		serverValues := ConfigMap{}
+		kubeConfig := Kubernetes{}
+		err := setServerDefaults(log.New(log.WithDiscardAll()), &kubeConfig, serverValues)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(serverValues["server"]).To(BeNil())
+	})
+
+	It("fails to set default server configuration when IPv4 is broken", func() {
+		serverValues := ConfigMap{}
+		kubeConfig := Kubernetes{
+			Network: Network{
+				APIHost: "api.suse.com",
+				APIVIP4: "192.168.300.10",
+			},
+		}
+		err := setServerDefaults(log.New(log.WithDiscardAll()), &kubeConfig, serverValues)
+		Expect(err).To(HaveOccurred())
+		Expect(err).To(MatchError(`parsing kubernetes ipv4 address: ParseAddr("192.168.300.10"): IPv4 field has value >255`))
+	})
+
+	It("fails to set default server configuration when IPv6 is broken", func() {
+		serverValues := ConfigMap{}
+		kubeConfig := Kubernetes{
+			Network: Network{
+				APIHost: "api.suse.com",
+				APIVIP6: "fd12:3456:789a::2g",
+			},
+		}
+		err := setServerDefaults(log.New(log.WithDiscardAll()), &kubeConfig, serverValues)
+		Expect(err).To(HaveOccurred())
+		Expect(err).To(MatchError(`parsing kubernetes ipv6 address: ParseAddr("fd12:3456:789a::2g"): unexpected character, want colon (at "g")`))
 	})
 
 	It("appends cluster tls-san", func() {
