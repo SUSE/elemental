@@ -1,0 +1,3 @@
+# Example for configuring RKE2 on a node at runtime
+node-label+:
+  - "runtime-configured-label=control-plane-1"
