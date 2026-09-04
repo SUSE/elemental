@@ -93,7 +93,7 @@ func (c *HelmChart) GetRepositoryName() string {
 	return c.RepositoryName
 }
 
-func (c *HelmChart) ToCRD(values []byte, repository string, hasAuth, skipTLSVerify bool) *helm.CRD {
+func (c *HelmChart) ToCRD(values []byte, repository string, hasAuth, skipTLSVerify bool) (*helm.CRD, error) {
 	return helm.NewCRD(c.TargetNamespace, c.Name, c.Version, string(values), repository, hasAuth, skipTLSVerify)
 }
 
