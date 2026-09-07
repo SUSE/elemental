@@ -38,6 +38,13 @@ import (
 	"github.com/suse/elemental/v3/pkg/manifest/resolver"
 )
 
+const (
+	elementalLifecycleManager = "elemental-lifecycle-manager"
+	rancher                   = "rancher"
+	systemUpgradeController   = "system-upgrade-controller"
+	certManager               = "cert-manager"
+)
+
 type helmValuesResolver interface {
 	Resolve(*helm.ValueSource) ([]byte, error)
 }
@@ -131,7 +138,7 @@ func (h *Helm) retrieveHelmCharts(rm *resolver.ResolvedManifest, conf *image.Con
 
 	valueFiles := conf.Release.Components.HelmValueFiles()
 
-	err := evaluateLCMDeps(conf.Release.Components.HelmCharts, rm.CorePlatform, valueFiles, h.ValuesResolver)
+	err := h.evaluateLCMDeps(rm, conf)
 	if err != nil {
 		return nil, nil, fmt.Errorf("evaluating %s dependencies: %w", elementalLifecycleManager, err)
 	}
@@ -170,6 +177,94 @@ func (h *Helm) retrieveHelmCharts(rm *resolver.ResolvedManifest, conf *image.Con
 	}
 
 	return crds, generateHelmSecrets(authMap), nil
+}
+
+// evaluateLCMDeps removes dependencies of LCM if they are satisfied separately, i.e.,
+// - if Rancher chart is enabled in release.yaml, it removes dependency on system-upgrade-controller
+// - if the values files contains custom certificate configuration, it removes dependency on cert-manager
+func (h *Helm) evaluateLCMDeps(rm *resolver.ResolvedManifest, conf *image.Configuration) error {
+	var lcmChart *api.HelmChart
+	enabledMap := map[string]struct{}{}
+
+	// first check if LCM is defined in core manifest charts
+	lcmChart = api.GetChart(elementalLifecycleManager, rm.CorePlatform.Components.Helm.Charts)
+	if lcmChart == nil {
+		// this could be the case if using core manifest that doesn't contain LCM charts which is the case currently
+		// TODO (dharmit): remove this check once the core manifest includes LCM chart by default
+		return nil // nothing to do!
+	}
+
+	enabled := conf.Release.Components.HelmCharts
+	for _, chart := range enabled {
+		enabledMap[chart.Name] = struct{}{}
+	}
+	if _, ok := enabledMap[elementalLifecycleManager]; !ok {
+		// LCM isn't enabled in release.yaml; nothing to do!
+		// TODO (dharmit): remove this check once the core manifest includes LCM chart by default
+		return nil
+	}
+
+	if _, ok := enabledMap[rancher]; ok {
+		// remove system-upgrade-controller from list of dependencies
+		lcmChart.DependsOn = slices.DeleteFunc(lcmChart.DependsOn, func(dependency api.HelmChartDependency) bool {
+			return dependency.Name == systemUpgradeController
+		})
+	}
+
+	values, err := h.chartValues(elementalLifecycleManager, rm, conf)
+	if err != nil {
+		return fmt.Errorf("resolving values for chart %s: %w", elementalLifecycleManager, err)
+	}
+	if string(values) != "{}\n" {
+		var lcmValues struct {
+			Webhook struct {
+				Cert struct {
+					CreateDefault *bool `yaml:"createDefault"`
+				} `yaml:"cert"`
+			} `yaml:"webhook"`
+		}
+		err = yaml.Unmarshal(values, &lcmValues)
+		if err != nil {
+			return err
+		}
+
+		if lcmValues.Webhook.Cert.CreateDefault != nil && !*lcmValues.Webhook.Cert.CreateDefault {
+			// checking only createDefault and existingSecret because caBundle could be an empty string
+			lcmChart.DependsOn = slices.DeleteFunc(lcmChart.DependsOn, func(dependency api.HelmChartDependency) bool {
+				return dependency.Name == certManager
+			})
+		}
+	}
+
+	return nil
+}
+
+// chartValues locates a Helm chart by name across the manifests,
+// and resolves its final values (combining inline values and values.yaml files)
+func (h *Helm) chartValues(name string, rm *resolver.ResolvedManifest, conf *image.Configuration) ([]byte, error) {
+	var inlineValues map[string]any
+	var valuesFile string
+
+	if rm.CorePlatform.Components.Helm != nil {
+		if c := api.GetChart(name, rm.CorePlatform.Components.Helm.Charts); c != nil {
+			inlineValues = c.GetInlineValues()
+		}
+		if inlineValues == nil && rm.SolutionExtension != nil && rm.SolutionExtension.Components.Helm != nil {
+			if c := api.GetChart(name, rm.SolutionExtension.Components.Helm.Charts); c != nil {
+				inlineValues = c.GetInlineValues()
+			}
+		}
+	}
+
+	for _, chart := range conf.Release.Components.HelmCharts {
+		if chart.Name == name {
+			valuesFile = chart.ValuesFile
+			break
+		}
+	}
+
+	source := &helm.ValueSource{Inline: inlineValues, File: valuesFile}
+	return h.ValuesResolver.Resolve(source)
 }
 
 func createAuthMap(charts []*api.HelmChart, repositories map[string]string, conf *image.Configuration) (map[string]*auth.HelmAuth, error) {

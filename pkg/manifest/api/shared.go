@@ -97,6 +97,17 @@ func Parse[R any](data []byte) (*R, error) {
 	return rm, nil
 }
 
+// GetChart finds a chart with name from a Charts either in Core or Solution manifest
+func GetChart(name string, charts []*HelmChart) *HelmChart {
+	for _, chart := range charts {
+		c := chart
+		if c.GetName() == name {
+			return c
+		}
+	}
+	return nil
+}
+
 const (
 	SchemaV0 SchemaVersion = v0.SchemaV0
 	SchemaV1 SchemaVersion = v1.SchemaV1
