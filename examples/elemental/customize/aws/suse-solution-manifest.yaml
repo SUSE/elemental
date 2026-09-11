@@ -1,0 +1,51 @@
+metadata:
+  name: "suse-solution"
+  version: "4.2.0"
+  creationDate: "2025-12-08"
+corePlatform:
+  # Registry path to the release manifest OCI image of the Core Platform that this SUSE Solution extends
+  # Note: AWS feature is not yet available on registry.suse.com, hence the referral to registry.suse.de
+  image: "registry.suse.de/devel/unifiedcore/main/totest/containers/beta/uc/rke2/rke2-manifest:1.35.6"
+components:
+  systemd:
+    extensions:
+      - name: "longhorn"
+        image: "registry.suse.com/elemental/longhorn:4.69-4.3"
+  helm:
+    charts:
+      - chart: "cert-manager"
+        version: "v1.17.2"
+        namespace: "cert-manager"
+        repository: "jetstack"
+        values:
+          crds:
+            enabled: true
+      - chart: "rancher"
+        version: "2.14.0"
+        namespace: "cattle-system"
+        repository: "rancher"
+        values:
+          replicas: 1
+        dependsOn:
+          - name: "cert-manager"
+            type: "helm"
+      - chart: "longhorn-crd"
+        version: "107.0.0+up1.9.1"
+        namespace: "longhorn-system"
+        repository: "rancher-charts"
+      - chart: "longhorn"
+        version: "107.0.0+up1.9.1"
+        namespace: "longhorn-system"
+        repository: "rancher-charts"
+        dependsOn:
+          - name: "longhorn-crd"
+            type: "helm"
+          - name: "longhorn"
+            type: "sysext"
+    repositories:
+      - name: "jetstack"
+        url: "https://charts.jetstack.io"
+      - name: "rancher"
+        url: "https://releases.rancher.com/server-charts/latest"
+      - name: "rancher-charts"
+        url: "https://charts.rancher.io"

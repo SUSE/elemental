@@ -1,0 +1,7 @@
+version: 1.6.0
+variant: fcos
+passwd:
+  users:
+  - name: root
+    # Hash for 'linux' passwd created with "openssl passwd -6"
+    password_hash: "$6$dkiCjuXvS8brdFUA$w1b4wSV.0wQ7BmZ7l/Be6fhqlk8CMEE8NQkhtaXIPjMTFw90JNYfI1lBhSoUILhmqupcmOp681FHIdvIZdbc90"
