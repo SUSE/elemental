@@ -70,8 +70,9 @@ const (
 	DefaultBootID  = "active"
 	RecoveryBootID = "recovery"
 
-	liveBootPath = "/boot"
-	grubEnvFile  = "grubenv"
+	liveBootPath       = "/boot"
+	grubEnvFile        = "grubenv"
+	netbootDisplayName = "Elemental"
 )
 
 //go:embed grubtemplates/grub.cfg
@@ -82,6 +83,35 @@ var grubLiveEFICfg []byte
 
 //go:embed grubtemplates/grub_live.cfg
 var grubLiveCfg []byte
+
+//go:embed grubtemplates/grub_netboot.cfg
+var grubNetbootCfg []byte
+
+// InstallNetboot installs the necessary netboot bootloaders onto the generated ISO
+func (g *Grub) InstallNetboot(i InstallCtx) error {
+	g.s.Logger().Info("Preparing GRUB bootloader for netboot")
+
+	entry, err := g.installNetbootKernelInitrd(i.RootDir, i.Target)
+	if err != nil {
+		return fmt.Errorf("installing netboot kernel+initrd: %w", err)
+	}
+
+	entry.CmdLine = i.KernelCmdline
+	entry.DisplayName = netbootDisplayName
+
+	efiEntryDir := filepath.Join(i.Target, "EFI", "BOOT")
+	err = g.installNetbootEFIEntry(i.RootDir, efiEntryDir, grubNetbootCfg, entry)
+	if err != nil {
+		return fmt.Errorf("installing EFI apps: %w", err)
+	}
+
+	err = g.writeGrubConfig(filepath.Join(i.Target, liveBootPath, "grub2"), grubNetbootCfg, entry)
+	if err != nil {
+		return fmt.Errorf("failed writing grub config file: %w", err)
+	}
+
+	return nil
+}
 
 // InstallLive installs the live bootloader to the specified target.
 func (g *Grub) InstallLive(i InstallCtx) error {
@@ -355,6 +385,39 @@ func (g *Grub) installElementalEFI(rootPath, espDir, espLabel string) error {
 	return nil
 }
 
+// installNetbootEFIEntry installs the efi applications (shim, MokManager, grub.efi) and grub.cfg to the given path
+func (g *Grub) installNetbootEFIEntry(rootPath, targetDir string, grubTmpl []byte, data any) error {
+	g.s.Logger().Info("Copying netboot EFI artifacts at %s", targetDir)
+
+	err := vfs.MkdirAll(g.s.FS(), targetDir, vfs.DirPerm)
+	if err != nil {
+		return fmt.Errorf("creating dir '%s': %w", targetDir, err)
+	}
+
+	srcDir := filepath.Join(rootPath, "EFI", "BOOT")
+	for _, name := range bootFiles(g.s.Platform().Arch) {
+		src := filepath.Join(srcDir, name)
+		target := filepath.Join(targetDir, name)
+		err = vfs.CopyFile(g.s.FS(), src, target)
+		if err != nil {
+			return fmt.Errorf("copying file '%s': %w", src, err)
+		}
+	}
+
+	_, bootFile := defaultEfiBootFileName(g.s.Platform())
+	err = vfs.CopyFile(g.s.FS(), filepath.Join(srcDir, bootFile), filepath.Join(targetDir, bootFile))
+	if err != nil {
+		return fmt.Errorf("copying file '%s': %w", bootFile, err)
+	}
+
+	err = g.writeGrubConfig(targetDir, grubTmpl, data)
+	if err != nil {
+		return fmt.Errorf("failed writing EFI grub config file: %w", err)
+	}
+
+	return nil
+}
+
 // installEFIEntry installs the efi applications (shim, MokManager, grub.efi) and grub.cfg to the given path
 func (g *Grub) installEFIEntry(rootPath, targetDir string, grubTmpl []byte, data any) error {
 	g.s.Logger().Info("Copying EFI artifacts at %s", targetDir)
@@ -531,6 +594,57 @@ func (g *Grub) installKernelInitrd(rootPath, espDir, subfolder string, extension
 	entry.Linux = filepath.Join("/", subfolder, osID, kernelVersion, filepath.Base(kernel))
 	entry.Initrd = filepath.Join("/", subfolder, osID, kernelVersion, Initrd)
 	entry.DisplayName = displayName
+
+	return entry, nil
+}
+
+// installNetbootKernelInitrd copies the kernel and initrd from the media to the boot folder of a target.
+//
+// While installKernelInitrd looks at the OS root, this function uses a LiveMedia tree created by InstallLive. Files are
+// found then copied world readable to make them work with HTTP.
+//
+// Returns a grubBootEntry with Kernel and Initrd paths relative to root of target.
+func (g *Grub) installNetbootKernelInitrd(rootPath, target string) (grubBootEntry, error) {
+	g.s.Logger().Info("Installing kernel/initrd")
+	entry := grubBootEntry{}
+
+	targetDir := filepath.Join(target, liveBootPath)
+	err := vfs.MkdirAll(g.s.FS(), targetDir, vfs.DirPerm)
+	if err != nil {
+		return entry, fmt.Errorf("creating netboot target dir: %w", err)
+	}
+
+	kernelPath, err := vfs.FindFile(g.s.FS(), rootPath, filepath.Join(liveBootPath, "*/*/vmlinuz*"))
+	if err != nil {
+		return entry, fmt.Errorf("finding kernel: %w", err)
+	}
+
+	kernelTarget := filepath.Join(targetDir, "vmlinuz")
+	err = vfs.CopyFile(g.s.FS(), kernelPath, kernelTarget)
+	if err != nil {
+		return entry, fmt.Errorf("copying kernel '%s': %w", kernelPath, err)
+	}
+
+	initrdPath := filepath.Join(filepath.Dir(kernelPath), Initrd)
+	if exists, _ := vfs.Exists(g.s.FS(), initrdPath); !exists {
+		return entry, fmt.Errorf("initrd not found")
+	}
+
+	initrdTarget := filepath.Join(targetDir, Initrd)
+	err = vfs.CopyFile(g.s.FS(), initrdPath, initrdTarget)
+	if err != nil {
+		return entry, fmt.Errorf("copying initrd '%s': %w", initrdPath, err)
+	}
+
+	for _, file := range []string{kernelTarget, initrdTarget} {
+		err = g.s.FS().Chmod(file, 0o644)
+		if err != nil {
+			return entry, fmt.Errorf("setting permissions for '%s': %w", file, err)
+		}
+	}
+
+	entry.Linux = filepath.Join("/", liveBootPath, "vmlinuz")
+	entry.Initrd = filepath.Join("/", liveBootPath, Initrd)
 
 	return entry, nil
 }

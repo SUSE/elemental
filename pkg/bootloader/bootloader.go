@@ -27,6 +27,7 @@ import (
 type Bootloader interface {
 	Install(i InstallCtx) error
 	InstallLive(i InstallCtx) error
+	InstallNetboot(i InstallCtx) error
 	Prune(rootPath, espDir string, keepEntryIDs []int) error
 }
 
@@ -77,6 +78,11 @@ func (n *None) Install(_ InstallCtx) error {
 }
 
 func (n *None) InstallLive(_ InstallCtx) error {
+	n.s.Logger().Info("Skipping bootloader installation")
+	return nil
+}
+
+func (n *None) InstallNetboot(_ InstallCtx) error {
 	n.s.Logger().Info("Skipping bootloader installation")
 	return nil
 }

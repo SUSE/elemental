@@ -20,6 +20,7 @@ package installer_test
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -207,6 +208,67 @@ var _ = Describe("InstallerMedia", Label("installermedia"), func() {
 		Expect(iso.Customize(d)).To(Succeed())
 
 		Expect(vfs.Exists(fs, "/some/dir/build/installer2.iso")).To(BeTrue())
+	})
+	It("customizes netboot media", func() {
+		Expect(vfs.MkdirAll(fs, "/some/dir/build", vfs.DirPerm)).To(Succeed())
+
+		// Create the file pointed out by -outdev or -extract when xorriso is called,
+		// xorriso creates parent directories of the extraction target.
+		sideEffects["xorriso"] = func(args ...string) ([]byte, error) {
+			offset := 0
+			for i, arg := range args {
+				switch arg {
+				case "-outdev":
+					offset = 1
+				case "-extract":
+					offset = 2
+				default:
+					continue
+				}
+
+				file := args[i+offset]
+				Expect(vfs.MkdirAll(fs, filepath.Dir(file), vfs.DirPerm)).To(Succeed())
+				_, err := fs.Create(file)
+				Expect(err).To(Succeed())
+
+				break
+			}
+			return []byte{}, nil
+		}
+		sideEffects["grub2-editenv"] = func(args ...string) ([]byte, error) {
+			path := args[0]
+			if args[1] == "set" {
+				Expect(fs.WriteFile(path, []byte(strings.Join(args[2:], "\n")), vfs.FilePerm)).To(Succeed())
+			}
+			return []byte{}, nil
+		}
+
+		_, err := fs.Create("/some/dir/installer.iso")
+		Expect(err).To(Succeed())
+
+		netboot := installer.NewMedia(
+			context.Background(), s, installer.Netboot,
+			installer.WithBootloader(bootloader.NewNone(s)),
+			installer.WithNetbootURL("http://server/installer2.iso"),
+		)
+		netboot.InputFile = "/some/dir/installer.iso"
+		netboot.OutputDir = "/some/dir/build"
+		netboot.Name = "installer2"
+
+		Expect(netboot.Customize(d)).To(Succeed())
+
+		Expect(vfs.Exists(fs, "/some/dir/build/installer2.iso")).To(BeTrue())
+	})
+	It("fails to customize netboot media without a netboot URL", func() {
+		Expect(vfs.MkdirAll(fs, "/some/dir/build", vfs.DirPerm)).To(Succeed())
+
+		netboot := installer.NewMedia(context.Background(), s, installer.Netboot, installer.WithBootloader(bootloader.NewNone(s)))
+		netboot.InputFile = "/some/dir/installer.iso"
+		netboot.OutputDir = "/some/dir/build"
+
+		err := netboot.Customize(d)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("undefined netboot URL for the netboot media"))
 	})
 	It("fails to customize an iso that is not including an install.yaml file", func() {
 		Expect(vfs.MkdirAll(fs, "/some/dir/build", vfs.DirPerm)).To(Succeed())

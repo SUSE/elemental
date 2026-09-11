@@ -55,7 +55,7 @@ func NewCustomizeCommand(appName string, action func(context.Context, *cli.Comma
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:        "type",
-				Usage:       "Type of the installer media, 'iso' or 'raw'",
+				Usage:       "Type of the installer media, 'iso', 'raw', or 'netboot'",
 				Destination: &CustomizeArgs.MediaType,
 				Value:       installer.ISO.String(),
 			},

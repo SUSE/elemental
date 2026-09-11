@@ -26,6 +26,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/suse/elemental/v3/pkg/installer"
 	"github.com/urfave/cli/v3"
 
 	cmdpkg "github.com/suse/elemental/v3/internal/cli/cmd"
@@ -49,7 +50,11 @@ func Customize(ctx context.Context, cmd *cli.Command) error {
 	fs := system.FS()
 	args := &cmdpkg.CustomizeArgs
 
-	imagePath, configPath := resolveOutputPaths(fs, args)
+	imagePath, configPath, err := resolveOutputPaths(fs, args)
+	if err != nil {
+		logger.Error("Resolving output paths")
+		return err
+	}
 	if imagePathExists, err := vfs.Exists(fs, imagePath); err == nil && imagePathExists {
 		logger.Error("Output image path %s already exists, will not overwrite", imagePath)
 		return fmt.Errorf("output image path %s already exists", imagePath)
@@ -93,10 +98,14 @@ func Customize(ctx context.Context, cmd *cli.Command) error {
 	return nil
 }
 
-func resolveOutputPaths(fs vfs.FS, args *cmdpkg.CustomizeFlags) (imagePath, configPath string) {
-	imagePath = args.OutputPath
-	imageName := fmt.Sprintf("image-%s.%s", time.Now().UTC().Format("2006-01-02T15-04-05"), args.MediaType)
+func resolveOutputPaths(fs vfs.FS, args *cmdpkg.CustomizeFlags) (imagePath, configPath string, err error) {
+	mType, err := installer.StringToMediaType(args.MediaType)
+	if err != nil {
+		return "", "", fmt.Errorf("parsing media type %s", args.MediaType)
+	}
 
+	imagePath = args.OutputPath
+	imageName := fmt.Sprintf("image-%s.%s", time.Now().UTC().Format("2006-01-02T15-04-05"), mType.Ext())
 	if imagePath == "" {
 		imagePath = filepath.Join(args.ConfigDir, imageName)
 	} else if isDir, err := vfs.IsDir(fs, imagePath); err == nil && isDir {
@@ -110,7 +119,7 @@ func resolveOutputPaths(fs vfs.FS, args *cmdpkg.CustomizeFlags) (imagePath, conf
 		configPath = filepath.Join(filepath.Dir(imagePath), baseName+"-config")
 	}
 
-	return imagePath, configPath
+	return imagePath, configPath, err
 }
 
 func setupCustomizeRunner(

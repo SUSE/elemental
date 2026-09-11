@@ -72,5 +72,6 @@ type RAW struct {
 }
 
 type ISO struct {
-	Device string `yaml:"device"`
+	Device     string `yaml:"device"`
+	NetbootURL string `yaml:"netbootURL" validate:"omitempty,http_url"`
 }

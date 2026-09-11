@@ -125,6 +125,9 @@ func (r *Runner) Run(ctx context.Context, def *image.Definition, output config.O
 		}
 		mediaOpts = append(mediaOpts, installer.WithRawDiskSize(deployment.MiB(diskMiB)))
 	}
+	if mediaType == installer.Netboot {
+		mediaOpts = append(mediaOpts, installer.WithNetbootURL(def.Configuration.Installation.ISO.NetbootURL))
+	}
 
 	// TODO(ipetrov117): Consider refactoring installer.Media, as right now
 	// it is hiding too much information when exposing the Customize() command.
@@ -206,6 +209,18 @@ func parseDeployment(
 	if mediaType == installer.ISO {
 		if install.ISO.Device == "" {
 			return nil, fmt.Errorf("missing device configuration for ISO image type")
+		}
+
+		customizeDisk.Device = install.ISO.Device
+	}
+
+	if mediaType == installer.Netboot {
+		if install.ISO.Device == "" {
+			return nil, fmt.Errorf("missing device configuration for netboot image type")
+		}
+
+		if install.ISO.NetbootURL == "" {
+			return nil, fmt.Errorf("missing netbootURL configuration for netboot image type")
 		}
 
 		customizeDisk.Device = install.ISO.Device
