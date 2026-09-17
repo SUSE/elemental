@@ -79,12 +79,12 @@ func (m *Manager) configureSystem(ctx context.Context, conf *image.Configuration
 	}
 
 	if k8sEnabled {
-		err := m.unpackKubernetesArtifacts(ctx, manifest, output)
+		err := m.unpackKubernetesArtifacts(ctx, manifest, &conf.Kubernetes, output)
 		if err != nil {
 			return fmt.Errorf("unpacking k8s: %w", err)
 		}
 
-		err = m.configureKubernetes(ctx, conf, manifest, &butaneCfg)
+		err = m.configureKubernetes(ctx, conf, manifest, output, &butaneCfg)
 		if err != nil {
 			return err
 		}

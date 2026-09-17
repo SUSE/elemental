@@ -22,6 +22,8 @@ import (
 	_ "embed"
 	"fmt"
 	"path/filepath"
+	"slices"
+	"strings"
 
 	"go.yaml.in/yaml/v3"
 
@@ -75,6 +77,7 @@ func (m *Manager) configureKubernetes(
 	ctx context.Context,
 	conf *image.Configuration,
 	manifest *resolver.ResolvedManifest,
+	output Output,
 	butaneCfg *butane.Config,
 ) (err error) {
 	if manifest == nil ||
@@ -89,7 +92,7 @@ func (m *Manager) configureKubernetes(
 	if needsHelmChartsSetup(conf) {
 		m.system.Logger().Info("Configuring Helm charts")
 
-		runtimeHelmCharts, err = m.helm.Configure(conf, manifest, butaneCfg)
+		runtimeHelmCharts, err = m.helm.Configure(ctx, conf, manifest, butaneCfg)
 		if err != nil {
 			return fmt.Errorf("configuring helm charts: %w", err)
 		}
@@ -99,9 +102,19 @@ func (m *Manager) configureKubernetes(
 	if needsManifestsSetup(conf) {
 		m.system.Logger().Info("Configuring Kubernetes manifests")
 
-		runtimeManifestsDir, err = m.setupManifests(ctx, &conf.Kubernetes, butaneCfg)
+		runtimeManifestsDir, err = m.setupManifests(ctx, &conf.Kubernetes, output, butaneCfg)
 		if err != nil {
 			return fmt.Errorf("configuring kubernetes manifests: %w", err)
+		}
+	}
+
+	var mirrorHosts []string
+	if conf.Kubernetes.OCIRegistry != nil {
+		m.system.Logger().Info("Configuring elemental oci registry")
+
+		mirrorHosts, err = m.configureElementalRegistry(ctx, conf, manifest, output, butaneCfg)
+		if err != nil {
+			return fmt.Errorf("configuring elemental oci registry: %w", err)
 		}
 	}
 
@@ -122,7 +135,7 @@ func (m *Manager) configureKubernetes(
 		return fmt.Errorf("generating kubernetes config deployment script: %w", err)
 	}
 
-	err = appendRke2Configuration(m.system, butaneCfg, &conf.Kubernetes)
+	err = appendRke2Configuration(m.system, butaneCfg, &conf.Kubernetes, mirrorHosts)
 	if err != nil {
 		return fmt.Errorf("generating RKE2 configuration: %w", err)
 	}
@@ -130,22 +143,34 @@ func (m *Manager) configureKubernetes(
 	return nil
 }
 
-func (m *Manager) setupManifests(ctx context.Context, k *kubernetes.Kubernetes, butaneCfg *butane.Config) (string, error) {
+func (m *Manager) setupManifests(ctx context.Context, k *kubernetes.Kubernetes, output Output, butaneCfg *butane.Config) (string, error) {
 	fs := m.system.FS()
 
 	relativeManifestsPath := filepath.Join("/", image.KubernetesManifestsPath())
 
-	for _, manifest := range k.RemoteManifests {
-		targetPath := filepath.Join(relativeManifestsPath, filepath.Base(manifest))
-
-		rc, err := m.downloader.URLBody(ctx, manifest)
-		if err != nil {
-			return "", fmt.Errorf("downloading remote Kubernetes manifest '%s': %w", manifest, err)
+	if len(k.RemoteManifests) > 0 {
+		storeDir := output.RemoteManifestsStoreDir()
+		if err := vfs.MkdirAll(fs, storeDir, vfs.DirPerm); err != nil {
+			return "", fmt.Errorf("creating remote manifests directory: %w", err)
 		}
 
-		err = butaneCfg.AddFileInlineFromReader(targetPath, rc, 0o644)
-		if err != nil {
-			return "", fmt.Errorf("reading contents for manifest %q: %w", manifest, err)
+		for i, manifest := range k.RemoteManifests {
+			targetPath := filepath.Join(relativeManifestsPath, filepath.Base(manifest))
+			localPath := filepath.Join(storeDir, fmt.Sprintf("manifest-%d.yaml", i))
+
+			if err := m.downloadFile(ctx, manifest, localPath); err != nil {
+				return "", fmt.Errorf("downloading remote Kubernetes manifest '%s': %w", manifest, err)
+			}
+
+			mfst, err := fs.Open(localPath)
+			if err != nil {
+				return "", fmt.Errorf("opening downloaded manifest %q: %w", manifest, err)
+			}
+
+			err = butaneCfg.AddFileInlineFromReader(targetPath, mfst, 0o644)
+			if err != nil {
+				return "", fmt.Errorf("reading contents for manifest %q: %w", manifest, err)
+			}
 		}
 	}
 
@@ -301,12 +326,16 @@ func kubernetesVIPManifest(k *kubernetes.Kubernetes) (string, error) {
 	return template.Parse("k8s-vip", k8sVIPManifestTpl, &vars)
 }
 
-func appendRke2Configuration(s *sys.System, butaneCfg *butane.Config, k *kubernetes.Kubernetes) error {
+func appendRke2Configuration(s *sys.System, butaneCfg *butane.Config, k *kubernetes.Kubernetes, mirrorHosts []string) error {
 	configScript := filepath.Join("/", image.KubernetesPath(), k8sConfDeployScriptName)
 
 	c, err := kubernetes.NewCluster(s, k)
 	if err != nil {
 		return fmt.Errorf("failed parsing cluster: %w", err)
+	}
+
+	if len(mirrorHosts) > 0 {
+		addRegistryMirrors(c.RegistriesConfig, mirrorHosts, registryPort)
 	}
 
 	k8sConfigUnit, err := generateK8sConfigUnit(configScript)
@@ -376,7 +405,7 @@ func marshalConfig(config map[string]any) ([]byte, error) {
 }
 
 // unpackKubernetesArtifacts extracts Kubernetes distribution artifacts from an OCI image for installation at firstboot.
-func (m *Manager) unpackKubernetesArtifacts(ctx context.Context, manifest *resolver.ResolvedManifest, output Output) error {
+func (m *Manager) unpackKubernetesArtifacts(ctx context.Context, manifest *resolver.ResolvedManifest, k *kubernetes.Kubernetes, output Output) error {
 	k8s := manifest.CorePlatform.Components.Kubernetes
 	fs := m.system.FS()
 
@@ -397,5 +426,73 @@ func (m *Manager) unpackKubernetesArtifacts(ctx context.Context, manifest *resol
 		return fmt.Errorf("kubernetes install script %q not found", installScript)
 	}
 
+	return m.stageImageArchives(overlaysDir, k, output)
+}
+
+func (m *Manager) stageImageArchives(installDir string, k *kubernetes.Kubernetes, output Output) error {
+	const archivePrefix = "rke2-images-"
+
+	fs := m.system.FS()
+	logger := m.system.Logger()
+
+	archives, err := vfs.FindFiles(fs, installDir, archivePrefix+"*.tar*")
+	if err != nil {
+		return fmt.Errorf("listing kubernetes image archives: %w", err)
+	}
+
+	if len(archives) == 0 {
+		return nil
+	}
+
+	serverConfig, err := kubernetes.ParseKubernetesConfig(m.system, k.Config.ServerFilePath)
+	if err != nil {
+		return fmt.Errorf("parsing server config: %w", err)
+	}
+
+	wanted := append([]string{"core"}, kubernetes.CNIPlugins(serverConfig)...)
+
+	imagesDir := filepath.Join(output.OverlaysDir(), image.KubernetesAgentImagesPath())
+	if err = vfs.MkdirAll(fs, imagesDir, vfs.DirPerm); err != nil {
+		return fmt.Errorf("creating kubernetes agent images directory: %w", err)
+	}
+
+	for _, archive := range archives {
+		name := filepath.Base(archive)
+		variant, _, _ := strings.Cut(strings.TrimPrefix(name, archivePrefix), ".")
+
+		if !slices.Contains(wanted, variant) {
+			logger.Debug("Discarding unused image archive %s", name)
+			if err = fs.Remove(archive); err != nil {
+				return fmt.Errorf("removing unused image archive %s: %w", name, err)
+			}
+			continue
+		}
+
+		if err = fs.Rename(archive, filepath.Join(imagesDir, name)); err != nil {
+			return fmt.Errorf("staging image archive %s: %w", name, err)
+		}
+	}
+
 	return nil
+}
+
+func addRegistryMirrors(registries kubernetes.ConfigMap, hosts []string, port string) {
+	embedded := fmt.Sprintf("http://localhost:%s", port)
+
+	mirrors, ok := registries["mirrors"].(map[string]any)
+	if !ok {
+		mirrors = map[string]any{}
+		registries["mirrors"] = mirrors
+	}
+
+	for _, host := range hosts {
+		mirror, ok := mirrors[host].(map[string]any)
+		if !ok {
+			mirror = map[string]any{}
+			mirrors[host] = mirror
+		}
+
+		endpoints, _ := mirror["endpoint"].([]any)
+		mirror["endpoint"] = append([]any{embedded}, endpoints...)
+	}
 }

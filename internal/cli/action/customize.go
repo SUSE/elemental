@@ -33,6 +33,7 @@ import (
 	v0 "github.com/suse/elemental/v3/internal/config/v0"
 	"github.com/suse/elemental/v3/internal/customize"
 	"github.com/suse/elemental/v3/internal/image"
+	"github.com/suse/elemental/v3/pkg/cache"
 	"github.com/suse/elemental/v3/pkg/extractor"
 	"github.com/suse/elemental/v3/pkg/helm"
 	"github.com/suse/elemental/v3/pkg/sys"
@@ -119,32 +120,57 @@ func setupCustomizeRunner(
 	args *cmdpkg.CustomizeFlags,
 	output config.Output,
 ) (*customize.Runner, error) {
-	extr, err := setupFileExtractor(ctx, s, output, args.Local)
+	c, err := setupCache(s, args)
+	if err != nil {
+		return nil, fmt.Errorf("setting up cache: %w", err)
+	}
+
+	extr, err := setupFileExtractor(ctx, s, output, c, args.Platform)
 	if err != nil {
 		return nil, fmt.Errorf("setting up file extractor: %w", err)
 	}
 
 	return &customize.Runner{
 		System:        s,
-		ConfigManager: setupConfigManager(s, args.ConfigDir, args.Local),
+		ConfigManager: setupConfigManager(s, args.ConfigDir, output, c, args.Platform),
 		FileExtractor: extr,
 	}, nil
 }
 
-func setupConfigManager(s *sys.System, configDir string, local bool) *config.Manager {
+func setupCache(s *sys.System, args *cmdpkg.CustomizeFlags) (*cache.Cache, error) {
+	policy := cache.Policy{
+		Mode:         cache.Mode(args.Cache),
+		DownloadMode: cache.DownloadMode(args.Download),
+	}
+
+	return cache.New(args.CacheDir,
+		cache.WithFS(s.FS()),
+		cache.WithLogger(s.Logger()),
+		cache.WithPolicy(policy),
+	)
+}
+
+func setupConfigManager(s *sys.System, configDir string, output config.Output, c *cache.Cache, platform string) *config.Manager {
 	valuesResolver := &helm.ValuesResolver{
 		FS:        s.FS(),
 		ValuesDir: v0.Dir(configDir).HelmValuesDir(),
 	}
 
+	helmConfigurator := config.NewHelm(valuesResolver, s.Logger())
+	helmConfigurator.FS = s.FS()
+	helmConfigurator.Puller = helm.NewPuller(s)
+	helmConfigurator.Cache = c
+	helmConfigurator.ChartsDir = output.HelmChartsStoreDir()
+
 	return config.NewManager(
 		s,
-		config.NewHelm(valuesResolver, s.Logger()),
-		config.WithLocal(local),
+		helmConfigurator,
+		config.WithCache(c),
+		config.WithPlatform(platform),
 	)
 }
 
-func setupFileExtractor(ctx context.Context, s *sys.System, outDir config.Output, local bool) (extr *extractor.OCIFileExtractor, err error) {
+func setupFileExtractor(ctx context.Context, s *sys.System, outDir config.Output, c *cache.Cache, platform string) (extr *extractor.OCIFileExtractor, err error) {
 	const isoSearchGlob = "/iso/*default-iso*.iso"
 
 	if err := vfs.MkdirAll(s.FS(), outDir.ISOStoreDir(), vfs.DirPerm); err != nil {
@@ -156,7 +182,8 @@ func setupFileExtractor(ctx context.Context, s *sys.System, outDir config.Output
 		extractor.WithStore(outDir.ISOStoreDir()),
 		extractor.WithFS(s.FS()),
 		extractor.WithContext(ctx),
-		extractor.WithLocal(local),
+		extractor.WithCache(c),
+		extractor.WithPlatform(platform),
 	)
 }
 

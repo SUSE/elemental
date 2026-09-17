@@ -36,6 +36,8 @@ import (
 const (
 	tokenKey   = "token"
 	cniKey     = "cni"
+	cniDefault = "canal"
+	cniNone    = "none"
 	serverKey  = "server"
 	tlsSANKey  = "tls-san"
 	selinuxKey = "selinux"
@@ -117,6 +119,33 @@ func NewCluster(s *sys.System, kube *Kubernetes) (*Cluster, error) {
 		AgentConfig:      agentConfig,
 		RegistriesConfig: registriesConfig,
 	}, err
+}
+
+func CNIPlugins(config ConfigMap) []string {
+	var names []string
+
+	switch v := config[cniKey].(type) {
+	case string:
+		names = strings.Split(v, ",")
+	case []any:
+		for _, item := range v {
+			if name, ok := item.(string); ok {
+				names = append(names, name)
+			}
+		}
+	default:
+		names = []string{cniDefault}
+	}
+
+	var plugins []string
+	for _, name := range names {
+		name = strings.TrimSpace(name)
+		if name != "" && name != cniNone {
+			plugins = append(plugins, name)
+		}
+	}
+
+	return plugins
 }
 
 func ParseKubernetesConfig(s *sys.System, configFile string) (ConfigMap, error) {

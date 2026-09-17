@@ -50,7 +50,7 @@ func (m *Manager) downloadSystemExtensions(ctx context.Context, extensions []api
 
 		if isRemoteURL(extension.Image) {
 			extensionPath := filepath.Join(extensionsDir, filepath.Base(extension.Image))
-			if err := m.downloader.File(ctx, fs, extension.Image, extensionPath); err != nil {
+			if err := m.downloadFile(ctx, extension.Image, extensionPath); err != nil {
 				return fmt.Errorf("downloading systemd extension %s: %w", extension.Name, err)
 			}
 
@@ -85,7 +85,12 @@ func (m *Manager) unpackExtension(ctx context.Context, extension api.SystemdExte
 		_ = fs.RemoveAll(tempDir)
 	}()
 
-	unpacker := unpack.NewOCIUnpacker(m.system, extension.Image, unpack.WithLocalOCI(m.local))
+	unpacker := unpack.NewOCIUnpacker(
+		m.system, extension.Image,
+		unpack.WithLocalOCI(m.local),
+		unpack.WithCacheOCI(m.cache),
+		unpack.WithPlatformRefOCI(m.platform),
+	)
 	if _, err = unpacker.Unpack(ctx, tempDir); err != nil {
 		return fmt.Errorf("unpacking extension: %w", err)
 	}

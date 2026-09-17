@@ -39,6 +39,22 @@ type Kubernetes struct {
 	Nodes          Nodes   `yaml:"nodes,omitempty" validate:"dive"`
 	Network        Network `yaml:"network,omitempty"`
 	Config         Config  `yaml:"-"`
+
+	OCIRegistry *OCIRegistry `yaml:"ociRegistry,omitempty" validate:"omitempty"`
+}
+
+type OCIRegistry struct {
+	ContainerImages []ContainerImage `yaml:"containerImages,omitempty" validate:"dive"`
+	Registries      []Registry       `yaml:"registries,omitempty" validate:"dive"`
+}
+
+type ContainerImage struct {
+	Name string `yaml:"name" validate:"required"`
+}
+
+type Registry struct {
+	URI         string            `yaml:"uri" validate:"required"`
+	Credentials *auth.Credentials `yaml:"credentials,omitempty"`
 }
 
 type Config struct {
@@ -74,15 +90,24 @@ func (h *Helm) ValueFiles() map[string]string {
 }
 
 type HelmChart struct {
-	Name            string `yaml:"name" validate:"required"`
-	RepositoryName  string `yaml:"repositoryName" validate:"required"`
-	Version         string `yaml:"version" validate:"required"`
-	TargetNamespace string `yaml:"targetNamespace" validate:"required"`
-	ValuesFile      string `yaml:"valuesFile"`
+	Name            string   `yaml:"name" validate:"required"`
+	RepositoryName  string   `yaml:"repositoryName" validate:"required"`
+	Version         string   `yaml:"version" validate:"required"`
+	TargetNamespace string   `yaml:"targetNamespace" validate:"required"`
+	ValuesFile      string   `yaml:"valuesFile"`
+	APIVersions     []string `yaml:"apiVersions,omitempty"`
 }
 
 func (c *HelmChart) GetName() string {
 	return c.Name
+}
+
+func (c *HelmChart) GetAPIVersions() []string {
+	return c.APIVersions
+}
+
+func (c *HelmChart) GetVersion() string {
+	return c.Version
 }
 
 func (c *HelmChart) GetInlineValues() map[string]any {

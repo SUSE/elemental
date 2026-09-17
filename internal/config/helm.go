@@ -18,8 +18,14 @@ limitations under the License.
 package config
 
 import (
+	"bytes"
+	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
+	"io"
+	"io/fs"
+	"maps"
 	"net/url"
 	"path/filepath"
 	"slices"
@@ -32,10 +38,12 @@ import (
 
 	"github.com/suse/elemental/v3/internal/image"
 	"github.com/suse/elemental/v3/internal/image/release"
+	"github.com/suse/elemental/v3/pkg/cache"
 	"github.com/suse/elemental/v3/pkg/helm"
 	"github.com/suse/elemental/v3/pkg/log"
 	"github.com/suse/elemental/v3/pkg/manifest/api"
 	"github.com/suse/elemental/v3/pkg/manifest/resolver"
+	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
 
 type helmValuesResolver interface {
@@ -44,15 +52,28 @@ type helmValuesResolver interface {
 
 type helmChart interface {
 	GetName() string
+	GetVersion() string
+	GetAPIVersions() []string
 	GetInlineValues() map[string]any
 	GetRepositoryName() string
 	ToCRD(values []byte, repository string, hasAuth, skipTLSVerify bool) (*helm.CRD, error)
+}
+
+type chartPuller interface {
+	Pull(ctx context.Context, opts helm.PullOptions, destDir string) (string, error)
+	Template(ctx context.Context, name, archive, namespace, kubeVersion string, apiVersions []string, values []byte) ([]byte, error)
 }
 
 type Helm struct {
 	RelativePath   string
 	ValuesResolver helmValuesResolver
 	Logger         log.Logger
+
+	FS        vfs.FS
+	Puller    chartPuller
+	Cache     *cache.Cache
+	ChartsDir string
+	images map[string]bool
 }
 
 func NewHelm(valuesResolver helmValuesResolver, logger log.Logger) *Helm {
@@ -63,7 +84,7 @@ func NewHelm(valuesResolver helmValuesResolver, logger log.Logger) *Helm {
 	}
 }
 
-func (h *Helm) Configure(conf *image.Configuration, rm *resolver.ResolvedManifest, butaneCfg *butane.Config) ([]string, error) {
+func (h *Helm) Configure(ctx context.Context, conf *image.Configuration, rm *resolver.ResolvedManifest, butaneCfg *butane.Config) ([]string, error) {
 	if len(conf.Release.Components.HelmCharts) > 0 {
 		var charts []string
 		for _, c := range conf.Release.Components.HelmCharts {
@@ -73,7 +94,9 @@ func (h *Helm) Configure(conf *image.Configuration, rm *resolver.ResolvedManifes
 		h.Logger.Info("Enabling the following Helm components: %s", strings.Join(charts, ", "))
 	}
 
-	charts, secrets, err := h.retrieveHelmCharts(rm, conf)
+	h.images = map[string]bool{}
+
+	charts, secrets, err := h.retrieveHelmCharts(ctx, rm, conf)
 	if err != nil {
 		return nil, fmt.Errorf("retrieving helm charts: %w", err)
 	}
@@ -126,8 +149,15 @@ func (h *Helm) writeHelmSecrets(secrets []*helm.Secret, butaneCfg *butane.Config
 	return nil
 }
 
-func (h *Helm) retrieveHelmCharts(rm *resolver.ResolvedManifest, conf *image.Configuration) ([]*helm.CRD, []*helm.Secret, error) {
+// ContainerImages deduplicates the discovered container images
+func (h *Helm) ContainerImages() []string {
+	return slices.Sorted(maps.Keys(h.images))
+}
+
+func (h *Helm) retrieveHelmCharts(ctx context.Context, rm *resolver.ResolvedManifest, conf *image.Configuration) ([]*helm.CRD, []*helm.Secret, error) {
 	var crds []*helm.CRD
+	embed := conf.Kubernetes.OCIRegistry != nil
+	kubeVersion := kubernetesVersion(rm)
 
 	charts, repositories, err := enabledHelmCharts(rm, conf.Release.Components.HelmCharts, h.Logger)
 	if err != nil {
@@ -142,10 +172,7 @@ func (h *Helm) retrieveHelmCharts(rm *resolver.ResolvedManifest, conf *image.Con
 	}
 
 	for _, chart := range charts {
-		a := authMap[chart.Chart]
-		needsAuth := a != nil
-		skipTLSVerify := needsAuth && a.InsecureSkipTLSVerify
-		if err = h.appendHelmChart(chart, repositories, valueFiles, &crds, needsAuth, skipTLSVerify); err != nil {
+		if err = h.appendHelmChart(ctx, chart, repositories, valueFiles, &crds, authMap[chart.Chart], embed, kubeVersion); err != nil {
 			return nil, nil, fmt.Errorf("collecting helm charts: %w", err)
 		}
 	}
@@ -155,10 +182,7 @@ func (h *Helm) retrieveHelmCharts(rm *resolver.ResolvedManifest, conf *image.Con
 		valueFiles = conf.Kubernetes.Helm.ValueFiles()
 
 		for _, chart := range conf.Kubernetes.Helm.Charts {
-			a := authMap[chart.Name]
-			needsAuth := a != nil
-			skipTLSVerify := needsAuth && a.InsecureSkipTLSVerify
-			if err = h.appendHelmChart(chart, repositories, valueFiles, &crds, needsAuth, skipTLSVerify); err != nil {
+			if err = h.appendHelmChart(ctx, chart, repositories, valueFiles, &crds, authMap[chart.Name], embed, kubeVersion); err != nil {
 				return nil, nil, fmt.Errorf("collecting user helm charts: %w", err)
 			}
 		}
@@ -241,7 +265,7 @@ func generateHelmSecrets(authMap map[string]*auth.HelmAuth) []*helm.Secret {
 	return secrets
 }
 
-func (h *Helm) appendHelmChart(chart helmChart, repositories, valueFiles map[string]string, crds *[]*helm.CRD, needsAuth, skipTLSVerify bool) error {
+func (h *Helm) appendHelmChart(ctx context.Context, chart helmChart, repositories, valueFiles map[string]string, crds *[]*helm.CRD, a *auth.HelmAuth, embed bool, kubeVersion string) error {
 	name := chart.GetName()
 	repository, ok := repositories[chart.GetRepositoryName()]
 	if !ok {
@@ -254,13 +278,132 @@ func (h *Helm) appendHelmChart(chart helmChart, repositories, valueFiles map[str
 		return fmt.Errorf("resolving values for chart %s: %w", name, err)
 	}
 
+	needsAuth := a != nil
+	skipTLSVerify := needsAuth && a.InsecureSkipTLSVerify
 	crd, err := chart.ToCRD(values, repository, needsAuth, skipTLSVerify)
 	if err != nil {
 		return fmt.Errorf("constructing HelmChart custom resource: %w", err)
 	}
+
+	if embed {
+		content, archive, err := h.chartContent(ctx, chart, repository, a)
+		if err != nil {
+			return fmt.Errorf("embedding chart %s: %w", name, err)
+		}
+
+		crd.Spec.Chart = name
+		crd.Spec.Repo = ""
+		crd.Spec.ChartContent = content
+
+		if err = h.collectChartImages(ctx, name, archive, crd.Spec.TargetNamespace, kubeVersion, chart.GetAPIVersions(), values); err != nil {
+			return fmt.Errorf("discovering images of chart %s: %w", name, err)
+		}
+	}
+
 	*crds = append(*crds, crd)
 
 	return nil
+}
+
+// collectChartImages templates the chart to collect the container images in it.
+func (h *Helm) collectChartImages(ctx context.Context, name, archive, namespace, kubeVersion string, apiVersions []string, values []byte) error {
+	h.Logger.Debug("Rendering Helm chart %s to discover its container images", name)
+
+	rendered, err := h.Puller.Template(ctx, name, archive, namespace, kubeVersion, apiVersions, values)
+	if err != nil {
+		return err
+	}
+
+	resources, err := parseManifests(bytes.NewReader(rendered))
+	if err != nil {
+		return fmt.Errorf("parsing rendered chart: %w", err)
+	}
+
+	for _, resource := range resources {
+		extractManifestImages(resource, h.images)
+	}
+
+	return nil
+}
+
+func kubernetesVersion(rm *resolver.ResolvedManifest) string {
+	if rm == nil || rm.CorePlatform == nil || rm.CorePlatform.Components.Kubernetes == nil {
+		return ""
+	}
+
+	version := strings.TrimPrefix(rm.CorePlatform.Components.Kubernetes.Version, "v")
+	version, _, _ = strings.Cut(version, "+")
+	version, _, _ = strings.Cut(version, "_")
+
+	return version
+}
+
+func (h *Helm) chartContent(ctx context.Context, chart helmChart, repository string, a *auth.HelmAuth) (string, string, error) {
+	if h.Puller == nil || h.Cache == nil || h.FS == nil || h.ChartsDir == "" {
+		return "", "", fmt.Errorf("chart embedding not configured")
+	}
+
+	name, version := chart.GetName(), chart.GetVersion()
+	archive := filepath.Join(h.ChartsDir, fmt.Sprintf("%s-%s.tgz", name, version))
+	key := fmt.Sprintf("%s/%s:%s", repository, name, version)
+
+	opts := helm.PullOptions{Repository: repository, Chart: name, Version: version}
+	if a != nil {
+		opts.Username = a.Credentials.Username
+		opts.Password = a.Credentials.Password
+		opts.InsecureSkipTLSVerify = a.InsecureSkipTLSVerify
+	}
+
+	if err := vfs.MkdirAll(h.FS, h.ChartsDir, vfs.DirPerm); err != nil {
+		return "", "", fmt.Errorf("creating charts directory: %w", err)
+	}
+
+	h.Logger.Debug("Pulling Helm chart %s version %s", name, version)
+	err := h.Cache.File(ctx, key, archive, func(ctx context.Context) (io.ReadCloser, error) {
+		return h.pullChart(ctx, opts)
+	})
+	if err != nil {
+		return "", "", err
+	}
+
+	data, err := h.FS.ReadFile(archive)
+	if err != nil {
+		return "", "", fmt.Errorf("reading chart archive: %w", err)
+	}
+
+	return base64.StdEncoding.EncodeToString(data), archive, nil
+}
+
+// pullChart downloads the chart into a temporary directory
+func (h *Helm) pullChart(ctx context.Context, opts helm.PullOptions) (io.ReadCloser, error) {
+	tempDir, err := vfs.TempDir(h.FS, "", "helm-pull-")
+	if err != nil {
+		return nil, fmt.Errorf("creating temporary chart directory: %w", err)
+	}
+
+	archive, err := h.Puller.Pull(ctx, opts, tempDir)
+	if err != nil {
+		_ = h.FS.RemoveAll(tempDir)
+		return nil, err
+	}
+
+	file, err := h.FS.Open(archive)
+	if err != nil {
+		_ = h.FS.RemoveAll(tempDir)
+		return nil, fmt.Errorf("opening pulled chart archive: %w", err)
+	}
+
+	return &tempFile{File: file, fs: h.FS, dir: tempDir}, nil
+}
+
+type tempFile struct {
+	fs.File
+	fs  vfs.FS
+	dir string
+}
+
+func (t *tempFile) Close() error {
+	return errors.Join(t.File.Close(), t.fs.RemoveAll(t.dir))
 }
 
 func enabledHelmCharts(rm *resolver.ResolvedManifest, enabled []release.HelmChart, logger log.Logger) ([]*api.HelmChart, map[string]string, error) {

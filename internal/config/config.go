@@ -98,6 +98,14 @@ func (o Output) ISOStoreDir() string {
 	return filepath.Join(o.ExtractedFilesStoreDir(), "ISOs")
 }
 
+func (o Output) HelmChartsStoreDir() string {
+	return filepath.Join(o.ExtractedFilesStoreDir(), "helm-charts")
+}
+
+func (o Output) RemoteManifestsStoreDir() string {
+	return filepath.Join(o.ExtractedFilesStoreDir(), "manifests")
+}
+
 func (o Output) InitrdExtensionFile() string {
 	return filepath.Join(o.RootPath, "initrdExt.cpio")
 }

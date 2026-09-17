@@ -117,7 +117,8 @@ func Write(f vfs.FS, configDir Dir, conf *image.Configuration) error {
 	}
 
 	if conf.Kubernetes.Helm != nil || len(conf.Kubernetes.RemoteManifests) > 0 ||
-		len(conf.Kubernetes.Nodes) > 0 || conf.Kubernetes.Network != (kubernetes.Network{}) {
+		len(conf.Kubernetes.Nodes) > 0 || conf.Kubernetes.Network != (kubernetes.Network{}) ||
+		conf.Kubernetes.OCIRegistry != nil {
 		if err := writeYAML(f, configDir.ClusterFilepath(), &conf.Kubernetes); err != nil {
 			return err
 		}

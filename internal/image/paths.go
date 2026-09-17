@@ -42,6 +42,10 @@ func KubernetesPath() string {
 	return filepath.Join(ElementalPath(), "kubernetes")
 }
 
+func RegistryPath() string {
+	return filepath.Join(ElementalPath(), "registry")
+}
+
 func KubernetesManifestsPath() string {
 	return filepath.Join(KubernetesPath(), "manifests")
 }
@@ -52,4 +56,8 @@ func HelmPath() string {
 
 func KubernetesInstallPath() string {
 	return filepath.Join("opt", "k8s", "install")
+}
+
+func KubernetesAgentImagesPath() string {
+	return filepath.Join("var", "lib", "rancher", "rke2", "agent", "images")
 }
