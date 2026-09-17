@@ -33,6 +33,7 @@ import (
 	v0 "github.com/suse/elemental/v3/internal/config/v0"
 	"github.com/suse/elemental/v3/internal/customize"
 	"github.com/suse/elemental/v3/internal/image"
+	"github.com/suse/elemental/v3/pkg/cache"
 	"github.com/suse/elemental/v3/pkg/extractor"
 	"github.com/suse/elemental/v3/pkg/helm"
 	"github.com/suse/elemental/v3/pkg/sys"
@@ -118,32 +119,80 @@ func setupCustomizeRunner(
 	args *cmdpkg.CustomizeFlags,
 	output config.Output,
 ) (*customize.Runner, error) {
-	extr, err := setupFileExtractor(ctx, s, output, args.Local)
+	c, err := setupCache(s, args)
+	if err != nil {
+		return nil, fmt.Errorf("setting up cache: %w", err)
+	}
+
+	extr, err := setupFileExtractor(ctx, s, output, c, args.Platform)
 	if err != nil {
 		return nil, fmt.Errorf("setting up file extractor: %w", err)
 	}
 
 	return &customize.Runner{
 		System:        s,
-		ConfigManager: setupConfigManager(s, args.ConfigDir, args.Local),
+		ConfigManager: setupConfigManager(s, args.ConfigDir, output, c, args.Platform, args.Airgap),
 		FileExtractor: extr,
 	}, nil
 }
 
-func setupConfigManager(s *sys.System, configDir string, local bool) *config.Manager {
+func setupCache(s *sys.System, args *cmdpkg.CustomizeFlags) (*cache.Cache, error) {
+	policy := cache.Policy{Mode: cache.Mode(args.Cache)}
+
+	cacheDir, err := resolveCacheDir(s, args.CacheDir, args.ConfigDir, policy)
+	if err != nil {
+		return nil, err
+	}
+
+	return cache.New(cacheDir,
+		cache.WithFS(s.FS()),
+		cache.WithLogger(s.Logger()),
+		cache.WithPolicy(policy),
+	)
+}
+
+func resolveCacheDir(s *sys.System, cacheDir, configDir string, policy cache.Policy) (string, error) {
+	if policy.Mode == cache.Off {
+		return cacheDir, nil
+	}
+
+	exists, _ := vfs.Exists(s.FS(), cacheDir)
+	if exists {
+		return cacheDir, nil
+	}
+
+	if cacheDir == cache.DefaultDir {
+		fallback := filepath.Join(configDir, "cache")
+		s.Logger().Info("No cache directory mounted at %s, using %s", cache.DefaultDir, fallback)
+		return fallback, nil
+	}
+
+	return "", fmt.Errorf("cache directory '%s' does not exist, make sure it is mounted", cacheDir)
+}
+
+func setupConfigManager(s *sys.System, configDir string, output config.Output, c *cache.Cache, platform string, airgap bool) *config.Manager {
 	valuesResolver := &helm.ValuesResolver{
 		FS:        s.FS(),
 		ValuesDir: v0.Dir(configDir).HelmValuesDir(),
 	}
 
+	helmConfigurator := config.NewHelm(valuesResolver, s.Logger())
+	helmConfigurator.FS = s.FS()
+	helmConfigurator.Puller = helm.NewPuller(s)
+	helmConfigurator.Cache = c
+	helmConfigurator.ChartsDir = output.HelmChartsStoreDir()
+	helmConfigurator.Airgap = airgap
+
 	return config.NewManager(
 		s,
-		config.NewHelm(valuesResolver, s.Logger()),
-		config.WithLocal(local),
+		helmConfigurator,
+		config.WithCache(c),
+		config.WithPlatform(platform),
+		config.WithAirgap(airgap),
 	)
 }
 
-func setupFileExtractor(ctx context.Context, s *sys.System, outDir config.Output, local bool) (extr *extractor.OCIFileExtractor, err error) {
+func setupFileExtractor(ctx context.Context, s *sys.System, outDir config.Output, c *cache.Cache, platform string) (extr *extractor.OCIFileExtractor, err error) {
 	const isoSearchGlob = "/iso/*default-iso*.iso"
 
 	if err := vfs.MkdirAll(s.FS(), outDir.ISOStoreDir(), vfs.DirPerm); err != nil {
@@ -155,7 +204,8 @@ func setupFileExtractor(ctx context.Context, s *sys.System, outDir config.Output
 		extractor.WithStore(outDir.ISOStoreDir()),
 		extractor.WithFS(s.FS()),
 		extractor.WithContext(ctx),
-		extractor.WithLocal(local),
+		extractor.WithCache(c),
+		extractor.WithPlatform(platform),
 	)
 }
 

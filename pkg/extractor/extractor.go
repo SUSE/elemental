@@ -23,6 +23,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/suse/elemental/v3/pkg/cache"
 	"github.com/suse/elemental/v3/pkg/sys"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 	"github.com/suse/elemental/v3/pkg/unpack"
@@ -35,11 +36,18 @@ type OCIUnpacker interface {
 }
 
 type ociUnpacker struct {
-	system *sys.System
+	system   *sys.System
+	cache    *cache.Cache
+	platform string
 }
 
 func (o *ociUnpacker) Unpack(ctx context.Context, uri, dest string, local bool) (digest string, err error) {
-	unpacker := unpack.NewOCIUnpacker(o.system, uri, unpack.WithLocalOCI(local))
+	opts := []unpack.OCIOpt{unpack.WithLocalOCI(local), unpack.WithCacheOCI(o.cache)}
+	if o.platform != "" {
+		opts = append(opts, unpack.WithPlatformRefOCI(o.platform))
+	}
+
+	unpacker := unpack.NewOCIUnpacker(o.system, uri, opts...)
 	return unpacker.Unpack(ctx, dest)
 }
 
@@ -59,6 +67,8 @@ type OCIFileExtractor struct {
 	fs       vfs.FS
 	ctx      context.Context
 	local    bool
+	cache    *cache.Cache
+	platform string
 }
 
 type OCIFileExtractorOpts func(o *OCIFileExtractor)
@@ -93,6 +103,18 @@ func WithLocal(local bool) OCIFileExtractorOpts {
 	}
 }
 
+func WithCache(c *cache.Cache) OCIFileExtractorOpts {
+	return func(r *OCIFileExtractor) {
+		r.cache = c
+	}
+}
+
+func WithPlatform(platform string) OCIFileExtractorOpts {
+	return func(r *OCIFileExtractor) {
+		r.platform = platform
+	}
+}
+
 func New(searchPaths []string, opts ...OCIFileExtractorOpts) (*OCIFileExtractor, error) {
 	extr := &OCIFileExtractor{
 		searchPaths: searchPaths,
@@ -124,7 +146,9 @@ func New(searchPaths []string, opts ...OCIFileExtractorOpts) (*OCIFileExtractor,
 		}
 
 		extr.unpacker = &ociUnpacker{
-			system: s,
+			system:   s,
+			cache:    extr.cache,
+			platform: extr.platform,
 		}
 	}
 
