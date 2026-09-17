@@ -118,9 +118,11 @@ var _ = Describe("Kubernetes", func() {
 		var defaultManifest *resolver.ResolvedManifest
 		var defaultUnpack func(ctx context.Context, imageRef, destDir string) error
 		var defaultHelm *helmConfiguratorMock
+		var output Output
 
 		BeforeEach(func() {
 			config = &butane.Config{}
+			output = Output{RootPath: GinkgoT().TempDir()}
 
 			system, err = sys.NewSystem(
 				sys.WithLogger(log.New(log.WithDiscardAll())),
@@ -175,7 +177,7 @@ var _ = Describe("Kubernetes", func() {
 				},
 			}
 
-			err := m.configureKubernetes(context.Background(), conf, defaultManifest, config)
+			err := m.configureKubernetes(context.Background(), conf, defaultManifest, output, config)
 			Expect(err).To(HaveOccurred())
 			Expect(err).To(MatchError("configuring helm charts: helm error"))
 		})
@@ -212,7 +214,7 @@ var _ = Describe("Kubernetes", func() {
 				},
 			}
 
-			Expect(m.configureKubernetes(context.Background(), conf, defaultManifest, config)).To(Succeed())
+			Expect(m.configureKubernetes(context.Background(), conf, defaultManifest, output, config)).To(Succeed())
 
 			// Verify deployment script contents
 			data := findFileContentsInConfig(config, filepath.Join("/", image.KubernetesPath(), k8sResDeployScriptName))
@@ -243,7 +245,7 @@ var _ = Describe("Kubernetes", func() {
 				},
 			}
 
-			Expect(m.configureKubernetes(context.Background(), conf, defaultManifest, config)).To(Succeed())
+			Expect(m.configureKubernetes(context.Background(), conf, defaultManifest, output, config)).To(Succeed())
 
 			Expect(findFileContentsInConfig(config, filepath.Join("/", image.KubernetesPath(), k8sConfDeployScriptName))).NotTo(BeNil())
 		})
@@ -258,7 +260,7 @@ var _ = Describe("Kubernetes", func() {
 
 			conf := &image.Configuration{Kubernetes: kubernetes.Kubernetes{}}
 
-			Expect(m.configureKubernetes(context.Background(), conf, defaultManifest, config)).To(Succeed())
+			Expect(m.configureKubernetes(context.Background(), conf, defaultManifest, output, config)).To(Succeed())
 
 			data := findFileContentsInConfig(config, filepath.Join("/", image.KubernetesPath(), k8sConfDeployScriptName))
 			Expect(data).NotTo(BeNil())
@@ -293,7 +295,7 @@ var _ = Describe("Kubernetes", func() {
 				},
 			}
 
-			Expect(m.configureKubernetes(context.Background(), conf, defaultManifest, config)).To(Succeed())
+			Expect(m.configureKubernetes(context.Background(), conf, defaultManifest, output, config)).To(Succeed())
 
 			data := findFileContentsInConfig(config, filepath.Join("/", image.KubernetesPath(), k8sConfDeployScriptName))
 			Expect(data).NotTo(BeNil())
@@ -324,7 +326,7 @@ var _ = Describe("Kubernetes", func() {
 				},
 			}
 
-			err := m.configureKubernetes(context.Background(), conf, defaultManifest, config)
+			err := m.configureKubernetes(context.Background(), conf, defaultManifest, output, config)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring(`could not find suitable init node from node list: [{Hostname:node01 Type:agent Init:false}]`))
 		})
@@ -395,7 +397,7 @@ var _ = Describe("Kubernetes", func() {
 				},
 			}
 
-			Expect(m.configureKubernetes(context.Background(), conf, defaultManifest, config)).To(Succeed())
+			Expect(m.configureKubernetes(context.Background(), conf, defaultManifest, output, config)).To(Succeed())
 
 			// Verify deployment script contents
 			data := findFileContentsInConfig(config, filepath.Join("/", image.KubernetesPath(), k8sResDeployScriptName))

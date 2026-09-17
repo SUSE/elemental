@@ -126,6 +126,9 @@ helm:
       version: "1.19.3"
       targetNamespace: "cmf-system"
       repositoryName: "application-collection"
+      apiVersions:
+        - batch/v1
+        - apps/v1/Deployment
   repositories:
     - name: "rancher"
       url: "https://releases.rancher.com/server-charts/stable"
@@ -150,6 +153,15 @@ network:
     apiHost: api.cluster01.example.com
     apiVIP6: fd12:3456:789a::21
     apiVIPMode: managed
+elementalEmbeddedRegistry:
+  containerImages:
+    - name: registry.rancher.com/rancher/shell:v0.5.0
+    - name: nginx:stable@sha256:b03c8dfc241047d827e1e14d69533205b387d476d97ef7efce58605a6c3acb84
+  registries:
+    - uri: registry.example.com
+      credentials:
+        username: user
+        password: pass
 ```
 
 * `manifests` - Optional; Defines remote Kubernetes manifests to be deployed on the cluster.
@@ -160,6 +172,7 @@ network:
     * `targetNamespace` - Required; Namespace where the Helm chart will be deployed.
     * `repositoryName` - Required; Name of the source repository that this chart can be retrieved from.
     * `valuesFile` - Optional; The name of the [Helm values file](https://helm.sh/docs/chart_template_guide/values_files/) (not including the path) that will be applied to this chart. The values file must be placed under `kubernetes/helm/values` for the specified chart.
+    * `apiVersions` - Optional; Kubernetes API versions to be specified when the Helm chart depends on API versions that are not part of the existing Kubernetes version, specifically for air-gap container discovery.
   * `repositories` - Required; Source repositories for the Helm charts.
     * `name` - Required; Defines the name for this repository. This name doesn't have to match the name of the actual
     repository, but must correspond with the `repositoryName` of one or more charts.
@@ -177,6 +190,14 @@ network:
   * `apiVIP6` -  Required for multi-node clusters if not using `apiVIP`; Specifies the IPv6 address which will serve as the cluster LoadBalancer.
   * `apiHost` - Optional; Specifies the domain address for accessing the cluster.
   * `apiVIPMode` - Optional; Specifies how the API VIP will be handled. Supported values: `managed` (default), `external`. `managed` uses MetalLB to serve the desired IPv4/IPv6 addresses. `external` expects a user-defined third-party loadbalancing mechanism for IPv4/IPv6 address handling.
+* `elementalEmbeddedRegistry` - Optional; Allows you to specify additional container images to be part of the final air-gapped build.
+  * `containerImages` - Optional; Defines list of container images to embed, deduplicated with the ones discovered automatically from Helm charts and Kubernetes manifests.
+    * `name` - Required; Specifies the name, with a tag or digest, of a container image to be air-gapped.
+  * `registries` - Optional, only required for authenticated registries; Defines a list of registries along with the credentials used to pull container images from them.
+    * `uri` - Required; Specifies the URI of the registry (e.g. `registry.suse.com`).
+    * `credentials` - Required;
+      * `username` - Required; Defines the username for accessing the specified registry.
+      * `password` - Required; Defines the password for accessing the specified registry.
 
 ### Kubernetes Directory
 

@@ -18,6 +18,7 @@ limitations under the License.
 package config
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 
@@ -164,7 +165,7 @@ var _ = Describe("Helm tests", Label("helm"), func() {
 
 			h := &Helm{ValuesResolver: resolver, Logger: logger}
 
-			charts, err := h.Configure(conf, rm, config)
+			charts, err := h.Configure(context.Background(), conf, rm, config)
 			Expect(err).To(HaveOccurred())
 			Expect(err).To(MatchError("retrieving helm charts: collecting helm charts: resolving values for chart metallb: resolving failed"))
 			Expect(charts).To(BeNil())
@@ -187,7 +188,7 @@ var _ = Describe("Helm tests", Label("helm"), func() {
 
 			h := &Helm{ValuesResolver: resolver, Logger: logger}
 
-			charts, err := h.Configure(conf, rm, config)
+			charts, err := h.Configure(context.Background(), conf, rm, config)
 			Expect(err).To(HaveOccurred())
 			Expect(err).To(MatchError("retrieving helm charts: collecting helm charts: resolving values for chart neuvector-crd: resolving failed"))
 			Expect(charts).To(BeNil())
@@ -220,7 +221,7 @@ var _ = Describe("Helm tests", Label("helm"), func() {
 
 			h := &Helm{ValuesResolver: resolver}
 
-			charts, err := h.Configure(conf, rm, config)
+			charts, err := h.Configure(context.Background(), conf, rm, config)
 			Expect(err).To(HaveOccurred())
 			Expect(err).To(MatchError("retrieving helm charts: collecting user helm charts: resolving values for chart apache: resolving failed"))
 			Expect(charts).To(BeNil())
@@ -246,7 +247,7 @@ var _ = Describe("Helm tests", Label("helm"), func() {
 			}
 
 			h := &Helm{ValuesResolver: resolver}
-			charts, err := h.Configure(conf, rm, config)
+			charts, err := h.Configure(context.Background(), conf, rm, config)
 			Expect(err).To(HaveOccurred())
 			Expect(err).To(MatchError("retrieving helm charts: collecting user helm charts: repository not found for chart: apache"))
 			Expect(charts).To(BeNil())
@@ -282,7 +283,7 @@ var _ = Describe("Helm tests", Label("helm"), func() {
 			}
 
 			h := &Helm{ValuesResolver: resolver}
-			charts, err := h.Configure(conf, rm, config)
+			charts, err := h.Configure(context.Background(), conf, rm, config)
 			Expect(err).To(HaveOccurred())
 			Expect(err).To(MatchError("retrieving helm charts: creating helm chart auth map: helm repository 'apache-repo' defined multiple times"))
 			Expect(charts).To(BeNil())
@@ -305,7 +306,7 @@ var _ = Describe("Helm tests", Label("helm"), func() {
 
 			h := &Helm{ValuesResolver: resolver, Logger: logger}
 
-			charts, err := h.Configure(conf, rm, config)
+			charts, err := h.Configure(context.Background(), conf, rm, config)
 			Expect(err).To(HaveOccurred())
 			Expect(err).To(MatchError("retrieving helm charts: filtering enabled helm charts: adding helm chart 'rancher': helm chart does not exist"))
 			Expect(charts).To(BeNil())
@@ -373,7 +374,7 @@ var _ = Describe("Helm tests", Label("helm"), func() {
 				Logger:         logger,
 			}
 
-			charts, err := h.Configure(conf, rm, config)
+			charts, err := h.Configure(context.Background(), conf, rm, config)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(charts).To(ConsistOf(
 				"/helm/metallb.yaml",
@@ -608,7 +609,7 @@ spec:
 				Logger:         logger,
 			}
 
-			charts, err := h.Configure(conf, rm, config)
+			charts, err := h.Configure(context.Background(), conf, rm, config)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(charts).To(ConsistOf(
 				"/helm/metallb.yaml",

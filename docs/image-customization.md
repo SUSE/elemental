@@ -4,6 +4,8 @@ This section provides an overview of how the `elemental3` command-line interface
 
 For general information about the customization process, refer to the [Customization Process](#customization-process) section.
 
+For information on booting images in air-gapped environments, refer to the [Air-gapped images](#air-gapped-images) section.
+
 For information on how to boot a customized image, refer to the [Booting a customized image](#booting-a-customized-image) section.
 
 For real-life examples, refer to the [Examples](#examples) section.
@@ -30,7 +32,6 @@ For further understanding of the customization process, you can also refer to th
 Currently, the image customization process has the following limitations:
 
 1. Supports customizing images only for `x86_64` platforms.
-1. Supports customizing images for connected (non air-gapped) environments only.
 
 Elemental is in active development, and these limitations **will** be addressed as part of the product roadmap.
 
@@ -49,7 +50,8 @@ This section provides a high-level overview of the steps that Elemental's toolin
    1. Unpack the pre-built installer ISO that is defined in the `core platform` release manifest.
    1. Prepare for Kubernetes cluster creation and resource deployment:
       1. Prepare Helm charts and Kubernetes manifests
-      1. Download RKE2 artifacts (tarball, images, checksums) and install script for air-gapped installation.
+      1. Download RKE2 artifacts (tarball, checksums) and install script.
+      1. For [air-gapped images](#air-gapped-images), embed the Helm charts, the RKE2 container image tarballs, and the container images used by the workloads.
    1. Prepare any other overlays or firstboot configurations based on what was defined in the configuration directory.
    1. Produce a description of the desired installation state and merge it with the installer ISO description.
    1. Produce the final desired image type.
@@ -68,7 +70,7 @@ sudo elemental3 customize --type <raw/iso> --config-dir <path>
 ```
 
 > **IMPORTANT:** The above process is long running, as it involves pulling multiple component images over the network.
-> For a quicker execution, use locally pulled container images in combination with the `--local` flag.
+> Downloaded artifacts are cached under `<config-dir>/cache` and are reused for future runs.
 
 Unless configured otherwise, after execution, the resulting ready-to-boot image will reside in the configuration directory path and use the `image-<timestamp>.<image-type>` naming format.
 
@@ -92,18 +94,98 @@ Run the customization process:
    ```
 
 > **IMPORTANT:** The above process is long running, as it involves pulling multiple component images over the network.
-> For a quicker execution, use locally pulled container images in combination with mounting the podman socket to the `elemental3` container image and specifying the `--local` flag:
+> For a quicker execution of subsequent runs, mount a directory from the host at `/cache`:
 >
-> 1. Start Podman socket:
 >   ```shell
->   systemctl enable --now podman.socket
->   ```
-> 2. Run the `elemental3` container with the mounted podman socket:
->   ```shell
->   podman run -it -v <PATH_TO_CONFIG_DIR>:/config -v /run/podman/podman.sock:/var/run/docker.sock $ELEMENTAL_IMAGE customize --type <raw/iso> --local
+>   podman run -it -v <PATH_TO_CONFIG_DIR>:/config -v <PATH_TO_CACHE_DIR>:/cache $ELEMENTAL_IMAGE customize --type <raw/iso>
 >   ```
 
 Unless configured otherwise, the above process will produce a customized RAW or ISO image under the specified `<PATH_TO_CONFIG_DIR>` directory.
+
+### Cache configurations
+
+During the customization process, artifacts downloaded during customization can be optionally cached to speed up future builds.
+
+The cache is controlled by the following `elemental3 customize` options:
+
+* `--cache` - (Optional) Cache mode, `auto` if unspecified.
+  * `auto` - serves cached artifacts and downloads any that are missing.
+  * `offline` - serves cached artifacts only, never downloads and fails on the first missing artifact. For customizing images without reaching over the network.
+  * `refresh` - discards the previously cached artifacts and downloads everything again.
+  * `off` - neither uses nor populates the cache.
+
+Default run, cached artifacts will reside under `<PATH_TO_CONFIG_DIR>/cache` on the host machine:
+```shell
+podman run -it \
+  -v <PATH_TO_CONFIG_DIR>:/config \
+  $ELEMENTAL_IMAGE \
+  customize --type <raw/iso>
+```
+
+Offline run, only previously cached artifacts are used and the process fails if any of them is missing.
+Adding `--network none` ensures nothing is downloaded during customization:
+```shell
+podman run -it --network none \
+  -v <PATH_TO_CONFIG_DIR>:/config \
+  -v <PATH_TO_CACHE_DIR>:/cache \
+  $ELEMENTAL_IMAGE \
+  customize --type <raw/iso> \
+  --cache offline
+```
+
+Refresh run, previously cached artifacts are discarded and downloaded again:
+```shell
+podman run -it \
+  -v <PATH_TO_CONFIG_DIR>:/config \
+  -v <PATH_TO_CACHE_DIR>:/cache \
+  $ELEMENTAL_IMAGE \
+  customize --type <raw/iso> \
+  --cache refresh
+```
+
+No cache run, artifacts will not be cached and previously cached artifacts will be ignored:
+```shell
+podman run -it \
+  -v <PATH_TO_CONFIG_DIR>:/config \
+  $ELEMENTAL_IMAGE \
+  customize --type <raw/iso> \
+  --cache off
+```
+
+> **NOTE:** A container image with the `latest` tag, is served from the cache until the cache is refreshed.
+
+For locally built release manifests not served by a registry, the easiest way to seed them into the cache is:
+```shell
+podman push \
+  localhost/release-manifest:dev \
+  oci:<PATH_TO_CACHE_DIR>/oci:localhost/release-manifest:dev
+```
+
+## Air-gapped images
+
+Passing the `--airgap` option to `elemental3 customize` produces an image that creates its Kubernetes cluster and 
+deploys its workloads without any network access by embedding all of the necessary artifacts into the image at customization time.
+
+This includes: 
+* **Kubernetes** - the RKE2 container image archives for the core components and the CNI plugins.
+* **Helm charts** - every configured Helm chart is pulled during customization and embedded into the built image.
+* **Container images** - all container images specified and detected during customization time from:
+  * templating every Helm chart with the respective settings and values and extracting the container images from the template,
+  * collecting every image from each Kubernetes manifest,
+  * images explicitly listed under `elementalEmbeddedRegistry.containerImages` in `kubernetes/cluster.yaml`.
+
+At boot time an embedded registry is started by the `elemental-registry.service` that uses Hauler to serve the container images for the Kubernetes cluster.
+
+Customizing an air-gapped image:
+
+```shell
+podman run -it \
+  -v <PATH_TO_CONFIG_DIR>:/config \
+  -v <PATH_TO_CACHE_DIR>:/cache \
+  $ELEMENTAL_IMAGE \
+  customize --type <raw/iso> \
+  --airgap
+```
 
 ## Booting a customized image
 
@@ -198,11 +280,11 @@ The contents of this directory include:
    cd examples/elemental/customize/linux-only/
    ```
 
-1. Following the steps for executing the customization process through a [container image](#container-image) using locally pulled images, run the process for the desired RAW type:
-   > **NOTE:** This command assumes that the Podman socket was started and the `$ELEMENTAL_IMAGE` points to a valid `elemental3` container image.
+1. Following the steps for executing the customization process through a [container image](#container-image), run the process for the desired RAW type:
+   > **NOTE:** This command assumes that the `$ELEMENTAL_IMAGE` points to a valid `elemental3` container image. Downloaded artifacts are kept under `./cache`.
 
    ```shell
-   podman run -it -v .:/config -v /run/podman/podman.sock:/var/run/docker.sock $ELEMENTAL_IMAGE customize --type raw --local
+   podman run -it -v .:/config -v ./cache:/cache $ELEMENTAL_IMAGE customize --type raw
    ```
 
 After execution, for a RAW disk type, your `examples/elemental/customize/linux-only` directory should look similar to:
@@ -210,6 +292,7 @@ After execution, for a RAW disk type, your `examples/elemental/customize/linux-o
 ```text
 .
 ├── butane.yaml
+├── cache/                               <- created by the customization process
 ├── image-2025-12-11T12-19-06.raw        <- created by the customization process
 ├── image-2025-12-11T12-19-06.raw.sha256 <- created by the customization process
 ├── install.yaml
@@ -319,11 +402,11 @@ The contents of this directory include:
    cd examples/elemental/customize/single-node/
    ```
 
-1. Following the steps for executing the customization process through a [container image](#container-image) using locally pulled images, run the process for the desired RAW type:
-   > **NOTE:** This command assumes that the Podman socket was started and the `$ELEMENTAL_IMAGE` points to a valid `elemental3` container image.
+1. Following the steps for executing the customization process through a [container image](#container-image), run the process for the desired RAW type:
+   > **NOTE:** This command assumes that the `$ELEMENTAL_IMAGE` points to a valid `elemental3` container image. Downloaded artifacts are kept under `./cache`.
 
    ```shell
-   podman run -it -v .:/config -v /run/podman/podman.sock:/var/run/docker.sock $ELEMENTAL_IMAGE customize --type raw --local
+   podman run -it -v .:/config -v ./cache:/cache $ELEMENTAL_IMAGE customize --type raw
    ```
 
 After execution, for a RAW disk type, your `examples/elemental/customize/single-node/` directory should look similar to:
@@ -331,6 +414,7 @@ After execution, for a RAW disk type, your `examples/elemental/customize/single-
 ```text
 .
 ├── butane.yaml
+├── cache/                               <- created by the customization process
 ├── image-2025-12-11T12-19-06.raw        <- created by the customization process
 ├── image-2025-12-11T12-19-06.raw.sha256 <- created by the customization process
 ├── install.yaml
@@ -523,11 +607,11 @@ The contents of the directory are the same as the contents for a [single-node Ku
    cd examples/elemental/customize/multi-node/
    ```
 
-1. Following the steps for executing the customization process through a [container image](#container-image) using locally pulled images, run the process for the desired RAW type:
-   > **NOTE:** This command assumes that the Podman socket was started and the `$ELEMENTAL_IMAGE` points to a valid `elemental3` container image.
+1. Following the steps for executing the customization process through a [container image](#container-image), run the process for the desired RAW type:
+   > **NOTE:** This command assumes that the `$ELEMENTAL_IMAGE` points to a valid `elemental3` container image. Downloaded artifacts are kept under `./cache`.
 
    ```shell
-   podman run -it -v .:/config -v /run/podman/podman.sock:/var/run/docker.sock $ELEMENTAL_IMAGE customize --type raw --local
+   podman run -it -v .:/config -v ./cache:/cache $ELEMENTAL_IMAGE customize --type raw
    ```
 
 After execution, for a RAW disk type, your `examples/elemental/customize/multi-node/` directory should look similar to:
@@ -535,6 +619,7 @@ After execution, for a RAW disk type, your `examples/elemental/customize/multi-n
 ```text
 .
 ├── butane.yaml
+├── cache/                               <- created by the customization process
 ├── image-2025-12-11T12-19-06.raw        <- created by the customization process
 ├── image-2025-12-11T12-19-06.raw.sha256 <- created by the customization process
 ├── install.yaml

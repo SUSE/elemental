@@ -23,6 +23,7 @@ CONFIG_DIR?=$(abspath ./tests/testdata/config-dir)
 CUSTOMIZED_WORKDIR_NAME=customized
 CUSTOMIZED_WORKDIR_PATH?=$(CONFIG_DIR)/$(CUSTOMIZED_WORKDIR_NAME)
 CUSTOMIZED_IMG_MAC=FE:C4:05:42:8B:AB
+CACHE_DIR?=$(CONFIG_DIR)/cache
 
 $(CONFIG_DIR)/release.yaml:
 	@echo "manifestURI: oci://$(RELEASE_MANIFEST)" > "$@"
@@ -31,7 +32,7 @@ define CUSTOMIZE
 	$(DOCKER) run --rm \
 		--volume "$(CONFIG_DIR):/config" \
 		"$(ELEMENTAL_IMAGE_REPO):$(VERSION)" \
-		--debug customize $(BUILD_ARGS) \
+		--debug customize \
 		--type "$(MEDIA_TYPE)" \
 		--output "/config/$(CUSTOMIZED_WORKDIR_NAME)/$(IMG_NAME).$(MEDIA_TYPE)"
 endef
@@ -93,7 +94,7 @@ stop-test-vm:
 
 .PHONY: clean-config-dir
 clean-config-dir:
-	@rm -rf "$(CUSTOMIZED_WORKDIR_PATH)"
+	@rm -rf "$(CUSTOMIZED_WORKDIR_PATH)" "$(CACHE_DIR)"
 	rm -f  "$(CONFIG_DIR)/release.yaml"
 
 .PHONY: test-installer
