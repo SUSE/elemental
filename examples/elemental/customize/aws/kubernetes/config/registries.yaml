@@ -1,0 +1,4 @@
+mirrors:
+  registry.suse.com:
+    endpoint:
+    - https://registry.suse.com/v2

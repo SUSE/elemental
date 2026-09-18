@@ -1,0 +1,25 @@
+variant: fcos
+version: 1.6.0
+
+storage:
+  files:
+    # Ensure 'runtime.env' is added under '/var/lib/elemental'
+    - path: /var/lib/elemental/runtime.env
+      mode: 0644
+      overwrite: true
+      contents:
+        local: runtime.env
+    # Include the custom node specific RKE2 configurations. 
+    # Add file with '99-' prefix to ensure it is applied last.
+    - path: /etc/rancher/rke2/config.yaml.d/99-runtime-conf.yaml
+      mode: 0644
+      overwrite: true
+      contents:
+        local: 99-runtime-conf.yaml
+    # Set the node's desired hostname
+    - path: /etc/hostname
+      mode: 0644
+      overwrite: true
+      contents:
+        inline: |
+          cp2.example.com
