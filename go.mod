@@ -1,11 +1,11 @@
 module github.com/suse/elemental/v3
 
-go 1.26.3
+go 1.26.8
 
 require (
 	dario.cat/mergo v1.0.2
 	github.com/cenkalti/backoff/v4 v4.3.0
-	github.com/containerd/containerd/v2 v2.3.5
+	github.com/containerd/containerd/v2 v2.3.6
 	github.com/containerd/platforms v1.0.0-rc.5
 	github.com/coreos/butane v0.29.0
 	github.com/distribution/reference v0.6.0
