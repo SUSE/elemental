@@ -12,21 +12,25 @@ Elemental 3 consists of several components, their comprehensive integration and 
 
 | Component | Version | Purpose |
 | :---: |:-------:| :---: |
-| Elemental |  3.0.0  | Customization and installation of OS \+ Kubernetes |
+| Elemental |  3.0.3  | Customization and installation of OS \+ Kubernetes |
 | SUSE Linux Enterprise Server |  16.0   | Source for building a containerized OS |
-| RKE2 | 1.35.5  | Certified Kubernetes distribution |
+| RKE2 | 1.35.6  | Certified Kubernetes distribution |
 | MetalLB | 0.15.2  | Load balancing/HA capabilities for multi-node Kubernetes clusters (API and services) |
 | Endpoint Copier Operator |  0.3.0  |  |
 
 ## Scope and Audience
 
-This “cookbook” describes three different deployment scenarios:
+This “cookbook” describes five different deployment scenarios:
 
 * **Recipe 1:** Deployment of a “single-node” Kubernetes cluster using an example SUSE solution.
 
 * **Recipe 2:** Deployment of a “multi-node” Kubernetes cluster using an example SUSE solution.
 
 * **Recipe 3:** Deployment of a “single-node” Kubernetes cluster, deployed using [Cluster API](https://cluster-api.sigs.k8s.io/).
+
+* **Recipe 4:** Deployment of a “single-node” Kubernetes cluster on AWS, using an example SUSE solution.
+
+* **Recipe 5:** Deployment of a “multi-node” Kubernetes cluster on AWS, using an example SUSE solution.
 
 This is a guide for **anyone** interested in understanding the project, its goals, and the underlying technology.
 
@@ -178,7 +182,9 @@ git clone --depth 1 \
 https://github.com/SUSE/elemental.git \
 ${HOME}/elemental-cookbook/elemental
 
-export ELEMENTAL_PATH="${HOME}/elemental-cookbook/elemental/examples/elemental/customize"
+export ELEMENTAL_ROOT="${HOME}/elemental-cookbook/elemental"
+export ELEMENTAL_CONFIG_DIR="${ELEMENTAL_ROOT}/examples/elemental/customize"
+export ELEMENTAL_RUNTIME_CONFIG="${ELEMENTAL_ROOT}/examples/elemental/runtime-configs"
 ```
 
 ## Fetch the Elemental Container Image
@@ -197,11 +203,12 @@ sudo podman pull ${ELEMENTAL_IMAGE}
 
 Before proceeding, let's explore the available configuration templates provided by the Elemental repository and describe what each one entails. These templates cover various deployment use cases which closely align with the recipes in this guide.
 
-You can list the contents of the customization examples directory using the previously defined `$ELEMENTAL_PATH` variable:
+You can list the contents of the customization examples directory using the previously defined `$ELEMENTAL_CONFIG_DIR` variable:
 
 ```shell
-$ ls -1 ${ELEMENTAL_PATH}
+$ ls -1 ${ELEMENTAL_CONFIG_DIR}
 
+aws
 linux-only
 multi-node
 single-node
@@ -209,9 +216,13 @@ single-node
 
 These directories cover the following use cases:
 
-* **“Linux-only”.** This example showcases how to produce a bootable Linux artifact **not** affiliated with Kubernetes deployments at all, demonstrating the base OS capabilities.
-* **Single-node clusters.** This is the foundational example, producing a bootable artifact used for bootstrapping a Kubernetes cluster consisting of a single node.
-* **Multi-node clusters.** Closely resembles the example above, producing a bootable artifact used for bootstrapping a Kubernetes cluster consisting of multiple nodes.
+* `aws/` - This example showcases how to produce a bootable artifact used for bootstrapping a single / multi node Kubernetes cluster on AWS.
+
+* `linux-only/` - This example showcases how to produce a bootable Linux artifact **not** affiliated with Kubernetes deployments at all, demonstrating the base OS capabilities.
+
+* `single-node/` - This is the foundational example, producing a bootable artifact used for bootstrapping a Kubernetes cluster consisting of a single node.
+
+* `multi-node/` - Closely resembles the example above, producing a bootable artifact used for bootstrapping a Kubernetes cluster consisting of multiple nodes.
 
 ## Example Overview
 
@@ -220,24 +231,24 @@ Going further, we will explain what an example from the templates above looks li
 Let’s examine the contents for this example:
 
 ```shell
-tree -U ${ELEMENTAL_PATH}/single-node/
+tree -U ${ELEMENTAL_CONFIG_DIR}/single-node/
 
 single-node/
 ├── butane.yaml
 ├── install.yaml
-├── kubernetes.yaml
 ├── kubernetes
-│   ├── config
-│   │    └── server.yaml
-│   ├── helm
-│   │    └── values
-│   │          └── rancher.yaml
-│   └── manifests
-│        ├── ip-pool.yaml
-│        ├── l2-adv.yaml
-│        └── rke2-ingress-config.yaml
+│   ├── cluster.yaml
+│   ├── config
+│   │   └── server.yaml
+│   ├── helm
+│   │   └── values
+│   │       └── rancher.yaml
+│   └── manifests
+│       ├── ip-pool.yaml
+│       ├── l2-adv.yaml
+│       └── rke2-ingress-config.yaml
 ├── network
-│    └── single-node-example.yaml
+│   └── single-node-example.yaml
 ├── release.yaml
 └── suse-solution-manifest.yaml
 
@@ -248,8 +259,8 @@ This output might be confusing and you might be wondering how to read through it
 
 * **butane.yaml:** This is where you are able to provide firstboot configuration settings such as users, SSH keys, and system files. The interface language is [Butane](https://coreos.github.io/butane/), which implies that the operating system uses Ignition as its configuration mechanism. The data provided in this file is merged with the one generated by Elemental 3\.
 * **install.yaml**: The installation customization for the operating system. This is where you are able to define kernel parameters, crypto policy, target installation device and others.
-* **kubernetes.yaml:** This is where you define the number and type of nodes that will form a Kubernetes cluster, alongside workloads in the form of plain manifests and Helm charts.
 * **kubernetes/**: This subdirectory allows you to provide RKE2 configurations for cluster nodes, Helm chart customization options (such as values files), as well as additional local Kubernetes manifests.
+* **kubernetes/cluster.yaml**: This is where you define the desired cluster setup, alongside additional workloads (e.g. plain manifests, or Helm charts).
 * **network/**: This subdirectory allows you to provide advanced network settings that can span multiple machines or specialized scripts that are necessary for configuring machines in highly specific use cases.
 * **release.yaml:** This is the “bread and butter” capability that Elemental 3 provides. This is where you are able to specify the version of the core framework or any solution built on top of it, as well as all the components that will be enabled in the final artifact. The components range from solely RKE2 to specialized operating system extensions or key Kubernetes workloads (e.g. NVIDIA GPU Operator for SUSE AI).
 * **suse-solution-manifest.yaml**: This file serves as an example description, that showcases how any solution can use the core framework as a base, and add any additional components on top of it. You can learn more about the “release manifest” concept [in the repository documentation.](https://github.com/SUSE/elemental/blob/main/docs/release-manifest.md)
@@ -276,7 +287,7 @@ Let’s customize a RAW disk image:
 ```shell
 sudo podman run -it --rm \
 --network host \
--v ${ELEMENTAL_PATH}/single-node:/config:Z \
+-v ${ELEMENTAL_CONFIG_DIR}/single-node:/config:Z \
 -v /run/podman/podman.sock:/var/run/docker.sock \
 ${ELEMENTAL_IMAGE} customize --type raw
 ```
@@ -287,10 +298,10 @@ container images, i.e. it will fetch and unpack data from various OCI registries
 
 **Note:** The Podman socket path on the host is not `/run/podman/podman.sock` if you are using Podman as a regular user with a regular rootless setup. See earlier note in [Environment Setup](#environment-setup) on how to leverage a rootless Podman execution.
 
-As soon as the process completes, you will find your image alongside its SHA256 checksum within the `$ELEMENTAL_PATH/single-node` directory.
+As soon as the process completes, you will find your image alongside its SHA256 checksum within the `$ELEMENTAL_CONFIG_DIR/single-node` directory.
 
 ```shell
-du -hs ${ELEMENTAL_PATH}/single-node/*.raw*
+du -hs ${ELEMENTAL_CONFIG_DIR}/single-node/*.raw*
 
 1.2G    /home/xxx/elemental-cookbook/elemental/examples/elemental/customize/single-node/image-2026-01-12T11-06-06.raw
 4.0K    /home/xxx/elemental-cookbook/elemental/examples/elemental/customize/single-node/image-2026-01-12T11-06-06.raw.sha256
@@ -310,7 +321,7 @@ Feel free to adjust the RAM and vCPUs setting to fit your system. If you need to
 sudo virt-install --name single-node \
      	            --ram 16000 \
                   --vcpus 10 \
-                  --disk path="$(ls -1 ${ELEMENTAL_PATH}/single-node/*.raw)",format=raw \
+                  --disk path="$(ls -1 ${ELEMENTAL_CONFIG_DIR}/single-node/*.raw)",format=raw \
                   --osinfo detect=on,name=sle-unknown \
                   --graphics none \
                   --console pty,target_type=serial \
@@ -381,7 +392,7 @@ Let’s customize a RAW disk image:
 ```shell
 sudo podman run -it \
 --network host \
--v ${ELEMENTAL_PATH}/multi-node:/config \
+-v ${ELEMENTAL_CONFIG_DIR}/multi-node:/config \
 -v /run/podman/podman.sock:/var/run/docker.sock \
 ${ELEMENTAL_IMAGE} customize --type raw
 ```
@@ -389,7 +400,7 @@ ${ELEMENTAL_IMAGE} customize --type raw
 Note that the resulting image in this case will have to be copied several times, so that you are able to create as many virtual machines as the number of preconfigured Kubernetes nodes.
 
 ```shell
-for i in {1..4}; do cp ${ELEMENTAL_PATH}/multi-node/image*.raw ${ELEMENTAL_PATH}/multi-node/node${i}.example.com.raw; done
+for i in {1..4}; do cp ${ELEMENTAL_CONFIG_DIR}/multi-node/image*.raw ${ELEMENTAL_CONFIG_DIR}/multi-node/node${i}.example.com.raw; done
 ```
 
 ## Deployment
@@ -403,7 +414,7 @@ As always, feel free to adjust the RAM and vCPUs setting to fit your system. If 
 sudo virt-install --name node1.example.com \
              --ram 16000 \
              --vcpus 10 \
-             --disk path="${ELEMENTAL_PATH}/multi-node/node1.example.com.raw",format=raw \
+             --disk path="${ELEMENTAL_CONFIG_DIR}/multi-node/node1.example.com.raw",format=raw \
              --osinfo detect=on,name=sle-unknown \
              --graphics none \
 		     --noautoconsole \
@@ -416,7 +427,7 @@ sudo virt-install --name node1.example.com \
 sudo virt-install --name node2.example.com \
              --ram 16000 \
              --vcpus 10 \
-             --disk path="${ELEMENTAL_PATH}/multi-node/node2.example.com.raw",format=raw \
+             --disk path="${ELEMENTAL_CONFIG_DIR}/multi-node/node2.example.com.raw",format=raw \
              --osinfo detect=on,name=sle-unknown \
              --graphics none \
 		     --noautoconsole \
@@ -429,7 +440,7 @@ sudo virt-install --name node2.example.com \
 sudo virt-install --name node3.example.com \
              --ram 16000 \
              --vcpus 10 \
-             --disk path="${ELEMENTAL_PATH}/multi-node/node3.example.com.raw",format=raw \
+             --disk path="${ELEMENTAL_CONFIG_DIR}/multi-node/node3.example.com.raw",format=raw \
              --osinfo detect=on,name=sle-unknown \
              --graphics none \
 		     --noautoconsole \
@@ -442,7 +453,7 @@ sudo virt-install --name node3.example.com \
 sudo virt-install --name node4.example.com \
              --ram 16000 \
              --vcpus 10 \
-             --disk path="${ELEMENTAL_PATH}/multi-node/node4.example.com.raw",format=raw \
+             --disk path="${ELEMENTAL_CONFIG_DIR}/multi-node/node4.example.com.raw",format=raw \
              --osinfo detect=on,name=sle-unknown \
              --graphics none \
 		     --noautoconsole \
@@ -525,7 +536,7 @@ Let’s customize the RAW disk image:
 
 ```shell
 sudo podman run -it --network host \
--v ${ELEMENTAL_PATH}/linux-only:/config \
+-v ${ELEMENTAL_CONFIG_DIR}/linux-only:/config \
 -v /run/podman/podman.sock:/var/run/docker.sock \
 ${ELEMENTAL_IMAGE} customize --type raw --mode split
 ```
@@ -535,7 +546,7 @@ ${ELEMENTAL_IMAGE} customize --type raw --mode split
 This effectively means that the bootable artifact now only contains the operating system, and the applied installation configurations, e.g. the kernel command line and disk size.
 
 ```shell
-tree -U ${ELEMENTAL_PATH}/linux-only
+tree -U ${ELEMENTAL_CONFIG_DIR}/linux-only
 ...
 ├── image-2026-01-14T16-44-43-config      <- The config folder and assets
 │   ├── catalyst
@@ -599,3 +610,258 @@ Then the final piece to the puzzle is the `RKE2ControlPlane` template, where we 
 Some of these fields are definitely *magic* but future iterations of Elemental 3 will allow us to integrate in a much simpler way… so stay tuned!
 
 This is definitely an advanced use case so don’t hesitate to reach out to us if the above is unclear. We will gladly help you!
+
+# **Recipe 4: Single-node Kubernetes cluster on AWS**
+
+## Preparation
+
+1. To understand the basic priciples behind this example, familiarize yourself with the [cloud enablement documentation](./cloud-enablement.md).
+
+1. Familiarize yourself with the contents within the [`customize/aws/`](../examples/elemental/customize/aws/) example static configuration directory, mainly notice that:
+    * User `root` is defined with `linux` set as a hashed password value.
+    * RAW disk size is set to 5 GB.
+    * FIPS mode is enforced.
+    * RKE2 is enabled.
+    * Rancher is enabled from the example solution release.
+    * `ignition.platform.id=aws` is set as the ignition platform identification source.
+    * No static nodes are defined under `kubernetes/cluster.yaml` - will be configured at runtime.
+    * No static network is defiend under the `network/` directory - will be automatically setup by AWS.
+    * There are `<CHAGE_ME>` placeholders in both `kubernetes/cluster.yaml` and the `kubernetes/helm/values/rancher.yaml` files - will be configured automatically for you by the example execution.
+
+1. Familiarize yourself with the contents within the [`runtime-configs/single-node/`](../examples/elemental/runtime-configs/single-node/) runtime config example, mainly notice that:
+    * An additional node label is added to the RKE2 configuration.
+    * The node is configured at runtime to be marked as the `init` node of type `server`.
+    * The hostname of the node is set to `single-node-example.com`.
+
+Feel free to adjust, or include any values as you see fit in both direcrories. There are only two restrictions to the configurations:
+
+1. In `customize/aws/`, do not define static nodes, or static network configuration - these are either configured at runtime or directly by AWS itself.
+1. In `runtime-configs/single-node/`, do not remove/edit the `runtime.env` file - without this file the node would not know what role it needs to play in the cluster, which will cause issues for single-node clusters. 
+
+## Execution
+
+Spinning the single-node AWS example has been completely automated, where only the following command needs to be executed from the **root** of the repository:
+
+> NOTE: To ensure a smooth experience, we strongly advise that you configure your own non-free tier `MACHINE_TYPE` that matches both RKE2 and Rancher's resource requirements.
+
+```bash
+cd ${ELEMENTAL_ROOT}
+
+export PROFILE=single-node
+# To change the default EC2 machine
+# export MACHINE_TYPE=<type>
+# To change the default region
+# export REGION=<region>
+# To enable SSH (use in combination with an SSH key provided either through the 'customize/aws/' or 'runtime-configs/single-node/' examples)
+# export SSH_CIDR=<cidr> (e.g. 203.0.113.10/32)
+make -C terraform up
+
+# To view the full set of configurations, run:
+# make -C terraform help
+```
+
+Unless configured otherwise, the above command will use terraform in combination with some scripts to produce the following resoruces in the `eu-central-1` region:
+
+* Internal Network Load Balancer facilitating communication with the RKE2 API (6443) and supervisor (9345).
+* External Network Load Balancer facilitation communication for the Rancher ingress on HTTP (80) and HTTPS (443).
+* A `customized.raw` image built from the `customize/aws/` static configuration directory.
+* An ignition config file built from the `runtime-configs/single-node/` runtime configuration directory.
+* A S3 bucket where `customized.raw` will be uploaded.
+* An EBS snapshot created from the S3 bucket entry.
+* An AMI referencing the EBS snapshot.
+* A `c7i-flex.large` EC2 instance referencing the AMI and the ignition config.
+
+> IMPORTANT: As this process involves multiple slow operations (e.g. uploading to S3, importing snapshot), it will take some time for the full setup to be available.
+
+Example output:
+
+```shell
+...
+Apply complete! Resources: 12 added, 0 changed, 0 destroyed.
+
+Outputs:
+
+api_endpoint = "https://172.31.31.64:6443"
+node_public_ips = {
+  "single-node" = "63.178.21.28"
+}
+rancher_url = "https://rancher.63.187.234.23.sslip.io"
+resource_tag = "elemental:id=aws-single-node"
+```
+
+The successful completion of the command does not indicate that the cluster is ready, it indicates that all resources have been created. What is left is to wait for the cluster to be available. 
+
+You can monitor the status of the clsuter, by looking at its target groups:
+1. Navigate to `AWS console -> EC2 -> Target Groups`.
+1. Apply the `elemental:id` filter, as seen in the `resource_tag` output. This will output all target groups associated with this cluster.
+1. Wait until each group has only targets in a `Healthy` status.
+1. Access Rancher on the url specified by the `rancher_url` output.
+
+Alternatively, if you have provided the `SSH_CIDR` variable along with a SSH key in either the `customize/aws/` or `runtime-configs/single-node/` configurations, then you can look into the node as well:
+
+1. SSH into the machine:
+    ```shell
+    ssh -i <key> root@<machine-ip>
+    ```
+1. Validate the `rke2-server.service` is running:
+    ```shell
+    systemctl status rke2-server.service
+    ```
+1. Validate the cluster:
+    ```shell
+    export PATH=$PATH:/var/lib/rancher/rke2/bin
+    export KUBECONFIG=/etc/rancher/rke2/rke2.yaml
+
+    kubectl get nodes -o yaml | grep runtime-configured-label
+    kubectl get pods -A
+    ```
+
+## Cleanup
+
+To remove your environment, run:
+
+```shell
+PROFILE=single-node make -C terraform destroy
+```
+
+Example output:
+
+```shell
+...
+aws_security_group.ingress: Destruction complete after 1s
+aws_eip.ingress: Destruction complete after 1s
+
+Destroy complete! Resources: 27 destroyed.
+```
+
+> NOTE: If using a custom `ID` variable, provide that instead of the `PROFILE` variable.
+
+
+# **Recipe 5: Multi-node Kubernetes cluster on AWS**
+
+## Preparation
+
+1. To understand the basic priciples behind this example, familiarize yourself with the [cloud enablement documentation](./cloud-enablement.md).
+
+1. Familiarize yourself with the contents within the [`customize/aws/`](../examples/elemental/customize/aws/) example static configuration directory, mainly notice that:
+    * User `root` is defined with `linux` set as a hashed password value.
+    * RAW disk size is set to 5 GB.
+    * FIPS mode is enforced.
+    * RKE2 is enabled.
+    * Rancher is enabled from the example solution release.
+    * `ignition.platform.id=aws` is set as the ignition platform identification source.
+    * No static nodes are defined under `kubernetes/cluster.yaml` - will be configured at runtime.
+    * No static network is defiend under the `network/` directory - will be automatically setup by AWS.
+    * There are `<CHAGE_ME>` placeholders in both `kubernetes/cluster.yaml` and the `kubernetes/helm/values/rancher.yaml` files - will be configured automatically for you by the example execution.
+
+1. Familiarize yourself with the contents within the [`runtime-configs/multi-node/`](../examples/elemental/runtime-configs/multi-node/) runtime config example, mainly notice that it is configuring a four node cluster (3 control-planes and 1 worker), where each node holds the following configuration:
+    * Additional node label custom to the node itself.
+    * Type of the node (e.g. `server` or `agent`).
+    * Hostname of the node.
+
+Feel free to adjust, or include any values as you see fit in both direcrories. There are only two restrictions to the configurations:
+
+1. In `customize/aws/`, do not define static nodes, or static network configuration - these are either configured at runtime or directly by AWS itself.
+1. In `runtime-configs/multi-node/`, do not remove/edit the `runtime.env` file in each node directory - without this file the nodes would not know what role they needs to play in the cluster, which can cause issues (e.g. no node is configured as an initialiser).
+
+
+## Execution
+
+Spinning the multi-node AWS example has been completely automated, where only the following command needs to be executed from the **root** of the repository:
+
+> NOTE: To ensure a smooth experience, we strongly advise that you configure your own non-free tier `MACHINE_TYPE` that matches both RKE2 and Rancher's resource requirements.
+
+```shell
+cd ${ELEMENTAL_ROOT}
+
+export PROFILE=multi-node
+# To change the default EC2 machine
+# export MACHINE_TYPE=<type>
+# To change the default region
+# export REGION=<region>
+# To enable SSH (use in combination with an SSH key provided either through the 'customize/aws/' or 'runtime-configs/multi-node/' examples)
+# export SSH_CIDR=<cidr> (e.g. 203.0.113.10/32)
+make -C terraform up
+
+# To view the full set of configurations, run:
+# make -C terraform help
+```
+Unless configured otherwise, the above command will use terraform in combination with some scripts to produce the following resoruces in the `eu-central-1` region:
+
+* Internal Network Load Balancer facilitating communication with the RKE2 API (6443) and supervisor (9345).
+* External Network Load Balancer facilitation communication for the Rancher ingress on HTTP (80) and HTTPS (443).
+* A `customized.raw` image built from the `customize/aws/` static configuration directory.
+* Ignition config files for each node directory under the `runtime-configs/multi-node/` runtime configuration directory.
+* A S3 bucket where `customized.raw` will be uploaded.
+* An EBS snapshot created from the S3 bucket entry.
+* An AMI referencing the EBS snapshot.
+* Four `c7i-flex.large` EC2 instances referencing their respective ignition configuration, as well as the same AMI.
+
+> IMPORTANT: As this process involves multiple slow operations (e.g. uploading to S3, importing snapshot), it will take some time for the full setup to be available.
+
+Example output:
+
+```shell
+...
+Apply complete! Resources: 25 added, 0 changed, 0 destroyed.
+
+Outputs:
+
+api_endpoint = "https://172.31.25.143:6443"
+node_public_ips = {
+  "control-plane1" = "3.79.150.239"
+  "control-plane2" = "3.66.32.147"
+  "control-plane3" = "63.181.79.132"
+  "worker1" = "63.178.246.100"
+}
+rancher_url = "https://rancher.63.188.97.241.sslip.io"
+resource_tag = "elemental:id=aws-multi-node"
+```
+
+The successful completion of the command does not indicate that the cluster is ready, it indicates that all resources have been created. What is left is to wait for the cluster to be available. 
+
+You can monitor the status of the clsuter, by looking its target groups:
+1. Navigate to `AWS console -> EC2 -> Target Groups`.
+1. Apply the `elemental:id` filter, as seen in the `resource_tag` output. This will output all target groups associated with this cluster.
+1. Wait until each group has only targets in a `Healthy` status.
+1. Access Rancher on the url specified by the `rancher_url` output.
+
+Alternatively, if you have provided the `SSH_CIDR` variable along with a SSH key in either the `customize/aws/` or `runtime-configs/single-node/` configurations, then you can look into the node as well:
+
+1. SSH into the machine:
+    ```shell
+    ssh -i <key> root@<machine-ip>
+    ```
+1. Validate the `rke2-server.service` is running:
+    ```shell
+    systemctl status rke2-server.service
+    ```
+1. Validate the cluster:
+    ```shell
+    export PATH=$PATH:/var/lib/rancher/rke2/bin
+    export KUBECONFIG=/etc/rancher/rke2/rke2.yaml
+
+    kubectl get nodes -o yaml | grep runtime-configured-label
+    kubectl get pods -A
+    ```
+
+## Cleanup
+
+To remove your environment, run:
+
+```shell
+PROFILE=multi-node make -C terraform destroy
+```
+
+Example output:
+
+```shell
+...
+aws_security_group.ingress: Destruction complete after 1s
+aws_security_group.control: Destruction complete after 1s
+aws_eip.ingress: Destruction complete after 1s
+
+Destroy complete! Resources: 27 destroyed.
+```
+
+> NOTE: If using a custom `ID` variable, provide that instead of the `PROFILE` variable.

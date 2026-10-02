@@ -23,3 +23,8 @@ storage:
       contents:
         inline: |
           cp3.example.com
+
+systemd:
+  units:
+    - name: sshd.service
+      enabled: true
