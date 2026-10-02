@@ -87,7 +87,6 @@
 
 .master_k8s_validation_settings: &master_k8s_validation_settings
   <<: [*common_settings, *common_microos_boot_settings, *k8s_test_settings]
-  CERTMANAGER_VERSION: v1.19.1
   +DISTRI: sle-micro
   +HDD_1: 'openSUSE-MicroOS.%ARCH%-Updated.qcow2'
   HOSTNAME: master
@@ -104,6 +103,8 @@ defaults:
   aarch64:
     machine: aarch64-virtio
     priority: 50
+    settings:
+      TIMEOUT_SCALE: '2'
   x86_64:
     machine: uefi-virtio
     priority: 50
@@ -111,6 +112,9 @@ defaults:
       QEMUCPU: host
 
 products:
+  lcm_chart:
+    <<: *default_products
+    flavor: UnifiedCore-LCM-Chart
   elemental_container:
     <<: *default_products
     flavor: UnifiedCore-Elemental-Container
@@ -135,30 +139,41 @@ products:
 
 scenarios:
   aarch64:
+    lcm_chart:
+      - validate_chart_lcm_16.0:
+          testsuite: null
+          settings:  &validate_chart_lcm
+            <<: *container_validation_settings
+            TESTED_CHART: lcm
+            TEST_TYPE: chart
     elemental_container:
       - validate_container_image_elemental_16.0:
           testsuite: null
           settings: &validate_container_image_elemental
             <<: *container_validation_settings
             TESTED_CONTAINER: elemental
+            TEST_TYPE: container
     lcm_container:
       - validate_container_image_lcm_16.0:
           testsuite: null
           settings:  &validate_container_image_lcm
             <<: *container_validation_settings
             TESTED_CONTAINER: lcm
+            TEST_TYPE: container
     longhorn_container:
       - validate_container_image_longhorn_16.0:
           testsuite: null
           settings:  &validate_container_image_longhorn
             <<: *container_validation_settings
             TESTED_CONTAINER: longhorn
+            TEST_TYPE: container
     rke2_container:
       - validate_container_image_rke2_16.0:
           testsuite: null
           settings:  &validate_container_image_rke2
             <<: *container_validation_settings
             TESTED_CONTAINER: rke2
+            TEST_TYPE: container
     iso_image:
       - extract_iso_16.0:
           testsuite: null
@@ -321,6 +336,11 @@ scenarios:
             HDD_1: 'elemental-%BUILD%-%ARCH%-%TESTED_CMD%.qcow2'
             PARALLEL_WITH: master_singlenode_upgrade_16.0
   x86_64:
+    lcm_chart:
+      - validate_chart_lcm_16.0:
+          testsuite: null
+          settings:
+            <<: *validate_chart_lcm
     elemental_container:
       - validate_container_image_elemental_16.0:
           testsuite: null
@@ -420,6 +440,10 @@ scenarios:
           testsuite: null
           settings:
             <<: *node04
+      - singlenode_16.0:
+          testsuite: null
+          settings:
+            <<: *singlenode
       - test_iso_fips_16.0:
           testsuite: null
           settings:
@@ -432,10 +456,6 @@ scenarios:
           testsuite: null
           settings:
             <<: *test_raw_recovery
-      - singlenode_16.0:
-          testsuite: null
-          settings:
-            <<: *singlenode
       - upgrade_16.0:
           testsuite: null
           settings:
