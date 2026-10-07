@@ -63,9 +63,9 @@ const (
 	SystemMnt            = "/"
 	AllAvailableSize MiB = 0
 
-	IgnitionLabel = "ignition"
-	CatalystLabel = "CATALYST"
-	ConfigMnt     = "/run/elemental/firstboot"
+	IgnitionLabel   = "ignition"
+	CombustionLabel = "COMBUSTION"
+	ConfigMnt       = "/run/elemental/firstboot"
 
 	deploymentFile = "/etc/elemental/deployment.yaml"
 
