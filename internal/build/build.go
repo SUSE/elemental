@@ -142,7 +142,7 @@ func newDeployment(
 			return nil, fmt.Errorf("computing configuration partition size: %w", err)
 		}
 
-		configLabel := deployment.CatalystLabel
+		configLabel := deployment.CombustionLabel
 		if ignDir, _ := vfs.Exists(system.FS(), filepath.Join(output.FirstbootConfigDir(), image.IgnitionFilePath())); ignDir {
 			configLabel = deployment.IgnitionLabel
 		}
