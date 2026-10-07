@@ -187,7 +187,7 @@ func parseDeployment(
 		if err != nil {
 			return nil, fmt.Errorf("computing configuration partition size: %w", err)
 		}
-		configLabel := deployment.CatalystLabel
+		configLabel := deployment.CombustionLabel
 		if ignFile, _ := vfs.Exists(fs, filepath.Join(output.FirstbootConfigDir(), image.IgnitionFilePath())); ignFile {
 			configLabel = deployment.IgnitionLabel
 		}
