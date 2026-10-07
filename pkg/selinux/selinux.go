@@ -25,6 +25,7 @@ import (
 	"io/fs"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/suse/elemental/v3/pkg/chroot"
@@ -37,6 +38,7 @@ const (
 	SelinuxTargetedPolicyType  = "targeted"
 
 	defaultStoreRoot    = "/var/lib/selinux"
+	migrateMarkerPrefix = "/etc/selinux/elemental-selinux_modules_migrated-"
 	selinuxTargetedPath = "/etc/selinux/" + SelinuxTargetedPolicyType
 	selinuxAutoRelabel  = "/etc/selinux/.autorelabel"
 	debugLines          = 10
@@ -166,6 +168,73 @@ func ChrootedRefreshPolicy(ctx context.Context, s *sys.System, rootDir, policyTy
 	return nil
 }
 
+// ChrootedDefaultPolicyMigration attempts to migrate any existing default (/var/lib/selinux) policy store
+// of the given type to the store specified under /etc/selinux/semanage.conf in a chroot environment. During migration all
+// *.local files are migrated, as well as all modules with priority > 200 that do not already exist in the new store.
+//
+// Migration is skipped when there is no active default store, the default store has already been migrated,
+// the semanage.conf does not define a custom store, or when the new custom store has no 'active' entry.
+func ChrootedDefaultPolicyMigration(s *sys.System, rootDir, policyType string) error {
+	callback := func() error {
+		defaultPolicy := filepath.Join(defaultStoreRoot, policyType, "active")
+		if exists, _ := vfs.Exists(s.FS(), defaultPolicy); !exists {
+			// The default store is removed by 'cleanoldsepoldir.service' once there are no more
+			// snapshots containing it. At that point, there is no need for the elemental migration
+			// marker as well.
+			if err := s.FS().Remove(migrateMarkerPrefix + policyType); err != nil && !errors.Is(err, fs.ErrNotExist) {
+				return fmt.Errorf("removing migration marker: %w", err)
+			}
+			return nil
+		}
+
+		storeRoot, err := getStoreRoot(s)
+		if err != nil {
+			return fmt.Errorf("parsing store-root from policy configuration: %w", err)
+		}
+
+		if !shouldMigrateDefaultPolicy(s, storeRoot, policyType) {
+			return nil
+		}
+
+		destPolicy := filepath.Join(storeRoot, policyType, "active")
+		if err := migratePolicy(s, defaultPolicy, destPolicy); err != nil {
+			return fmt.Errorf("migrating policy: %w", err)
+		}
+
+		return s.FS().WriteFile(migrateMarkerPrefix+policyType, []byte{}, 0o644)
+	}
+
+	if err := chroot.ChrootedCallback(s, rootDir, nil, callback, chroot.WithoutDefaultBinds()); err != nil {
+		return fmt.Errorf("chrooted default SE Linux policy migration: %w", err)
+	}
+
+	return nil
+}
+
+// shouldMigrateDefaultPolicy determines whether the default (/var/lib/selinux) policy store
+// of a specific type can be migrated to the specified store root.
+func shouldMigrateDefaultPolicy(s *sys.System, storeRoot, policyType string) bool {
+	// An existing migration marker means the default policy store has already been migrated,
+	// but there are still snapshots that hold the old store.
+	if exists, _ := vfs.Exists(s.FS(), migrateMarkerPrefix+policyType); exists {
+		return false
+	}
+
+	// Migrate only if the given store is different from the default store path.
+	if storeRoot == defaultStoreRoot {
+		return false
+	}
+
+	// Migration requires an existing active policy store for the expected policy type.
+	store := filepath.Join(storeRoot, policyType, "active")
+	if exists, _ := vfs.Exists(s.FS(), store); !exists {
+		s.Logger().Warn("Missing %q policy store. Local policy migration will not be performed.", store)
+		return false
+	}
+
+	return true
+}
+
 // getStoreRoot parses the '/etc/selinux/semanage.conf' and returns the value of the
 // 'store-root' property. In the event of a missing 'store-root' returns the default
 // policy store - /var/lib/selinux.
@@ -197,6 +266,115 @@ func getStoreRoot(s *sys.System) (string, error) {
 	}
 
 	return policyStoreRoot, nil
+}
+
+// migratePolicy migrates a source policy store to the given destination.
+// Migration is done for all *.local files and for all modules that are with
+// priority > 200 and do not already exist in the destination store.
+func migratePolicy(s *sys.System, src, dst string) error {
+	if err := copyLocalFiles(s, src, dst); err != nil {
+		return fmt.Errorf("copying local config files from source policy %q: %w", src, err)
+	}
+
+	if err := copyLocalModules(s, src, dst); err != nil {
+		return fmt.Errorf("copying modules from source policy %q: %w", src, err)
+	}
+
+	return nil
+}
+
+// copyLocalModules copies modules from src to dst. Modules with priority <= 200
+// are skipped.
+func copyLocalModules(s *sys.System, src, dst string) error {
+	shouldCopyModule := func(name string) bool {
+		if name == "disabled" {
+			// To ensure disabled modules stay disabled, the
+			// 'disabled' modules directory needs to be copied.
+			return true
+		}
+
+		priority, err := strconv.Atoi(name)
+		// 100 - 200 range should be coming from the image
+		// itself. Only copy additions above the default range.
+		return err == nil && priority > 200
+	}
+
+	srcModules := filepath.Join(src, "modules")
+	entries, err := s.FS().ReadDir(srcModules)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf("listing local modules %q: %w", srcModules, err)
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() || !shouldCopyModule(entry.Name()) {
+			continue
+		}
+
+		src := filepath.Join(srcModules, entry.Name())
+		dst := filepath.Join(dst, "modules", entry.Name())
+		if err := copyMissingModules(s, src, dst); err != nil {
+			return fmt.Errorf("copying modules from %q to %q: %w", src, dst, err)
+		}
+	}
+	return nil
+}
+
+func copyMissingModules(s *sys.System, src, dst string) error {
+	entries, err := s.FS().ReadDir(src)
+	if err != nil {
+		return fmt.Errorf("listing source module dir %q: %w", src, err)
+	}
+
+	if err := vfs.MkdirAll(s.FS(), dst, 0o700); err != nil {
+		return fmt.Errorf("creating target module dir %q: %w", dst, err)
+	}
+
+	for _, entry := range entries {
+		source := filepath.Join(src, entry.Name())
+		target := filepath.Join(dst, entry.Name())
+		if ok, _ := vfs.Exists(s.FS(), target); ok {
+			// Overwriting existing modules is not desirable as it may cause
+			// incorrect image state.
+			continue
+		}
+
+		if entry.IsDir() {
+			if err := vfs.MkdirAll(s.FS(), target, 0o700); err != nil {
+				return fmt.Errorf("creating module directory %q: %w", target, err)
+			}
+
+			if err := vfs.CopyDir(s.FS(), source, target, false, nil); err != nil {
+				return fmt.Errorf("copying module %q to %q: %w", source, target, err)
+			}
+		} else {
+			if err := vfs.CopyFile(s.FS(), source, target); err != nil {
+				return fmt.Errorf("copying file %q to %q: %w", source, target, err)
+			}
+		}
+	}
+	return nil
+}
+
+// copyLocalFiles copies all *.local files from a source policy store to the
+// given destination store.
+func copyLocalFiles(s *sys.System, src, dst string) error {
+	files, err := vfs.FindFiles(s.FS(), src, "*.local")
+	if err != nil {
+		return fmt.Errorf("listing local config files at %q: %w", src, err)
+	}
+	for _, source := range files {
+		target := filepath.Join(dst, filepath.Base(source))
+		// Files that already exist in dst are replaced so that user-defined
+		// configurations are not lost.
+		if replaced, _ := vfs.Exists(s.FS(), target); replaced {
+			s.Logger().Info("Replacing %q with locally defined %q", target, source)
+		}
+
+		if err = vfs.CopyFile(s.FS(), source, target); err != nil {
+			return fmt.Errorf("copying local config file %q: %w", source, err)
+		}
+	}
+	return nil
 }
 
 func stdHander(r *ring.Ring) func(string) {

@@ -36,7 +36,9 @@ import (
 
 const (
 	semanageConf = "/etc/selinux/semanage.conf"
+	defaultStore = "/var/lib/selinux/targeted/active"
 	etcStore     = "/etc/selinux/targeted/active"
+	marker       = "/etc/selinux/elemental-selinux_modules_migrated-targeted"
 )
 
 func TestSELinuxSuite(t *testing.T) {
@@ -199,4 +201,149 @@ var _ = Describe("Policy refresh", Label("selinux"), func() {
 		}
 		Expect(selinux.ChrootedRefreshPolicy(context.Background(), s, root, selinux.SelinuxTargetedPolicyType)).To(MatchError(ContainSubstring("semodule failed")))
 	})
+})
+
+var _ = Describe("Policy migration", Label("selinux"), func() {
+	var fs vfs.FS
+	var cleanup func()
+	var s *sys.System
+	var buffer *bytes.Buffer
+	root := "/some/root"
+
+	writeModule := func(dir, content string) {
+		Expect(vfs.MkdirAll(fs, dir, 0o700)).To(Succeed())
+		Expect(fs.WriteFile(filepath.Join(dir, "cil"), []byte(content), 0o600)).To(Succeed())
+	}
+
+	BeforeEach(func() {
+		var err error
+		buffer = &bytes.Buffer{}
+		fs, cleanup, err = sysmock.TestFS(nil)
+		Expect(err).ToNot(HaveOccurred())
+		logger := log.New(log.WithBuffer(buffer))
+		logger.SetLevel(log.DebugLevel())
+		s, err = sys.NewSystem(
+			sys.WithMounter(sysmock.NewMounter()), sys.WithRunner(sysmock.NewRunner()),
+			sys.WithFS(fs), sys.WithLogger(logger),
+			sys.WithSyscall(&sysmock.Syscall{}),
+		)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(vfs.MkdirAll(fs, root, vfs.DirPerm)).To(Succeed())
+		// Prepare the env to have both an /etc/selinux and /var/lib/selinux active policy stores
+		Expect(vfs.MkdirAll(fs, etcStore+"/modules", 0o700)).To(Succeed())
+		Expect(vfs.MkdirAll(fs, defaultStore+"/modules", 0o700)).To(Succeed())
+		Expect(fs.WriteFile(semanageConf, []byte("module-store = direct\nstore-root=/etc/selinux\n"), vfs.FilePerm)).To(Succeed())
+	})
+	AfterEach(func() {
+		cleanup()
+	})
+
+	It("does not copy base or package modules", func() {
+		writeModule(defaultStore+"/modules/100/foo", "foo")
+		writeModule(defaultStore+"/modules/200/bar", "bar")
+		writeModule(defaultStore+"/modules/tmp/baz", "baz")
+
+		Expect(selinux.ChrootedDefaultPolicyMigration(s, root, selinux.SelinuxTargetedPolicyType)).To(Succeed())
+
+		Expect(vfs.Exists(fs, etcStore+"/modules/100")).To(BeFalse())
+		Expect(vfs.Exists(fs, etcStore+"/modules/200")).To(BeFalse())
+		Expect(vfs.Exists(fs, etcStore+"/modules/tmp")).To(BeFalse())
+	})
+
+	It("does not overwrite modules already in the new store", func() {
+		writeModule(defaultStore+"/modules/400/rke2", "old")
+		writeModule(etcStore+"/modules/400/rke2", "new")
+
+		Expect(selinux.ChrootedDefaultPolicyMigration(s, root, selinux.SelinuxTargetedPolicyType)).To(Succeed())
+
+		Expect(fs.ReadFile(etcStore + "/modules/400/rke2/cil")).To(Equal([]byte("new")))
+	})
+
+	It("does not migrate once the migration marker is in place", func() {
+		Expect(fs.WriteFile(marker, []byte{}, 0o644)).To(Succeed())
+		writeModule(defaultStore+"/modules/400/rke2", "rke2")
+		Expect(fs.WriteFile(defaultStore+"/booleans.local", []byte("httpd_can_network_connect=1\n"), 0o600)).To(Succeed())
+
+		Expect(selinux.ChrootedDefaultPolicyMigration(s, root, selinux.SelinuxTargetedPolicyType)).To(Succeed())
+
+		Expect(vfs.Exists(fs, etcStore+"/modules/400/rke2")).To(BeFalse())
+		Expect(vfs.Exists(fs, etcStore+"/booleans.local")).To(BeFalse())
+		Expect(vfs.Exists(fs, marker)).To(BeTrue())
+	})
+
+	It("does not migrate when semanage.conf exists, but store-root is missing", func() {
+		Expect(fs.WriteFile(semanageConf, []byte("module-store = direct\n"), vfs.FilePerm)).To(Succeed())
+		writeModule(defaultStore+"/modules/400/rke2", "rke2")
+
+		Expect(selinux.ChrootedDefaultPolicyMigration(s, root, selinux.SelinuxTargetedPolicyType)).To(Succeed())
+
+		Expect(vfs.Exists(fs, etcStore+"/modules/400/rke2")).To(BeFalse())
+		Expect(vfs.Exists(fs, marker)).To(BeFalse())
+	})
+
+	It("does not migrate when semanage.conf is missing", func() {
+		Expect(fs.Remove(semanageConf)).To(Succeed())
+		writeModule(defaultStore+"/modules/400/rke2", "rke2")
+
+		Expect(selinux.ChrootedDefaultPolicyMigration(s, root, selinux.SelinuxTargetedPolicyType)).To(Succeed())
+
+		Expect(vfs.Exists(fs, etcStore+"/modules/400/rke2")).To(BeFalse())
+		Expect(vfs.Exists(fs, marker)).To(BeFalse())
+	})
+
+	It("does not migrate when defined new store is actually missing", func() {
+		Expect(fs.RemoveAll(etcStore)).To(Succeed())
+		writeModule(defaultStore+"/modules/400/rke2", "rke2")
+
+		Expect(selinux.ChrootedDefaultPolicyMigration(s, root, selinux.SelinuxTargetedPolicyType)).To(Succeed())
+
+		Expect(vfs.Exists(fs, marker)).To(BeFalse())
+		Expect(buffer.String()).To(ContainSubstring("Local policy migration will not be performed"))
+	})
+
+	It("does not migrate when the default store and migration marker are missing", func() {
+		Expect(fs.RemoveAll("/var/lib/selinux")).To(Succeed())
+
+		Expect(selinux.ChrootedDefaultPolicyMigration(s, root, selinux.SelinuxTargetedPolicyType)).To(Succeed())
+
+		Expect(vfs.Exists(fs, marker)).To(BeFalse())
+	})
+
+	It("replaces the local file configurations and writes migration marker", func() {
+		Expect(fs.WriteFile(defaultStore+"/booleans.local", []byte("virt_use_nfs=1\nuser_conf=1\n"), 0o600)).To(Succeed())
+		Expect(fs.WriteFile(defaultStore+"/foo.bar", []byte("baz"), 0o600)).To(Succeed())
+		Expect(fs.WriteFile(etcStore+"/booleans.local", []byte("virt_use_nfs=1\n"), 0o600)).To(Succeed())
+
+		Expect(selinux.ChrootedDefaultPolicyMigration(s, root, selinux.SelinuxTargetedPolicyType)).To(Succeed())
+
+		Expect(fs.ReadFile(etcStore + "/booleans.local")).To(Equal([]byte("virt_use_nfs=1\nuser_conf=1\n")))
+		Expect(vfs.Exists(fs, etcStore+"/foo.bar")).To(BeFalse())
+		Expect(buffer.String()).To(ContainSubstring("Replacing"))
+		Expect(vfs.Exists(fs, marker)).To(BeTrue())
+	})
+
+	It("copies local and disabled modules and writes migration marker", func() {
+		writeModule(defaultStore+"/modules/400/rke2", "rke2")
+		Expect(vfs.MkdirAll(fs, defaultStore+"/modules/disabled", 0o700)).To(Succeed())
+		Expect(fs.WriteFile(defaultStore+"/modules/disabled/rsync", []byte{}, 0o644)).To(Succeed())
+
+		Expect(selinux.ChrootedDefaultPolicyMigration(s, root, selinux.SelinuxTargetedPolicyType)).To(Succeed())
+
+		Expect(fs.ReadFile(etcStore + "/modules/400/rke2/cil")).To(Equal([]byte("rke2")))
+		Expect(vfs.Exists(fs, etcStore+"/modules/disabled/rsync")).To(BeTrue())
+		info, err := fs.Stat(etcStore + "/modules/400/rke2")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(info.Mode().Perm()).To(BeEquivalentTo(0o700))
+		Expect(vfs.Exists(fs, marker)).To(BeTrue())
+	})
+
+	It("removes the marker once the default store is gone", func() {
+		Expect(fs.RemoveAll("/var/lib/selinux")).To(Succeed())
+		Expect(fs.WriteFile(marker, []byte{}, 0o644)).To(Succeed())
+
+		Expect(selinux.ChrootedDefaultPolicyMigration(s, root, selinux.SelinuxTargetedPolicyType)).To(Succeed())
+
+		Expect(vfs.Exists(fs, marker)).To(BeFalse())
+	})
+
 })

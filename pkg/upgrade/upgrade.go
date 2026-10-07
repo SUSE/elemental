@@ -147,6 +147,11 @@ func (u Upgrader) Upgrade(d *deployment.Deployment) (err error) {
 		}
 	}
 
+	err = selinux.ChrootedDefaultPolicyMigration(u.s, trans.Path, selinux.SelinuxTargetedPolicyType)
+	if err != nil {
+		return fmt.Errorf("migrating default SE Linux policy: %w", err)
+	}
+
 	err = selinux.ChrootedRefreshPolicy(u.ctx, u.s, trans.Path, selinux.SelinuxTargetedPolicyType)
 	if err != nil {
 		return fmt.Errorf("refreshing SE Linux policy: %w", err)
