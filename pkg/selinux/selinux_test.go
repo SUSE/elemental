@@ -34,6 +34,11 @@ import (
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
 
+const (
+	semanageConf = "/etc/selinux/semanage.conf"
+	etcStore     = "/etc/selinux/targeted/active"
+)
+
 func TestSELinuxSuite(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "SELinux test suite")
@@ -131,5 +136,67 @@ var _ = Describe("Selinux", Label("selinux"), func() {
 		).To(Succeed())
 		Expect(runner.CmdsMatch([][]string{{}}))
 		Expect(buffer.String()).To(ContainSubstring("no context found"))
+	})
+})
+
+var _ = Describe("Policy refresh", Label("selinux"), func() {
+	var runner *sysmock.Runner
+	var fs vfs.FS
+	var cleanup func()
+	var s *sys.System
+	var buffer *bytes.Buffer
+	root := "/some/root"
+
+	BeforeEach(func() {
+		var err error
+		buffer = &bytes.Buffer{}
+		runner = sysmock.NewRunner()
+		fs, cleanup, err = sysmock.TestFS(nil)
+		Expect(err).ToNot(HaveOccurred())
+		logger := log.New(log.WithBuffer(buffer))
+		logger.SetLevel(log.DebugLevel())
+		s, err = sys.NewSystem(
+			sys.WithMounter(sysmock.NewMounter()), sys.WithRunner(runner),
+			sys.WithFS(fs), sys.WithLogger(logger),
+			sys.WithSyscall(&sysmock.Syscall{}),
+		)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(vfs.MkdirAll(fs, root, vfs.DirPerm)).To(Succeed())
+		Expect(vfs.MkdirAll(fs, etcStore+"/modules", 0o700)).To(Succeed())
+		Expect(fs.WriteFile(semanageConf, []byte("module-store = direct\nstore-root=/etc/selinux\n"), vfs.FilePerm)).To(Succeed())
+	})
+	AfterEach(func() {
+		cleanup()
+	})
+
+	It("skips refresh when no store-root has been provided", func() {
+		Expect(fs.WriteFile(semanageConf, []byte("module-store = direct\n"), vfs.FilePerm)).To(Succeed())
+		Expect(selinux.ChrootedRefreshPolicy(context.Background(), s, root, selinux.SelinuxTargetedPolicyType)).To(Succeed())
+
+		Expect(runner.IncludesCmds([][]string{{"semodule"}})).NotTo(Succeed())
+		Expect(buffer.String()).To(ContainSubstring("skipping policy refresh"))
+	})
+
+	It("skips refresh when semanage.conf is missing", func() {
+		Expect(fs.Remove(semanageConf)).To(Succeed())
+		Expect(selinux.ChrootedRefreshPolicy(context.Background(), s, root, selinux.SelinuxTargetedPolicyType)).To(Succeed())
+		Expect(runner.IncludesCmds([][]string{{"semodule"}})).NotTo(Succeed())
+	})
+
+	It("skips refresh when there is no active policy store", func() {
+		Expect(fs.RemoveAll(etcStore)).To(Succeed())
+		Expect(selinux.ChrootedRefreshPolicy(context.Background(), s, root, selinux.SelinuxTargetedPolicyType)).To(Succeed())
+		Expect(runner.IncludesCmds([][]string{{"semodule"}})).NotTo(Succeed())
+		Expect(buffer.String()).To(ContainSubstring("No SE Linux policy store found"))
+	})
+
+	It("fails on semodule command error", func() {
+		runner.SideEffect = func(cmd string, _ ...string) ([]byte, error) {
+			if cmd == "semodule" {
+				return []byte{}, fmt.Errorf("semodule failed")
+			}
+			return []byte{}, nil
+		}
+		Expect(selinux.ChrootedRefreshPolicy(context.Background(), s, root, selinux.SelinuxTargetedPolicyType)).To(MatchError(ContainSubstring("semodule failed")))
 	})
 })

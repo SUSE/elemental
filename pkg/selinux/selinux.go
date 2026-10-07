@@ -20,9 +20,12 @@ package selinux
 import (
 	"container/ring"
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"path/filepath"
 	"slices"
+	"strings"
 
 	"github.com/suse/elemental/v3/pkg/chroot"
 	"github.com/suse/elemental/v3/pkg/sys"
@@ -31,8 +34,10 @@ import (
 
 const (
 	SelinuxTargetedContextFile = selinuxTargetedPath + "/contexts/files/file_contexts"
+	SelinuxTargetedPolicyType  = "targeted"
 
-	selinuxTargetedPath = "/etc/selinux/targeted"
+	defaultStoreRoot    = "/var/lib/selinux"
+	selinuxTargetedPath = "/etc/selinux/" + SelinuxTargetedPolicyType
 	selinuxAutoRelabel  = "/etc/selinux/.autorelabel"
 	debugLines          = 10
 )
@@ -112,6 +117,88 @@ func ChrootedSystemRelabel(ctx context.Context, s *sys.System, rootDir string, s
 	return nil
 }
 
+// RefreshPolicy recompiles the policy if its modules changed and otherwise regenerates
+// the installed policy from the linked policy and local customizations.
+func RefreshPolicy(ctx context.Context, s *sys.System, policyType string) error {
+	const cmd = "semodule"
+	args := []string{"-n", "--refresh", "-s", policyType}
+
+	stdOut := ring.New(debugLines)
+	stdErr := ring.New(debugLines)
+
+	s.Logger().Info("Refreshing SE Linux policy from store '%s'", policyType)
+	err := s.Runner().RunContextParseOutput(ctx, stdHander(stdOut), stdHander(stdErr), cmd, args...)
+	logOutput(s, stdOut, stdErr)
+
+	return err
+}
+
+// ChrootedRefreshPolicy runs RefreshPolicy for the specified policy in a chroot of the given
+// root path. The refresh is skipped if the store root is the default policy store
+// (/var/lib/selinux), or the custom store root has no active policy store.
+func ChrootedRefreshPolicy(ctx context.Context, s *sys.System, rootDir, policyType string) error {
+	callback := func() error {
+		storeRoot, err := getStoreRoot(s)
+		if err != nil {
+			return fmt.Errorf("parsing store-root from policy configuration: %w", err)
+		}
+
+		// Do not refresh when the store is under /var, as it still holds old base modules and
+		// rebuilding it would compile them into the new snapshot.
+		if storeRoot == defaultStoreRoot {
+			s.Logger().Info("SE Linux policy store is in the default %q, skipping policy refresh", storeRoot)
+			return nil
+		}
+
+		// Refresh only on active policy store entry.
+		store := filepath.Join(storeRoot, policyType, "active")
+		if exists, _ := vfs.Exists(s.FS(), store); !exists {
+			s.Logger().Info("No SE Linux policy store found at %q, skipping policy refresh", store)
+			return nil
+		}
+
+		return RefreshPolicy(ctx, s, policyType)
+	}
+	err := chroot.ChrootedCallback(s, rootDir, nil, callback, chroot.WithoutDefaultBinds())
+	if err != nil {
+		return fmt.Errorf("chrooted policy refresh: %w", err)
+	}
+	return nil
+}
+
+// getStoreRoot parses the '/etc/selinux/semanage.conf' and returns the value of the
+// 'store-root' property. In the event of a missing 'store-root' returns the default
+// policy store - /var/lib/selinux.
+func getStoreRoot(s *sys.System) (string, error) {
+	const (
+		semanageConf = "/etc/selinux/semanage.conf"
+	)
+
+	policyStoreRoot := defaultStoreRoot
+	data, err := s.FS().ReadFile(semanageConf)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return policyStoreRoot, nil
+		}
+		return "", fmt.Errorf("reading policy store configuration: %w", err)
+	}
+
+	for line := range strings.Lines(string(data)) {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		key, value, ok := strings.Cut(line, "=")
+		if !ok || strings.TrimSpace(key) != "store-root" {
+			continue
+		}
+		policyStoreRoot = filepath.Clean(strings.Trim(strings.TrimSpace(value), `"`))
+	}
+
+	return policyStoreRoot, nil
+}
+
 func stdHander(r *ring.Ring) func(string) {
 	return func(line string) {
 		r.Value = line
@@ -133,5 +220,5 @@ func logOutput(s *sys.System, stdOut, stdErr *ring.Ring) {
 		}
 	})
 	output += "----------------------\n"
-	s.Logger().Debug("SE Linux setfile call stdout: %s", output)
+	s.Logger().Debug("SE Linux command output: %s", output)
 }
