@@ -23,6 +23,7 @@ import (
 	"runtime"
 	"slices"
 
+	"github.com/suse/elemental/v3/pkg/cache"
 	"github.com/suse/elemental/v3/pkg/installer"
 	"github.com/urfave/cli/v3"
 )
@@ -33,7 +34,9 @@ type CustomizeFlags struct {
 	Mode       string
 	Platform   string
 	MediaType  string
-	Local      bool
+	Cache      string
+	CacheDir   string
+	Airgap     bool
 }
 
 var CustomizeArgs CustomizeFlags
@@ -47,6 +50,15 @@ func NewCustomizeCommand(appName string, action func(context.Context, *cli.Comma
 			modes := []string{"", "embedded", "split"}
 			if !slices.Contains(modes, CustomizeArgs.Mode) {
 				return ctx, cli.Exit("Error: Unsupported --mode option.", 1)
+			}
+
+			cacheMode := cache.Mode(CustomizeArgs.Cache)
+			if !cacheMode.IsValid() {
+				return ctx, cli.Exit("Error: Unsupported --cache option.", 1)
+			}
+
+			if cacheMode == cache.Off && CustomizeArgs.CacheDir != cache.DefaultDir {
+				return ctx, cli.Exit("Error: --cache-dir cannot be specified when --cache is 'off'.", 1)
 			}
 
 			return ctx, nil
@@ -85,10 +97,27 @@ func NewCustomizeCommand(appName string, action func(context.Context, *cli.Comma
 				Destination: &CustomizeArgs.Platform,
 				Value:       fmt.Sprintf("linux/%s", runtime.GOARCH),
 			},
+			&cli.StringFlag{
+				Name: "cache",
+				Usage: "Cache mode, 'auto' serves cached artifacts and downloads any that are missing, " +
+					"'offline' serves cached artifacts only and fails if any are missing, " +
+					"'refresh' discards the cached artifacts and downloads them again, " +
+					"'off' neither uses nor populates the cache",
+				Destination: &CustomizeArgs.Cache,
+				Value:       string(cache.Auto),
+			},
+			&cli.StringFlag{
+				Name: "cache-dir",
+				Usage: "Full path to the cached artifacts directory. If different from the default path, it's expected to be mounted into the volume. " +
+					"If the default path does not exist, '<config-dir>/cache' is used instead",
+				Destination: &CustomizeArgs.CacheDir,
+				Value:       cache.DefaultDir,
+			},
 			&cli.BoolFlag{
-				Name:        localFlg,
-				Usage:       localDesc,
-				Destination: &CustomizeArgs.Local,
+				Name: "airgap",
+				Usage: "Build an image that can be deployed offline with all of the necessary artifacts automatically " +
+					"embedded into the image like Helm charts, Kubernetes artifacts, container images.",
+				Destination: &CustomizeArgs.Airgap,
 			},
 		},
 	}

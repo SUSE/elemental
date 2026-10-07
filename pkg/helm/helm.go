@@ -46,6 +46,7 @@ type Spec struct {
 	Chart                 string      `yaml:"chart"`
 	Version               string      `yaml:"version"`
 	Repo                  string      `yaml:"repo,omitempty"`
+	ChartContent          string      `yaml:"chartContent,omitempty"`
 	ValuesContent         string      `yaml:"valuesContent,omitempty"`
 	TargetNamespace       string      `yaml:"targetNamespace,omitempty"`
 	CreateNamespace       bool        `yaml:"createNamespace,omitempty"`
