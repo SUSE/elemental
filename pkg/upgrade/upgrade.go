@@ -147,6 +147,11 @@ func (u Upgrader) Upgrade(d *deployment.Deployment) (err error) {
 		}
 	}
 
+	err = selinux.ChrootedRefreshPolicy(u.ctx, u.s, trans.Path, selinux.SelinuxTargetedPolicyType)
+	if err != nil {
+		return fmt.Errorf("refreshing SE Linux policy: %w", err)
+	}
+
 	shared, snapshotted := parsePersistentPaths(d)
 	err = selinux.ChrootedSystemRelabel(u.ctx, u.s, trans.Path, snapshotted, shared)
 	if err != nil {
