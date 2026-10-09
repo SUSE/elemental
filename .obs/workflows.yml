@@ -1,6 +1,21 @@
 ---
 pr:
   steps:
+    - configure_repositories:
+        project: devel:UnifiedCore:Tumbleweed:PRs
+        repositories:
+          - name: standard
+            paths:
+              - target_project: devel:UnifiedCore:Tumbleweed
+                target_repository: standard
+            architectures:
+              - x86_64
+            rebuild: local
+            block: local
+          - name: containers
+            architectures:
+              - x86_64
+            block: local
     - branch_package:
         source_project: devel:UnifiedCore:Tumbleweed
         source_package: elemental
