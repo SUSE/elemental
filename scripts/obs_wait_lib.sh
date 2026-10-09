@@ -4,8 +4,8 @@ set -uo pipefail
 
 : "${BUILD_ENDPOINT:=https://build.opensuse.org/public/build}"
 : "${DOCKER:=docker}"
-: "${TIMEOUT:=3600}"
-: "${SLEEP:=60}"
+: "${TIMEOUT:=7200}"
+: "${SLEEP:=120}"
 : "${ARCH:=$(uname -m)}"
 
 is_pkg_built_complete() {
