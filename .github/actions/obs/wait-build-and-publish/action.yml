@@ -1,7 +1,7 @@
 name: Wait for OBS project artefacts build and publish
 description: |
   Waits for OBS project artefacts to be successfully built and published. To ensure this, the action
-  monitors all packages under the "standard", "sysexts" and "containers" repositories by default.
+  monitors all packages under the "standard" and "containers" repositories by default.
   Only when all packages for all repositories are built and published, will the action be considered successful.
 inputs:
   obs_project:
@@ -10,10 +10,10 @@ inputs:
   repositories:
     description: |
       Comma separated list of repositories to monitor (e.g. "foo, bar, baz").
-      Overrides the default repository list - "standard,sysexts,containers".
+      Overrides the default repository list - "standard,containers".
       Repositories are monitored in the sequence that they are defined in.
     required: false
-    default: "standard,sysexts,containers"
+    default: "standard,containers"
 runs:
   using: composite
   steps:
