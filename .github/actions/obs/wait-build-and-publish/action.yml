@@ -8,7 +8,7 @@ inputs:
     description: Full path (as seen in OBS) to the project that will be monitored
     required: true
   repositories:
-    description: | 
+    description: |
       Comma separated list of repositories to monitor (e.g. "foo, bar, baz").
       Overrides the default repository list - "standard,sysexts,containers".
       Repositories are monitored in the sequence that they are defined in.
@@ -21,7 +21,7 @@ runs:
       shell: bash
       run: |
         source scripts/obs_wait_lib.sh
-        
+
         repos="${{ inputs.repositories }}"
         for repo in ${repos//,/ }; do
           repo="${repo//[[:space:]]/}"
