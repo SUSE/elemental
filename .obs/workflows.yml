@@ -1,6 +1,21 @@
 ---
 pr:
   steps:
+    - configure_repositories:
+        project: devel:UnifiedCore:Tumbleweed:PRs
+        repositories:
+          - name: standard
+            paths:
+              - target_project: devel:UnifiedCore:Tumbleweed
+                target_repository: standard
+            architectures:
+              - x86_64
+            rebuild: local
+            block: local
+          - name: containers
+            architectures:
+              - x86_64
+            block: local
     - branch_package:
         source_project: devel:UnifiedCore:Tumbleweed
         source_package: elemental
@@ -20,6 +35,13 @@ pr:
         flags:
           - type: publish
             status: enable
-            project: devel:UnifiedCore:Tumbleweed:PRs
+            architecture: x86_64
+          - type: build
+            status: disable
+            architecture: aarch64
   filters:
     event: pull_request
+    branches:
+      only:
+        - main
+        - release-3.0
