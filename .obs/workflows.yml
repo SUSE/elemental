@@ -21,5 +21,6 @@ pr:
           - type: publish
             status: enable
             project: devel:UnifiedCore:Tumbleweed:PRs
+            architecture: x86_64
   filters:
     event: pull_request
