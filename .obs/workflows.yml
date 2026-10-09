@@ -22,10 +22,13 @@ pr:
             status: enable
             project: devel:UnifiedCore:Tumbleweed:PRs
             architecture: x86_64
-        flags:
           - type: build
             status: disable
             project: devel:UnifiedCore:Tumbleweed:PRs
             architecture: aarch64
   filters:
     event: pull_request
+    branches:
+      only:
+        - main
+        - release-3.0
