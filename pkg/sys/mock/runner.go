@@ -95,7 +95,7 @@ func (r *Runner) RunContextWithPipe(
 
 	if err = stdinPipeFn(pw); err != nil {
 		_ = pw.Close()
-		<-callErrChan
+		<-callErrChan //nolint:errcheck
 		return err
 	}
 
