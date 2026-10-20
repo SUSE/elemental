@@ -40,13 +40,13 @@ disks:
 - partitions:
   # no system partition
   - label: mylabel
-    function: data
+    role: generic
     fileSystem: xfs
-  - function: efi
+  - role: efi
     fileSystem: vfat
-  - function: recovery
+  - role: recovery
     fileSystem: btrfs
-  - function: data
+  - role: generic
     fileSystem: ext2
 `
 )

@@ -186,6 +186,15 @@ var _ = Describe("Deployment", Label("deployment"), func() {
 			Expect(len(rD.Disks[0].Partitions)).To(Equal(2))
 			Expect(rD.Sanitize(s, deployment.CheckDiskDevice)).To(Succeed())
 		})
+		It("fails to parse deployment files including unknown fields", func() {
+			dep := "unknown: field"
+			Expect(vfs.MkdirAll(tfs, "/root/etc/elemental", vfs.DirPerm)).To(Succeed())
+			Expect(tfs.WriteFile("/root/etc/elemental/deployment.yaml", []byte(dep), vfs.FilePerm))
+
+			_, err := deployment.Parse(s, "/root")
+			Expect(err).To(HaveOccurred())
+			Expect(err).To(MatchError(ContainSubstring("field unknown not found")))
+		})
 		It("unmarshals Disk.Device", func() {
 			disk := "target: /dev/sometarget"
 

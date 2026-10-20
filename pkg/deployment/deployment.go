@@ -18,6 +18,7 @@ limitations under the License.
 package deployment
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -970,7 +971,9 @@ func Parse(s *sys.System, root string) (*Deployment, error) {
 		return nil, fmt.Errorf("reading deployment file '%s': %w", path, err)
 	}
 	d := &Deployment{}
-	err = yaml.Unmarshal(data, d)
+	dec := yaml.NewDecoder(bytes.NewReader(data))
+	dec.KnownFields(true)
+	err = dec.Decode(d)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshalling deployment file '%s': %w: %s", path, err, string(data))
 	}

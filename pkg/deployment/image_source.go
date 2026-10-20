@@ -165,19 +165,30 @@ func (i ImageSource) MarshalYAML() (any, error) {
 }
 
 func (i *ImageSource) UnmarshalYAML(data *yaml.Node) (err error) {
-	imgSrc := map[string]string{}
+	type img struct {
+		URI       string         `yaml:"uri"`
+		Digest    string         `yaml:"digest,omitempty"`
+		Leftovers map[string]any `yaml:",inline"`
+	}
+
+	var imgSrc img
 	if err = data.Decode(&imgSrc); err != nil {
 		return err
 	}
-	if imgSrc["uri"] == "" {
+
+	if len(imgSrc.Leftovers) > 0 {
+		return fmt.Errorf("unknown fields in source: %v", imgSrc.Leftovers)
+	}
+
+	if imgSrc.URI == "" {
 		return fmt.Errorf("no 'uri' provided for the image source: %s", string(data.Value))
 	}
 
-	err = i.updateFromURI(imgSrc["uri"])
+	err = i.updateFromURI(imgSrc.URI)
 	if err != nil {
 		return err
 	}
-	i.digest = imgSrc["digest"]
+	i.digest = imgSrc.Digest
 	return err
 }
 

@@ -30,6 +30,12 @@ uri: raw:///path/to/image/file.raw
 digest: adfasdfadsfaf
 `
 
+const badSrc = `
+uri: raw:///path/to/image/file.raw
+digest: adfasdfadsfaf
+unknown: nonsense
+`
+
 var _ = Describe("Image Source", Label("imagesource"), func() {
 	It("initiates an OCI image source from URI", func() {
 		imgsrc, err := deployment.NewSrcFromURI("registry.org/my/image")
@@ -106,5 +112,9 @@ uri: oci://registry.org/my/image:latest
 	It("fails to deserialize invalid URI type", func() {
 		imgsrc := deployment.NewEmptySrc()
 		Expect(yaml.Unmarshal([]byte("uri: https://example/com"), imgsrc)).NotTo(Succeed())
+	})
+	It("fails to deserialize with a source including unknown fields", func() {
+		imgsrc := deployment.NewEmptySrc()
+		Expect(yaml.Unmarshal([]byte(badSrc), imgsrc)).To(MatchError(ContainSubstring("unknown fields in source")))
 	})
 })
