@@ -28,6 +28,7 @@ import (
 
 	"github.com/schollz/progressbar/v3"
 
+	"github.com/suse/elemental/v3/pkg/cache"
 	"github.com/suse/elemental/v3/pkg/containerd"
 	"github.com/suse/elemental/v3/pkg/sys"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
@@ -57,6 +58,7 @@ type OCI struct {
 	rsyncFlags  []string
 	ctrdSock    string
 	ctrd        containerd.Interface
+	cache       *cache.Cache
 }
 
 type OCIOpt func(*OCI)
@@ -88,6 +90,12 @@ func WithRsyncFlagsOCI(flags ...string) OCIOpt {
 func WithContainerd(ctrd containerd.Interface) OCIOpt {
 	return func(o *OCI) {
 		o.ctrd = ctrd
+	}
+}
+
+func WithCacheOCI(c *cache.Cache) OCIOpt {
+	return func(o *OCI) {
+		o.cache = c
 	}
 }
 
@@ -172,12 +180,21 @@ func (o OCI) unpack(ctx context.Context, destination string, excludes ...string)
 		return "", err
 	}
 
+	fetch := func(ctx context.Context) (img containerregistry.Image, err error) {
+		err = backoff.Retry(func() error {
+			img, err = fetchImage(ctx, ref, *platform, o.local, o.verify)
+			return err
+		}, backoff.WithMaxRetries(backoff.NewConstantBackOff(3*time.Second), 3))
+		return img, err
+	}
+
 	var img containerregistry.Image
 
-	err = backoff.Retry(func() error {
-		img, err = fetchImage(ctx, ref, *platform, o.local, o.verify)
-		return err
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(3*time.Second), 3))
+	if o.cache != nil {
+		img, err = o.cache.Image(ctx, ref.Name(), *platform, fetch)
+	} else {
+		img, err = fetch(ctx)
+	}
 	if err != nil {
 		return "", err
 	}

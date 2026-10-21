@@ -68,7 +68,7 @@ sudo elemental3 customize --type <raw/iso> --config-dir <path>
 ```
 
 > **IMPORTANT:** The above process is long running, as it involves pulling multiple component images over the network.
-> For a quicker execution, use locally pulled container images in combination with the `--local` flag.
+> Downloaded artifacts are cached under `<config-dir>/cache` and are reused for future runs.
 
 Unless configured otherwise, after execution, the resulting ready-to-boot image will reside in the configuration directory path and use the `image-<timestamp>.<image-type>` naming format.
 
@@ -92,18 +92,72 @@ Run the customization process:
    ```
 
 > **IMPORTANT:** The above process is long running, as it involves pulling multiple component images over the network.
-> For a quicker execution, use locally pulled container images in combination with mounting the podman socket to the `elemental3` container image and specifying the `--local` flag:
+> For a quicker execution of subsequent runs, mount a directory from the host at `/cache`:
 >
-> 1. Start Podman socket:
 >   ```shell
->   systemctl enable --now podman.socket
->   ```
-> 2. Run the `elemental3` container with the mounted podman socket:
->   ```shell
->   podman run -it -v <PATH_TO_CONFIG_DIR>:/config -v /run/podman/podman.sock:/var/run/docker.sock $ELEMENTAL_IMAGE customize --type <raw/iso> --local
+>   podman run -it -v <PATH_TO_CONFIG_DIR>:/config -v <PATH_TO_CACHE_DIR>:/cache $ELEMENTAL_IMAGE customize --type <raw/iso>
 >   ```
 
 Unless configured otherwise, the above process will produce a customized RAW or ISO image under the specified `<PATH_TO_CONFIG_DIR>` directory.
+
+### Cache configurations
+
+During the customization process, artifacts downloaded during customization can be optionally cached to speed up future builds.
+
+The cache is controlled by the following `elemental3 customize` options:
+
+* `--cache` - (Optional) Cache mode, `auto` if unspecified.
+  * `auto` - serves cached artifacts and downloads any that are missing.
+  * `offline` - serves cached artifacts only, never downloads and fails on the first missing artifact. For customizing images without reaching over the network.
+  * `refresh` - discards the previously cached artifacts and downloads everything again.
+  * `off` - neither uses nor populates the cache.
+
+Default run, cached artifacts will reside under `<PATH_TO_CONFIG_DIR>/cache` on the host machine:
+```shell
+podman run -it \
+  -v <PATH_TO_CONFIG_DIR>:/config \
+  $ELEMENTAL_IMAGE \
+  customize --type <raw/iso>
+```
+
+Offline run, only previously cached artifacts are used and the process fails if any of them is missing.
+Adding `--network none` ensures nothing is downloaded during customization:
+```shell
+podman run -it --network none \
+  -v <PATH_TO_CONFIG_DIR>:/config \
+  -v <PATH_TO_CACHE_DIR>:/cache \
+  $ELEMENTAL_IMAGE \
+  customize --type <raw/iso> \
+  --cache offline
+```
+
+Refresh run, previously cached artifacts are discarded and downloaded again:
+```shell
+podman run -it \
+  -v <PATH_TO_CONFIG_DIR>:/config \
+  -v <PATH_TO_CACHE_DIR>:/cache \
+  $ELEMENTAL_IMAGE \
+  customize --type <raw/iso> \
+  --cache refresh
+```
+
+No cache run, artifacts will not be cached and previously cached artifacts will be ignored:
+```shell
+podman run -it \
+  -v <PATH_TO_CONFIG_DIR>:/config \
+  $ELEMENTAL_IMAGE \
+  customize --type <raw/iso> \
+  --cache off
+```
+
+> **NOTE:** A container image with the `latest` tag, is served from the cache until the cache is refreshed.
+
+For locally built release manifests not served by a registry, the easiest way to seed them into the cache is:
+```shell
+podman push \
+  localhost/release-manifest:dev \
+  oci:<PATH_TO_CACHE_DIR>/oci:localhost/release-manifest:dev
+```
 
 ## Booting a customized image
 

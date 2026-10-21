@@ -288,15 +288,13 @@ Let’s customize a RAW disk image:
 sudo podman run -it --rm \
 --network host \
 -v ${ELEMENTAL_CONFIG_DIR}/single-node:/config:Z \
--v /run/podman/podman.sock:/var/run/docker.sock \
+-v ${ELEMENTAL_ROOT}/cache:/cache:Z \
 ${ELEMENTAL_IMAGE} customize --type raw
 ```
 
 
-**Note:** The Podman socket from the host is mounted to the Docker socket within the container. This is expected as a large majority of the artifacts that Elemental 3 fetches and works with are
-container images, i.e. it will fetch and unpack data from various OCI registries as a source.
-
-**Note:** The Podman socket path on the host is not `/run/podman/podman.sock` if you are using Podman as a regular user with a regular rootless setup. See earlier note in [Environment Setup](#environment-setup) on how to leverage a rootless Podman execution.
+**Note:** A large majority of the artifacts that Elemental 3 fetches and works with are container images, i.e. it will fetch and unpack data from various OCI registries as a source.
+Every downloaded artifact is kept in the directory mounted at `/cache`, to speed up the build time of future runs. If no cache mount is specified the cache is automatically created in the directory where the image is built.
 
 As soon as the process completes, you will find your image alongside its SHA256 checksum within the `$ELEMENTAL_CONFIG_DIR/single-node` directory.
 
@@ -393,7 +391,6 @@ Let’s customize a RAW disk image:
 sudo podman run -it \
 --network host \
 -v ${ELEMENTAL_CONFIG_DIR}/multi-node:/config \
--v /run/podman/podman.sock:/var/run/docker.sock \
 ${ELEMENTAL_IMAGE} customize --type raw
 ```
 
@@ -537,7 +534,6 @@ Let’s customize the RAW disk image:
 ```shell
 sudo podman run -it --network host \
 -v ${ELEMENTAL_CONFIG_DIR}/linux-only:/config \
--v /run/podman/podman.sock:/var/run/docker.sock \
 ${ELEMENTAL_IMAGE} customize --type raw --mode split
 ```
 

@@ -21,6 +21,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/suse/elemental/v3/pkg/cache"
 	"github.com/suse/elemental/v3/pkg/deployment"
 	"github.com/suse/elemental/v3/pkg/sys"
 )
@@ -51,6 +52,16 @@ func WithLocal(local bool) Opt {
 		switch srcType {
 		case deployment.OCI:
 			o.ociOpts = append(o.ociOpts, WithLocalOCI(local))
+		default:
+		}
+	}
+}
+
+func WithCache(c *cache.Cache) Opt {
+	return func(srcType deployment.ImageSrcType, o *options) {
+		switch srcType {
+		case deployment.OCI:
+			o.ociOpts = append(o.ociOpts, WithCacheOCI(c))
 		default:
 		}
 	}

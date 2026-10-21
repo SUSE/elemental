@@ -98,6 +98,10 @@ func (o Output) ISOStoreDir() string {
 	return filepath.Join(o.ExtractedFilesStoreDir(), "ISOs")
 }
 
+func (o Output) RemoteManifestsStoreDir() string {
+	return filepath.Join(o.ExtractedFilesStoreDir(), "manifests")
+}
+
 func (o Output) InitrdExtensionFile() string {
 	return filepath.Join(o.RootPath, "initrdExt.cpio")
 }

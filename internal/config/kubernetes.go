@@ -76,6 +76,7 @@ func (m *Manager) configureKubernetes(
 	ctx context.Context,
 	conf *image.Configuration,
 	manifest *resolver.ResolvedManifest,
+	output Output,
 	butaneCfg *butane.Config,
 ) (err error) {
 	if manifest == nil ||
@@ -100,7 +101,7 @@ func (m *Manager) configureKubernetes(
 	if needsManifestsSetup(conf) {
 		m.system.Logger().Info("Configuring Kubernetes manifests")
 
-		runtimeManifestsDir, err = m.setupManifests(ctx, &conf.Kubernetes, butaneCfg)
+		runtimeManifestsDir, err = m.setupManifests(ctx, &conf.Kubernetes, output, butaneCfg)
 		if err != nil {
 			return fmt.Errorf("configuring kubernetes manifests: %w", err)
 		}
@@ -146,22 +147,34 @@ func (m *Manager) configureKubernetes(
 	return nil
 }
 
-func (m *Manager) setupManifests(ctx context.Context, k *kubernetes.Kubernetes, butaneCfg *butane.Config) (string, error) {
+func (m *Manager) setupManifests(ctx context.Context, k *kubernetes.Kubernetes, output Output, butaneCfg *butane.Config) (string, error) {
 	fs := m.system.FS()
 
 	relativeManifestsPath := filepath.Join("/", image.KubernetesManifestsPath())
 
-	for _, manifest := range k.RemoteManifests {
-		targetPath := filepath.Join(relativeManifestsPath, filepath.Base(manifest))
-
-		rc, err := m.downloader.URLBody(ctx, manifest)
-		if err != nil {
-			return "", fmt.Errorf("downloading remote Kubernetes manifest '%s': %w", manifest, err)
+	if len(k.RemoteManifests) > 0 {
+		storeDir := output.RemoteManifestsStoreDir()
+		if err := vfs.MkdirAll(fs, storeDir, vfs.DirPerm); err != nil {
+			return "", fmt.Errorf("creating remote manifests directory: %w", err)
 		}
 
-		err = butaneCfg.AddFileInlineFromReader(targetPath, rc, 0o644)
-		if err != nil {
-			return "", fmt.Errorf("reading contents for manifest %q: %w", manifest, err)
+		for i, manifest := range k.RemoteManifests {
+			targetPath := filepath.Join(relativeManifestsPath, filepath.Base(manifest))
+			localPath := filepath.Join(storeDir, fmt.Sprintf("manifest-%d.yaml", i))
+
+			if err := m.downloadFile(ctx, manifest, localPath); err != nil {
+				return "", fmt.Errorf("downloading remote Kubernetes manifest '%s': %w", manifest, err)
+			}
+
+			mfst, err := fs.Open(localPath)
+			if err != nil {
+				return "", fmt.Errorf("opening downloaded manifest %q: %w", manifest, err)
+			}
+
+			err = butaneCfg.AddFileInlineFromReader(targetPath, mfst, 0o644)
+			if err != nil {
+				return "", fmt.Errorf("reading contents for manifest %q: %w", manifest, err)
+			}
 		}
 	}
 
