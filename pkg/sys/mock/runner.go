@@ -29,12 +29,13 @@ import (
 )
 
 type Runner struct {
-	cmds        [][]string
-	envs        [][]string
-	ReturnValue []byte
-	SideEffect  func(command string, args ...string) ([]byte, error)
-	ReturnError error
-	Logger      log.Logger
+	cmds         [][]string
+	envs         [][]string
+	ReturnValue  []byte
+	ReturnStderr []byte
+	SideEffect   func(command string, args ...string) ([]byte, error)
+	ReturnError  error
+	Logger       log.Logger
 }
 
 var _ sys.Runner = (*Runner)(nil)
@@ -107,11 +108,17 @@ func (r *Runner) RunContextWithPipe(
 	return nil
 }
 
-func (r *Runner) RunContextParseOutput(_ context.Context, stdoutH, _ func(string), command string, args ...string) error {
+func (r *Runner) RunContextParseOutput(_ context.Context, stdoutH, stderrH func(string), command string, args ...string) error {
 	out, err := r.Run(command, args...)
 	scanner := bufio.NewScanner(strings.NewReader(string(out)))
 	for scanner.Scan() {
 		stdoutH(scanner.Text())
+	}
+	if stderrH != nil {
+		scanner = bufio.NewScanner(strings.NewReader(string(r.ReturnStderr)))
+		for scanner.Scan() {
+			stderrH(scanner.Text())
+		}
 	}
 	return err
 }
