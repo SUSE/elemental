@@ -18,7 +18,10 @@ limitations under the License.
 package core
 
 import (
+	"errors"
 	"fmt"
+
+	"github.com/go-playground/validator/v10"
 
 	"github.com/suse/elemental/v3/pkg/manifest/api"
 	corev0 "github.com/suse/elemental/v3/pkg/manifest/api/internal/v0/core"
@@ -50,14 +53,18 @@ func Parse(data []byte) (*ReleaseManifest, error) {
 	}
 }
 
-func migrateV0(old *corev0.ReleaseManifest) *corev1.ReleaseManifest {
+func migrateV0(old *corev0.ReleaseManifest) (*corev1.ReleaseManifest, error) {
+	const version = "3.0"
+
 	var metadata *corev1.Metadata
+
 	if old.Metadata != nil {
 		metadata = &corev1.Metadata{
 			Metadata: v1.Metadata{
 				Name:         old.Metadata.Name,
 				CreationDate: old.Metadata.CreationDate,
 			},
+			Elemental: &corev1.Elemental{Version: version},
 		}
 	}
 
@@ -67,7 +74,15 @@ func migrateV0(old *corev0.ReleaseManifest) *corev1.ReleaseManifest {
 		Components: old.Components,
 	}
 
-	return migrated
+	if err := api.NewValidator(api.WithYAMLFieldNames()).Struct(migrated); err != nil {
+		if validationErrors, ok := errors.AsType[validator.ValidationErrors](err); ok {
+			err = api.FormatErrors(validationErrors)
+		}
+
+		return nil, fmt.Errorf("validating corev1.ReleaseManifest: %w", err)
+	}
+
+	return migrated, nil
 }
 
 func parseV0(data []byte) (*ReleaseManifest, error) {
@@ -76,7 +91,7 @@ func parseV0(data []byte) (*ReleaseManifest, error) {
 		return nil, err
 	}
 
-	return migrateV0(rmv0), nil
+	return migrateV0(rmv0)
 }
 
 func parseV1(data []byte) (*ReleaseManifest, error) {

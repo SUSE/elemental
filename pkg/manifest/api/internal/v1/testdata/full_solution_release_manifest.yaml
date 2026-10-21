@@ -13,35 +13,35 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-schema: v0
+schema: v1
 metadata:
-  name: "suse-core"
-  version: "1.0"
-  creationDate: "2000-01-01"
+  name: "suse-edge"
+  creationDate: "2025-01-20"
+corePlatform:
+  image: "foo.example.com/bar/release-manifest:1.0"
 components:
-  operatingSystem:
-    image:
-      base: "registry.com/foo/bar/os-base:6.2"
-      iso: "registry.com/foo/bar/installer-iso:6.2"
-  kubernetes:
-    version: "v1.35.0+rke2r1"
-    image: "registry.example.com/rke2:1.35_1.0"
+  systemd:
+    extensions:
+      - name: "foo-ext"
+        image: "https://example.com/foo-ext_0.0.raw"
   helm:
     charts:
-      - name: "Foo"
-        chart: "foo"
+      - name: "Bar"
+        chart: "bar"
         version: "0.0.0"
-        namespace: "foo-system"
-        repository: "foo-charts"
+        namespace: "bar-system"
+        repository: "bar-charts"
         values:
           image:
             tag: latest
         dependsOn:
-          - name: "baz"
-            type: "helm"
-        images:
           - name: "foo"
-            image: "registry.com/foo/foo:0.0.0"
+            type: "helm"
+          - name: "bar"
+            type: "sysext"
+        images:
+          - name: "bar"
+            image: "registry.com/bar/bar:0.0.0"
     repositories:
-      - name: "foo-charts"
-        url: "https://foo.github.io/charts"
+      - name: "bar-charts"
+        url: "https://bar.github.io/charts"

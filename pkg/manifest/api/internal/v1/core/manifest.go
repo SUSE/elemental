@@ -40,5 +40,5 @@ type Metadata struct {
 
 type Elemental struct {
 	Version string `yaml:"version" validate:"required"`
-	Image   string `yaml:"image" validate:"required"`
+	Image   string `yaml:"image"`
 }

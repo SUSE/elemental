@@ -86,8 +86,7 @@ func Parse[R any](data []byte) (*R, error) {
 	}
 
 	if err := NewValidator(WithYAMLFieldNames()).Struct(rm); err != nil {
-		var validationErrors validator.ValidationErrors
-		if errors.As(err, &validationErrors) {
+		if validationErrors, ok := errors.AsType[validator.ValidationErrors](err); ok {
 			err = FormatErrors(validationErrors)
 		}
 
