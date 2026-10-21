@@ -36,6 +36,7 @@ type CustomizeFlags struct {
 	MediaType  string
 	Cache      string
 	CacheDir   string
+	Airgap     bool
 }
 
 var CustomizeArgs CustomizeFlags
@@ -111,6 +112,12 @@ func NewCustomizeCommand(appName string, action func(context.Context, *cli.Comma
 					"If the default path does not exist, '<config-dir>/cache' is used instead",
 				Destination: &CustomizeArgs.CacheDir,
 				Value:       cache.DefaultDir,
+			},
+			&cli.BoolFlag{
+				Name: "airgap",
+				Usage: "Build an image that can be deployed offline with all of the necessary artifacts automatically " +
+					"embedded into the image like Helm charts, Kubernetes artifacts, container images.",
+				Destination: &CustomizeArgs.Airgap,
 			},
 		},
 	}

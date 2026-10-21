@@ -27,6 +27,7 @@ import (
 	"github.com/suse/elemental/v3/internal/image"
 	"github.com/suse/elemental/v3/pkg/cache"
 	"github.com/suse/elemental/v3/pkg/extractor"
+	"github.com/suse/elemental/v3/pkg/hauler"
 	"github.com/suse/elemental/v3/pkg/http"
 	"github.com/suse/elemental/v3/pkg/manifest/resolver"
 	"github.com/suse/elemental/v3/pkg/manifest/source"
@@ -38,7 +39,8 @@ import (
 type unpackFunc func(ctx context.Context, imageRef, destDir string) error
 
 type helmConfigurator interface {
-	Configure(conf *image.Configuration, manifest *resolver.ResolvedManifest, bConfig *butane.Config) ([]string, error)
+	Configure(ctx context.Context, conf *image.Configuration, manifest *resolver.ResolvedManifest, bConfig *butane.Config) ([]string, error)
+	ContainerImages() []string
 }
 
 type releaseManifestResolver interface {
@@ -49,16 +51,27 @@ type downloader interface {
 	URLBody(ctx context.Context, url string) (io.ReadCloser, error)
 }
 
+type imageStore interface {
+	Login(ctx context.Context, registry, username, password string) error
+	SaveImage(ctx context.Context, image, platform, archive string) error
+	LoadStore(ctx context.Context, store string, archives ...string) error
+	ExportRegistry(ctx context.Context, store, dir string) error
+	WriteEmptyStore(dir string) error
+	HaulerPath(platform string) (string, error)
+}
+
 type Manager struct {
 	system   *sys.System
 	local    bool
 	cache    *cache.Cache
 	platform string
+	airgap   bool
 
 	rmResolver  releaseManifestResolver
 	downloader  downloader
 	unpackImage unpackFunc
 	helm        helmConfigurator
+	imageStore  imageStore
 }
 
 type Opts func(m *Manager)
@@ -99,6 +112,18 @@ func WithCache(c *cache.Cache) Opts {
 	}
 }
 
+func WithAirgap(airgap bool) Opts {
+	return func(m *Manager) {
+		m.airgap = airgap
+	}
+}
+
+func WithImageStore(s imageStore) Opts {
+	return func(m *Manager) {
+		m.imageStore = s
+	}
+}
+
 func NewManager(sys *sys.System, helm helmConfigurator, opts ...Opts) *Manager {
 	m := &Manager{
 		system: sys,
@@ -119,6 +144,10 @@ func NewManager(sys *sys.System, helm helmConfigurator, opts ...Opts) *Manager {
 
 	if m.cache == nil {
 		m.cache = cache.Disabled(sys.FS())
+	}
+
+	if m.imageStore == nil {
+		m.imageStore = hauler.New(sys)
 	}
 
 	if m.unpackImage == nil {

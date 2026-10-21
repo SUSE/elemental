@@ -48,15 +48,20 @@ func TestConfigurationSuite(t *testing.T) {
 }
 
 type helmConfiguratorMock struct {
-	configureFunc func(*image.Configuration, *resolver.ResolvedManifest, *butane.Config) ([]string, error)
+	configureFunc   func(*image.Configuration, *resolver.ResolvedManifest, *butane.Config) ([]string, error)
+	containerImages []string
 }
 
-func (h *helmConfiguratorMock) Configure(conf *image.Configuration, manifest *resolver.ResolvedManifest, bConf *butane.Config) ([]string, error) {
+func (h *helmConfiguratorMock) Configure(_ context.Context, conf *image.Configuration, manifest *resolver.ResolvedManifest, bConf *butane.Config) ([]string, error) {
 	if h.configureFunc != nil {
 		return h.configureFunc(conf, manifest, bConf)
 	}
 
 	panic("not implemented")
+}
+
+func (h *helmConfiguratorMock) ContainerImages() []string {
+	return h.containerImages
 }
 
 func findFileContentsInConfig(config *butane.Config, name string) *string {

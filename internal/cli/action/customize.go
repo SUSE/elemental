@@ -131,7 +131,7 @@ func setupCustomizeRunner(
 
 	return &customize.Runner{
 		System:        s,
-		ConfigManager: setupConfigManager(s, args.ConfigDir, c, args.Platform),
+		ConfigManager: setupConfigManager(s, args.ConfigDir, output, c, args.Platform, args.Airgap),
 		FileExtractor: extr,
 	}, nil
 }
@@ -173,17 +173,25 @@ func resolveCacheDir(s *sys.System, cacheDir, configDir string, policy cache.Pol
 	return "", fmt.Errorf("cache directory '%s' does not exist, make sure it is mounted", cacheDir)
 }
 
-func setupConfigManager(s *sys.System, configDir string, c *cache.Cache, platform string) *config.Manager {
+func setupConfigManager(s *sys.System, configDir string, output config.Output, c *cache.Cache, platform string, airgap bool) *config.Manager {
 	valuesResolver := &helm.ValuesResolver{
 		FS:        s.FS(),
 		ValuesDir: v0.Dir(configDir).HelmValuesDir(),
 	}
 
+	helmConfigurator := config.NewHelm(valuesResolver, s.Logger())
+	helmConfigurator.FS = s.FS()
+	helmConfigurator.Puller = helm.NewPuller(s)
+	helmConfigurator.Cache = c
+	helmConfigurator.ChartsDir = output.HelmChartsStoreDir()
+	helmConfigurator.Airgap = airgap
+
 	return config.NewManager(
 		s,
-		config.NewHelm(valuesResolver, s.Logger()),
+		helmConfigurator,
 		config.WithCache(c),
 		config.WithPlatform(platform),
+		config.WithAirgap(airgap),
 	)
 }
 

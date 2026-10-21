@@ -4,6 +4,8 @@ This section provides an overview of how the `elemental3` command-line interface
 
 For general information about the customization process, refer to the [Customization Process](#customization-process) section.
 
+For information on booting images in air-gapped environments, refer to the [Air-gapped images](#air-gapped-images) section.
+
 For information on how to boot a customized image, refer to the [Booting a customized image](#booting-a-customized-image) section.
 
 For real-life examples, refer to the deployment scenario examples in the [Cookbook](../docs/cookbook-first-time-use.md#scope-and-audience) documentation. 
@@ -30,7 +32,6 @@ For further understanding of the customization process, you can also refer to th
 Currently, the image customization process has the following limitations:
 
 1. Supports customizing images only for `x86_64` platforms.
-1. Supports customizing images for connected (non air-gapped) environments only.
 
 Elemental is in active development, and these limitations **will** be addressed as part of the product roadmap.
 
@@ -49,7 +50,8 @@ This section provides a high-level overview of the steps that Elemental's toolin
    1. Unpack the pre-built installer ISO that is defined in the `core platform` release manifest.
    1. Prepare for Kubernetes cluster creation and resource deployment:
       1. Prepare Helm charts and Kubernetes manifests
-      1. Download RKE2 artifacts (tarball, images, checksums) and install script for air-gapped installation.
+      1. Download RKE2 artifacts (tarball, checksums) and install script.
+      1. For [air-gapped images](#air-gapped-images), embed the Helm charts, the RKE2 container image tarballs, and the container images used by the workloads.
    1. Prepare any other overlays or firstboot configurations based on what was defined in the configuration directory.
    1. Produce a description of the desired installation state and merge it with the installer ISO description.
    1. Produce the final desired image type.
@@ -157,6 +159,32 @@ For locally built release manifests not served by a registry, the easiest way to
 podman push \
   localhost/release-manifest:dev \
   oci:<PATH_TO_CACHE_DIR>/oci:localhost/release-manifest:dev
+```
+
+## Air-gapped images
+
+Passing the `--airgap` option to `elemental3 customize` produces an image that creates its Kubernetes cluster and 
+deploys its workloads without any network access by embedding all of the necessary artifacts into the image at customization time.
+
+This includes: 
+* **Kubernetes** - the RKE2 container image archives for the core components and the CNI plugins.
+* **Helm charts** - every configured Helm chart is pulled during customization and embedded into the built image.
+* **Container images** - all container images specified and detected during customization time from:
+  * templating every Helm chart with the respective settings and values and extracting the container images from the template,
+  * collecting every image from each Kubernetes manifest,
+  * images explicitly listed under `elementalEmbeddedRegistry.containerImages` in `kubernetes/cluster.yaml`.
+
+At boot time an embedded registry is started by the `elemental-registry.service` that uses Hauler to serve the container images for the Kubernetes cluster.
+
+Customizing an air-gapped image:
+
+```shell
+podman run -it \
+  -v <PATH_TO_CONFIG_DIR>:/config \
+  -v <PATH_TO_CACHE_DIR>:/cache \
+  $ELEMENTAL_IMAGE \
+  customize --type <raw/iso> \
+  --airgap
 ```
 
 ## Booting a customized image
