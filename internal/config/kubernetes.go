@@ -494,20 +494,23 @@ func (m *Manager) stageImageArchives(installDir string, k *kubernetes.Kubernetes
 func addRegistryMirrors(registries kubernetes.ConfigMap, hosts []string, port string) {
 	embedded := fmt.Sprintf("http://localhost:%s", port)
 
-	mirrors, ok := registries["mirrors"].(map[string]any)
-	if !ok {
-		mirrors = map[string]any{}
-		registries["mirrors"] = mirrors
-	}
-
+	mirrors := nestedConfigMap(registries, "mirrors")
 	for _, host := range hosts {
-		mirror, ok := mirrors[host].(map[string]any)
-		if !ok {
-			mirror = map[string]any{}
-			mirrors[host] = mirror
-		}
-
+		mirror := nestedConfigMap(mirrors, host)
 		endpoints, _ := mirror["endpoint"].([]any)
 		mirror["endpoint"] = append([]any{embedded}, endpoints...)
 	}
+}
+
+func nestedConfigMap(parent map[string]any, key string) map[string]any {
+	switch child := parent[key].(type) {
+	case kubernetes.ConfigMap:
+		return child
+	case map[string]any:
+		return child
+	}
+
+	child := kubernetes.ConfigMap{}
+	parent[key] = child
+	return child
 }

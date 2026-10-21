@@ -71,11 +71,11 @@ func (c *Cache) fetchTo(ctx context.Context, path string, fetch FileFetcher) (er
 	}
 	defer func() { _ = reader.Close() }()
 
-	tmp := path + ".tmp"
-	file, err := c.fs.Create(tmp)
+	file, err := vfs.TempFile(c.fs, filepath.Dir(path), filepath.Base(path)+".*.tmp")
 	if err != nil {
-		return fmt.Errorf("creating file '%s': %w", tmp, err)
+		return fmt.Errorf("creating temporary file for '%s': %w", path, err)
 	}
+	tmp := filepath.Join(filepath.Dir(path), filepath.Base(file.Name()))
 	defer func() {
 		if err != nil {
 			err = errors.Join(err, c.fs.Remove(tmp))
@@ -89,6 +89,10 @@ func (c *Cache) fetchTo(ctx context.Context, path string, fetch FileFetcher) (er
 
 	if err = file.Close(); err != nil {
 		return fmt.Errorf("closing file '%s': %w", tmp, err)
+	}
+
+	if err = c.fs.Chmod(tmp, 0o644); err != nil {
+		return fmt.Errorf("setting permissions of '%s': %w", tmp, err)
 	}
 
 	if err = c.fs.Rename(tmp, path); err != nil {

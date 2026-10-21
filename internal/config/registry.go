@@ -19,14 +19,15 @@ package config
 
 import (
 	"context"
+	"crypto/sha256"
 	_ "embed"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
 	"maps"
 	"path/filepath"
 	"slices"
-	"strings"
 
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/suse/elemental/v3/internal/butane"
@@ -279,6 +280,16 @@ func extractManifestImages(resource map[string]any, images map[string]struct{}) 
 	workloadKinds := []string{"Pod", "Deployment", "StatefulSet", "DaemonSet", "ReplicaSet", "Job", "CronJob"}
 
 	kind, _ := resource["kind"].(string)
+	if kind == "List" {
+		items, _ := resource["items"].([]any)
+		for _, item := range items {
+			if child, ok := item.(map[string]any); ok {
+				extractManifestImages(child, images)
+			}
+		}
+		return
+	}
+
 	if !slices.Contains(workloadKinds, kind) {
 		return
 	}
@@ -329,5 +340,6 @@ func imageHostnames(images []string) ([]string, error) {
 }
 
 func registryArchiveName(img string) string {
-	return fmt.Sprintf("%s-%s", strings.ReplaceAll(img, "/", "_"), registryArchiveSufix)
+	sum := sha256.Sum256([]byte(img))
+	return fmt.Sprintf("%s-%s", hex.EncodeToString(sum[:]), registryArchiveSufix)
 }

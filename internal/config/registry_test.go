@@ -295,6 +295,44 @@ data:
 			Expect(err).ToNot(HaveOccurred())
 			Expect(resources).To(HaveLen(1))
 		})
+
+		It("Collects images from the items of a List", func() {
+			list := `
+kind: List
+items:
+- kind: Pod
+  spec:
+    containers:
+    - image: busybox:1.36
+- kind: ConfigMap
+  data:
+    image: not-a-workload:1.0
+- kind: List
+  items:
+  - kind: Job
+    spec:
+      template:
+        spec:
+          containers:
+          - image: quay.io/app/job:2.0
+`
+			resources, err := parseManifests(strings.NewReader(list))
+			Expect(err).ToNot(HaveOccurred())
+
+			images := map[string]struct{}{}
+			extractManifestImages(resources[0], images)
+			Expect(images).To(HaveLen(2))
+			Expect(images).To(HaveKey("busybox:1.36"))
+			Expect(images).To(HaveKey("quay.io/app/job:2.0"))
+		})
+	})
+
+	Describe("Archive names", func() {
+		It("Never collide for distinct references", func() {
+			Expect(registryArchiveName("quay.io/a/b_c:v1")).NotTo(Equal(registryArchiveName("quay.io/a_b/c:v1")))
+			Expect(registryArchiveName("quay.io/a/b:v1")).To(Equal(registryArchiveName("quay.io/a/b:v1")))
+			Expect(registryArchiveName("quay.io/a/b:v1")).NotTo(ContainSubstring("/"))
+		})
 	})
 
 	Describe("Image hostnames", func() {

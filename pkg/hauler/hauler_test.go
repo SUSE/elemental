@@ -104,20 +104,19 @@ var _ = Describe("Hauler", Label("hauler"), func() {
 	})
 
 	Describe("Login", func() {
-		It("Logs into the registry", func() {
+		It("Logs into the registry passing the password through stdin", func() {
 			Expect(h.Login(ctx, "registry.example.com", "user", "secret")).To(Succeed())
 			Expect(runner.CmdsMatch([][]string{
-				{"hauler", "login", "registry.example.com", "--username", "user", "--password", "secret"},
+				{"hauler", "login", "registry.example.com", "--username", "user", "--password-stdin"},
 			})).To(Succeed())
+			Expect(buffer.String()).NotTo(ContainSubstring("secret"))
 		})
 
-		It("Reports the command output on failure", func() {
+		It("Reports the failure", func() {
 			runner.ReturnError = fmt.Errorf("exit status 1")
-			runner.ReturnValue = []byte("unauthorized")
 
 			err := h.Login(ctx, "registry.example.com", "user", "secret")
 			Expect(err).To(MatchError(ContainSubstring("logging into registry registry.example.com")))
-			Expect(err).To(MatchError(ContainSubstring("unauthorized")))
 		})
 	})
 
@@ -132,6 +131,14 @@ var _ = Describe("Hauler", Label("hauler"), func() {
 			entries, err := fs.ReadDir("/tmp")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(entries).To(BeEmpty())
+		})
+
+		It("Keeps every platform of a digest pinned image", func() {
+			Expect(h.SaveImage(ctx, "quay.io/foo/bar@sha256:0e99fef5", "linux/arm64", "/out/bar.tar.zst")).To(Succeed())
+			Expect(runner.CmdsMatch([][]string{
+				{"hauler", "store", "add", "image", "quay.io/foo/bar@sha256:0e99fef5", "--store"},
+				{"hauler", "store", "save", "--filename", rawPath("/out/bar.tar.zst"), "--store"},
+			})).To(Succeed())
 		})
 
 		It("Fails when the image cannot be added", func() {

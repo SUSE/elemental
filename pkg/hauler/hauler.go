@@ -18,10 +18,12 @@ limitations under the License.
 package hauler
 
 import (
+	"bytes"
 	"container/ring"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -89,9 +91,17 @@ func (h *Hauler) HaulerPath(platformRef string) (string, error) {
 }
 
 func (h *Hauler) Login(ctx context.Context, registry, username, password string) error {
-	out, err := h.s.Runner().RunContext(ctx, h.binary, "login", registry, "--username", username, "--password", password)
+	var out bytes.Buffer
+
+	writePassword := func(stdin io.Writer) error {
+		_, err := io.WriteString(stdin, password)
+		return err
+	}
+
+	err := h.s.Runner().RunContextWithPipe(ctx, writePassword, &out, &out, "", nil,
+		h.binary, "login", registry, "--username", username, "--password-stdin")
 	if err != nil {
-		return fmt.Errorf("logging into registry %s: %w: %s", registry, err, strings.TrimSpace(string(out)))
+		return fmt.Errorf("logging into registry %s: %w: %s", registry, err, strings.TrimSpace(out.String()))
 	}
 
 	return nil
@@ -118,7 +128,13 @@ func (h *Hauler) SaveImage(ctx context.Context, image, platform, archive string)
 		return fmt.Errorf("resolving hauler archive path: %w", err)
 	}
 
-	out, err := h.s.Runner().RunContext(ctx, h.binary, "store", "add", "image", image, "--platform", platform, "--store", storePath)
+	args := []string{"store", "add", "image", image}
+	if !strings.Contains(image, "@") {
+		args = append(args, "--platform", platform)
+	}
+	args = append(args, "--store", storePath)
+
+	out, err := h.s.Runner().RunContext(ctx, h.binary, args...)
 	if err != nil {
 		return fmt.Errorf("adding image %s to hauler store: %w: %s", image, err, strings.TrimSpace(string(out)))
 	}

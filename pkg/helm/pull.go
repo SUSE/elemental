@@ -18,18 +18,26 @@ limitations under the License.
 package helm
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/url"
+	"path/filepath"
 	"strings"
 
 	"github.com/suse/elemental/v3/pkg/sys"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
+	"go.yaml.in/yaml/v3"
 )
 
 const (
-	helmBinary = "helm"
-	ociPrefix  = "oci://"
+	helmBinary   = "helm"
+	ociPrefix    = "oci://"
+	authRepoName = "chart-repo"
 )
 
 type PullOptions struct {
@@ -50,38 +58,119 @@ func NewPuller(s *sys.System) *Puller {
 	return &Puller{s: s}
 }
 
-func (p *Puller) Pull(ctx context.Context, opts PullOptions, destDir string) (string, error) {
-	rawDestDir, err := p.s.FS().RawPath(destDir)
+func (p *Puller) Pull(ctx context.Context, opts PullOptions, destDir string) (archive string, err error) {
+	fs := p.s.FS()
+
+	rawDestDir, err := fs.RawPath(destDir)
 	if err != nil {
 		return "", fmt.Errorf("resolving chart destination directory: %w", err)
 	}
 
 	args := []string{"pull", "--version", opts.Version, "--destination", rawDestDir}
-
-	if strings.HasPrefix(opts.Repository, ociPrefix) {
-		args = append(args, strings.TrimSuffix(opts.Repository, "/")+"/"+opts.Chart)
-	} else {
-		args = append(args, opts.Chart, "--repo", opts.Repository)
-	}
-
-	if opts.Username != "" {
-		args = append(args, "--username", opts.Username, "--password", opts.Password)
-	}
-
 	if opts.InsecureSkipTLSVerify {
 		args = append(args, "--insecure-skip-tls-verify")
+	}
+
+	switch {
+	case opts.Username != "":
+		var authDir string
+		var authArgs []string
+
+		if authDir, err = vfs.TempDir(fs, "", "helm-auth-"); err != nil {
+			return "", fmt.Errorf("creating helm credentials directory: %w", err)
+		}
+		defer func() {
+			err = errors.Join(err, fs.RemoveAll(authDir))
+		}()
+
+		if authArgs, err = p.authenticate(ctx, opts, authDir); err != nil {
+			return "", err
+		}
+		args = append(args, authArgs...)
+	case strings.HasPrefix(opts.Repository, ociPrefix):
+		args = append(args, strings.TrimSuffix(opts.Repository, "/")+"/"+opts.Chart)
+	default:
+		args = append(args, opts.Chart, "--repo", opts.Repository)
 	}
 
 	if out, err := p.s.Runner().RunContext(ctx, helmBinary, args...); err != nil {
 		return "", fmt.Errorf("pulling chart %s version %s: %w: %s", opts.Chart, opts.Version, err, strings.TrimSpace(string(out)))
 	}
 
-	archive, err := vfs.FindFile(p.s.FS(), destDir, fmt.Sprintf("%s-*.tgz", opts.Chart))
+	archive, err = vfs.FindFile(fs, destDir, fmt.Sprintf("%s-*.tgz", opts.Chart))
 	if err != nil {
 		return "", fmt.Errorf("locating pulled chart %s archive: %w", opts.Chart, err)
 	}
 
 	return archive, nil
+}
+
+func (p *Puller) authenticate(ctx context.Context, opts PullOptions, authDir string) ([]string, error) {
+	fs := p.s.FS()
+
+	if strings.HasPrefix(opts.Repository, ociPrefix) {
+		host := strings.TrimPrefix(opts.Repository, ociPrefix)
+		if u, err := url.Parse("https://" + host); err == nil {
+			host = u.Host
+		}
+
+		auth := base64.StdEncoding.EncodeToString([]byte(opts.Username + ":" + opts.Password))
+		config, err := json.Marshal(map[string]any{
+			"auths": map[string]any{
+				host: map[string]string{"username": opts.Username, "password": opts.Password, "auth": auth},
+			},
+		})
+		if err != nil {
+			return nil, fmt.Errorf("encoding registry credentials: %w", err)
+		}
+
+		registryConfig := filepath.Join(authDir, "registry.json")
+		if err = fs.WriteFile(registryConfig, config, 0o600); err != nil {
+			return nil, fmt.Errorf("writing registry credentials: %w", err)
+		}
+
+		rawRegistryConfig, err := fs.RawPath(registryConfig)
+		if err != nil {
+			return nil, fmt.Errorf("resolving registry credentials path: %w", err)
+		}
+
+		return []string{strings.TrimSuffix(opts.Repository, "/") + "/" + opts.Chart, "--registry-config", rawRegistryConfig}, nil
+	}
+
+	repositories, err := yaml.Marshal(map[string]any{
+		"repositories": []map[string]any{{
+			"name":                     authRepoName,
+			"url":                      opts.Repository,
+			"username":                 opts.Username,
+			"password":                 opts.Password,
+			"insecure_skip_tls_verify": opts.InsecureSkipTLSVerify,
+		}},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("encoding repository credentials: %w", err)
+	}
+
+	repositoryConfig := filepath.Join(authDir, "repositories.yaml")
+	if err = fs.WriteFile(repositoryConfig, repositories, 0o600); err != nil {
+		return nil, fmt.Errorf("writing repository credentials: %w", err)
+	}
+
+	rawAuthDir, err := fs.RawPath(authDir)
+	if err != nil {
+		return nil, fmt.Errorf("resolving repository credentials path: %w", err)
+	}
+
+	configArgs := []string{
+		"--repository-config", filepath.Join(rawAuthDir, "repositories.yaml"),
+		"--repository-cache", filepath.Join(rawAuthDir, "cache"),
+	}
+
+	updateArgs := append([]string{"repo", "update", authRepoName}, configArgs...)
+	if out, err := p.s.Runner().RunContext(ctx, helmBinary, updateArgs...); err != nil {
+		return nil, fmt.Errorf("updating repository %s index: %w: %s", opts.Repository, err, strings.TrimSpace(string(out)))
+	}
+
+	return append([]string{authRepoName + "/" + opts.Chart}, configArgs...), nil
 }
 
 func (p *Puller) Template(ctx context.Context, name, archive, namespace, kubeVersion string, apiVersions []string, values []byte) (rendered []byte, err error) {
@@ -132,10 +221,13 @@ func (p *Puller) Template(ctx context.Context, name, archive, namespace, kubeVer
 		args = append(args, "--values", valuesPath)
 	}
 
-	rendered, err = p.s.Runner().RunContext(ctx, helmBinary, args...)
+	var stdout, stderr bytes.Buffer
+	noInput := func(io.Writer) error { return nil }
+
+	err = p.s.Runner().RunContextWithPipe(ctx, noInput, &stdout, &stderr, "", nil, helmBinary, args...)
 	if err != nil {
-		return nil, fmt.Errorf("templating chart %s: %w: %s", name, err, strings.TrimSpace(string(rendered)))
+		return nil, fmt.Errorf("templating chart %s: %w: %s", name, err, strings.TrimSpace(stderr.String()))
 	}
 
-	return rendered, nil
+	return stdout.Bytes(), nil
 }

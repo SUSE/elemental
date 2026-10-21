@@ -33,6 +33,7 @@ import (
 	"github.com/suse/elemental/v3/pkg/manifest/api/core"
 	"github.com/suse/elemental/v3/pkg/manifest/resolver"
 	"github.com/suse/elemental/v3/pkg/sys"
+	"go.yaml.in/yaml/v3"
 )
 
 var _ = Describe("Kubernetes", func() {
@@ -437,6 +438,55 @@ data:
 			data = findFileContentsInConfig(config, filepath.Join("/", image.KubernetesManifestsPath(), "example-auth-priority.yaml"))
 			Expect(data).NotTo(BeNil())
 			Expect(*data).To(ContainSubstring(expectedExampleManifestContents))
+		})
+	})
+
+	Describe("Registry mirrors", func() {
+		It("Prepends the embedded registry to parsed mirrors without losing them", func() {
+			registries := kubernetes.ConfigMap{}
+			Expect(yaml.Unmarshal([]byte(`
+mirrors:
+  docker.io:
+    endpoint:
+      - https://mirror.example.com
+    rewrite:
+      "^rancher/(.*)": "mirrored/rancher/$1"
+configs:
+  mirror.example.com:
+    tls:
+      insecure_skip_verify: true
+`), &registries)).To(Succeed())
+
+			addRegistryMirrors(registries, []string{"docker.io", "quay.io"}, "6545")
+
+			out, err := yaml.Marshal(registries)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(string(out)).To(Equal(`configs:
+    mirror.example.com:
+        tls:
+            insecure_skip_verify: true
+mirrors:
+    docker.io:
+        endpoint:
+            - http://localhost:6545
+            - https://mirror.example.com
+        rewrite:
+            ^rancher/(.*): mirrored/rancher/$1
+    quay.io:
+        endpoint:
+            - http://localhost:6545
+`))
+		})
+
+		It("Creates the mirrors section when missing", func() {
+			registries := kubernetes.ConfigMap{}
+			addRegistryMirrors(registries, []string{"docker.io"}, "6545")
+
+			mirrors, ok := registries["mirrors"].(kubernetes.ConfigMap)
+			Expect(ok).To(BeTrue())
+			mirror, ok := mirrors["docker.io"].(kubernetes.ConfigMap)
+			Expect(ok).To(BeTrue())
+			Expect(mirror["endpoint"]).To(Equal([]any{"http://localhost:6545"}))
 		})
 	})
 })
