@@ -33,6 +33,7 @@ import (
 	"github.com/suse/elemental/v3/pkg/manifest/api/core"
 	"github.com/suse/elemental/v3/pkg/manifest/resolver"
 	"github.com/suse/elemental/v3/pkg/sys"
+	"go.yaml.in/yaml/v3"
 )
 
 var _ = Describe("Kubernetes", func() {
@@ -118,9 +119,11 @@ var _ = Describe("Kubernetes", func() {
 		var defaultManifest *resolver.ResolvedManifest
 		var defaultUnpack func(ctx context.Context, imageRef, destDir string) error
 		var defaultHelm *helmConfiguratorMock
+		var output Output
 
 		BeforeEach(func() {
 			config = &butane.Config{}
+			output = Output{RootPath: GinkgoT().TempDir()}
 
 			system, err = sys.NewSystem(
 				sys.WithLogger(log.New(log.WithDiscardAll())),
@@ -175,7 +178,7 @@ var _ = Describe("Kubernetes", func() {
 				},
 			}
 
-			err := m.configureKubernetes(context.Background(), conf, defaultManifest, config)
+			err := m.configureKubernetes(context.Background(), conf, defaultManifest, output, config)
 			Expect(err).To(HaveOccurred())
 			Expect(err).To(MatchError("configuring helm charts: helm error"))
 		})
@@ -212,7 +215,7 @@ var _ = Describe("Kubernetes", func() {
 				},
 			}
 
-			Expect(m.configureKubernetes(context.Background(), conf, defaultManifest, config)).To(Succeed())
+			Expect(m.configureKubernetes(context.Background(), conf, defaultManifest, output, config)).To(Succeed())
 
 			// Verify deployment script contents
 			data := findFileContentsInConfig(config, filepath.Join("/", image.KubernetesPath(), k8sResDeployScriptName))
@@ -243,7 +246,7 @@ var _ = Describe("Kubernetes", func() {
 				},
 			}
 
-			Expect(m.configureKubernetes(context.Background(), conf, defaultManifest, config)).To(Succeed())
+			Expect(m.configureKubernetes(context.Background(), conf, defaultManifest, output, config)).To(Succeed())
 
 			Expect(findFileContentsInConfig(config, filepath.Join("/", image.KubernetesPath(), k8sConfDeployScriptName))).NotTo(BeNil())
 		})
@@ -258,7 +261,7 @@ var _ = Describe("Kubernetes", func() {
 
 			conf := &image.Configuration{Kubernetes: kubernetes.Kubernetes{}}
 
-			Expect(m.configureKubernetes(context.Background(), conf, defaultManifest, config)).To(Succeed())
+			Expect(m.configureKubernetes(context.Background(), conf, defaultManifest, output, config)).To(Succeed())
 
 			data := findFileContentsInConfig(config, filepath.Join("/", image.KubernetesPath(), k8sConfDeployScriptName))
 			Expect(data).NotTo(BeNil())
@@ -293,7 +296,7 @@ var _ = Describe("Kubernetes", func() {
 				},
 			}
 
-			Expect(m.configureKubernetes(context.Background(), conf, defaultManifest, config)).To(Succeed())
+			Expect(m.configureKubernetes(context.Background(), conf, defaultManifest, output, config)).To(Succeed())
 
 			data := findFileContentsInConfig(config, filepath.Join("/", image.KubernetesPath(), k8sConfDeployScriptName))
 			Expect(data).NotTo(BeNil())
@@ -324,7 +327,7 @@ var _ = Describe("Kubernetes", func() {
 				},
 			}
 
-			err := m.configureKubernetes(context.Background(), conf, defaultManifest, config)
+			err := m.configureKubernetes(context.Background(), conf, defaultManifest, output, config)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring(`could not find suitable init node from node list: [{Hostname:node01 Type:agent Init:false}]`))
 		})
@@ -395,7 +398,7 @@ var _ = Describe("Kubernetes", func() {
 				},
 			}
 
-			Expect(m.configureKubernetes(context.Background(), conf, defaultManifest, config)).To(Succeed())
+			Expect(m.configureKubernetes(context.Background(), conf, defaultManifest, output, config)).To(Succeed())
 
 			// Verify deployment script contents
 			data := findFileContentsInConfig(config, filepath.Join("/", image.KubernetesPath(), k8sResDeployScriptName))
@@ -435,6 +438,55 @@ data:
 			data = findFileContentsInConfig(config, filepath.Join("/", image.KubernetesManifestsPath(), "example-auth-priority.yaml"))
 			Expect(data).NotTo(BeNil())
 			Expect(*data).To(ContainSubstring(expectedExampleManifestContents))
+		})
+	})
+
+	Describe("Registry mirrors", func() {
+		It("Prepends the embedded registry to parsed mirrors without losing them", func() {
+			registries := kubernetes.ConfigMap{}
+			Expect(yaml.Unmarshal([]byte(`
+mirrors:
+  docker.io:
+    endpoint:
+      - https://mirror.example.com
+    rewrite:
+      "^rancher/(.*)": "mirrored/rancher/$1"
+configs:
+  mirror.example.com:
+    tls:
+      insecure_skip_verify: true
+`), &registries)).To(Succeed())
+
+			addRegistryMirrors(registries, []string{"docker.io", "quay.io"}, "6545")
+
+			out, err := yaml.Marshal(registries)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(string(out)).To(Equal(`configs:
+    mirror.example.com:
+        tls:
+            insecure_skip_verify: true
+mirrors:
+    docker.io:
+        endpoint:
+            - http://localhost:6545
+            - https://mirror.example.com
+        rewrite:
+            ^rancher/(.*): mirrored/rancher/$1
+    quay.io:
+        endpoint:
+            - http://localhost:6545
+`))
+		})
+
+		It("Creates the mirrors section when missing", func() {
+			registries := kubernetes.ConfigMap{}
+			addRegistryMirrors(registries, []string{"docker.io"}, "6545")
+
+			mirrors, ok := registries["mirrors"].(kubernetes.ConfigMap)
+			Expect(ok).To(BeTrue())
+			mirror, ok := mirrors["docker.io"].(kubernetes.ConfigMap)
+			Expect(ok).To(BeTrue())
+			Expect(mirror["endpoint"]).To(Equal([]any{"http://localhost:6545"}))
 		})
 	})
 })

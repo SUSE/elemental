@@ -58,6 +58,14 @@ func (c *HelmChart) GetName() string {
 	return c.Chart
 }
 
+func (c *HelmChart) GetVersion() string {
+	return c.Version
+}
+
+func (c *HelmChart) GetAPIVersions() []string {
+	return nil
+}
+
 func (c *HelmChart) GetInlineValues() map[string]any {
 	return c.Values
 }

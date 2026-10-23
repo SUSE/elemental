@@ -1,5 +1,4 @@
 ARG GO_VERSION=1.26
-
 FROM --platform=$BUILDPLATFORM registry.opensuse.org/opensuse/bci/golang:${GO_VERSION} AS builder
 
 ARG TARGETOS
@@ -51,7 +50,7 @@ ENTRYPOINT ["/usr/bin/elemental3ctl"]
 FROM runner-base AS runner-elemental3
 
 RUN zypper --non-interactive removerepo repo-update || true; \
-    zypper --non-interactive install --no-recommends xorriso && \
+    zypper --non-interactive install --no-recommends xorriso helm hauler && \
     zypper clean --all
 
 ENTRYPOINT ["/usr/bin/elemental3"]

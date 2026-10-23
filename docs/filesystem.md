@@ -107,6 +107,11 @@ copy-on-write disabled. When an upgrade occurs:
 2. The existing `/var` subvolume (containing `/var/lib/rancher`) is mounted into the new snapshot
 3. After reboot, the same `/var` data is accessible from the new OS
 
+### Example: `/var/lib/elemental/registry`
+
+Air-gapped images along with the Hauler binary serving them live under `/var/lib/elemental/registry` so that they persist
+after install and are not duplicated during upgrades similar to `/var/lib/rancher` above.
+
 ### The `/etc` Directory
 
 The `/etc` directory is handled specially:

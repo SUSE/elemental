@@ -25,7 +25,9 @@ import (
 
 	"github.com/suse/elemental/v3/internal/butane"
 	"github.com/suse/elemental/v3/internal/image"
+	"github.com/suse/elemental/v3/pkg/cache"
 	"github.com/suse/elemental/v3/pkg/extractor"
+	"github.com/suse/elemental/v3/pkg/hauler"
 	"github.com/suse/elemental/v3/pkg/http"
 	"github.com/suse/elemental/v3/pkg/manifest/resolver"
 	"github.com/suse/elemental/v3/pkg/manifest/source"
@@ -37,7 +39,8 @@ import (
 type unpackFunc func(ctx context.Context, imageRef, destDir string) error
 
 type helmConfigurator interface {
-	Configure(conf *image.Configuration, manifest *resolver.ResolvedManifest, bConfig *butane.Config) ([]string, error)
+	Configure(ctx context.Context, conf *image.Configuration, manifest *resolver.ResolvedManifest, bConfig *butane.Config) ([]string, error)
+	ContainerImages() []string
 }
 
 type releaseManifestResolver interface {
@@ -46,17 +49,29 @@ type releaseManifestResolver interface {
 
 type downloader interface {
 	URLBody(ctx context.Context, url string) (io.ReadCloser, error)
-	File(ctx context.Context, fs vfs.FS, url, path string) error
+}
+
+type imageStore interface {
+	Login(ctx context.Context, registry, username, password string) error
+	SaveImage(ctx context.Context, image, platform, archive string) error
+	LoadStore(ctx context.Context, store string, archives ...string) error
+	ExportRegistry(ctx context.Context, store, dir string) error
+	WriteEmptyStore(dir string) error
+	HaulerPath(platform string) (string, error)
 }
 
 type Manager struct {
-	system *sys.System
-	local  bool
+	system   *sys.System
+	local    bool
+	cache    *cache.Cache
+	platform string
+	airgap   bool
 
 	rmResolver  releaseManifestResolver
 	downloader  downloader
 	unpackImage unpackFunc
 	helm        helmConfigurator
+	imageStore  imageStore
 }
 
 type Opts func(m *Manager)
@@ -85,6 +100,30 @@ func WithLocal(local bool) Opts {
 	}
 }
 
+func WithPlatform(platform string) Opts {
+	return func(m *Manager) {
+		m.platform = platform
+	}
+}
+
+func WithCache(c *cache.Cache) Opts {
+	return func(m *Manager) {
+		m.cache = c
+	}
+}
+
+func WithAirgap(airgap bool) Opts {
+	return func(m *Manager) {
+		m.airgap = airgap
+	}
+}
+
+func WithImageStore(s imageStore) Opts {
+	return func(m *Manager) {
+		m.imageStore = s
+	}
+}
+
 func NewManager(sys *sys.System, helm helmConfigurator, opts ...Opts) *Manager {
 	m := &Manager{
 		system: sys,
@@ -99,9 +138,26 @@ func NewManager(sys *sys.System, helm helmConfigurator, opts ...Opts) *Manager {
 		m.downloader = &http.Downloader{}
 	}
 
+	if m.platform == "" {
+		m.platform = sys.Platform().String()
+	}
+
+	if m.cache == nil {
+		m.cache = cache.Disabled(sys.FS())
+	}
+
+	if m.imageStore == nil {
+		m.imageStore = hauler.New(sys)
+	}
+
 	if m.unpackImage == nil {
 		m.unpackImage = func(ctx context.Context, imageRef, destDir string) error {
-			unpacker := unpack.NewOCIUnpacker(sys, imageRef, unpack.WithLocalOCI(m.local))
+			unpacker := unpack.NewOCIUnpacker(
+				sys, imageRef,
+				unpack.WithLocalOCI(m.local),
+				unpack.WithCacheOCI(m.cache),
+				unpack.WithPlatformRefOCI(m.platform),
+			)
 			_, err := unpacker.Unpack(ctx, destDir)
 			return err
 		}
@@ -110,11 +166,18 @@ func NewManager(sys *sys.System, helm helmConfigurator, opts ...Opts) *Manager {
 	return m
 }
 
+// downloadFile places the contents of url at dest, going through the cache.
+func (m *Manager) downloadFile(ctx context.Context, url, dest string) error {
+	return m.cache.File(ctx, url, dest, func(ctx context.Context) (io.ReadCloser, error) {
+		return m.downloader.URLBody(ctx, url)
+	})
+}
+
 // ConfigureComponents configures the components defined in the provided configuration
 // and returns the resolved release manifest from said configuration.
 func (m *Manager) ConfigureComponents(ctx context.Context, conf *image.Configuration, output Output) (rm *resolver.ResolvedManifest, err error) {
 	if m.rmResolver == nil {
-		defaultResolver, err := defaultManifestResolver(m.system.FS(), output, m.local)
+		defaultResolver, err := defaultManifestResolver(m.system.FS(), output, m.local, m.cache, m.platform)
 		if err != nil {
 			return nil, fmt.Errorf("using default release manifest resolver: %w", err)
 		}
@@ -152,7 +215,7 @@ func (m *Manager) ConfigureComponents(ctx context.Context, conf *image.Configura
 	return rm, nil
 }
 
-func defaultManifestResolver(fs vfs.FS, out Output, local bool) (res *resolver.Resolver, err error) {
+func defaultManifestResolver(fs vfs.FS, out Output, local bool, c *cache.Cache, platform string) (res *resolver.Resolver, err error) {
 	const (
 		globPattern = "release_manifest*.yaml"
 	)
@@ -167,7 +230,7 @@ func defaultManifestResolver(fs vfs.FS, out Output, local bool) (res *resolver.R
 		return nil, fmt.Errorf("creating release manifest store '%s': %w", manifestsDir, err)
 	}
 
-	extr, err := extractor.New(searchPaths, extractor.WithStore(manifestsDir), extractor.WithLocal(local))
+	extr, err := extractor.New(searchPaths, extractor.WithStore(manifestsDir), extractor.WithLocal(local), extractor.WithCache(c), extractor.WithPlatform(platform))
 	if err != nil {
 		return nil, fmt.Errorf("initializing OCI release manifest extractor: %w", err)
 	}
