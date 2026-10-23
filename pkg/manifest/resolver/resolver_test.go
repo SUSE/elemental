@@ -140,6 +140,32 @@ var _ = Describe("Resolver", Label("release-manifest"), func() {
 		Expect(err).To(MatchError(expErr))
 		Expect(r).To(BeNil())
 	})
+
+	It("checks the elemental version for a resolved manifest", func() {
+		coreManifestFile := fmt.Sprintf("%s://%s", source.File, coreManifestPath)
+		rm, err := res.Resolve(coreManifestFile)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(rm).ToNot(BeNil())
+
+		By("checking against a compatible elemental")
+		Expect(rm.CheckElementalVersion("0.1.1-rc1+34")).To(Succeed())
+
+		By("checking against a too old elemental")
+		Expect(rm.CheckElementalVersion("v0.1.0-rc1+34")).NotTo(Succeed())
+
+		By("checking against an invalid elemental version")
+		Expect(rm.CheckElementalVersion("bad0.1.0-rc1+34")).NotTo(Succeed())
+
+		By("checking against with a major version gap")
+		Expect(rm.CheckElementalVersion("1.1.0")).NotTo(Succeed())
+
+		By("checking against with a minor version gap")
+		Expect(rm.CheckElementalVersion("0.2.0-rc2")).NotTo(Succeed())
+
+		By("checking against an invalid core platform version")
+		rm.CorePlatform.Metadata.Elemental.Version = "nonsense1.23"
+		Expect(rm.CheckElementalVersion("0.1.0")).NotTo(Succeed())
+	})
 })
 
 func validateResolvedManifest(rm *resolver.ResolvedManifest, coreOnly bool) {
