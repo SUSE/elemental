@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/suse/elemental/v3/pkg/log"
 	"github.com/suse/elemental/v3/pkg/manifest/api/core"
 	"github.com/suse/elemental/v3/pkg/manifest/api/solution"
 	"github.com/suse/elemental/v3/pkg/manifest/source"
@@ -51,7 +52,7 @@ func New(reader SourceReader) *Resolver {
 
 // CheckElementalVersion checks the resolved manifest uses
 // a compatible Elemental version with the current binary.
-func (rm *ResolvedManifest) CheckElementalVersion(currentVersion string) error {
+func (rm *ResolvedManifest) CheckElementalVersion(logger log.Logger, currentVersion string) error {
 	if rm.CorePlatform == nil {
 		return nil
 	}
@@ -69,16 +70,16 @@ func (rm *ResolvedManifest) CheckElementalVersion(currentVersion string) error {
 		return fmt.Errorf("current version %q is not valid: %w", currentVersion, err)
 	}
 
-	if cVer.LessThan(mVer) {
-		return fmt.Errorf("core platform version %q cannot be higher than current elemental version %q", mVer.String(), cVer.String())
-	}
-
 	if cVer.Major() != mVer.Major() {
 		return fmt.Errorf("major version mismatch. core platform version %q, current elemental version %q", mVer.String(), cVer.String())
 	}
 
-	if mVer.Minor() < cVer.Minor() {
+	if mVer.Minor() != cVer.Minor() {
 		return fmt.Errorf("minor version mismatch. core platform version %q, current elemental version %q", mVer.String(), cVer.String())
+	}
+
+	if cVer.LessThan(mVer) {
+		logger.Warn("Current Elemental version %q is lower than the core platform version %q", cVer.String(), mVer.String())
 	}
 
 	return nil

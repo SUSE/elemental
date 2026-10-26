@@ -190,7 +190,7 @@ func (m *Manager) ConfigureComponents(ctx context.Context, conf *image.Configura
 		return nil, fmt.Errorf("resolving release manifest at uri '%s': %w", conf.Release.ManifestURI, err)
 	}
 
-	if err = rm.CheckElementalVersion(version.Version()); err != nil {
+	if err = rm.CheckElementalVersion(m.system.Logger(), version.Version()); err != nil {
 		return nil, fmt.Errorf("core platform not supported with current elemental version: %w", err)
 	}
 
