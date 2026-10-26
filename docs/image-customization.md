@@ -113,6 +113,7 @@ The cache is controlled by the following `elemental3 customize` options:
   * `offline` - serves cached artifacts only, never downloads and fails on the first missing artifact. For customizing images without reaching over the network.
   * `refresh` - discards the previously cached artifacts and downloads everything again.
   * `off` - neither uses nor populates the cache.
+* `--local` - (Optional) Alias for `--cache offline`.
 
 Default run, cached artifacts will reside under `<PATH_TO_CONFIG_DIR>/cache` on the host machine:
 ```shell

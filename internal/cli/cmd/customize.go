@@ -34,6 +34,7 @@ type CustomizeFlags struct {
 	Mode       string
 	Platform   string
 	MediaType  string
+	Local      bool
 	Cache      string
 	CacheDir   string
 	Airgap     bool
@@ -46,7 +47,7 @@ func NewCustomizeCommand(appName string, action func(context.Context, *cli.Comma
 		Name:      "customize",
 		Usage:     "Customize an image based on a release",
 		UsageText: fmt.Sprintf("%s customize", appName),
-		Before: func(ctx context.Context, _ *cli.Command) (context.Context, error) {
+		Before: func(ctx context.Context, cmd *cli.Command) (context.Context, error) {
 			modes := []string{"", "embedded", "split"}
 			if !slices.Contains(modes, CustomizeArgs.Mode) {
 				return ctx, cli.Exit("Error: Unsupported --mode option.", 1)
@@ -55,6 +56,13 @@ func NewCustomizeCommand(appName string, action func(context.Context, *cli.Comma
 			cacheMode := cache.Mode(CustomizeArgs.Cache)
 			if !cacheMode.IsValid() {
 				return ctx, cli.Exit("Error: Unsupported --cache option.", 1)
+			}
+
+			if CustomizeArgs.Local {
+				if cmd.IsSet("cache") && cacheMode != cache.Offline {
+					return ctx, cli.Exit("Error: --local is an alias for '--cache offline' and cannot be combined with another --cache mode.", 1)
+				}
+				CustomizeArgs.Cache = string(cache.Offline)
 			}
 
 			if cacheMode == cache.Off && CustomizeArgs.CacheDir != cache.DefaultDir {
@@ -105,6 +113,11 @@ func NewCustomizeCommand(appName string, action func(context.Context, *cli.Comma
 					"'off' neither uses nor populates the cache",
 				Destination: &CustomizeArgs.Cache,
 				Value:       string(cache.Auto),
+			},
+			&cli.BoolFlag{
+				Name:        localFlg,
+				Usage:       "Alias for '--cache offline'",
+				Destination: &CustomizeArgs.Local,
 			},
 			&cli.StringFlag{
 				Name: "cache-dir",
