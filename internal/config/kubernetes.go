@@ -21,7 +21,9 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
+	"maps"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"go.yaml.in/yaml/v3"
@@ -32,7 +34,6 @@ import (
 	"github.com/suse/elemental/v3/internal/template"
 	"github.com/suse/elemental/v3/pkg/manifest/resolver"
 	"github.com/suse/elemental/v3/pkg/sys"
-	"github.com/suse/elemental/v3/pkg/sys/platform"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
 
@@ -408,7 +409,7 @@ func marshalConfig(config map[string]any) ([]byte, error) {
 }
 
 // unpackKubernetesArtifacts extracts Kubernetes distribution artifacts from an OCI image for installation at firstboot.
-func (m *Manager) unpackKubernetesArtifacts(ctx context.Context, manifest *resolver.ResolvedManifest, k *kubernetes.Kubernetes, output Output) error {
+func (m *Manager) unpackKubernetesArtifacts(ctx context.Context, manifest *resolver.ResolvedManifest, output Output) error {
 	k8s := manifest.CorePlatform.Components.Kubernetes
 	fs := m.system.FS()
 
@@ -429,66 +430,40 @@ func (m *Manager) unpackKubernetesArtifacts(ctx context.Context, manifest *resol
 		return fmt.Errorf("kubernetes install script %q not found", installScript)
 	}
 
-	if !m.airgap {
-		return nil
-	}
-
-	return m.stageImageArchives(overlaysDir, k, output)
+	return nil
 }
 
-func (m *Manager) stageImageArchives(installDir string, k *kubernetes.Kubernetes, output Output) error {
-	const (
-		archivePrefix = "rke2-images-"
-		archiveFormat = archivePrefix + "%s.%s-%s.tar.zst"
-	)
+func (m *Manager) kubernetesImages(rm *resolver.ResolvedManifest, conf *image.Configuration) ([]string, error) {
+	k8s := rm.CorePlatform.Components.Kubernetes
+	if k8s == nil {
+		return nil, nil
+	}
 
-	fs := m.system.FS()
+	if len(k8s.ImageSets) == 0 {
+		return nil, fmt.Errorf("release manifest does not list any kubernetes image sets, required for air-gapped installations")
+	}
 
-	serverConfig, err := kubernetes.ParseKubernetesConfig(m.system, k.Config.ServerFilePath)
+	serverConfig, err := kubernetes.ParseKubernetesConfig(m.system, conf.Kubernetes.Config.ServerFilePath)
 	if err != nil {
-		return fmt.Errorf("parsing server config: %w", err)
+		return nil, fmt.Errorf("parsing server config: %w", err)
 	}
 
-	p, err := platform.Parse(m.platform)
-	if err != nil {
-		return fmt.Errorf("parsing platform %q: %w", m.platform, err)
+	sets := make(map[string][]string, len(k8s.ImageSets))
+	for _, set := range k8s.ImageSets {
+		sets[set.Name] = set.Images
 	}
 
-	imagesDir := filepath.Join(output.OverlaysDir(), image.KubernetesAgentImagesPath())
-	if err = vfs.MkdirAll(fs, imagesDir, vfs.DirPerm); err != nil {
-		return fmt.Errorf("creating kubernetes agent images directory: %w", err)
-	}
-
-	variants := append([]string{"core"}, kubernetes.CNIPlugins(serverConfig)...)
-	for _, variant := range variants {
-		name := fmt.Sprintf(archiveFormat, variant, p.OS, p.GolangArch)
-		archive := filepath.Join(installDir, name)
-
-		exists, err := vfs.Exists(fs, archive)
-		if err != nil {
-			return fmt.Errorf("checking kubernetes image archive %s: %w", name, err)
-		}
-		if !exists {
-			return fmt.Errorf("kubernetes image archive %s not found in image %s", name, filepath.Base(installDir))
+	var images []string
+	for _, name := range kubernetes.ImageSets(serverConfig) {
+		set, ok := sets[name]
+		if !ok {
+			return nil, fmt.Errorf("kubernetes image set %q is not listed in the release manifest, available: %s", name, strings.Join(slices.Sorted(maps.Keys(sets)), ", "))
 		}
 
-		if err = fs.Rename(archive, filepath.Join(imagesDir, name)); err != nil {
-			return fmt.Errorf("staging image archive %s: %w", name, err)
-		}
+		images = append(images, set...)
 	}
 
-	unused, err := vfs.FindFiles(fs, installDir, archivePrefix+"*")
-	if err != nil {
-		return fmt.Errorf("listing kubernetes image archives: %w", err)
-	}
-
-	for _, archive := range unused {
-		if err = fs.Remove(archive); err != nil {
-			return fmt.Errorf("removing unused image archive %s: %w", filepath.Base(archive), err)
-		}
-	}
-
-	return nil
+	return images, nil
 }
 
 func addRegistryMirrors(registries kubernetes.ConfigMap, hosts []string, port string) {

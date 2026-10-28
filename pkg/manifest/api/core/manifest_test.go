@@ -91,6 +91,10 @@ var _ = Describe("ReleaseManifest", Label("release-manifest"), func() {
 		Expect(rm.Components.Kubernetes).ToNot(BeNil())
 		Expect(rm.Components.Kubernetes.Version).To(Equal("v1.35.0+rke2r1"))
 		Expect(rm.Components.Kubernetes.Image).To(Equal("registry.example.com/rke2:1.35_1.0"))
+		Expect(rm.Components.Kubernetes.ImageSets).To(Equal([]core.ImageSet{
+			{Name: "core", Images: []string{"registry.example.com/rke2-runtime:1.35", "registry.example.com/hardened-kubernetes:1.35"}},
+			{Name: "canal", Images: []string{"registry.example.com/hardened-calico:3.32"}},
+		}))
 
 		Expect(rm.Components.Helm).ToNot(BeNil())
 		Expect(len(rm.Components.Helm.Charts)).To(Equal(1))

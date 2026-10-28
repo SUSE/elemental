@@ -33,6 +33,7 @@ type ReleaseManifest = corev1.ReleaseManifest
 type Components = corev1.Components
 type OperatingSystem = corev1.OperatingSystem
 type Kubernetes = corev1.Kubernetes
+type ImageSet = corev1.ImageSet
 type Image = corev1.Image
 type Metadata = corev1.Metadata
 type Elemental = corev1.Elemental

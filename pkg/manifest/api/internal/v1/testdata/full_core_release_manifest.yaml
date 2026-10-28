@@ -28,6 +28,14 @@ components:
   kubernetes:
     version: "v1.35.0+rke2r1"
     image: "registry.example.com/rke2:1.35_1.0"
+    imageSets:
+      - name: "core"
+        images:
+          - "registry.example.com/rke2-runtime:1.35"
+          - "registry.example.com/hardened-kubernetes:1.35"
+      - name: "canal"
+        images:
+          - "registry.example.com/hardened-calico:3.32"
   helm:
     charts:
       - name: "Foo"
