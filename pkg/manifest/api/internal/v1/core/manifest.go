@@ -25,6 +25,7 @@ import (
 type Components = core.Components
 type OperatingSystem = core.OperatingSystem
 type Kubernetes = core.Kubernetes
+type ImageSet = core.ImageSet
 type Image = core.Image
 
 type ReleaseManifest struct {

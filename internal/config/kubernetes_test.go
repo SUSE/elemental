@@ -441,6 +441,89 @@ data:
 		})
 	})
 
+	Describe("Image sets", func() {
+		var system *sys.System
+		var serverConfig string
+		var rm *resolver.ResolvedManifest
+		var conf *image.Configuration
+
+		BeforeEach(func() {
+			var err error
+
+			serverConfig = filepath.Join(GinkgoT().TempDir(), "server.yaml")
+
+			system, err = sys.NewSystem(
+				sys.WithLogger(log.New(log.WithDiscardAll())),
+			)
+			Expect(err).ToNot(HaveOccurred())
+
+			rm = &resolver.ResolvedManifest{
+				CorePlatform: &core.ReleaseManifest{
+					Components: core.Components{
+						Kubernetes: &core.Kubernetes{
+							Version: "v1.35.0+rke2r1",
+							Image:   "registry.example.com/rke2:1.35_1.0",
+							ImageSets: []core.ImageSet{
+								{Name: "core", Images: []string{"registry.example.com/rke2-runtime:1.35", "registry.example.com/pause:3.6"}},
+								{Name: "canal", Images: []string{"registry.example.com/hardened-calico:3.32"}},
+								{Name: "cilium", Images: []string{"registry.example.com/cilium:1.18", "registry.example.com/pause:3.6"}},
+							},
+						},
+					},
+				},
+			}
+
+			conf = &image.Configuration{
+				Kubernetes: kubernetes.Kubernetes{Config: kubernetes.Config{ServerFilePath: serverConfig}},
+			}
+		})
+
+		It("Selects the core and the configured CNI images", func() {
+			Expect(system.FS().WriteFile(serverConfig, []byte("cni: cilium\n"), 0o644)).To(Succeed())
+
+			images, err := NewManager(system, nil).kubernetesImages(rm, conf)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(images).To(Equal([]string{
+				"registry.example.com/rke2-runtime:1.35",
+				"registry.example.com/pause:3.6",
+				"registry.example.com/cilium:1.18",
+				"registry.example.com/pause:3.6",
+			}))
+		})
+
+		It("Selects the default CNI when none is configured", func() {
+			images, err := NewManager(system, nil).kubernetesImages(rm, conf)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(images).To(Equal([]string{
+				"registry.example.com/rke2-runtime:1.35",
+				"registry.example.com/pause:3.6",
+				"registry.example.com/hardened-calico:3.32",
+			}))
+		})
+
+		It("Fails when a selected set is not listed in the release manifest", func() {
+			Expect(system.FS().WriteFile(serverConfig, []byte("cni: multus,cilium\n"), 0o644)).To(Succeed())
+
+			_, err := NewManager(system, nil).kubernetesImages(rm, conf)
+			Expect(err).To(MatchError(`kubernetes image set "multus" is not listed in the release manifest, available: canal, cilium, core`))
+		})
+
+		It("Fails when the release manifest lists no image sets", func() {
+			rm.CorePlatform.Components.Kubernetes.ImageSets = nil
+
+			_, err := NewManager(system, nil).kubernetesImages(rm, conf)
+			Expect(err).To(MatchError(ContainSubstring("does not list any kubernetes image sets")))
+		})
+
+		It("Selects nothing when the release has no kubernetes component", func() {
+			rm.CorePlatform.Components.Kubernetes = nil
+
+			images, err := NewManager(system, nil).kubernetesImages(rm, conf)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(images).To(BeEmpty())
+		})
+	})
+
 	Describe("Registry mirrors", func() {
 		It("Prepends the embedded registry to parsed mirrors without losing them", func() {
 			registries := kubernetes.ConfigMap{}

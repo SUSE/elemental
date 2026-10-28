@@ -149,7 +149,12 @@ data:
 		rm = &resolver.ResolvedManifest{
 			CorePlatform: &core.ReleaseManifest{
 				Components: core.Components{
-					Kubernetes: &core.Kubernetes{},
+					Kubernetes: &core.Kubernetes{
+						ImageSets: []core.ImageSet{
+							{Name: "core", Images: []string{"registry.example.com/rke2-runtime:1.35"}},
+							{Name: "canal", Images: []string{"registry.example.com/hardened-calico:3.32"}},
+						},
+					},
 				},
 			},
 			SolutionExtension: &solution.ReleaseManifest{
@@ -211,10 +216,12 @@ data:
 			{"quay.io/app/extra:1.0", "linux/arm64"},
 			{"quay.io/app/web:2.0", "linux/arm64"},
 			{"registry.example.com/charts/bar:1.0", "linux/arm64"},
+			{"registry.example.com/hardened-calico:3.32", "linux/arm64"},
+			{"registry.example.com/rke2-runtime:1.35", "linux/arm64"},
 		}))
 
 		storeDir := filepath.Join(output.RegistryStoreDir(), "store")
-		Expect(store.loaded).To(HaveLen(7))
+		Expect(store.loaded).To(HaveLen(9))
 		Expect(store.loaded[0]).To(Equal(storeDir))
 		for _, archive := range store.loaded[1:] {
 			Expect(archive).To(HavePrefix(filepath.Join(output.RegistryStoreDir(), "archives")))
@@ -239,6 +246,7 @@ data:
 	It("Skips the registry when there are no images to embed", func() {
 		conf.Kubernetes = kubernetes.Kubernetes{}
 		conf.Release.Components.HelmCharts = nil
+		rm.CorePlatform.Components.Kubernetes = nil
 		m := NewManager(system, &helmConfiguratorMock{}, WithImageStore(store))
 
 		hosts, err := m.configureElementalRegistry(context.Background(), conf, rm, output, butaneCfg)

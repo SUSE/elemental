@@ -41,6 +41,10 @@ const (
 	serverKey  = "server"
 	tlsSANKey  = "tls-san"
 	selinuxKey = "selinux"
+
+	ingressKey     = "ingress-controller"
+	ingressDefault = "ingress-nginx"
+	imageSetCore   = "core"
 )
 
 type ConfigMap map[string]any
@@ -97,6 +101,19 @@ func NewCluster(s *sys.System, kube *Kubernetes) (*Cluster, error) {
 		AgentConfig:         agentConfig,
 		RegistriesConfig:    registriesConfig,
 	}, err
+}
+
+func ImageSets(config ConfigMap) []string {
+	sets := append([]string{imageSetCore}, CNIPlugins(config)...)
+
+	if ingress, ok := config[ingressKey].(string); ok {
+		ingress = strings.TrimSpace(ingress)
+		if ingress != "" && ingress != ingressDefault {
+			sets = append(sets, ingress)
+		}
+	}
+
+	return sets
 }
 
 func CNIPlugins(config ConfigMap) []string {

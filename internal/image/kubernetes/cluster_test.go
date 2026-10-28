@@ -372,6 +372,32 @@ var _ = Describe("Cluster Helpers", func() {
 
 })
 
+var _ = Describe("Image sets", func() {
+	It("Selects the core set and the default CNI when nothing is configured", func() {
+		Expect(ImageSets(ConfigMap{})).To(Equal([]string{"core", "canal"}))
+	})
+
+	It("Selects every configured CNI plugin from a string", func() {
+		Expect(ImageSets(ConfigMap{"cni": "multus,cilium"})).To(Equal([]string{"core", "multus", "cilium"}))
+	})
+
+	It("Selects every configured CNI plugin from a list", func() {
+		Expect(ImageSets(ConfigMap{"cni": []any{"multus", "calico"}})).To(Equal([]string{"core", "multus", "calico"}))
+	})
+
+	It("Selects only the core set when the CNI is disabled", func() {
+		Expect(ImageSets(ConfigMap{"cni": "none"})).To(Equal([]string{"core"}))
+	})
+
+	It("Selects a non default ingress controller", func() {
+		Expect(ImageSets(ConfigMap{"ingress-controller": "traefik"})).To(Equal([]string{"core", "canal", "traefik"}))
+	})
+
+	It("Ignores the default ingress controller", func() {
+		Expect(ImageSets(ConfigMap{"ingress-controller": "ingress-nginx"})).To(Equal([]string{"core", "canal"}))
+	})
+})
+
 var _ = Describe("Node Helpers", func() {
 	It("Fails to find suitable init node among 3 unknown types", func() {
 		n1 := Nodes{{}, {}, {}}
