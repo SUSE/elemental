@@ -69,7 +69,7 @@ func (m *Manager) configureSystem(ctx context.Context, conf *image.Configuration
 	butaneCfg.Variant = variant
 	butaneCfg.Version = version
 
-	k8sEnabled := isKubernetesEnabled(conf)
+	k8sEnabled := IsKubernetesEnabled(conf)
 
 	if len(conf.ButaneConfig) == 0 &&
 		!k8sEnabled &&

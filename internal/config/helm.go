@@ -211,22 +211,14 @@ func (h *Helm) evaluateLCMDeps(rm *resolver.ResolvedManifest, conf *image.Config
 	var lcmChart *api.HelmChart
 	enabledMap := map[string]struct{}{}
 
-	// first check if LCM is defined in core manifest charts
+	// check if LCM is defined in core manifest charts.
+	// there's no nil check for lcmChart here as LCM is expected/assumed to be enabled in release.yaml.
+	// if release.yaml doesn't list LCM, things are expected to fail at CLI validation level.
 	lcmChart = api.GetChart(elementalLifecycleManager, rm.CorePlatform.Components.Helm.Charts)
-	if lcmChart == nil {
-		// this could be the case if using core manifest that doesn't contain LCM charts which is the case currently
-		// TODO (dharmit): remove this check once the core manifest includes LCM chart by default
-		return nil // nothing to do!
-	}
 
 	enabled := conf.Release.Components.HelmCharts
 	for _, chart := range enabled {
 		enabledMap[chart.Name] = struct{}{}
-	}
-	if _, ok := enabledMap[elementalLifecycleManager]; !ok {
-		// LCM isn't enabled in release.yaml; nothing to do!
-		// TODO (dharmit): remove this check once the core manifest includes LCM chart by default
-		return nil
 	}
 
 	if _, ok := enabledMap[rancher]; ok {

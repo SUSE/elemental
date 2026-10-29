@@ -69,7 +69,7 @@ func needsHelmChartsSetup(conf *image.Configuration) bool {
 	return (len(conf.Release.Components.HelmCharts) > 0) || conf.Kubernetes.Helm != nil
 }
 
-func isKubernetesEnabled(conf *image.Configuration) bool {
+func IsKubernetesEnabled(conf *image.Configuration) bool {
 	return conf.Release.Components.Kubernetes != nil || needsHelmChartsSetup(conf) || needsManifestsSetup(conf)
 }
 
