@@ -22,7 +22,6 @@ import (
 	v1 "github.com/suse/elemental/v3/pkg/manifest/api/internal/v1"
 )
 
-type Components = core.Components
 type OperatingSystem = core.OperatingSystem
 type Kubernetes = core.Kubernetes
 type Image = core.Image
@@ -41,4 +40,11 @@ type Metadata struct {
 type Elemental struct {
 	Version string `yaml:"version" validate:"required"`
 	Image   string `yaml:"image"`
+}
+
+type Components struct {
+	OperatingSystem *OperatingSystem `yaml:"operatingSystem" validate:"required"`
+	Kubernetes      *Kubernetes      `yaml:"kubernetes"`
+	Systemd         v1.Systemd       `yaml:"systemd,omitempty"`
+	Helm            *v1.Helm         `yaml:"helm,omitempty"`
 }

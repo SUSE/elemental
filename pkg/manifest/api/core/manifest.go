@@ -69,9 +69,14 @@ func migrateV0(old *corev0.ReleaseManifest) (*corev1.ReleaseManifest, error) {
 	}
 
 	migrated := &corev1.ReleaseManifest{
-		Schema:     api.SchemaV1,
-		Metadata:   metadata,
-		Components: old.Components,
+		Schema:   api.SchemaV1,
+		Metadata: metadata,
+		Components: corev1.Components{
+			OperatingSystem: old.Components.OperatingSystem,
+			Kubernetes:      old.Components.Kubernetes,
+			Systemd:         old.Components.Systemd,
+			Helm:            v1.MigrateHelmV0(old.Components.Helm),
+		},
 	}
 
 	if err := api.NewValidator(api.WithYAMLFieldNames()).Struct(migrated); err != nil {

@@ -23,11 +23,15 @@ import (
 )
 
 type CorePlatform = solution.CorePlatform
-type Components = solution.Components
 
 type ReleaseManifest struct {
 	Schema       v1.SchemaVersion `yaml:"schema,omitempty"`
 	Metadata     *v1.Metadata     `yaml:"metadata,omitempty"`
 	CorePlatform *CorePlatform    `yaml:"corePlatform" validate:"required"`
 	Components   Components       `yaml:"components,omitempty"`
+}
+
+type Components struct {
+	Systemd v1.Systemd `yaml:"systemd,omitempty"`
+	Helm    *v1.Helm   `yaml:"helm,omitempty"`
 }

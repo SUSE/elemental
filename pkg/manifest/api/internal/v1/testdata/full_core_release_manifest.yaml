@@ -35,6 +35,7 @@ components:
         version: "0.0.0"
         namespace: "foo-system"
         repository: "foo-charts"
+        priorityUpgrade: true
         values:
           image:
             tag: latest
