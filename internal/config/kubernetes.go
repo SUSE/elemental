@@ -61,18 +61,6 @@ var (
 	k8sConfDeployScriptTpl string
 )
 
-func needsManifestsSetup(conf *image.Configuration) bool {
-	return len(conf.Kubernetes.RemoteManifests) > 0 || len(conf.Kubernetes.LocalManifests) > 0 || conf.Kubernetes.Network.IsManagedInternally()
-}
-
-func needsHelmChartsSetup(conf *image.Configuration) bool {
-	return (len(conf.Release.Components.HelmCharts) > 0) || conf.Kubernetes.Helm != nil
-}
-
-func isKubernetesEnabled(conf *image.Configuration) bool {
-	return conf.Release.Components.Kubernetes != nil || needsHelmChartsSetup(conf) || needsManifestsSetup(conf)
-}
-
 func (m *Manager) configureKubernetes(
 	ctx context.Context,
 	conf *image.Configuration,
@@ -89,7 +77,7 @@ func (m *Manager) configureKubernetes(
 
 	var runtimeHelmCharts []string
 
-	if needsHelmChartsSetup(conf) {
+	if conf.NeedsHelmChartsSetup() {
 		m.system.Logger().Info("Configuring Helm charts")
 
 		runtimeHelmCharts, err = m.helm.Configure(ctx, conf, manifest, butaneCfg)
@@ -99,7 +87,7 @@ func (m *Manager) configureKubernetes(
 	}
 
 	var runtimeManifestsDir string
-	if needsManifestsSetup(conf) {
+	if conf.NeedsManifestsSetup() {
 		m.system.Logger().Info("Configuring Kubernetes manifests")
 
 		runtimeManifestsDir, err = m.setupManifests(ctx, &conf.Kubernetes, output, butaneCfg)

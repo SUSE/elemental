@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 
@@ -28,7 +29,10 @@ import (
 
 	"github.com/suse/elemental/v3/internal/image"
 	"github.com/suse/elemental/v3/internal/image/install"
+	"github.com/suse/elemental/v3/internal/image/release"
 )
+
+const elementalLifecycleManager = "elemental-lifecycle-manager"
 
 var (
 	validate *validator.Validate
@@ -40,6 +44,7 @@ func getValidator() *validator.Validate {
 		validate = validator.New(validator.WithRequiredStructEnabled())
 		_ = validate.RegisterValidation("disksize", validateDiskSize)
 		_ = validate.RegisterValidation("netbooturl", validateNetbootURL)
+		_ = validate.RegisterValidation("lcmrequired", validateLifecycleManager)
 	})
 	return validate
 }
@@ -69,6 +74,24 @@ func validateDiskSize(fl validator.FieldLevel) bool {
 	return diskSize.IsValid()
 }
 
+// validateLifecycleManager is meant to be set on the Release field. It ensures the Elemental
+// lifecycle manager chart is listed in the release components whenever Kubernetes is enabled
+// in the parent configuration.
+func validateLifecycleManager(fl validator.FieldLevel) bool {
+	conf, ok := fl.Parent().Interface().(image.Configuration)
+	if !ok {
+		return false
+	}
+
+	if !conf.IsKubernetesEnabled() {
+		return true
+	}
+
+	return slices.ContainsFunc(conf.Release.Components.HelmCharts, func(c release.HelmChart) bool {
+		return c.Name == elementalLifecycleManager
+	})
+}
+
 func Validate(conf *image.Configuration) error {
 	err := getValidator().Struct(conf)
 	if err == nil {
@@ -92,6 +115,8 @@ func Validate(conf *image.Configuration) error {
 				messages = append(messages, fmt.Sprintf("field %q must be an http, https, or nfs URL, but got %q", vErr.Namespace(), vErr.Value()))
 			case "hostname":
 				messages = append(messages, fmt.Sprintf("field %q must be a valid hostname, but got %q", vErr.Namespace(), vErr.Value()))
+			case "lcmrequired":
+				messages = append(messages, fmt.Sprintf("chart %q must be listed under components.helm in release.yaml when Kubernetes is enabled", elementalLifecycleManager))
 			default:
 				messages = append(messages, fmt.Sprintf("field %q failed validation on tag %q", vErr.Namespace(), vErr.Tag()))
 			}
