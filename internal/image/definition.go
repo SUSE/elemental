@@ -37,11 +37,23 @@ type Definition struct {
 
 type Configuration struct {
 	Installation install.Installation  `validate:"required"`
-	Release      release.Release       `validate:"required"`
+	Release      release.Release       `validate:"required,lcmrequired"`
 	Kubernetes   kubernetes.Kubernetes `validate:"omitempty"`
 	Network      Network               `validate:"omitempty"`
 	Custom       Custom                `validate:"omitempty"`
 	ButaneConfig map[string]any        `validate:"omitempty"`
+}
+
+func (c *Configuration) NeedsManifestsSetup() bool {
+	return len(c.Kubernetes.RemoteManifests) > 0 || len(c.Kubernetes.LocalManifests) > 0 || c.Kubernetes.Network.IsManagedInternally()
+}
+
+func (c *Configuration) NeedsHelmChartsSetup() bool {
+	return len(c.Release.Components.HelmCharts) > 0 || c.Kubernetes.Helm != nil
+}
+
+func (c *Configuration) IsKubernetesEnabled() bool {
+	return c.Release.Components.Kubernetes != nil || c.NeedsHelmChartsSetup() || c.NeedsManifestsSetup()
 }
 
 type Image struct {
