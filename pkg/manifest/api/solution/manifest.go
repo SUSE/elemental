@@ -56,9 +56,12 @@ func migrateV0(old *solutionv0.ReleaseManifest) *solutionv1.ReleaseManifest {
 	}
 
 	migrated := &solutionv1.ReleaseManifest{
-		Schema:       api.SchemaV1,
-		Metadata:     metadata,
-		Components:   old.Components,
+		Schema:   api.SchemaV1,
+		Metadata: metadata,
+		Components: solutionv1.Components{
+			Systemd: old.Components.Systemd,
+			Helm:    v1.MigrateHelmV0(old.Components.Helm),
+		},
 		CorePlatform: old.CorePlatform,
 	}
 

@@ -93,6 +93,7 @@ var _ = Describe("ReleaseManifest", Label("release-manifest"), func() {
 		Expect(rm.Components.Helm.Charts[0].Chart).To(Equal("bar"))
 		Expect(rm.Components.Helm.Charts[0].Version).To(Equal("0.0.0"))
 		Expect(rm.Components.Helm.Charts[0].Namespace).To(Equal("bar-system"))
+		Expect(rm.Components.Helm.Charts[0].PriorityUpgrade).To(BeTrue())
 		Expect(rm.Components.Helm.Charts[0].Values).To(Equal(map[string]any{"image": map[string]any{"tag": "latest"}}))
 		Expect(len(rm.Components.Helm.Charts[0].DependsOn)).To(Equal(2))
 		Expect(rm.Components.Helm.Charts[0].DependsOn[0].Name).To(Equal("foo"))
@@ -169,6 +170,28 @@ corePlatform:
 			Expect(errMsg).To(ContainSubstring(msg))
 		}
 
+		Expect(rm).To(BeNil())
+	})
+
+	It("fails when a v1 specific field is used in v0", func() {
+		data := []byte(`
+schema: v0
+metadata:
+  name: "foo"
+  version: "1.0"
+corePlatform:
+  image: "registry.com/foo/bar/core:1.0"
+components:
+  helm:
+    charts:
+      - chart: "foo"
+        version: "0.0.0"
+        priorityUpgrade: true
+`)
+
+		rm, err := solution.Parse(data)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("field priorityUpgrade not found in type v0.HelmChart"))
 		Expect(rm).To(BeNil())
 	})
 })

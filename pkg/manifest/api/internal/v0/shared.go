@@ -17,10 +17,6 @@ limitations under the License.
 
 package v0
 
-import (
-	"github.com/suse/elemental/v3/pkg/helm"
-)
-
 type SchemaVersion string
 
 const SchemaV0 SchemaVersion = "v0"
@@ -52,42 +48,6 @@ type HelmChart struct {
 	Values     map[string]any        `yaml:"values,omitempty"`
 	DependsOn  []HelmChartDependency `yaml:"dependsOn,omitempty" validate:"dive"`
 	Images     []HelmChartImage      `yaml:"images,omitempty"`
-}
-
-func (c *HelmChart) GetName() string {
-	return c.Chart
-}
-
-func (c *HelmChart) GetVersion() string {
-	return c.Version
-}
-
-func (c *HelmChart) GetAPIVersions() []string {
-	return nil
-}
-
-func (c *HelmChart) GetInlineValues() map[string]any {
-	return c.Values
-}
-
-func (c *HelmChart) GetRepositoryName() string {
-	return c.Repository
-}
-
-func (c *HelmChart) ToCRD(values []byte, repository string, hasAuth bool, skipTLSVerify bool) (*helm.CRD, error) {
-	return helm.NewCRD(c.Namespace, c.Chart, c.Version, string(values), repository, hasAuth, skipTLSVerify)
-}
-
-func (c *HelmChart) ExtensionDependencies() []string {
-	var dependencies []string
-
-	for _, dependency := range c.DependsOn {
-		if dependency.Type == DependencyTypeExtension {
-			dependencies = append(dependencies, dependency.Name)
-		}
-	}
-
-	return dependencies
 }
 
 type HelmChartImage struct {
