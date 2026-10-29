@@ -8,7 +8,7 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       INTEGRATION_TESTS: "true"
       ELMNTL_FIRMWARE: "/usr/share/OVMF/OVMF_CODE_4M.fd"
