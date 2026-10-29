@@ -40,6 +40,7 @@ components:
       version: "2.11.1"
       namespace: "cattle-system"
       repository: "rancher"
+      priorityUpgrade: true
       values:
         replicas: 1
       dependsOn:
@@ -70,6 +71,7 @@ components:
       * `namespace` - Optional; Namespace where the Helm chart will be deployed. Defaults to the `default` namespace.
       * `values` - Optional; Custom Helm chart values.
       * `dependsOn` - Optional; Defines any chart dependencies that this chart has. Any dependency charts will be deployed before the actual chart.
+      * `priorityUpgrade` - Optional; Defines whether the chart, together with its dependencies, is upgraded before the full upgrade workflow runs. Requires manifest schema `v1`.
       * `images` - Optional; Defines images that this chart utilizes.
         * `name` - Required; Reference name for the specified image.
         * `image` - Required; Location of the container image that this chart utilizes.
