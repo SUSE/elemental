@@ -208,6 +208,15 @@ func (m *Manager) collectContainerImages(rm *resolver.ResolvedManifest, conf *im
 		}
 	}
 
+	k8sImages, err := m.kubernetesImages(rm, conf)
+	if err != nil {
+		return nil, fmt.Errorf("collecting kubernetes images: %w", err)
+	}
+
+	for _, img := range k8sImages {
+		images[img] = struct{}{}
+	}
+
 	if m.helm != nil {
 		for _, img := range m.helm.ContainerImages() {
 			images[img] = struct{}{}

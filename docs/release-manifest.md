@@ -114,6 +114,22 @@ components:
   kubernetes:
     version: "v1.35.5+rke2r1"
     image: "registry.suse.com/elemental/rke2/rke2:1.35.5_rke2r1"
+    imageSets:
+    - name: "core"
+      images:
+      - "registry.rancher.com/rancher/rke2-runtime:v1.35.5-rke2r1"
+      - "registry.rancher.com/rancher/hardened-kubernetes:v1.35.5-rke2r1-build20260512"
+      - "registry.rancher.com/rancher/mirrored-pause:3.6"
+    - name: "canal"
+      images:
+      - "registry.rancher.com/rancher/hardened-calico:v3.32.0-build20260511"
+      - "registry.rancher.com/rancher/hardened-flannel:v0.28.4-build20260511"
+    - name: "cilium"
+      images:
+      - "registry.rancher.com/rancher/mirrored-cilium-cilium:v1.18.5"
+    - name: "multus"
+      images:
+      - "registry.rancher.com/rancher/hardened-multus-cni:v4.2.3-build20260512"
   helm:
     charts:
     - name: "MetalLB"
@@ -142,4 +158,7 @@ This reference focuses only on the unique to the Core Platform component APIs. A
       * `required` - Whether this extension should be included by default or not. If omitted defaults to `false`.
   * `kubernetes` - Kubernetes distribution related components.
     * `version` - Required; Kubernetes distribution version to be installed (e.g., `v1.35.0+rke2r1`).
-    * `image` - Required; OCI image reference containing all distribution artifacts required for installation. The image should contain the installation script, distribution binaries, container image archives (e.g., CNI-specific images for air-gapped deployments), checksums file, and any other necessary artifacts.
+    * `image` - Required; OCI image reference containing all distribution artifacts required for installation. The image should contain the installation script, distribution binaries, checksums file, and any other necessary artifacts.
+    * `imageSets` - Named groups of the container images the distribution needs at first boot, used only for air-gapped deployments. The selected groups are embedded into the image's registry. The images must come from the same build as the distribution binaries in `image`, since the distribution looks them up by their fully qualified name.
+      * `name` - Name of the image set. `core` is always embedded; every CNI plugin configured in `server.yaml` (e.g. `canal`, `calico`, `cilium`, `flannel`, `multus`).
+      * `images` - Required; list of OCI image references in the set.
