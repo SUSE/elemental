@@ -196,7 +196,7 @@ func setupConfigManager(s *sys.System, configDir string, output config.Output, c
 }
 
 func setupFileExtractor(ctx context.Context, s *sys.System, outDir config.Output, c *cache.Cache, platform string) (extr *extractor.OCIFileExtractor, err error) {
-	const isoSearchGlob = "/iso/*default-iso*.iso"
+	const isoSearchGlob = "/iso/*.iso"
 
 	if err := vfs.MkdirAll(s.FS(), outDir.ISOStoreDir(), vfs.DirPerm); err != nil {
 		return nil, fmt.Errorf("creating ISO store directory: %w", err)
