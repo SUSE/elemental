@@ -40,7 +40,7 @@ var _ = Describe("Kubernetes", func() {
 	Describe("Resources trigger", func() {
 		It("Skips manifests setup if manifests are not provided", func() {
 			conf := &image.Configuration{}
-			Expect(needsManifestsSetup(conf)).To(BeFalse())
+			Expect(conf.NeedsManifestsSetup()).To(BeFalse())
 		})
 
 		It("Requires manifests setup if local manifests are provided", func() {
@@ -49,7 +49,7 @@ var _ = Describe("Kubernetes", func() {
 					LocalManifests: []string{"/apache.yaml"},
 				},
 			}
-			Expect(needsManifestsSetup(conf)).To(BeTrue())
+			Expect(conf.NeedsManifestsSetup()).To(BeTrue())
 		})
 
 		It("Requires manifests setup if remote manifests are provided", func() {
@@ -58,12 +58,12 @@ var _ = Describe("Kubernetes", func() {
 					RemoteManifests: []string{"https://raw.githubusercontent.com/rancher/local-path-provisioner/v0.0.31/deploy/local-path-storage.yaml"},
 				},
 			}
-			Expect(needsManifestsSetup(conf)).To(BeTrue())
+			Expect(conf.NeedsManifestsSetup()).To(BeTrue())
 		})
 
 		It("Skips Helm setup if charts are not provided", func() {
 			conf := &image.Configuration{}
-			Expect(needsHelmChartsSetup(conf)).To(BeFalse())
+			Expect(conf.NeedsHelmChartsSetup()).To(BeFalse())
 		})
 
 		It("Requires Helm setup if user charts are provided", func() {
@@ -76,7 +76,7 @@ var _ = Describe("Kubernetes", func() {
 					},
 				},
 			}
-			Expect(needsHelmChartsSetup(conf)).To(BeTrue())
+			Expect(conf.NeedsHelmChartsSetup()).To(BeTrue())
 		})
 
 		It("Requires Helm setup if core charts are provided", func() {
@@ -92,7 +92,7 @@ var _ = Describe("Kubernetes", func() {
 				},
 			}
 
-			Expect(needsHelmChartsSetup(conf)).To(BeTrue())
+			Expect(conf.NeedsHelmChartsSetup()).To(BeTrue())
 		})
 
 		It("Requires Helm setup if solution charts are provided", func() {
@@ -108,7 +108,7 @@ var _ = Describe("Kubernetes", func() {
 				},
 			}
 
-			Expect(needsHelmChartsSetup(conf)).To(BeTrue())
+			Expect(conf.NeedsHelmChartsSetup()).To(BeTrue())
 		})
 	})
 
