@@ -92,6 +92,7 @@ components:
       credentials:
         username: release-user
         password: release-pass
+    - chart: elemental-lifecycle-manager
 `
 
 var _ = Describe("Configuration", Label("configuration"), func() {
@@ -161,7 +162,7 @@ var _ = Describe("Configuration", Label("configuration"), func() {
 
 		Expect(conf.Release.Components.SystemdExtensions).ToNot(BeEmpty())
 		Expect(conf.Release.Components.SystemdExtensions[0].Name).To(Equal("bar"))
-		Expect(len(conf.Release.Components.HelmCharts)).To(Equal(3))
+		Expect(len(conf.Release.Components.HelmCharts)).To(Equal(4))
 		Expect(conf.Release.Components.HelmCharts[0].Name).To(Equal("foo"))
 		Expect(conf.Release.Components.HelmCharts[0].ValuesFile).To(Equal("foo.yaml"))
 		Expect(conf.Release.Components.HelmCharts[0].Credentials.Username).To(Equal("release-user"))
@@ -179,7 +180,11 @@ var _ = Describe("Configuration", Label("configuration"), func() {
 
 	It("Successfully parses relative release manifest URI", func() {
 		releaseFile := filepath.Join(string(configDir), "release.yaml")
-		releaseYAML := `manifestURI: file://./release-manifest.yaml`
+		releaseYAML := `manifestURI: file://./release-manifest.yaml
+components:
+  helm:
+    - chart: elemental-lifecycle-manager
+`
 
 		Expect(fs.Remove(releaseFile)).To(Succeed())
 		Expect(fs.WriteFile(releaseFile, []byte(releaseYAML), 0644)).To(Succeed())
@@ -363,6 +368,16 @@ iso:
 		Expect(err.Error()).To(ContainSubstring("reading config file"))
 	})
 
+	It("Fails when Kubernetes is enabled but the lifecycle manager is missing", func() {
+		releaseFile := filepath.Join(string(configDir), "release.yaml")
+		releaseYAML = `manifestURI: oci://registry.foo.bar/release-manifest:0.0.1`
+		Expect(fs.WriteFile(releaseFile, []byte(releaseYAML), 0644)).To(Succeed())
+
+		_, err = Parse(fs, configDir)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring(`chart "elemental-lifecycle-manager" must be listed under components.helm in release.yaml when Kubernetes is enabled`))
+	})
+
 	It("Fails on invalid apiVIPMode value", func() {
 		clusterYAML := strings.Replace(kubernetesClusterYAML, "  apiVIP: 192.168.120.100.sslip.io", "  apiVIP: 192.168.120.100.sslip.io\n  apiVIPMode: invalid", 1)
 		Expect(fs.WriteFile(configDir.ClusterFilepath(), []byte(clusterYAML), 0644)).To(Succeed())
@@ -525,6 +540,7 @@ var _ = Describe("Write", Label("configuration", "write"), func() {
 					},
 					HelmCharts: []release.HelmChart{
 						{Name: "test-chart"},
+						{Name: "elemental-lifecycle-manager"},
 					},
 				},
 			},
@@ -549,8 +565,9 @@ var _ = Describe("Write", Label("configuration", "write"), func() {
 		Expect(parsed.Release.ManifestURI).To(Equal("oci://registry.example.com/roundtrip:1.0"))
 		Expect(parsed.Release.Components.SystemdExtensions).To(HaveLen(1))
 		Expect(parsed.Release.Components.SystemdExtensions[0].Name).To(Equal("rke2"))
-		Expect(parsed.Release.Components.HelmCharts).To(HaveLen(1))
+		Expect(parsed.Release.Components.HelmCharts).To(HaveLen(2))
 		Expect(parsed.Release.Components.HelmCharts[0].Name).To(Equal("test-chart"))
+		Expect(parsed.Release.Components.HelmCharts[1].Name).To(Equal("elemental-lifecycle-manager"))
 		Expect(parsed.ButaneConfig["version"]).To(Equal("1.6.0"))
 		Expect(parsed.ButaneConfig["variant"]).To(Equal("fcos"))
 	})

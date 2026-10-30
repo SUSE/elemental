@@ -22,12 +22,10 @@ import (
 	"fmt"
 	"os/signal"
 	"path/filepath"
-	"slices"
 	"strings"
 	"syscall"
 	"time"
 
-	"github.com/suse/elemental/v3/internal/image/release"
 	"github.com/urfave/cli/v3"
 
 	cmdpkg "github.com/suse/elemental/v3/internal/cli/cmd"
@@ -225,10 +223,6 @@ func digestCustomizeDefinition(f vfs.FS, args *cmdpkg.CustomizeFlags, imagePath 
 		return nil, fmt.Errorf("parsing configuration directory %s: %w", args.ConfigDir, err)
 	}
 
-	if err = validateLifecycleManager(conf); err != nil {
-		return nil, err
-	}
-
 	return &image.Definition{
 		Image: image.Image{
 			ImageType:       args.MediaType,
@@ -237,20 +231,4 @@ func digestCustomizeDefinition(f vfs.FS, args *cmdpkg.CustomizeFlags, imagePath 
 		},
 		Configuration: conf,
 	}, nil
-}
-
-func validateLifecycleManager(conf *image.Configuration) error {
-	const elementalLifecycleManager = "elemental-lifecycle-manager"
-
-	if !config.IsKubernetesEnabled(conf) {
-		return nil
-	}
-
-	hasLcm := slices.ContainsFunc(conf.Release.Components.HelmCharts, func(c release.HelmChart) bool {
-		return c.Name == elementalLifecycleManager
-	})
-	if !hasLcm {
-		return fmt.Errorf("chart %q must be listed under components.helm in release.yaml when Kubernetes is enabled", elementalLifecycleManager)
-	}
-	return nil
 }

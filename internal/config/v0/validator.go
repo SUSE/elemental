@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 
@@ -28,7 +29,10 @@ import (
 
 	"github.com/suse/elemental/v3/internal/image"
 	"github.com/suse/elemental/v3/internal/image/install"
+	"github.com/suse/elemental/v3/internal/image/release"
 )
+
+const elementalLifecycleManager = "elemental-lifecycle-manager"
 
 var (
 	validate *validator.Validate
@@ -70,11 +74,31 @@ func validateDiskSize(fl validator.FieldLevel) bool {
 }
 
 func Validate(conf *image.Configuration) error {
-	err := getValidator().Struct(conf)
-	if err == nil {
+	if err := getValidator().Struct(conf); err != nil {
+		return formatValidationError(err)
+	}
+
+	return validateLifecycleManager(conf)
+}
+
+// validateLifecycleManager ensures the Elemental lifecycle manager chart is listed in the
+// release components whenever Kubernetes is enabled.
+func validateLifecycleManager(conf *image.Configuration) error {
+	if !conf.IsKubernetesEnabled() {
 		return nil
 	}
 
+	hasLcm := slices.ContainsFunc(conf.Release.Components.HelmCharts, func(c release.HelmChart) bool {
+		return c.Name == elementalLifecycleManager
+	})
+	if !hasLcm {
+		return fmt.Errorf("chart %q must be listed under components.helm in release.yaml when Kubernetes is enabled", elementalLifecycleManager)
+	}
+
+	return nil
+}
+
+func formatValidationError(err error) error {
 	var validationErrors validator.ValidationErrors
 	if errors.As(err, &validationErrors) {
 		var messages []string
