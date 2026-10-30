@@ -18,6 +18,7 @@ limitations under the License.
 package resolver_test
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -25,6 +26,8 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
+	"github.com/suse/elemental/v3/pkg/log"
 	"github.com/suse/elemental/v3/pkg/manifest/resolver"
 	"github.com/suse/elemental/v3/pkg/manifest/source"
 )
@@ -139,6 +142,36 @@ var _ = Describe("Resolver", Label("release-manifest"), func() {
 		Expect(err).ToNot(BeNil())
 		Expect(err).To(MatchError(expErr))
 		Expect(r).To(BeNil())
+	})
+
+	It("checks the elemental version for a resolved manifest", func() {
+		coreManifestFile := fmt.Sprintf("%s://%s", source.File, coreManifestPath)
+		rm, err := res.Resolve(coreManifestFile)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(rm).ToNot(BeNil())
+
+		buff := &bytes.Buffer{}
+		logger := log.New(log.WithBuffer(buff))
+
+		By("checking against a compatible elemental")
+		Expect(rm.CheckElementalVersion(logger, "0.1.1-rc1+34")).To(Succeed())
+
+		By("checking against a slightly older elemental version")
+		Expect(rm.CheckElementalVersion(logger, "v0.1.0-rc1+34")).To(Succeed())
+		Expect(buff.String()).To(ContainSubstring("is lower than the core platform version"))
+
+		By("checking against an invalid elemental version")
+		Expect(rm.CheckElementalVersion(logger, "bad0.1.0-rc1+34")).NotTo(Succeed())
+
+		By("checking against with a major version gap")
+		Expect(rm.CheckElementalVersion(logger, "1.1.0")).NotTo(Succeed())
+
+		By("checking against with a minor version gap")
+		Expect(rm.CheckElementalVersion(logger, "0.2.0-rc2")).NotTo(Succeed())
+
+		By("checking against an invalid core platform version")
+		rm.CorePlatform.Metadata.Elemental.Version = "nonsense1.23"
+		Expect(rm.CheckElementalVersion(logger, "0.1.0")).NotTo(Succeed())
 	})
 })
 

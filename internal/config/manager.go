@@ -34,6 +34,7 @@ import (
 	"github.com/suse/elemental/v3/pkg/sys"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 	"github.com/suse/elemental/v3/pkg/unpack"
+	"github.com/suse/elemental/v3/version"
 )
 
 type unpackFunc func(ctx context.Context, imageRef, destDir string) error
@@ -187,6 +188,10 @@ func (m *Manager) ConfigureComponents(ctx context.Context, conf *image.Configura
 	rm, err = m.rmResolver.Resolve(conf.Release.ManifestURI)
 	if err != nil {
 		return nil, fmt.Errorf("resolving release manifest at uri '%s': %w", conf.Release.ManifestURI, err)
+	}
+
+	if err = rm.CheckElementalVersion(m.system.Logger(), version.Version()); err != nil {
+		return nil, fmt.Errorf("core platform not supported with current elemental version: %w", err)
 	}
 
 	if err = m.configureNetworkOnFirstboot(conf, output); err != nil {
