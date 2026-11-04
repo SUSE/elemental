@@ -374,27 +374,36 @@ var _ = Describe("Cluster Helpers", func() {
 
 var _ = Describe("Image sets", func() {
 	It("Selects the core set and the default CNI when nothing is configured", func() {
-		Expect(ImageSets(ConfigMap{})).To(Equal([]string{"core", "canal"}))
+		Expect(ImageSets(ConfigMap{}, "v1.35.5+rke2r1")).To(Equal([]string{"core", "canal"}))
 	})
 
 	It("Selects every configured CNI plugin from a string", func() {
-		Expect(ImageSets(ConfigMap{"cni": "multus,cilium"})).To(Equal([]string{"core", "multus", "cilium"}))
+		Expect(ImageSets(ConfigMap{"cni": "multus,cilium"}, "v1.35.5+rke2r1")).To(Equal([]string{"core", "multus", "cilium"}))
 	})
 
 	It("Selects every configured CNI plugin from a list", func() {
-		Expect(ImageSets(ConfigMap{"cni": []any{"multus", "calico"}})).To(Equal([]string{"core", "multus", "calico"}))
+		Expect(ImageSets(ConfigMap{"cni": []any{"multus", "calico"}}, "v1.35.5+rke2r1")).To(Equal([]string{"core", "multus", "calico"}))
 	})
 
 	It("Selects only the core set when the CNI is disabled", func() {
-		Expect(ImageSets(ConfigMap{"cni": "none"})).To(Equal([]string{"core"}))
+		Expect(ImageSets(ConfigMap{"cni": "none"}, "v1.35.5+rke2r1")).To(Equal([]string{"core"}))
 	})
 
-	It("Selects a non default ingress controller", func() {
-		Expect(ImageSets(ConfigMap{"ingress-controller": "traefik"})).To(Equal([]string{"core", "canal", "traefik"}))
+	It("Selects traefik on releases where nginx is the default ingress controller", func() {
+		Expect(ImageSets(ConfigMap{"ingress-controller": "traefik"}, "v1.35.5+rke2r1")).To(Equal([]string{"core", "canal", "traefik"}))
+		Expect(ImageSets(ConfigMap{"ingress-controller": "ingress-nginx"}, "v1.35.5_rke2r1")).To(Equal([]string{"core", "canal"}))
 	})
 
-	It("Ignores the default ingress controller", func() {
-		Expect(ImageSets(ConfigMap{"ingress-controller": "ingress-nginx"})).To(Equal([]string{"core", "canal"}))
+	It("Selects nginx on releases where traefik is the default ingress controller", func() {
+		Expect(ImageSets(ConfigMap{"ingress-controller": "ingress-nginx"}, "v1.36.3+rke2r1")).To(Equal([]string{"core", "canal", "ingress-nginx"}))
+		Expect(ImageSets(ConfigMap{"ingress-controller": "traefik"}, "v1.36.0_rke2r1")).To(Equal([]string{"core", "canal"}))
+	})
+
+	It("Fails on an unparsable kubernetes version when an ingress controller is set", func() {
+		_, err := ImageSets(ConfigMap{"ingress-controller": "traefik"}, "latest")
+		Expect(err).To(MatchError(ContainSubstring(`parsing kubernetes version "latest"`)))
+
+		Expect(ImageSets(ConfigMap{}, "latest")).To(Equal([]string{"core", "canal"}))
 	})
 })
 

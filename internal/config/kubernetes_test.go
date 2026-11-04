@@ -33,6 +33,7 @@ import (
 	"github.com/suse/elemental/v3/pkg/manifest/api/core"
 	"github.com/suse/elemental/v3/pkg/manifest/resolver"
 	"github.com/suse/elemental/v3/pkg/sys"
+	"github.com/suse/elemental/v3/pkg/sys/vfs"
 	"go.yaml.in/yaml/v3"
 )
 
@@ -444,18 +445,32 @@ data:
 	Describe("Image sets", func() {
 		var system *sys.System
 		var serverConfig string
+		var installDir string
 		var rm *resolver.ResolvedManifest
 		var conf *image.Configuration
+		var output Output
+		var manager *Manager
+
+		writeList := func(set, contents string) {
+			Expect(system.FS().WriteFile(filepath.Join(installDir, kubernetes.ImageListName(set, "amd64")), []byte(contents), 0o644)).To(Succeed())
+		}
 
 		BeforeEach(func() {
 			var err error
 
 			serverConfig = filepath.Join(GinkgoT().TempDir(), "server.yaml")
+			output = Output{RootPath: GinkgoT().TempDir()}
+			installDir = filepath.Join(output.OverlaysDir(), image.KubernetesInstallPath())
 
 			system, err = sys.NewSystem(
 				sys.WithLogger(log.New(log.WithDiscardAll())),
 			)
 			Expect(err).ToNot(HaveOccurred())
+
+			Expect(vfs.MkdirAll(system.FS(), installDir, vfs.DirPerm)).To(Succeed())
+			writeList("core", "registry.example.com/rke2-runtime:1.35\n\n# comment\nregistry.example.com/pause:3.6 \n")
+			writeList("canal", "registry.example.com/hardened-calico:3.32")
+			writeList("cilium", "registry.example.com/cilium:1.18\nregistry.example.com/pause:3.6\n")
 
 			rm = &resolver.ResolvedManifest{
 				CorePlatform: &core.ReleaseManifest{
@@ -463,11 +478,6 @@ data:
 						Kubernetes: &core.Kubernetes{
 							Version: "v1.35.0+rke2r1",
 							Image:   "registry.example.com/rke2:1.35_1.0",
-							ImageSets: []core.ImageSet{
-								{Name: "core", Images: []string{"registry.example.com/rke2-runtime:1.35", "registry.example.com/pause:3.6"}},
-								{Name: "canal", Images: []string{"registry.example.com/hardened-calico:3.32"}},
-								{Name: "cilium", Images: []string{"registry.example.com/cilium:1.18", "registry.example.com/pause:3.6"}},
-							},
 						},
 					},
 				},
@@ -476,12 +486,14 @@ data:
 			conf = &image.Configuration{
 				Kubernetes: kubernetes.Kubernetes{Config: kubernetes.Config{ServerFilePath: serverConfig}},
 			}
+
+			manager = NewManager(system, nil, WithPlatform("linux/amd64"))
 		})
 
 		It("Selects the core and the configured CNI images", func() {
 			Expect(system.FS().WriteFile(serverConfig, []byte("cni: cilium\n"), 0o644)).To(Succeed())
 
-			images, err := NewManager(system, nil).kubernetesImages(rm, conf)
+			images, err := manager.kubernetesImages(rm, conf, output)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(images).To(Equal([]string{
 				"registry.example.com/rke2-runtime:1.35",
@@ -492,7 +504,7 @@ data:
 		})
 
 		It("Selects the default CNI when none is configured", func() {
-			images, err := NewManager(system, nil).kubernetesImages(rm, conf)
+			images, err := manager.kubernetesImages(rm, conf, output)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(images).To(Equal([]string{
 				"registry.example.com/rke2-runtime:1.35",
@@ -501,24 +513,31 @@ data:
 			}))
 		})
 
-		It("Fails when a selected set is not listed in the release manifest", func() {
+		It("Fails when a selected set is not shipped by the distribution image", func() {
 			Expect(system.FS().WriteFile(serverConfig, []byte("cni: multus,cilium\n"), 0o644)).To(Succeed())
 
-			_, err := NewManager(system, nil).kubernetesImages(rm, conf)
-			Expect(err).To(MatchError(`kubernetes image set "multus" is not listed in the release manifest, available: canal, cilium, core`))
+			_, err := manager.kubernetesImages(rm, conf, output)
+			Expect(err).To(MatchError(`kubernetes image set "multus" is not shipped by registry.example.com/rke2:1.35_1.0: rke2-images-multus.linux-amd64.txt not found, available: canal, cilium, core`))
 		})
 
-		It("Fails when the release manifest lists no image sets", func() {
-			rm.CorePlatform.Components.Kubernetes.ImageSets = nil
+		It("Fails when the lists are for another architecture", func() {
+			manager = NewManager(system, nil, WithPlatform("linux/arm64"))
 
-			_, err := NewManager(system, nil).kubernetesImages(rm, conf)
-			Expect(err).To(MatchError(ContainSubstring("does not list any kubernetes image sets")))
+			_, err := manager.kubernetesImages(rm, conf, output)
+			Expect(err).To(MatchError(`kubernetes image set "core" is not shipped by registry.example.com/rke2:1.35_1.0: rke2-images-core.linux-arm64.txt not found, available: `))
+		})
+
+		It("Fails when an image list is empty", func() {
+			writeList("canal", "\n# nothing here\n")
+
+			_, err := manager.kubernetesImages(rm, conf, output)
+			Expect(err).To(MatchError(`kubernetes image set "canal" is empty: rke2-images-canal.linux-amd64.txt lists no images`))
 		})
 
 		It("Selects nothing when the release has no kubernetes component", func() {
 			rm.CorePlatform.Components.Kubernetes = nil
 
-			images, err := NewManager(system, nil).kubernetesImages(rm, conf)
+			images, err := manager.kubernetesImages(rm, conf, output)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(images).To(BeEmpty())
 		})
