@@ -208,7 +208,7 @@ func (m *Manager) collectContainerImages(rm *resolver.ResolvedManifest, conf *im
 		}
 	}
 
-	k8sImages, err := m.kubernetesImages(rm, conf)
+	k8sImages, err := m.kubernetesImages(rm, conf, output)
 	if err != nil {
 		return nil, fmt.Errorf("collecting kubernetes images: %w", err)
 	}

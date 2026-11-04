@@ -51,7 +51,7 @@ This section provides a high-level overview of the steps that Elemental's toolin
    1. Prepare for Kubernetes cluster creation and resource deployment:
       1. Prepare Helm charts and Kubernetes manifests
       1. Download RKE2 artifacts (tarball, checksums) and install script.
-      1. For [air-gapped images](#air-gapped-images), embed the Helm charts, the RKE2 container image tarballs, and the container images used by the workloads.
+      1. For [air-gapped images](#air-gapped-images), embed the Helm charts, the RKE2 container images, and the container images used by the workloads.
    1. Prepare any other overlays or firstboot configurations based on what was defined in the configuration directory.
    1. Produce a description of the desired installation state and merge it with the installer ISO description.
    1. Produce the final desired image type.

@@ -146,14 +146,17 @@ data:
 		butaneCfg = &butane.Config{}
 		registryDir = filepath.Join(output.OverlaysDir(), image.RegistryPath())
 
+		installDir := filepath.Join(output.OverlaysDir(), image.KubernetesInstallPath())
+		Expect(vfs.MkdirAll(fs, installDir, vfs.DirPerm)).To(Succeed())
+		Expect(fs.WriteFile(filepath.Join(installDir, kubernetes.ImageListName("core", "arm64")), []byte("registry.example.com/rke2-runtime:1.35\n"), vfs.FilePerm)).To(Succeed())
+		Expect(fs.WriteFile(filepath.Join(installDir, kubernetes.ImageListName("canal", "arm64")), []byte("registry.example.com/hardened-calico:3.32\n"), vfs.FilePerm)).To(Succeed())
+
 		rm = &resolver.ResolvedManifest{
 			CorePlatform: &core.ReleaseManifest{
 				Components: core.Components{
 					Kubernetes: &core.Kubernetes{
-						ImageSets: []core.ImageSet{
-							{Name: "core", Images: []string{"registry.example.com/rke2-runtime:1.35"}},
-							{Name: "canal", Images: []string{"registry.example.com/hardened-calico:3.32"}},
-						},
+						Version: "v1.35.0+rke2r1",
+						Image:   "registry.example.com/rke2:1.35_1.0",
 					},
 				},
 			},
@@ -258,7 +261,7 @@ data:
 
 	It("Fails when a registry login fails", func() {
 		store.loginErr = fmt.Errorf("unauthorized")
-		m := NewManager(system, &helmConfiguratorMock{}, WithImageStore(store))
+		m := NewManager(system, &helmConfiguratorMock{}, WithImageStore(store), WithPlatform("linux/arm64"))
 
 		_, err := m.configureElementalRegistry(context.Background(), conf, rm, output, butaneCfg)
 		Expect(err).To(MatchError(ContainSubstring("unauthorized")))
@@ -267,7 +270,7 @@ data:
 
 	It("Fails when an image cannot be saved", func() {
 		store.saveErr = fmt.Errorf("manifest unknown")
-		m := NewManager(system, &helmConfiguratorMock{}, WithImageStore(store))
+		m := NewManager(system, &helmConfiguratorMock{}, WithImageStore(store), WithPlatform("linux/arm64"))
 
 		_, err := m.configureElementalRegistry(context.Background(), conf, rm, output, butaneCfg)
 		Expect(err).To(MatchError(ContainSubstring("embedding image busybox:1.36")))
@@ -276,7 +279,7 @@ data:
 
 	It("Fails on a malformed local manifest", func() {
 		Expect(fs.WriteFile(localManifest, []byte("kind: [broken"), vfs.FilePerm)).To(Succeed())
-		m := NewManager(system, &helmConfiguratorMock{}, WithImageStore(store))
+		m := NewManager(system, &helmConfiguratorMock{}, WithImageStore(store), WithPlatform("linux/arm64"))
 
 		_, err := m.configureElementalRegistry(context.Background(), conf, rm, output, butaneCfg)
 		Expect(err).To(MatchError(ContainSubstring("reading manifest")))

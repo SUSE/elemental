@@ -39,14 +39,8 @@ type OperatingSystem struct {
 }
 
 type Kubernetes struct {
-	Version   string     `yaml:"version" validate:"required"`
-	Image     string     `yaml:"image" validate:"required"`
-	ImageSets []ImageSet `yaml:"imageSets,omitempty" validate:"dive"`
-}
-
-type ImageSet struct {
-	Name   string   `yaml:"name" validate:"required"`
-	Images []string `yaml:"images" validate:"required,dive,required"`
+	Version string `yaml:"version" validate:"required"`
+	Image   string `yaml:"image" validate:"required"`
 }
 
 type Image struct {

@@ -20,8 +20,9 @@ package config
 import (
 	"context"
 	_ "embed"
+	"errors"
 	"fmt"
-	"maps"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -34,6 +35,7 @@ import (
 	"github.com/suse/elemental/v3/internal/template"
 	"github.com/suse/elemental/v3/pkg/manifest/resolver"
 	"github.com/suse/elemental/v3/pkg/sys"
+	"github.com/suse/elemental/v3/pkg/sys/platform"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
 
@@ -421,14 +423,10 @@ func (m *Manager) unpackKubernetesArtifacts(ctx context.Context, manifest *resol
 	return nil
 }
 
-func (m *Manager) kubernetesImages(rm *resolver.ResolvedManifest, conf *image.Configuration) ([]string, error) {
+func (m *Manager) kubernetesImages(rm *resolver.ResolvedManifest, conf *image.Configuration, output Output) ([]string, error) {
 	k8s := rm.CorePlatform.Components.Kubernetes
 	if k8s == nil {
 		return nil, nil
-	}
-
-	if len(k8s.ImageSets) == 0 {
-		return nil, fmt.Errorf("release manifest does not list any kubernetes image sets, required for air-gapped installations")
 	}
 
 	serverConfig, err := kubernetes.ParseKubernetesConfig(m.system, conf.Kubernetes.Config.ServerFilePath)
@@ -436,19 +434,71 @@ func (m *Manager) kubernetesImages(rm *resolver.ResolvedManifest, conf *image.Co
 		return nil, fmt.Errorf("parsing server config: %w", err)
 	}
 
-	sets := make(map[string][]string, len(k8s.ImageSets))
-	for _, set := range k8s.ImageSets {
-		sets[set.Name] = set.Images
+	selected, err := kubernetes.ImageSets(serverConfig, k8s.Version)
+	if err != nil {
+		return nil, fmt.Errorf("selecting kubernetes image sets: %w", err)
+	}
+
+	platform, err := platform.Parse(m.platform)
+	if err != nil {
+		return nil, fmt.Errorf("parsing platform %q: %w", m.platform, err)
+	}
+
+	fs := m.system.FS()
+	installDir := filepath.Join(output.OverlaysDir(), image.KubernetesInstallPath())
+
+	var images []string
+	for _, name := range selected {
+		listName := kubernetes.ImageListName(name, platform.GolangArch)
+
+		list, err := readImageList(fs, filepath.Join(installDir, listName))
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, fmt.Errorf("kubernetes image set %q is not shipped by %s: %s not found, available: %s", name, k8s.Image, listName, strings.Join(shippedImageSets(fs, installDir, platform.GolangArch), ", "))
+		} else if err != nil {
+			return nil, fmt.Errorf("reading kubernetes image set %q: %w", name, err)
+		}
+
+		if len(list) == 0 {
+			return nil, fmt.Errorf("kubernetes image set %q is empty: %s lists no images", name, listName)
+		}
+
+		m.system.Logger().Info("Embedding kubernetes image set %q from %s", name, listName)
+		images = append(images, list...)
+	}
+
+	return images, nil
+}
+
+func shippedImageSets(fs vfs.FS, installDir, arch string) []string {
+	pattern := kubernetes.ImageListName("*", arch)
+
+	lists, _ := vfs.FindFiles(fs, installDir, pattern)
+
+	prefix, suffix, _ := strings.Cut(pattern, "*")
+	sets := make([]string, 0, len(lists))
+	for _, list := range lists {
+		name := strings.TrimSuffix(strings.TrimPrefix(filepath.Base(list), prefix), suffix)
+		sets = append(sets, name)
+	}
+
+	slices.Sort(sets)
+	return sets
+}
+
+func readImageList(fs vfs.FS, path string) ([]string, error) {
+	data, err := fs.ReadFile(path)
+	if err != nil {
+		return nil, err
 	}
 
 	var images []string
-	for _, name := range kubernetes.ImageSets(serverConfig) {
-		set, ok := sets[name]
-		if !ok {
-			return nil, fmt.Errorf("kubernetes image set %q is not listed in the release manifest, available: %s", name, strings.Join(slices.Sorted(maps.Keys(sets)), ", "))
+	for line := range strings.Lines(string(data)) {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
 		}
 
-		images = append(images, set...)
+		images = append(images, line)
 	}
 
 	return images, nil

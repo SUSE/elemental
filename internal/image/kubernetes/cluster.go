@@ -29,6 +29,7 @@ import (
 	"go.yaml.in/yaml/v3"
 
 	"github.com/suse/elemental/v3/pkg/log"
+	"github.com/suse/elemental/v3/pkg/semverutil"
 	"github.com/suse/elemental/v3/pkg/sys"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
@@ -43,8 +44,13 @@ const (
 	selinuxKey = "selinux"
 
 	ingressKey     = "ingress-controller"
-	ingressDefault = "ingress-nginx"
+	ingressNginx   = "ingress-nginx"
+	ingressTraefik = "traefik"
 	imageSetCore   = "core"
+	imageListFmt   = "rke2-images-%s.linux-%s.txt"
+
+	traefikDefaultMajor = 1
+	traefikDefaultMinor = 36
 )
 
 type ConfigMap map[string]any
@@ -103,17 +109,42 @@ func NewCluster(s *sys.System, kube *Kubernetes) (*Cluster, error) {
 	}, err
 }
 
-func ImageSets(config ConfigMap) []string {
+func ImageListName(set, arch string) string {
+	return fmt.Sprintf(imageListFmt, set, arch)
+}
+
+func ImageSets(config ConfigMap, version string) ([]string, error) {
 	sets := append([]string{imageSetCore}, CNIPlugins(config)...)
 
-	if ingress, ok := config[ingressKey].(string); ok {
-		ingress = strings.TrimSpace(ingress)
-		if ingress != "" && ingress != ingressDefault {
-			sets = append(sets, ingress)
-		}
+	ingress, _ := config[ingressKey].(string)
+	ingress = strings.TrimSpace(ingress)
+	if ingress == "" {
+		return sets, nil
 	}
 
-	return sets
+	defaultIngress, err := DefaultIngressController(version)
+	if err != nil {
+		return nil, err
+	}
+
+	if ingress != defaultIngress {
+		sets = append(sets, ingress)
+	}
+
+	return sets, nil
+}
+
+func DefaultIngressController(version string) (string, error) {
+	v, err := semverutil.Parse(strings.Replace(version, "_", "+", 1))
+	if err != nil {
+		return "", fmt.Errorf("parsing kubernetes version %q: %w", version, err)
+	}
+
+	if v.Major() > traefikDefaultMajor || (v.Major() == traefikDefaultMajor && v.Minor() >= traefikDefaultMinor) {
+		return ingressTraefik, nil
+	}
+
+	return ingressNginx, nil
 }
 
 func CNIPlugins(config ConfigMap) []string {
