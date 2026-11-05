@@ -29,6 +29,7 @@ import (
 	"github.com/suse/elemental/v3/pkg/extensions"
 	"github.com/suse/elemental/v3/pkg/manifest/api"
 	"github.com/suse/elemental/v3/pkg/manifest/resolver"
+	"github.com/suse/elemental/v3/pkg/semverutil"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
 
@@ -59,15 +60,22 @@ var (
 //
 // it builds a CPIO file containing the Ignition configuration at /usr/lib/ignition/base.d, then the CPIO file
 // is used as an initrd extension allowing the user to provide additional user configuration to be merged on top.
+// For legacy manifests (pre 3.1 releases) it writes the configuration as the user ignition file as part of the
+// ignition volume.
 func (m *Manager) configureSystem(ctx context.Context, conf *image.Configuration, output Output, manifest *resolver.ResolvedManifest, ext []api.SystemdExtension) error {
 	const (
-		variant = "fcos"
-		version = "1.6.0"
+		butaneVariant = "fcos"
+		butaneVersion = "1.6.0"
+		initrdBaseVer = "3.1.0"
 	)
-	var butaneCfg butane.Config
+	var (
+		butaneCfg butane.Config
+		cVer      semverutil.Version
+		err       error
+	)
 
-	butaneCfg.Variant = variant
-	butaneCfg.Version = version
+	butaneCfg.Variant = butaneVariant
+	butaneCfg.Version = butaneVersion
 
 	k8sEnabled := conf.IsKubernetesEnabled()
 
@@ -103,13 +111,49 @@ func (m *Manager) configureSystem(ctx context.Context, conf *image.Configuration
 		butaneCfg.AddSystemdUnit(updateLinkerCacheUnitName, updateLinkerCacheUnit, true)
 	}
 
+	// on legacy manifests (pre v3.1) embedding ignition configuration as part of the initrd
+	// is not supported, in that case write the user ignition configuration as part of the
+	// configuration partition.
+	refVer, _ := semverutil.Parse(initrdBaseVer)
+	if manifest != nil {
+		cVer, err = manifest.GetElementalVersion()
+		if err != nil {
+			m.system.Logger().Warn("could not parse manifest version: %s", err.Error())
+		}
+	}
+	if cVer.LessThan(refVer) {
+		return m.writeUserIgnitionConfig(output, butaneCfg, conf.ButaneConfig)
+	}
+
 	return m.writeBaseIgnitionConfig(output, butaneCfg, conf.ButaneConfig)
+}
+
+// writeUserIgnitionConfig writes the generated Ignition configuration including the user provided butane configuration
+// as the ignition file stored in the 'ignition' volume.
+func (m *Manager) writeUserIgnitionConfig(output Output, config butane.Config, butaneConfig map[string]any) (err error) {
+	if len(butaneConfig) > 0 {
+		m.system.Logger().Info("Translating butane configuration to Ignition syntax")
+
+		ignitionBytes, err := butane.TranslateBytes(m.system, butaneConfig)
+		if err != nil {
+			return fmt.Errorf("failed translating butane configuration: %w", err)
+		}
+		config.MergeInlineIgnition(string(ignitionBytes))
+	}
+
+	ignitionFile := filepath.Join(output.FirstbootConfigDir(), image.IgnitionFilePath())
+	err = butane.WriteIgnitionFile(m.system, config, ignitionFile)
+	if err != nil {
+		return fmt.Errorf("writing ignition file %q: %w", ignitionFile, err)
+	}
+
+	return nil
 }
 
 // writeBaseIgnitionConfig renders the generated Ignition configuration including the user provided butane configuration
 // as part of a CPIO file, which can be used to extend the OS initrd and include ignition base configuration the expected
 // /usr/lib/ignition/base.d path
-func (m *Manager) writeBaseIgnitionConfig(output Output, config butane.Config, butaneConfing map[string]any) (err error) {
+func (m *Manager) writeBaseIgnitionConfig(output Output, config butane.Config, butaneConfig map[string]any) (err error) {
 	tmpDir, err := vfs.TempDir(m.system.FS(), output.RootPath, "initrd")
 	if err != nil {
 		return fmt.Errorf("creating temporary directory for ignition initrd extension: %w", err)
@@ -127,11 +171,11 @@ func (m *Manager) writeBaseIgnitionConfig(output Output, config butane.Config, b
 		return fmt.Errorf("writing ignition file %q: %w", ignitionFile, err)
 	}
 
-	if len(butaneConfing) > 0 {
+	if len(butaneConfig) > 0 {
 		m.system.Logger().Info("Translating butane configuration to Ignition syntax")
 
 		butaneFile := filepath.Join(tmpDir, image.IgnitionBaseConfigPath(), ignitionFromButaneFileName)
-		err = butane.WriteIgnitionFile(m.system, butaneConfing, butaneFile)
+		err = butane.WriteIgnitionFile(m.system, butaneConfig, butaneFile)
 		if err != nil {
 			return fmt.Errorf("writing ignition file %q: %w", butaneFile, err)
 		}

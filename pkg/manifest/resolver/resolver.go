@@ -28,6 +28,8 @@ import (
 	"github.com/suse/elemental/v3/pkg/semverutil"
 )
 
+var ErrVersionUndefined = errors.New("elemental version undefined")
+
 type ResolvedManifest struct {
 	// Release manifest for the core platform
 	CorePlatform *core.ReleaseManifest
@@ -83,6 +85,22 @@ func (rm *ResolvedManifest) CheckElementalVersion(logger log.Logger, currentVers
 	}
 
 	return nil
+}
+
+// GetElementalVersion returns the Elemental version defined for the Core Platform. Errors with a ErrVersionUndefined
+// sentinel error variable if not set.
+func (rm *ResolvedManifest) GetElementalVersion() (semverutil.Version, error) {
+	var version semverutil.Version
+	var err error
+	if rm.CorePlatform != nil && rm.CorePlatform.Metadata != nil && rm.CorePlatform.Metadata.Elemental != nil {
+		version, err = semverutil.Parse(rm.CorePlatform.Metadata.Elemental.Version)
+		if err != nil {
+			return version, err
+		}
+	} else {
+		return version, ErrVersionUndefined
+	}
+	return version, nil
 }
 
 // Resolve resolves a release manifest at a given uri to its

@@ -232,4 +232,66 @@ passwd:
 
 		Expect(buffer.String()).To(ContainSubstring("translating Butane to Ignition reported non-fatal entries"))
 	})
+
+	Context("Elemental version based user ignition", func() {
+		var ignitionFile string
+
+		manifestWith := func(version string) *resolver.ResolvedManifest {
+			return &resolver.ResolvedManifest{
+				CorePlatform: &core.ReleaseManifest{
+					Metadata: &core.Metadata{
+						Elemental: &core.Elemental{Version: version},
+					},
+				},
+			}
+		}
+
+		BeforeEach(func() {
+			ignitionFile = filepath.Join(output.FirstbootConfigDir(), image.IgnitionFilePath())
+		})
+
+		It("Merges the butane config into the user ignition file if elemental version is older than 3.1.0", func() {
+			var butaneConf map[string]any
+			Expect(v0.ParseAny([]byte("version: 1.6.0\nvariant: fcos\npasswd:\n  users:\n  - name: pipo\n"), &butaneConf)).To(Succeed())
+			conf := &image.Configuration{ButaneConfig: butaneConf}
+
+			Expect(m.configureSystem(ctx, conf, output, manifestWith("3.0.0"), nil)).To(Succeed())
+
+			data, err := fs.ReadFile(ignitionFile)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(string(data)).To(ContainSubstring("merge"))
+		})
+
+		It("Fails if the butane config cannot be translated", func() {
+			var butaneConf map[string]any
+			Expect(v0.ParseAny([]byte("version: 0.0.1\nvariant: unknown\n"), &butaneConf)).To(Succeed())
+			conf := &image.Configuration{ButaneConfig: butaneConf}
+
+			Expect(m.configureSystem(ctx, conf, output, manifestWith("3.0.0"), nil)).To(MatchError(
+				ContainSubstring("failed translating butane configuration"),
+			))
+		})
+
+		DescribeTable("Does not write the user ignition file",
+			func(rm *resolver.ResolvedManifest) {
+				var butaneConf map[string]any
+				Expect(v0.ParseAny([]byte("version: 1.6.0\nvariant: fcos\npasswd:\n  users:\n  - name: pipo\n"), &butaneConf)).To(Succeed())
+				conf := &image.Configuration{ButaneConfig: butaneConf}
+				Expect(m.configureSystem(ctx, conf, output, rm, nil)).To(Succeed())
+
+				ok, err := vfs.Exists(fs, ignitionFile)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(ok).To(BeFalse())
+			},
+			Entry("with elemental version equal to 3.1.0", manifestWith("3.1.0")),
+			Entry("with elemental version newer than 3.1.0", manifestWith("3.2.0")),
+			Entry("with an unparsable elemental version", manifestWith("not-a-version")),
+			Entry("with a nil manifest", nil),
+			Entry("with a nil core platform", &resolver.ResolvedManifest{}),
+			Entry("without core platform metadata", &resolver.ResolvedManifest{CorePlatform: &core.ReleaseManifest{}}),
+			Entry("without elemental metadata", &resolver.ResolvedManifest{
+				CorePlatform: &core.ReleaseManifest{Metadata: &core.Metadata{}},
+			}),
+		)
+	})
 })
