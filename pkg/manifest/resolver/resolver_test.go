@@ -155,6 +155,7 @@ var _ = Describe("Resolver", Label("release-manifest"), func() {
 
 		By("checking against a compatible elemental")
 		Expect(rm.CheckElementalVersion(logger, "0.1.1-rc1+34")).To(Succeed())
+		Expect(rm.CheckElementalVersion(logger, "0.2.3")).To(Succeed())
 
 		By("checking against a slightly older elemental version")
 		Expect(rm.CheckElementalVersion(logger, "v0.1.0-rc1+34")).To(Succeed())
@@ -163,11 +164,12 @@ var _ = Describe("Resolver", Label("release-manifest"), func() {
 		By("checking against an invalid elemental version")
 		Expect(rm.CheckElementalVersion(logger, "bad0.1.0-rc1+34")).NotTo(Succeed())
 
-		By("checking against with a major version gap")
+		By("checking against a different major version")
 		Expect(rm.CheckElementalVersion(logger, "1.1.0")).NotTo(Succeed())
 
-		By("checking against with a minor version gap")
-		Expect(rm.CheckElementalVersion(logger, "0.2.0-rc2")).NotTo(Succeed())
+		By("checking against an invalid minor version")
+		Expect(rm.CheckElementalVersion(logger, "0.3.0-rc2")).NotTo(Succeed())
+		Expect(rm.CheckElementalVersion(logger, "0.0.1")).NotTo(Succeed())
 
 		By("checking against an invalid core platform version")
 		rm.CorePlatform.Metadata.Elemental.Version = "nonsense1.23"
