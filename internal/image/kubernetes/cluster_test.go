@@ -399,6 +399,17 @@ var _ = Describe("Image sets", func() {
 		Expect(ImageSets(ConfigMap{"ingress-controller": "traefik"}, "v1.36.0_rke2r1")).To(Equal([]string{"core", "canal"}))
 	})
 
+	It("Accepts the ingress controller as a list", func() {
+		Expect(ImageSets(ConfigMap{"ingress-controller": []any{"traefik"}}, "v1.35.5+rke2r1")).To(Equal([]string{"core", "canal", "traefik"}))
+		Expect(ImageSets(ConfigMap{"ingress-controller": []any{" traefik "}}, "v1.36.0+rke2r1")).To(Equal([]string{"core", "canal"}))
+	})
+
+	It("Selects no ingress set when the ingress controller is disabled", func() {
+		Expect(ImageSets(ConfigMap{"ingress-controller": "none"}, "v1.35.5+rke2r1")).To(Equal([]string{"core", "canal"}))
+		Expect(ImageSets(ConfigMap{"ingress-controller": []any{"none"}}, "latest")).To(Equal([]string{"core", "canal"}))
+		Expect(ImageSets(ConfigMap{"ingress-controller": ""}, "latest")).To(Equal([]string{"core", "canal"}))
+	})
+
 	It("Fails on an unparsable kubernetes version when an ingress controller is set", func() {
 		_, err := ImageSets(ConfigMap{"ingress-controller": "traefik"}, "latest")
 		Expect(err).To(MatchError(ContainSubstring(`parsing kubernetes version "latest"`)))
