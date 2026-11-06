@@ -38,7 +38,7 @@ const (
 	tokenKey   = "token"
 	cniKey     = "cni"
 	cniDefault = "canal"
-	cniNone    = "none"
+	noneValue  = "none"
 	serverKey  = "server"
 	tlsSANKey  = "tls-san"
 	selinuxKey = "selinux"
@@ -116,9 +116,8 @@ func ImageListName(set, arch string) string {
 func ImageSets(config ConfigMap, version string) ([]string, error) {
 	sets := append([]string{imageSetCore}, CNIPlugins(config)...)
 
-	ingress, _ := config[ingressKey].(string)
-	ingress = strings.TrimSpace(ingress)
-	if ingress == "" {
+	ingress, configured := configList(config, ingressKey)
+	if !configured || len(ingress) == 0 {
 		return sets, nil
 	}
 
@@ -127,8 +126,10 @@ func ImageSets(config ConfigMap, version string) ([]string, error) {
 		return nil, err
 	}
 
-	if ingress != defaultIngress {
-		sets = append(sets, ingress)
+	for _, name := range ingress {
+		if name != defaultIngress {
+			sets = append(sets, name)
+		}
 	}
 
 	return sets, nil
@@ -148,9 +149,18 @@ func DefaultIngressController(version string) (string, error) {
 }
 
 func CNIPlugins(config ConfigMap) []string {
+	plugins, configured := configList(config, cniKey)
+	if !configured {
+		return []string{cniDefault}
+	}
+
+	return plugins
+}
+
+func configList(config ConfigMap, key string) ([]string, bool) {
 	var names []string
 
-	switch v := config[cniKey].(type) {
+	switch v := config[key].(type) {
 	case string:
 		names = strings.Split(v, ",")
 	case []any:
@@ -160,18 +170,18 @@ func CNIPlugins(config ConfigMap) []string {
 			}
 		}
 	default:
-		names = []string{cniDefault}
+		return nil, false
 	}
 
-	var plugins []string
+	var values []string
 	for _, name := range names {
 		name = strings.TrimSpace(name)
-		if name != "" && name != cniNone {
-			plugins = append(plugins, name)
+		if name != "" && name != noneValue {
+			values = append(values, name)
 		}
 	}
 
-	return plugins
+	return values, true
 }
 
 func ParseKubernetesConfig(s *sys.System, configFile string) (ConfigMap, error) {
