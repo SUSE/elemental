@@ -52,19 +52,17 @@ func New(reader SourceReader) *Resolver {
 	}
 }
 
-// CheckElementalVersion checks the resolved manifest uses
-// a compatible Elemental version with the current binary.
+// CheckElementalVersion checks the resolved manifest uses a compatible Elemental version
+// with the current binary. Major version is required to match and minor version of the
+// core platform in the manifest needs to be equal or minus one compared with the current
+// Elemental version.
 func (rm *ResolvedManifest) CheckElementalVersion(logger log.Logger, currentVersion string) error {
 	if rm.CorePlatform == nil {
 		return nil
 	}
-	if rm.CorePlatform.Metadata == nil || rm.CorePlatform.Metadata.Elemental == nil {
-		return fmt.Errorf("core platform with undefined elemental version")
-	}
-	mVersion := rm.CorePlatform.Metadata.Elemental.Version
-	mVer, err := semverutil.Parse(mVersion)
+	mVer, err := rm.GetElementalVersion()
 	if err != nil {
-		return fmt.Errorf("manifest elemental version %q is not valid: %w", mVersion, err)
+		return fmt.Errorf("manifest elemental version is not valid or undefined: %w", err)
 	}
 
 	cVer, err := semverutil.Parse(currentVersion)
@@ -72,15 +70,12 @@ func (rm *ResolvedManifest) CheckElementalVersion(logger log.Logger, currentVers
 		return fmt.Errorf("current version %q is not valid: %w", currentVersion, err)
 	}
 
-	if cVer.Major() != mVer.Major() {
+	switch {
+	case cVer.Major() != mVer.Major():
 		return fmt.Errorf("major version mismatch. core platform version %q, current elemental version %q", mVer.String(), cVer.String())
-	}
-
-	if mVer.Minor() != cVer.Minor() {
-		return fmt.Errorf("minor version mismatch. core platform version %q, current elemental version %q", mVer.String(), cVer.String())
-	}
-
-	if cVer.LessThan(mVer) {
+	case mVer.Minor() > cVer.Minor(), mVer.Minor()+1 < cVer.Minor():
+		return fmt.Errorf("incompatible versions. core platform version %q, current elemental version %q", mVer.String(), cVer.String())
+	case cVer.LessThan(mVer):
 		logger.Warn("Current Elemental version %q is lower than the core platform version %q", cVer.String(), mVer.String())
 	}
 
@@ -95,7 +90,7 @@ func (rm *ResolvedManifest) GetElementalVersion() (semverutil.Version, error) {
 	if rm.CorePlatform != nil && rm.CorePlatform.Metadata != nil && rm.CorePlatform.Metadata.Elemental != nil {
 		version, err = semverutil.Parse(rm.CorePlatform.Metadata.Elemental.Version)
 		if err != nil {
-			return version, err
+			return version, fmt.Errorf("manifest elemental version %q is not valid: %w", rm.CorePlatform.Metadata.Elemental.Version, err)
 		}
 	} else {
 		return version, ErrVersionUndefined
