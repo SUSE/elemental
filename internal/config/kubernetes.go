@@ -137,16 +137,9 @@ func (m *Manager) configureKubernetes(
 		}
 	}
 
-	if len(runtimeHelmCharts) > 0 || runtimeManifestsDir != "" {
-		err = appendK8sResDeployScript(butaneCfg, runtimeManifestsDir, runtimeHelmCharts)
-		if err != nil {
-			return fmt.Errorf("generating kubernetes resource deployment script: %w", err)
-		}
-
-		err = appendK8sResUnit(butaneCfg, initNode)
-		if err != nil {
-			return fmt.Errorf("generating kubernetes resource deployment unit: %w", err)
-		}
+	err = appendK8sResources(butaneCfg, runtimeManifestsDir, runtimeHelmCharts, initNode)
+	if err != nil {
+		return err
 	}
 
 	err = appendK8sConfigDeployScript(butaneCfg, conf.Kubernetes, initNode)
@@ -157,6 +150,22 @@ func (m *Manager) configureKubernetes(
 	err = appendRke2Configuration(m.system, butaneCfg, &conf.Kubernetes, mirrorHosts, version)
 	if err != nil {
 		return fmt.Errorf("generating RKE2 configuration: %w", err)
+	}
+
+	return nil
+}
+
+func appendK8sResources(butaneCfg *butane.Config, manifestsDir string, helmCharts []string, initNode *kubernetes.Node) error {
+	if len(helmCharts) == 0 && manifestsDir == "" {
+		return nil
+	}
+
+	if err := appendK8sResDeployScript(butaneCfg, manifestsDir, helmCharts); err != nil {
+		return fmt.Errorf("generating kubernetes resource deployment script: %w", err)
+	}
+
+	if err := appendK8sResUnit(butaneCfg, initNode); err != nil {
+		return fmt.Errorf("generating kubernetes resource deployment unit: %w", err)
 	}
 
 	return nil
