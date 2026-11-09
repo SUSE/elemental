@@ -32,6 +32,7 @@ import (
 	"github.com/suse/elemental/v3/pkg/log"
 	"github.com/suse/elemental/v3/pkg/manifest/api/core"
 	"github.com/suse/elemental/v3/pkg/manifest/resolver"
+	"github.com/suse/elemental/v3/pkg/semverutil"
 	"github.com/suse/elemental/v3/pkg/sys"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 	"go.yaml.in/yaml/v3"
@@ -251,6 +252,46 @@ var _ = Describe("Kubernetes", func() {
 
 			Expect(findFileContentsInConfig(config, filepath.Join("/", image.KubernetesPath(), k8sConfDeployScriptName))).NotTo(BeNil())
 		})
+
+		DescribeTable("Selects the k8s config unit template based on the Elemental version",
+			func(elementalVersion string, legacy bool) {
+				if elementalVersion != "" {
+					defaultManifest.CorePlatform.Metadata = &core.Metadata{
+						Elemental: &core.Elemental{Version: elementalVersion},
+					}
+				}
+
+				m := NewManager(
+					system,
+					defaultHelm,
+					WithDownloader(&downloaderMock{}),
+					WithUnpackFunc(defaultUnpack),
+				)
+
+				Expect(m.configureKubernetes(context.Background(), &image.Configuration{}, defaultManifest, output, config)).To(Succeed())
+
+				var unit *string
+				for _, u := range config.Systemd.Units {
+					if u.Name == k8sConfigUnitName {
+						unit = u.Contents
+					}
+				}
+				Expect(unit).NotTo(BeNil())
+				if legacy {
+					Expect(*unit).To(ContainSubstring("semodule -i /usr/share/selinux/packages/rke2.pp"))
+				} else {
+					Expect(*unit).NotTo(ContainSubstring("semodule"))
+				}
+				Expect(*unit).To(ContainSubstring(k8sConfDeployScriptName))
+			},
+			Entry("legacy template for 3.0", "3.0", true),
+			Entry("legacy template for 3.0.5", "3.0.5", true),
+			Entry("legacy template for 3.1.0-rc1 (pre-release)", "3.1.0-rc1", true),
+			Entry("current template for 3.1", "3.1", false),
+			Entry("current template for 3.1.0", "3.1.0", false),
+			Entry("current template when version is undefined", "", false),
+			Entry("current template when version is invalid", "not-a-version", false),
+		)
 
 		It("Defaults to a server init node for a single-node cluster with no declared nodes", func() {
 			m := NewManager(
@@ -589,6 +630,34 @@ mirrors:
 			mirror, ok := mirrors["docker.io"].(kubernetes.ConfigMap)
 			Expect(ok).To(BeTrue())
 			Expect(mirror["endpoint"]).To(Equal([]any{"http://localhost:6545"}))
+		})
+	})
+
+	Describe("generateK8sConfigUnit", func() {
+		parse := func(v string) semverutil.Version {
+			version, err := semverutil.Parse(v)
+			Expect(err).NotTo(HaveOccurred())
+			return version
+		}
+
+		It("renders the legacy unit below 3.1.0", func() {
+			unit, err := generateK8sConfigUnit("/deploy.sh", parse("3.0.0"))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(unit).To(ContainSubstring("ExecStartPre=/bin/sh -c \"semodule -i /usr/share/selinux/packages/rke2.pp\""))
+			Expect(unit).To(ContainSubstring("ExecStart=/bin/bash \"/deploy.sh\""))
+		})
+
+		It("renders the current unit from 3.1.0", func() {
+			unit, err := generateK8sConfigUnit("/deploy.sh", parse("3.1.0"))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(unit).NotTo(ContainSubstring("semodule"))
+			Expect(unit).To(ContainSubstring("ExecStart=/bin/bash \"/deploy.sh\""))
+		})
+
+		It("renders the current unit for a zero-value version", func() {
+			unit, err := generateK8sConfigUnit("/deploy.sh", semverutil.Version{})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(unit).NotTo(ContainSubstring("semodule"))
 		})
 	})
 })
