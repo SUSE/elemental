@@ -34,6 +34,7 @@ import (
 	"github.com/suse/elemental/v3/internal/image/kubernetes"
 	"github.com/suse/elemental/v3/internal/template"
 	"github.com/suse/elemental/v3/pkg/manifest/resolver"
+	"github.com/suse/elemental/v3/pkg/semverutil"
 	"github.com/suse/elemental/v3/pkg/sys"
 	"github.com/suse/elemental/v3/pkg/sys/platform"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
@@ -53,6 +54,9 @@ var (
 
 	//go:embed templates/k8s-config-installer.service.tpl
 	k8sConfigUnitTpl string
+
+	//go:embed templates/k8s-config-legacy-installer.service.tpl
+	k8sConfigLegacyUnitTpl string
 
 	//go:embed templates/k8s-vip.yaml.tpl
 	k8sVIPManifestTpl string
@@ -76,6 +80,11 @@ func (m *Manager) configureKubernetes(
 		manifest.CorePlatform.Components.Kubernetes == nil {
 		m.system.Logger().Error("Kubernetes is enabled, but not part of the release")
 		return fmt.Errorf("kubernetes release not found")
+	}
+
+	version, err := manifest.GetElementalVersion()
+	if err != nil {
+		m.system.Logger().Warn("elemental version in core platform undefined: %s", err.Error())
 	}
 
 	var runtimeHelmCharts []string
@@ -145,7 +154,7 @@ func (m *Manager) configureKubernetes(
 		return fmt.Errorf("generating kubernetes config deployment script: %w", err)
 	}
 
-	err = appendRke2Configuration(m.system, butaneCfg, &conf.Kubernetes, mirrorHosts)
+	err = appendRke2Configuration(m.system, butaneCfg, &conf.Kubernetes, mirrorHosts, version)
 	if err != nil {
 		return fmt.Errorf("generating RKE2 configuration: %w", err)
 	}
@@ -292,7 +301,11 @@ func generateK8sResourcesUnit(deployScript string, initNode *kubernetes.Node) (s
 	return data, nil
 }
 
-func generateK8sConfigUnit(deployScript string) (string, error) {
+func generateK8sConfigUnit(deployScript string, version semverutil.Version) (string, error) {
+	const threshold = "3.1.0"
+	var data string
+	var err error
+
 	values := struct {
 		ConfigDeployScript string
 		RuntimeEnvPath     string
@@ -301,7 +314,12 @@ func generateK8sConfigUnit(deployScript string) (string, error) {
 		RuntimeEnvPath:     filepath.Join("/", image.RuntimeEnvPath()),
 	}
 
-	data, err := template.Parse(k8sConfigUnitName, k8sConfigUnitTpl, &values)
+	thresholdVersion, _ := semverutil.Parse(threshold)
+	if version.LessThan(thresholdVersion) {
+		data, err = template.Parse(k8sConfigUnitName, k8sConfigLegacyUnitTpl, &values)
+	} else {
+		data, err = template.Parse(k8sConfigUnitName, k8sConfigUnitTpl, &values)
+	}
 	if err != nil {
 		return "", fmt.Errorf("parsing config unit template: %w", err)
 	}
@@ -320,7 +338,7 @@ func kubernetesVIPManifest(k *kubernetes.Kubernetes) (string, error) {
 	return template.Parse("k8s-vip", k8sVIPManifestTpl, &vars)
 }
 
-func appendRke2Configuration(s *sys.System, butaneCfg *butane.Config, k *kubernetes.Kubernetes, mirrorHosts []string) error {
+func appendRke2Configuration(s *sys.System, butaneCfg *butane.Config, k *kubernetes.Kubernetes, mirrorHosts []string, manifestVersion semverutil.Version) error {
 	configScript := filepath.Join("/", image.KubernetesPath(), k8sConfDeployScriptName)
 
 	c, err := kubernetes.NewCluster(s, k)
@@ -332,7 +350,7 @@ func appendRke2Configuration(s *sys.System, butaneCfg *butane.Config, k *kuberne
 		addRegistryMirrors(c.RegistriesConfig, mirrorHosts, registryPort)
 	}
 
-	k8sConfigUnit, err := generateK8sConfigUnit(configScript)
+	k8sConfigUnit, err := generateK8sConfigUnit(configScript, manifestVersion)
 	if err != nil {
 		return fmt.Errorf("failed generating k8s config unit: %w", err)
 	}
