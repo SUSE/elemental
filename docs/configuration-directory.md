@@ -28,6 +28,7 @@ manifestURI: file:///path/to/manifest/suse-solution-manifest.yaml
 components:
   kubernetes: {}
   helm:
+    - chart: elemental-lifecycle-manager
     - chart: foo
       valuesFile: foo.yaml
     - chart: bar
@@ -42,6 +43,8 @@ components:
 * `components` - Optional; Components to explicitly enable from the Core Platform base.
   * `kubernetes` - Optional; If set (even if empty), enables Kubernetes distribution installation. If you also define cluster configuration, Helm charts or Kubernetes manifests, a cluster will be automatically enabled and this field is not required.
   * `helm` - Optional; List of Helm chart components that need to be enabled from the Core Platform base.
+    When Kubernetes is enabled, the `elemental-lifecycle-manager` chart must be listed. It must therefore be provided by the
+    Core Platform release manifest.
     * `chart` - Required; The actual chart that needs to be enabled, as seen in the Core Platform release manifest.
     * `valuesFile` - Optional; The name of the [Helm values file](https://helm.sh/docs/chart_template_guide/values_files/) (not including the path) that will be applied to this chart. The values file must be placed under `kubernetes/helm/values` for the specified chart.
     * `credentials` - Required for authenticated repositories/registries.

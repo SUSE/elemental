@@ -4,5 +4,6 @@ manifestURI: file://./suse-solution-manifest.yaml
 components:
   kubernetes: {}  # Enable Kubernetes installation from core release
   helm:
+    - chart: elemental-lifecycle-manager # from core release, required when Kubernetes is enabled
     - chart: rancher # from solution release
       valuesFile: rancher.yaml
