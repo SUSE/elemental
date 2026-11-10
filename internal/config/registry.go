@@ -117,7 +117,11 @@ func (m *Manager) configureElementalRegistry(ctx context.Context, conf *image.Co
 		return nil, err
 	}
 
-	haulerTarget := filepath.Join(registryDir, haulerBinaryName)
+	haulerTarget := filepath.Join(output.OverlaysDir(), image.RegistryBinaryPath())
+	if err = vfs.MkdirAll(fs, filepath.Dir(haulerTarget), vfs.DirPerm); err != nil {
+		return nil, fmt.Errorf("creating hauler binary directory: %w", err)
+	}
+
 	if err = vfs.CopyFile(fs, haulerBinary, haulerTarget); err != nil {
 		return nil, fmt.Errorf("copying hauler binary: %w", err)
 	}
@@ -175,7 +179,7 @@ func appendRegistryUnit(butaneCfg *butane.Config) error {
 		Backend  string
 		Port     string
 	}{
-		Hauler:   filepath.Join(registryDir, haulerBinaryName),
+		Hauler:   filepath.Join("/", image.RegistryBinaryPath()),
 		StoreDir: filepath.Join(registryDir, registryStoreDir),
 		Backend:  filepath.Join(registryDir, registryBackendDir),
 		Port:     registryPort,
