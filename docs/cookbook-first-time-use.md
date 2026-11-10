@@ -13,8 +13,8 @@ Elemental 3 consists of several components, their comprehensive integration and 
 | Component | Version | Purpose |
 | :---: |:-------:| :---: |
 | Elemental |  3.0.3  | Customization and installation of OS \+ Kubernetes |
-| SUSE Linux Enterprise Server |  16.0   | Source for building a containerized OS |
-| RKE2 | 1.35.6  | Certified Kubernetes distribution |
+| SUSE Linux Enterprise Server |  16   | Source for building a containerized OS |
+| RKE2 | 1.35, 1.36  | Certified Kubernetes distribution |
 | MetalLB | 0.15.2  | Load balancing/HA capabilities for multi-node Kubernetes clusters (API and services) |
 | Endpoint Copier Operator |  0.3.0  |  |
 
@@ -54,7 +54,7 @@ The requirements will vary depending on whether the machine used for customizing
 
 #### Customization Host
 
-* **CPU Architecture:** x86\_64 (v2 instruction set); aarch64 should work as well.
+* **CPU Architecture:** x86\_64 (v2 instruction set) or aarch64.
 * **Memory (RAM):** 8 GB or higher
 * **Disk Space:**
   * RAW disk: 50 GB for writing a 35 GB RAW disk
@@ -63,7 +63,7 @@ The requirements will vary depending on whether the machine used for customizing
 
 #### Hypervisor Host
 
-* **CPU Architecture:** x86\_64 (v2 instruction set); aarch64 may work but is not fully tested yet.
+* **CPU Architecture:** x86\_64 (v2 instruction set) or aarch64. On aarch64, replace the x86_64 OVMF loader and NVRAM template paths in the deployment commands below with paths to aarch64 UEFI firmware.
 * **Memory (RAM):** 32 GB or higher (depending on the number of VMs intended to run; 16GB+ recommended per VM, 12 GB minimum)
 * **Disk Space:**
   * 100 GB for hosting the VM disks (depending on the number of VMs; each will be 35 GB, though thin provisioning will use less)
@@ -82,7 +82,7 @@ The base requirements per virtual machine (VM), acting as a Kubernetes node, are
 There are a few requirements for the host(s) acting as the entrypoint for customization and hypervisor:
 
 * **Operating System:** Linux.
-  * SUSE and openSUSE derivatives are obviously recommended due to our testing, e.g. SLES 16.0, Leap 16.0 or Tumbleweed.
+  * SUSE and openSUSE derivatives are obviously recommended due to our testing, e.g. SLES 16, Leap 16 or Tumbleweed.
   * Other distributions may work, but none have been officially tested so far.
 * **Container Runtime:** Podman (as provided by the operating system)
   * Required for running the customization process.
@@ -101,7 +101,7 @@ In contrast with traditional stacks where updates are managed as individual upgr
 
 ### Operating System
 
-The operating system used by Elemental 3 is designed to be an evolution of the work pioneered with Rancher OS Management (based on Elemental 2). **It is built, maintained and delivered in a container image** (OCI) format using SLES 16.0 as its source and foundation.
+The operating system used by Elemental 3 is designed to be an evolution of the work pioneered with Rancher OS Management (based on Elemental 2). **It is built, maintained and delivered in a container image** (OCI) format using SLES 16 as its source and foundation.
 
 The design is specifically tailored to container management scenarios, regardless of whether that involves Kubernetes orchestration or is subject to constrained environments where Podman is the only available tool. This involves immutability, security hardening, and minimalist footprint.
 
