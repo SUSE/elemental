@@ -109,8 +109,8 @@ copy-on-write disabled. When an upgrade occurs:
 
 ### Example: `/var/lib/elemental/registry`
 
-Air-gapped images along with the Hauler binary serving them live under `/var/lib/elemental/registry` so that they persist
-after install and are not duplicated during upgrades similar to `/var/lib/rancher` above.
+Air-gapped images live under `/var/lib/elemental/registry` so that they persist after install and are not duplicated
+during upgrades similar to `/var/lib/rancher` above. The Hauler binary serving them is installed at `/usr/local/bin/hauler`.
 
 ### The `/etc` Directory
 
