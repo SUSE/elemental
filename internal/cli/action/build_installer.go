@@ -110,7 +110,7 @@ func digestInstallerDeploymentSetup(s *sys.System, flags *cmdpkg.InstallerFlags)
 }
 
 func digestInstallerMedia(ctx context.Context, s *sys.System, flags *cmdpkg.InstallerFlags) (*installer.Media, error) {
-	mType, err := installer.StringToMediaType(flags.Type)
+	mType, format, err := installer.ParseImageType(flags.Type)
 	if err != nil {
 		return nil, err
 	}
@@ -118,6 +118,7 @@ func digestInstallerMedia(ctx context.Context, s *sys.System, flags *cmdpkg.Inst
 	media := installer.NewMedia(
 		ctx, s, mType,
 		installer.WithUnpackOpts(unpack.WithLocal(flags.Local), unpack.WithVerify(flags.Verify)),
+		installer.WithDiskFormat(format),
 	)
 
 	if flags.Name != "" {

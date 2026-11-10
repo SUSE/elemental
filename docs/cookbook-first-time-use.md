@@ -400,6 +400,20 @@ Note that the resulting image in this case will have to be copied several times,
 for i in {1..4}; do cp ${ELEMENTAL_CONFIG_DIR}/multi-node/image*.raw ${ELEMENTAL_CONFIG_DIR}/multi-node/node${i}.example.com.raw; done
 ```
 
+Alternatively, build a qcow2 image with one thin overlay per node. The overlays share the unmodified data of the base image, so they
+are created instantly and use almost no disk space until the nodes start writing to them:
+
+```shell
+sudo podman run -it \
+--network host \
+-v ${ELEMENTAL_CONFIG_DIR}/multi-node:/config \
+${ELEMENTAL_IMAGE} customize --type qcow2 --output /config/base.qcow2 \
+--overlay node1.example.com,node2.example.com,node3.example.com,node4.example.com
+```
+
+In that case, use `--disk path="${ELEMENTAL_CONFIG_DIR}/multi-node/node1.example.com.qcow2",format=qcow2` (and so on for each
+node) in the `virt-install` commands below.
+
 ## Deployment
 
 You will use a similar format for the virtual machine deployment as the one above. Pay close attention to the network interface specification, as that will result in each machine applying the corresponding settings that we preconfigured the image for. The Kubernetes node type is determined by the hostname initially supplied. As soon as the initializer system is up and running, it will form a Kubernetes cluster and all other systems will continuously attempt to connect until successfully joining.

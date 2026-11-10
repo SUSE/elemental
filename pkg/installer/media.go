@@ -32,6 +32,7 @@ import (
 	"github.com/suse/elemental/v3/pkg/cleanstack"
 	"github.com/suse/elemental/v3/pkg/deployment"
 	"github.com/suse/elemental/v3/pkg/filesystem"
+	"github.com/suse/elemental/v3/pkg/qemuimg"
 	"github.com/suse/elemental/v3/pkg/repart"
 	"github.com/suse/elemental/v3/pkg/rsync"
 	"github.com/suse/elemental/v3/pkg/selinux"
@@ -65,9 +66,29 @@ const (
 )
 
 const (
-	iso = "iso"
-	raw = "raw"
+	iso   = "iso"
+	raw   = "raw"
+	qcow2 = "qcow2"
 )
+
+// DiskFormat is the container format of the image file produced for Disk media
+type DiskFormat int
+
+const (
+	// FormatRaw produces a plain (sparse) raw disk image
+	FormatRaw DiskFormat = iota
+	// FormatQCOW2 produces a sparse qcow2 disk image
+	FormatQCOW2
+)
+
+func (f DiskFormat) String() string {
+	switch f {
+	case FormatQCOW2:
+		return qcow2
+	default:
+		return raw
+	}
+}
 
 func (m MediaType) String() string {
 	switch m {
@@ -82,13 +103,26 @@ func (m MediaType) String() string {
 
 func StringToMediaType(mType string) (MediaType, error) {
 	switch mType {
-	case raw:
+	case raw, qcow2:
 		return Disk, nil
 	case iso:
 		return ISO, nil
 	default:
 		return 0, fmt.Errorf("unsupported media type %s: %w", mType, errors.ErrUnsupported)
 	}
+}
+
+// ParseImageType parses an image type string ('iso', 'raw' or 'qcow2') into the media type
+// and, for Disk media, the disk image format to produce.
+func ParseImageType(imgType string) (MediaType, DiskFormat, error) {
+	mType, err := StringToMediaType(imgType)
+	if err != nil {
+		return 0, FormatRaw, err
+	}
+	if imgType == qcow2 {
+		return mType, FormatQCOW2, nil
+	}
+	return mType, FormatRaw, nil
 }
 
 type Option func(*Media)
@@ -107,6 +141,7 @@ type Media struct {
 	outputFile  string
 	rawDiskSize deployment.MiB
 	netbootURL  string
+	diskFormat  DiskFormat
 }
 
 // WithBootloader allows to create an ISO object with the given bootloader interface instance
@@ -126,6 +161,13 @@ func WithUnpackOpts(opts ...unpack.Opt) Option {
 func WithRawDiskSize(size deployment.MiB) Option {
 	return func(i *Media) {
 		i.rawDiskSize = size
+	}
+}
+
+// WithDiskFormat sets the image file format produced for Disk media. Defaults to FormatRaw.
+func WithDiskFormat(format DiskFormat) Option {
+	return func(i *Media) {
+		i.diskFormat = format
 	}
 }
 
@@ -517,7 +559,7 @@ func (i *Media) sanitize() error {
 	}
 
 	if i.outputFile == "" {
-		i.outputFile = filepath.Join(i.OutputDir, fmt.Sprintf("%s.%s", i.Name, i.mType.String()))
+		i.outputFile = filepath.Join(i.OutputDir, fmt.Sprintf("%s.%s", i.Name, i.extension()))
 		if ok, _ := vfs.Exists(i.s.FS(), i.outputFile); ok {
 			return fmt.Errorf("target output file %s is an already existing file", i.outputFile)
 		}
@@ -822,7 +864,36 @@ func (i Media) customizeDisk(tempDir string, d *deployment.Deployment, mappedFil
 			Excludes:  []string{filepath.Join(isoDir, "boot"), filepath.Join(isoDir, "EFI")},
 		},
 	}
-	return repart.CreateDiskImage(i.s, i.outputFile, i.rawDiskSize, parts)
+	return i.createDiskImage(tempDir, i.rawDiskSize, parts)
+}
+
+// extension returns the file extension of the media output file
+func (i Media) extension() string {
+	if i.mType == Disk {
+		return i.diskFormat.String()
+	}
+	return i.mType.String()
+}
+
+// createDiskImage creates the disk image output file with the given partitions. For qcow2
+// images the disk is first created as a sparse raw image within tempDir and then converted.
+func (i Media) createDiskImage(tempDir string, size deployment.MiB, parts []repart.Partition) error {
+	if i.diskFormat != FormatQCOW2 {
+		return repart.CreateDiskImage(i.s, i.outputFile, size, parts)
+	}
+
+	rawImg := filepath.Join(tempDir, "disk.raw")
+	err := repart.CreateDiskImage(i.s, rawImg, size, parts)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = i.s.FS().Remove(rawImg) }()
+
+	err = qemuimg.ConvertToQCOW2(i.s, rawImg, i.outputFile)
+	if err != nil {
+		return fmt.Errorf("failed converting disk image to qcow2: %w", err)
+	}
+	return nil
 }
 
 // buildDisk creates an installer disk image from the prepared root
@@ -855,7 +926,7 @@ func (i Media) buildDisk(tempDir, liveRoot, osRoot string, d *deployment.Deploym
 			CopyFiles: []string{fmt.Sprintf("%s:/", liveRoot)},
 		},
 	}
-	err = repart.CreateDiskImage(i.s, i.outputFile, 0, parts)
+	err = i.createDiskImage(tempDir, 0, parts)
 	if err != nil {
 		return fmt.Errorf("failed creating disk image: %w", err)
 	}

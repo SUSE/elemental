@@ -56,6 +56,12 @@ func Customize(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("output image path %s already exists", imagePath)
 	}
 
+	overlayPaths, err := resolveOverlayPaths(fs, imagePath, args.Overlays)
+	if err != nil {
+		logger.Error("Resolving overlay image paths failed")
+		return err
+	}
+
 	logger.Info("Customizing image at %s", imagePath)
 
 	output, err := config.NewOutput(fs, "", configPath)
@@ -71,7 +77,7 @@ func Customize(ctx context.Context, cmd *cli.Command) error {
 		}
 	}()
 
-	def, err := digestCustomizeDefinition(fs, args, imagePath)
+	def, err := digestCustomizeDefinition(fs, args, imagePath, overlayPaths)
 	if err != nil {
 		logger.Error("Digesting image definition from customize flags failed")
 		return err
@@ -111,6 +117,41 @@ func resolveOutputPaths(fs vfs.FS, args *cmdpkg.CustomizeFlags) (imagePath, conf
 	}
 
 	return imagePath, configPath
+}
+
+// resolveOverlayPaths maps the given overlay names to '<name>.qcow2' files placed next to the
+// output image. It fails if a name is not a plain file name, is repeated, or the file already exists.
+func resolveOverlayPaths(fs vfs.FS, imagePath string, names []string) ([]string, error) {
+	// Overlay paths are built with filepath.Join, which cleans them, so compare them against
+	// the cleaned image path. Otherwise e.g. './base.qcow2' and 'base.qcow2' would not match.
+	imagePath = filepath.Clean(imagePath)
+
+	paths := []string{}
+	seen := map[string]bool{}
+	for _, name := range names {
+		name = strings.TrimSpace(name)
+		if name == "" || name == "." || name == ".." || strings.ContainsRune(name, filepath.Separator) {
+			return nil, fmt.Errorf("invalid overlay name '%s', expected a plain file name", name)
+		}
+		if !strings.HasSuffix(name, ".qcow2") {
+			name += ".qcow2"
+		}
+
+		path := filepath.Join(filepath.Dir(imagePath), name)
+		if path == imagePath {
+			return nil, fmt.Errorf("overlay '%s' cannot have the same path as the output image", name)
+		}
+		if seen[path] {
+			return nil, fmt.Errorf("overlay '%s' is specified more than once", name)
+		}
+		if exists, _ := vfs.Exists(fs, path); exists {
+			return nil, fmt.Errorf("overlay image path %s already exists", path)
+		}
+
+		seen[path] = true
+		paths = append(paths, path)
+	}
+	return paths, nil
 }
 
 func setupCustomizeRunner(
@@ -212,7 +253,7 @@ func setupFileExtractor(ctx context.Context, s *sys.System, outDir config.Output
 	)
 }
 
-func digestCustomizeDefinition(f vfs.FS, args *cmdpkg.CustomizeFlags, imagePath string) (*image.Definition, error) {
+func digestCustomizeDefinition(f vfs.FS, args *cmdpkg.CustomizeFlags, imagePath string, overlays []string) (*image.Definition, error) {
 	p, err := platform.Parse(args.Platform)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing platform %s", args.Platform)
@@ -228,6 +269,7 @@ func digestCustomizeDefinition(f vfs.FS, args *cmdpkg.CustomizeFlags, imagePath 
 			ImageType:       args.MediaType,
 			Platform:        p,
 			OutputImageName: imagePath,
+			Overlays:        overlays,
 		},
 		Configuration: conf,
 	}, nil

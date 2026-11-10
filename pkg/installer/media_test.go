@@ -114,6 +114,49 @@ var _ = Describe("InstallerMedia", Label("installermedia"), func() {
 			{"xorriso", "-volid", "LIVE", "-padding", "0", "-outdev", "/some/dir/build/installer.iso"},
 		}))
 	})
+	It("Creates a sparse qcow2 installation disk image", func() {
+		sideEffects["systemd-repart"] = func(args ...string) ([]byte, error) {
+			return []byte("[]"), nil
+		}
+		sideEffects["qemu-img"] = func(args ...string) ([]byte, error) {
+			Expect(fs.WriteFile("/some/dir/build/installer.qcow2", []byte("data"), vfs.FilePerm)).To(Succeed())
+			return []byte{}, nil
+		}
+
+		d = deployment.New(deployment.WithRecoveryPartition(0))
+		d.Installer = deployment.LiveInstaller{}
+		d.SourceOS = deployment.NewDirSrc("/some/root")
+		disk := installer.NewMedia(
+			context.Background(), s, installer.Disk,
+			installer.WithBootloader(bootloader.NewNone(s)),
+			installer.WithDiskFormat(installer.FormatQCOW2),
+		)
+		disk.OutputDir = "/some/dir/build"
+
+		Expect(disk.Build(d)).To(Succeed())
+		Expect(runner.MatchMilestones([][]string{
+			{"systemd-repart", "--json=pretty"},
+			{"qemu-img", "convert", "-f", "raw", "-O", "qcow2", "/some/dir/build/elemental-installer/disk.raw", "/some/dir/build/installer.qcow2"},
+		})).To(Succeed())
+		Expect(vfs.Exists(fs, "/some/dir/build/installer.qcow2.sha256")).To(BeTrue())
+	})
+	It("parses image types", func() {
+		for imgType, expected := range map[string]struct {
+			m installer.MediaType
+			f installer.DiskFormat
+		}{
+			"iso":   {installer.ISO, installer.FormatRaw},
+			"raw":   {installer.Disk, installer.FormatRaw},
+			"qcow2": {installer.Disk, installer.FormatQCOW2},
+		} {
+			m, f, err := installer.ParseImageType(imgType)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(m).To(Equal(expected.m))
+			Expect(f).To(Equal(expected.f))
+		}
+		_, _, err := installer.ParseImageType("vmdk")
+		Expect(err).To(HaveOccurred())
+	})
 	It("fails to create an ISO without an output directory defined", func() {
 		d.SourceOS = deployment.NewDirSrc("/some/root")
 		iso := installer.NewMedia(context.Background(), s, installer.ISO, installer.WithBootloader(bootloader.NewNone(s)))
