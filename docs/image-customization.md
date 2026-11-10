@@ -66,7 +66,7 @@ Starting the customization process can be done either by directly working with t
 #### Binary
 
 ```shell
-sudo elemental3 customize --type <raw/iso> --config-dir <path>
+sudo elemental3 customize --type <raw/qcow2/iso> --config-dir <path>
 ```
 
 > **IMPORTANT:** The above process is long running, as it involves pulling multiple component images over the network.
@@ -88,6 +88,11 @@ Run the customization process:
    podman run -it -v <PATH_TO_CONFIG_DIR>:/config $ELEMENTAL_IMAGE customize --type raw
    ```
 
+* For a sparse qcow2 disk image:
+   ```shell
+   podman run -it -v <PATH_TO_CONFIG_DIR>:/config $ELEMENTAL_IMAGE customize --type qcow2
+   ```
+
 * For ISO media:
    ```shell
    podman run -it -v <PATH_TO_CONFIG_DIR>:/config $ELEMENTAL_IMAGE customize --type iso
@@ -100,7 +105,31 @@ Run the customization process:
 >   podman run -it -v <PATH_TO_CONFIG_DIR>:/config -v <PATH_TO_CACHE_DIR>:/cache $ELEMENTAL_IMAGE customize --type <raw/iso>
 >   ```
 
-Unless configured otherwise, the above process will produce a customized RAW or ISO image under the specified `<PATH_TO_CONFIG_DIR>` directory.
+Unless configured otherwise, the above process will produce a customized RAW, qcow2 or ISO image under the specified `<PATH_TO_CONFIG_DIR>` directory.
+
+### qcow2 images
+
+The `qcow2` image type produces the same disk layout as the `raw` type, but stored in a sparse qcow2 file. The virtual disk size
+is set by `raw.diskSize` in `install.yaml`, while the file only holds the data actually written to the image. The operating system
+partitions are created and grown to fill the virtual disk on first boot, so the image file stays at its minimum size.
+
+#### Per-node overlays
+
+Multi-node deployments boot every node from the same image (each node picks its configuration at boot, e.g. network settings
+matched by MAC address). Instead of copying the image once per node, use `--overlay <name>` to create a thin qcow2 overlay per
+node on top of the customized image:
+
+```shell
+podman run -it -v <PATH_TO_CONFIG_DIR>:/config $ELEMENTAL_IMAGE customize --type qcow2 \
+    --output /config/base.qcow2 --overlay node1,node2,node3
+```
+
+This creates `base.qcow2` plus `node1.qcow2`, `node2.qcow2` and `node3.qcow2` next to it. Each overlay starts empty and only stores
+the data written by its node, so the nodes diverge over time while sharing the unmodified data of the base image. The flag can be
+repeated or given a comma separated list, and `.qcow2` is appended to names that do not already have it.
+
+The base image path is recorded in each overlay relative to the overlay itself, so keep the base image in the same directory when
+moving or copying the images. Do not modify or boot the base image directly once overlays depend on it.
 
 ### Cache configurations
 

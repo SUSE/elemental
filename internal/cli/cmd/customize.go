@@ -38,6 +38,7 @@ type CustomizeFlags struct {
 	Cache      string
 	CacheDir   string
 	Airgap     bool
+	Overlays   []string
 }
 
 var CustomizeArgs CustomizeFlags
@@ -69,15 +70,25 @@ func NewCustomizeCommand(appName string, action func(context.Context, *cli.Comma
 				return ctx, cli.Exit("Error: --cache-dir cannot be specified when --cache is 'off'.", 1)
 			}
 
+			if len(CustomizeArgs.Overlays) > 0 && CustomizeArgs.MediaType != installer.FormatQCOW2.String() {
+				return ctx, cli.Exit("Error: --overlay can only be used with '--type qcow2'.", 1)
+			}
+
 			return ctx, nil
 		},
 		Action: action,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:        "type",
-				Usage:       "Type of the installer media, 'iso' or 'raw'",
+				Usage:       "Type of the installer media, 'iso', 'raw' or 'qcow2'",
 				Destination: &CustomizeArgs.MediaType,
 				Value:       installer.ISO.String(),
+			},
+			&cli.StringSliceFlag{
+				Name: "overlay",
+				Usage: "Name of a thin qcow2 overlay to create on top of the customized 'qcow2' image, e.g. one per node. " +
+					"Creates '<name>.qcow2' next to the output image. Can be repeated or given as a comma separated list",
+				Destination: &CustomizeArgs.Overlays,
 			},
 			&cli.StringFlag{
 				Name:        "config-dir",

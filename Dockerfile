@@ -34,6 +34,7 @@ RUN ARCH=$(uname -m); \
         dosfstools \
         grub2-${ARCH}-efi \
         mtools \
+        qemu-img \
         gptfdisk \
         patterns-microos-selinux \
         btrfsprogs \

@@ -33,6 +33,7 @@ import (
 	"github.com/suse/elemental/v3/pkg/fips"
 	"github.com/suse/elemental/v3/pkg/installer"
 	"github.com/suse/elemental/v3/pkg/manifest/resolver"
+	"github.com/suse/elemental/v3/pkg/qemuimg"
 	"github.com/suse/elemental/v3/pkg/sys"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
@@ -89,7 +90,7 @@ func (r *Runner) Run(ctx context.Context, def *image.Definition, output config.O
 	}
 
 	logger.Info("Parsing media type")
-	mediaType, err := installer.StringToMediaType(def.Image.ImageType)
+	mediaType, diskFormat, err := installer.ParseImageType(def.Image.ImageType)
 	if err != nil {
 		logger.Error("Parsing media type failed")
 		return err
@@ -123,7 +124,14 @@ func (r *Runner) Run(ctx context.Context, def *image.Definition, output config.O
 		if err != nil {
 			return fmt.Errorf("could not parse disk size '%s': %w", diskSizeStr, err)
 		}
-		mediaOpts = append(mediaOpts, installer.WithRawDiskSize(deployment.MiB(diskMiB)))
+		mediaOpts = append(mediaOpts,
+			installer.WithRawDiskSize(deployment.MiB(diskMiB)),
+			installer.WithDiskFormat(diskFormat),
+		)
+	}
+
+	if len(def.Image.Overlays) > 0 && (mediaType != installer.Disk || diskFormat != installer.FormatQCOW2) {
+		return fmt.Errorf("overlays are only supported for qcow2 images")
 	}
 
 	netbootURL := def.Configuration.Installation.ISO.NetbootURL
@@ -147,6 +155,13 @@ func (r *Runner) Run(ctx context.Context, def *image.Definition, output config.O
 	if err = r.Media.Customize(dep); err != nil {
 		logger.Error("Customizing image media failed")
 		return err
+	}
+
+	for _, overlay := range def.Image.Overlays {
+		if err = qemuimg.CreateOverlay(r.System, def.Image.OutputImageName, overlay); err != nil {
+			logger.Error("Creating overlay image failed")
+			return err
+		}
 	}
 
 	logger.Info("Customize complete")

@@ -123,7 +123,7 @@ func NewBuildInstallerCommand(appName string, action func(context.Context, *cli.
 			},
 			&cli.StringFlag{
 				Name:        "type",
-				Usage:       "Type of the installer media, 'iso' or 'raw'",
+				Usage:       "Type of the installer media, 'iso', 'raw' or 'qcow2'",
 				Destination: &InstallerArgs.Type,
 				Required:    true,
 			},

@@ -489,6 +489,47 @@ disks:
 		Expect(err.Error()).To(Equal("customization error"))
 	})
 
+	It("creates thin overlays on top of the customized qcow2 image", func() {
+		Expect(vfs.MkdirAll(fs, "/images", vfs.DirPerm)).To(Succeed())
+		Expect(fs.WriteFile("/images/customized.qcow2", []byte("base"), vfs.FilePerm)).To(Succeed())
+		def := &image.Definition{
+			Image: image.Image{
+				ImageType:       "qcow2",
+				OutputImageName: "/images/customized.qcow2",
+				Overlays:        []string{"/images/node1.qcow2", "/images/node2.qcow2"},
+			},
+			Configuration: &image.Configuration{
+				Installation: install.Installation{
+					RAW: install.RAW{DiskSize: "20G"},
+				},
+			},
+		}
+
+		Expect(customizeRunner.Run(context.Background(), def, output)).To(Succeed())
+		Expect(sysRunner.IncludesCmds([][]string{
+			{"qemu-img", "create", "-f", "qcow2", "-b", "customized.qcow2", "-F", "qcow2", "/images/node1.qcow2"},
+			{"qemu-img", "create", "-f", "qcow2", "-b", "customized.qcow2", "-F", "qcow2", "/images/node2.qcow2"},
+		})).To(Succeed())
+	})
+
+	It("fails to create overlays for raw media", func() {
+		def := &image.Definition{
+			Image: image.Image{
+				ImageType:       "raw",
+				OutputImageName: "/images/customized.raw",
+				Overlays:        []string{"/images/node1.qcow2"},
+			},
+			Configuration: &image.Configuration{
+				Installation: install.Installation{
+					RAW: install.RAW{DiskSize: "20G"},
+				},
+			},
+		}
+
+		err := customizeRunner.Run(context.Background(), def, output)
+		Expect(err).To(MatchError(ContainSubstring("only supported for qcow2")))
+	})
+
 	It("fails to resize RAW disk", func() {
 		def := &image.Definition{
 			Image: image.Image{

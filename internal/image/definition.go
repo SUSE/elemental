@@ -27,7 +27,8 @@ import (
 )
 
 const (
-	TypeRAW = "raw"
+	TypeRAW   = "raw"
+	TypeQCOW2 = "qcow2"
 )
 
 type Definition struct {
@@ -60,6 +61,8 @@ type Image struct {
 	ImageType       string
 	Platform        *platform.Platform
 	OutputImageName string
+	// Overlays are the paths of thin qcow2 overlays to create on top of the output image
+	Overlays []string
 }
 
 type Network struct {

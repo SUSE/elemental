@@ -71,8 +71,8 @@ iso:
 * `bootloader` - Required; Specifies the bootloader that will load the operating system.
 * `kernelCmdLine` - Optional; Parameters to add to the kernel when the operating system boots up. The tool itself defines the essential parameters to boot (e.g. `root=LABEL=SYSTEM`),
    the string provided here is simply concatenated after them in order to provide a mechanism to include additional custom parameters.
-* `raw` - Required for RAW images; Specifies RAW disk image configurations.
-  * `diskSize` - Required; Specifies the size of the resulting disk image.
+* `raw` - Required for RAW and qcow2 images; Specifies disk image configurations.
+  * `diskSize` - Required; Specifies the size of the resulting disk image. For qcow2 images this is the virtual disk size.
 * `iso` - Required for ISO images; Specifies ISO image configurations.
   * `device` - Required; Specifies the disk that will be used as the install device.
   * `netbootURL` - Required for netboot; When set, a netboot directory with the necessary netboot artifacts will be created next to the ISO for network booting. Specifies the URL that the customized ISO is fetched from. Supports `http://`, `https://`, and `nfs://`
