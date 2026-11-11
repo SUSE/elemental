@@ -234,13 +234,13 @@ data:
 		Expect(store.exported).To(Equal([]string{storeDir, filepath.Join(registryDir, "registry")}))
 		Expect(store.stores).To(Equal([]string{filepath.Join(registryDir, "store")}))
 
-		info, err := fs.Stat(filepath.Join(output.OverlaysDir(), "usr", "local", "bin", "hauler"))
+		info, err := fs.Stat(filepath.Join(output.OverlaysDir(), "usr", "local", "libexec", "elemental", "hauler"))
 		Expect(err).ToNot(HaveOccurred())
 		Expect(info.Mode().Perm()).To(BeEquivalentTo(0o755))
 
 		unit := findUnit("elemental-registry.service")
 		Expect(unit).NotTo(BeNil())
-		Expect(*unit).To(ContainSubstring("ExecStart=/usr/local/bin/hauler store serve registry"))
+		Expect(*unit).To(ContainSubstring("ExecStart=/usr/local/libexec/elemental/hauler store serve registry"))
 		Expect(*unit).To(ContainSubstring("--store /var/lib/elemental/registry/store"))
 		Expect(*unit).To(ContainSubstring("--directory /var/lib/elemental/registry/registry"))
 		Expect(*unit).To(ContainSubstring("--port 6545"))
