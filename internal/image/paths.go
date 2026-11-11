@@ -51,7 +51,7 @@ func RegistryPath() string {
 }
 
 func RegistryBinaryPath() string {
-	return filepath.Join("usr", "local", "bin", "hauler")
+	return filepath.Join("usr", "local", "libexec", "elemental", "hauler")
 }
 
 func KubernetesManifestsPath() string {
