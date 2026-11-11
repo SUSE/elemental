@@ -25,7 +25,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/olekukonko/tablewriter"
 	"github.com/olekukonko/tablewriter/renderer"
 	"github.com/olekukonko/tablewriter/tw"
@@ -70,24 +69,12 @@ func ReleaseInfo(_ context.Context, cmd *cli.Command) error {
 		system.Logger().Error("no file or OCI image provided")
 		return fmt.Errorf("refer usage: %s", cmd.UsageText)
 	}
-	arg := cmd.Args().Get(0)
-	srcType, err := argSourceType(system, arg)
+	uri, err := resolveSource(system, cmd.Args().Get(0))
 	if err != nil {
 		return err
 	}
-	system.Logger().Debug("found source type: %s", srcType)
+	system.Logger().Debug("using manifest source: %s", uri)
 
-	uri := arg
-	if !strings.Contains(arg, "://") {
-		uri = fmt.Sprintf("%s://%s", srcType, arg)
-	}
-
-	if srcType == source.OCI {
-		// check if it's a valid OCI image before proceeding
-		if _, err := name.ParseReference(uri); err != nil {
-			return fmt.Errorf("invalid OCI image reference: %w", err)
-		}
-	}
 	resolved, err := resolveManifest(system, uri, args.Local)
 	if err != nil {
 		return err
@@ -122,29 +109,18 @@ func resolveManifest(system *sys.System, uri string, local bool) (*resolver.Reso
 	return res.Resolve(uri)
 }
 
-// argSourceType takes a string argument and returns if the release manifest source type is a file or an OCI image
-func argSourceType(s *sys.System, arg string) (source.ReleaseManifestSourceType, error) {
+func resolveSource(s *sys.System, arg string) (string, error) {
 	if arg == "" {
-		return 0, fmt.Errorf("no file or OCI image provided to release-info")
+		return "", fmt.Errorf("no file or OCI image provided to release-info")
 	}
-	u, err := url.Parse(arg)
-	if err != nil {
-		return 0, err
-	}
-	if u.Scheme != "" {
-		switch u.Scheme {
-		case "file":
-			return source.File, nil
-		case "oci":
-			return source.OCI, nil
-		default:
-			return 0, fmt.Errorf("encountered invalid schema %q; supported schemas: %q, %q", u.Scheme, "file", "oci")
+
+	if u, err := url.Parse(arg); err == nil && u.Scheme == "" {
+		if ok, _ := vfs.Exists(s.FS(), arg); !ok {
+			arg = fmt.Sprintf("%s://%s", source.OCI, arg)
 		}
 	}
-	if ok, _ := vfs.Exists(s.FS(), arg); ok {
-		return source.File, nil
-	}
-	return source.OCI, nil
+
+	return source.ResolveURI(arg, "", s.Logger())
 }
 
 func manifestResolver(fs vfs.FS, out config.Output, local bool) (*resolver.Resolver, error) {

@@ -26,6 +26,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/suse/elemental/v3/internal/config"
+	"github.com/suse/elemental/v3/pkg/log"
 	"github.com/suse/elemental/v3/pkg/manifest/api/core"
 	"github.com/suse/elemental/v3/pkg/manifest/api/solution"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
@@ -46,7 +47,7 @@ var _ = Describe("Example configuration directories", Label("examples"), func() 
 
 	for _, dir := range dirs {
 		It("parses and validates "+filepath.Base(dir), func() {
-			conf, err := config.Parse(vfs.New(), dir)
+			conf, err := config.Parse(vfs.New(), dir, log.New(log.WithDiscardAll()))
 			Expect(err).ToNot(HaveOccurred())
 
 			uri := conf.Release.ManifestURI

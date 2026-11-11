@@ -24,13 +24,13 @@ import (
 	"io/fs"
 	"path/filepath"
 	"slices"
-	"strings"
 
 	"go.yaml.in/yaml/v3"
 
 	"github.com/suse/elemental/v3/internal/image"
 	"github.com/suse/elemental/v3/internal/image/kubernetes"
 	"github.com/suse/elemental/v3/internal/image/release"
+	"github.com/suse/elemental/v3/pkg/log"
 	"github.com/suse/elemental/v3/pkg/manifest/source"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
@@ -147,7 +147,7 @@ func writeYAML(f vfs.FS, path string, v any) error {
 	return nil
 }
 
-func Parse(f vfs.FS, configDir Dir) (conf *image.Configuration, err error) {
+func Parse(f vfs.FS, configDir Dir, logger log.Logger) (conf *image.Configuration, err error) {
 	conf = &image.Configuration{}
 
 	data, err := f.ReadFile(configDir.InstallFilepath())
@@ -168,7 +168,7 @@ func Parse(f vfs.FS, configDir Dir) (conf *image.Configuration, err error) {
 		return nil, fmt.Errorf("parsing config file %q: %w", configDir.ReleaseFilepath(), err)
 	}
 
-	if err = sanitizeManifestURI(&conf.Release, string(configDir)); err != nil {
+	if err = sanitizeManifestURI(&conf.Release, string(configDir), logger); err != nil {
 		return nil, fmt.Errorf("updating manifest URI: %w", err)
 	}
 
@@ -200,18 +200,13 @@ func Parse(f vfs.FS, configDir Dir) (conf *image.Configuration, err error) {
 	return conf, nil
 }
 
-func sanitizeManifestURI(r *release.Release, configDir string) error {
-	fileSource := fmt.Sprintf("%s://", source.File.String())
-	if !strings.HasPrefix(r.ManifestURI, fileSource) {
-		return nil
-	}
-
-	absConfDir, err := filepath.Abs(configDir)
+func sanitizeManifestURI(r *release.Release, configDir string, logger log.Logger) error {
+	uri, err := source.ResolveURI(r.ManifestURI, configDir, logger)
 	if err != nil {
-		return fmt.Errorf("calculate absolute directory: %w", err)
+		return err
 	}
 
-	r.ManifestURI = filepath.Join(fileSource, absConfDir, strings.TrimPrefix(r.ManifestURI, fileSource))
+	r.ManifestURI = uri
 	return nil
 }
 

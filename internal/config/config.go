@@ -30,6 +30,7 @@ import (
 	v0 "github.com/suse/elemental/v3/internal/config/v0"
 	"github.com/suse/elemental/v3/internal/image"
 	"github.com/suse/elemental/v3/pkg/deployment"
+	"github.com/suse/elemental/v3/pkg/log"
 	"github.com/suse/elemental/v3/pkg/manifest/api"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
@@ -122,7 +123,7 @@ func Write(f vfs.FS, configDir string, conf *image.Configuration) error {
 	return v0.Write(f, v0.Dir(configDir), conf)
 }
 
-func Parse(f vfs.FS, configDir string) (conf *image.Configuration, err error) {
+func Parse(f vfs.FS, configDir string, logger log.Logger) (conf *image.Configuration, err error) {
 	schemaVersion, err := LoadSchemaVersion(f, configDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed parsing schema version: %w", err)
@@ -130,7 +131,7 @@ func Parse(f vfs.FS, configDir string) (conf *image.Configuration, err error) {
 
 	switch schemaVersion {
 	case SchemaV0:
-		return v0.Parse(f, v0.Dir(configDir))
+		return v0.Parse(f, v0.Dir(configDir), logger)
 	default:
 		return nil, fmt.Errorf("unknown schema version: '%s'", schemaVersion)
 	}

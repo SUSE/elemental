@@ -36,6 +36,7 @@ import (
 	"github.com/suse/elemental/v3/pkg/cache"
 	"github.com/suse/elemental/v3/pkg/extractor"
 	"github.com/suse/elemental/v3/pkg/helm"
+	"github.com/suse/elemental/v3/pkg/log"
 	"github.com/suse/elemental/v3/pkg/sys"
 	"github.com/suse/elemental/v3/pkg/sys/platform"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
@@ -77,7 +78,7 @@ func Customize(ctx context.Context, cmd *cli.Command) error {
 		}
 	}()
 
-	def, err := digestCustomizeDefinition(fs, args, imagePath, overlayPaths)
+	def, err := digestCustomizeDefinition(fs, logger, args, imagePath, overlayPaths)
 	if err != nil {
 		logger.Error("Digesting image definition from customize flags failed")
 		return err
@@ -253,13 +254,13 @@ func setupFileExtractor(ctx context.Context, s *sys.System, outDir config.Output
 	)
 }
 
-func digestCustomizeDefinition(f vfs.FS, args *cmdpkg.CustomizeFlags, imagePath string, overlays []string) (*image.Definition, error) {
+func digestCustomizeDefinition(f vfs.FS, logger log.Logger, args *cmdpkg.CustomizeFlags, imagePath string, overlays []string) (*image.Definition, error) {
 	p, err := platform.Parse(args.Platform)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing platform %s", args.Platform)
 	}
 
-	conf, err := config.Parse(f, args.ConfigDir)
+	conf, err := config.Parse(f, args.ConfigDir, logger)
 	if err != nil {
 		return nil, fmt.Errorf("parsing configuration directory %s: %w", args.ConfigDir, err)
 	}

@@ -1,4 +1,4 @@
-manifestURI: file://./suse-solution-manifest.yaml
+manifestURI: ./suse-solution-manifest.yaml
 # Alternatively, the solution release manifest can be specified from an OCI image.
 # manifestURI: oci://registry.suse.com/suse-solution/release-manifest:0.0.1
 components:

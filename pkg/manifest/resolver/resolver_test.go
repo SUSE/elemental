@@ -57,7 +57,7 @@ var _ = Describe("Resolver", Label("release-manifest"), func() {
 
 	It("resolves a 'solution' release manifest correctly", func() {
 		By("reading the manifest source from a local file")
-		solManifestFile := fmt.Sprintf("%s://%s", source.File, solManifestPath)
+		solManifestFile := fileURI(solManifestPath)
 		resolvedManifest, err := res.Resolve(solManifestFile)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(resolvedManifest).ToNot(BeNil())
@@ -73,7 +73,7 @@ var _ = Describe("Resolver", Label("release-manifest"), func() {
 
 	It("resolves a 'core' release manifest correctly", func() {
 		By("reading the manifest source from a local file")
-		coreManifestFile := fmt.Sprintf("%s://%s", source.File, coreManifestPath)
+		coreManifestFile := fileURI(coreManifestPath)
 		resolvedManifest, err := res.Resolve(coreManifestFile)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(resolvedManifest).ToNot(BeNil())
@@ -106,8 +106,8 @@ var _ = Describe("Resolver", Label("release-manifest"), func() {
 	})
 
 	It("fails when the release manifest is missing", func() {
-		missingFile := fmt.Sprintf("%s://missing/file.yaml", source.File)
-		expErrSub := "reading manifest from source 'missing/file.yaml'"
+		missingFile := fmt.Sprintf("%s:///missing/file.yaml", source.File)
+		expErrSub := "reading manifest from source '/missing/file.yaml'"
 		r, err := res.Resolve(missingFile)
 		Expect(err).ToNot(BeNil())
 		Expect(err).To(MatchError(ContainSubstring(expErrSub)))
@@ -116,8 +116,8 @@ var _ = Describe("Resolver", Label("release-manifest"), func() {
 
 	It("fails when the release manifest is empty", func() {
 		reader.returnEmpty = true
-		dummyFileURI := fmt.Sprintf("%s://%s", source.File, "dummy.txt")
-		expErrSub := "empty file passed as release manifest: 'dummy.txt'"
+		dummyFileURI := fmt.Sprintf("%s:///%s", source.File, "dummy.txt")
+		expErrSub := "empty file passed as release manifest: '/dummy.txt'"
 		r, err := res.Resolve(dummyFileURI)
 		Expect(err).ToNot(BeNil())
 		Expect(err).To(MatchError(ContainSubstring(expErrSub)))
@@ -126,8 +126,8 @@ var _ = Describe("Resolver", Label("release-manifest"), func() {
 
 	It("fails when the content is not actually a release manifest", func() {
 		reader.returnNonReleaseManifest = true
-		wrongFileURI := fmt.Sprintf("%s://%s", source.File, "wrong.txt")
-		expErrSub := "unable to parse 'wrong.txt' as a valid release manifest"
+		wrongFileURI := fmt.Sprintf("%s:///%s", source.File, "wrong.txt")
+		expErrSub := "unable to parse '/wrong.txt' as a valid release manifest"
 		r, err := res.Resolve(wrongFileURI)
 		Expect(err).ToNot(BeNil())
 		Expect(err).To(MatchError(ContainSubstring(expErrSub)))
@@ -145,7 +145,7 @@ var _ = Describe("Resolver", Label("release-manifest"), func() {
 	})
 
 	It("checks the elemental version for a resolved manifest", func() {
-		coreManifestFile := fmt.Sprintf("%s://%s", source.File, coreManifestPath)
+		coreManifestFile := fileURI(coreManifestPath)
 		rm, err := res.Resolve(coreManifestFile)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(rm).ToNot(BeNil())
@@ -280,4 +280,10 @@ func (s SourceReaderMock) Read(m *source.ReleaseManifestSource) ([]byte, error) 
 		}
 	}
 	return os.ReadFile(m.URI())
+}
+
+func fileURI(p string) string {
+	uri, err := source.FileURI(p)
+	Expect(err).ToNot(HaveOccurred())
+	return uri
 }
