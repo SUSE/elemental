@@ -545,11 +545,9 @@ This effectively means that the bootable artifact now only contains the operatin
 tree -U ${ELEMENTAL_CONFIG_DIR}/linux-only
 ...
 ├── image-2026-01-14T16-44-43-config      <- The config folder and assets
-│   ├── catalyst
-│   │   └── network
-│   │       └── example-libvirt.yaml
-│   └── ignition
-│       └── config.ign
+│   └── catalyst
+│       └── network
+│           └── example-libvirt.yaml
 ├── image-2026-01-14T16-44-43.raw         <- the OS only image
 └── image-2026-01-14T16-44-43.raw.sha256  <- the SHA256 of the image above
 ```
@@ -570,6 +568,7 @@ Then the final piece to the puzzle is the `RKE2ControlPlane` template, where we 
    kubelet:
      extraArgs:
        - provider-id=metal3://BAREMETALHOST_UUID
+       - node-labels=metal3.io/uuid=BAREMETALHOST_UUID
    additionalUserData:
      config: |
        variant: flatcar
@@ -583,7 +582,7 @@ Then the final piece to the puzzle is the `RKE2ControlPlane` template, where we 
                Description=rke2-preinstall
                Wants=network-online.target
                Before=rke2-install.service
-               ConditionPathExists=!/run/cluster-api/bootstrap-success.complete
+               ConditionPathExists=!/etc/cluster-api/bootstrap-success.complete
                [Service]
                Type=oneshot
                User=root
