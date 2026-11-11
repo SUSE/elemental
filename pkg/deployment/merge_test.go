@@ -287,7 +287,10 @@ func expectedSysPart() *deployment.Partition {
 			{Path: "/var", NoCopyOnWrite: true, MountOpts: []string{"x-initrd.mount"}},
 			{Path: "/root", MountOpts: []string{"x-initrd.mount"}},
 			{Path: "/etc", Snapshotted: true, MountOpts: []string{"x-initrd.mount"}},
-			{Path: "/opt"}, {Path: "/srv"}, {Path: "/home"}, {Path: "/usr/local"},
+			{Path: "/opt", MountOpts: []string{"x-initrd.mount"}},
+			{Path: "/srv", MountOpts: []string{"x-initrd.mount"}},
+			{Path: "/home", MountOpts: []string{"x-initrd.mount"}},
+			{Path: "/usr/local", MountOpts: []string{"x-initrd.mount"}},
 		},
 	}
 }

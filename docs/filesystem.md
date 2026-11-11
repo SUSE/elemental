@@ -12,15 +12,13 @@ updates.
 | `/root`      | RW        | RW            |
 | `/run`       | RW        | RW            |
 | `/tmp`       | RW        | RW            |
-| `/home`      | RO        | RW            |
-| `/opt`       | RO        | RW            |
-| `/srv`       | RO        | RW            |
+| `/home`      | RW        | RW            |
+| `/opt`       | RW        | RW            |
+| `/srv`       | RW        | RW            |
 | `/usr`       | RO*       | RO            |
-| `/usr/local` | RO        | RW            |
+| `/usr/local` | RW        | RW            |
 
-\* The `/usr` filesystem is permanently mounted as Read-Only (RO) by design. All other filesystems listed as RO are
-unavailable during initramfs and can be optionally mounted as RW, if necessary, for Ignition (via Butane syntax) or for
-custom scripts execution on firstboot.
+\* The `/usr` filesystem is permanently mounted as Read-Only (RO) by design.
 
 ## Partition Layout
 
@@ -45,10 +43,10 @@ The system partition uses btrfs with the following subvolume structure:
 | `/etc`       | Yes         | No            | Yes                  |
 | `/var`       | No          | Yes           | Yes                  |
 | `/root`      | No          | No            | Yes                  |
-| `/home`      | No          | No            | No                   |
-| `/opt`       | No          | No            | No                   |
-| `/srv`       | No          | No            | No                   |
-| `/usr/local` | No          | No            | No                   |
+| `/home`      | No          | No            | Yes                  |
+| `/opt`       | No          | No            | Yes                  |
+| `/srv`       | No          | No            | Yes                  |
+| `/usr/local` | No          | No            | Yes                  |
 
 ### Subvolume Properties
 

@@ -219,7 +219,9 @@ disks:
 				{Path: "/var", NoCopyOnWrite: true, MountOpts: []string{"x-initrd.mount"}},
 				{Path: "/root", MountOpts: []string{"x-initrd.mount"}},
 				{Path: "/etc", Snapshotted: true, MountOpts: []string{"x-initrd.mount"}},
-				{Path: "/opt"}, {Path: "/srv"}, {Path: "/home"},
+				{Path: "/opt", MountOpts: []string{"x-initrd.mount"}},
+				{Path: "/srv", MountOpts: []string{"x-initrd.mount"}},
+				{Path: "/home", MountOpts: []string{"x-initrd.mount"}},
 			},
 		}))
 
@@ -313,7 +315,12 @@ disks:
 		Expect(err).ToNot(HaveOccurred())
 		defaultCustomizeDeploymentValidation(customizeDeployment, def)
 		Expect(customizeDeployment.Disks[0].Device).To(BeEmpty())
-		Expect(len(customizeDeployment.Disks[0].Partitions)).To(Equal(0))
+		Expect(len(customizeDeployment.Disks[0].Partitions)).To(Equal(4))
+		Expect(customizeDeployment.Disks[0].Partitions[2]).To(BeNil())
+		Expect(customizeDeployment.Disks[0].Partitions[3].Label).To(Equal(deployment.SystemLabel))
+		for _, vol := range customizeDeployment.Disks[0].Partitions[3].RWVolumes {
+			Expect(vol.MountOpts).To(ContainElement("x-initrd.mount"))
+		}
 	})
 
 	It("includes initrd extension in deployment when CPIO file exists", func() {
