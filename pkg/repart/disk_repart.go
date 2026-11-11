@@ -27,7 +27,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"strings"
 	"text/template"
 
@@ -316,14 +315,14 @@ func readOnlyPart(part *deployment.Partition) string {
 	return ""
 }
 
-// setupLoopDeviceNodes creates 4 loop device nodes for systemd-repart to use at runtime. This is only necessary on arm64
-// podman containers as, on first run, the container does not have enough loop device nodes available for systemd-repart to work.
-// This is not an issue in amd64 containers because enough loop device nodes are automatically available.
+// setupLoopDeviceNodes creates loop device nodes for systemd-repart to use at runtime. A container only has the
+// nodes that existed on the host when it started, so systemd-repart can be handed a loop index without a node
+// and fails with EBUSY after retrying.
 func setupLoopDeviceNodes() {
-	if os.Getenv("container") != "" && runtime.GOARCH == "arm64" {
-		for i := 0; i < 4; i++ {
-			devPath := fmt.Sprintf("/dev/loop%d", i)
-			_ = unix.Mknod(devPath, unix.S_IFBLK|0660, 7*256+i)
-		}
+	if os.Getenv("container") == "" {
+		return
+	}
+	for i := range 8 {
+		_ = unix.Mknod(fmt.Sprintf("/dev/loop%d", i), unix.S_IFBLK|0660, 7*256+i)
 	}
 }
