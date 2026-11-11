@@ -205,7 +205,7 @@ disks:
 			MountPoint: deployment.ConfigMnt,
 			Role:       deployment.Config,
 			FileSystem: deployment.Ext4,
-			Size:       256,
+			Size:       384,
 			Hidden:     true,
 		}))
 		Expect(customizeDeployment.Disks[0].Partitions[4]).To(Equal(&deployment.Partition{
@@ -361,7 +361,7 @@ disks:
 			MountPoint: deployment.ConfigMnt,
 			Role:       deployment.Config,
 			FileSystem: deployment.Ext4,
-			Size:       256,
+			Size:       384,
 			Hidden:     true,
 		}))
 	})
