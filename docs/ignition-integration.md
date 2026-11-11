@@ -23,9 +23,8 @@ Default read-write subvolumes for `elemental3ctl` installations are:
 * `/srv`
 * `/home`
 
-The only subvolumes that are mounted in early boot inside initrd before switching root are `/etc`, `/root`
-and `/var`. This is relevant for firstboot configuration as these are the subvolumes that tools such as
-Ignition are capable of modifying at boot time. Those are the subvolumes that include the `x-initrd.mount`
+All of them are mounted in early boot inside initrd before switching root, so tools such as Ignition are
+capable of modifying them at boot time. Those are the subvolumes that include the `x-initrd.mount`
 option in `/etc/fstab` file, stating those are mounted before switching root.
 
 `elemental3ctl` can create additional partitions and different subvolumes beyond the default settings.
@@ -55,8 +54,11 @@ disks:
       snapshotted: true
       mountOpts: ['x-initrd.mount']
     - path: /opt
+      mountOpts: ['x-initrd.mount']
     - path: /srv
+      mountOpts: ['x-initrd.mount']
     - path: /home
+      mountOpts: ['x-initrd.mount']
 ```
 
 Which could be adapted to include an additional partition by adding another item into the partition
@@ -92,8 +94,11 @@ disks:
       snapshotted: true
       mountOpts: ['x-initrd.mount']
     - path: /opt
+      mountOpts: ['x-initrd.mount']
     - path: /srv
+      mountOpts: ['x-initrd.mount']
     - path: /home
+      mountOpts: ['x-initrd.mount']
 ```
 
 Note that the `elemental3 customize` command is already managing all this for you and it dynamically appends the
@@ -173,22 +178,7 @@ files into the system and handling systemd services. Find full documentation abo
         },
         "overwrite": true
       }
-    ],
-    "filesystems": [
-      {
-        "path": "/home",
-        "device": "/dev/disk/by-label/SYSTEM",
-        "format": "btrfs",
-        "mountOptions": ["subvol=/@/home"],
-        "wipeFilesystem": false
-      }
     ]
   }
 }
 ```
-
-Note the `pipo` user is added as a regular user, hence Ignition will create a `/home/pipo` folder. This would not be possible
-without additional configuration because by default `/home` subvolume is not including the `x-initrd.mount` option in fstab
-and so that it is not mounted in initrd phases. To work around this issue without customizing the installation, you can instruct
-Ignition to mount filesystems, this is in fact, the purpose of the `filesystems` list in the above example. Note that under
-`filesystems` the `/home` mount point is defined with the appropriate mount options.

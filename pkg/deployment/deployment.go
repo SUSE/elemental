@@ -980,6 +980,14 @@ func Parse(s *sys.System, root string) (*Deployment, error) {
 	return d, nil
 }
 
+func (p *Partition) MountRWVolumesInInitrd() {
+	for i := range p.RWVolumes {
+		if !slices.Contains(p.RWVolumes[i].MountOpts, initrdMnt) {
+			p.RWVolumes[i].MountOpts = append(p.RWVolumes[i].MountOpts, initrdMnt)
+		}
+	}
+}
+
 // DefaultDeployment returns the simplest deployment setup in a single
 // disk including only EFI and System partitions
 func DefaultDeployment() *Deployment {
@@ -1004,7 +1012,10 @@ func DefaultDeployment() *Deployment {
 						{Path: "/var", NoCopyOnWrite: true, MountOpts: []string{initrdMnt}},
 						{Path: "/root", MountOpts: []string{initrdMnt}},
 						{Path: "/etc", Snapshotted: true, MountOpts: []string{initrdMnt}},
-						{Path: "/opt"}, {Path: "/srv"}, {Path: "/home"}, {Path: "/usr/local"},
+						{Path: "/opt", MountOpts: []string{initrdMnt}},
+						{Path: "/srv", MountOpts: []string{initrdMnt}},
+						{Path: "/home", MountOpts: []string{initrdMnt}},
+						{Path: "/usr/local", MountOpts: []string{initrdMnt}},
 					},
 				},
 			},

@@ -593,14 +593,6 @@ Then the final piece to the puzzle is the `RKE2ControlPlane` template, where we 
                ExecStartPost=/bin/sh -c "umount /mnt"
                [Install]
                WantedBy=multi-user.target
-       storage:
-         filesystems:
-           - path: /opt
-             device: "/dev/disk/by-partlabel/SYSTEM"
-             format: btrfs
-             wipe_filesystem: false
-             mount_options:
-               - "subvol=/@/opt"
 ```
 
 Some of these fields are definitely *magic* but future iterations of Elemental 3 will allow us to integrate in a much simpler way… so stay tuned!

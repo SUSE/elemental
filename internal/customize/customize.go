@@ -204,9 +204,7 @@ func parseDeployment(
 		additionalPartitions = append(additionalPartitions, configPart)
 	}
 
-	if len(additionalPartitions) > 0 {
-		customizeDisk.Partitions = prepareDeploymentPartitions(installerDep.Disks[0].Partitions, additionalPartitions)
-	}
+	customizeDisk.Partitions = prepareDeploymentPartitions(installerDep.Disks[0].Partitions, additionalPartitions)
 
 	if mediaType == installer.ISO {
 		if install.ISO.Device == "" {
@@ -253,7 +251,8 @@ func parseDeployment(
 
 // prepareDeploymentPartitions produces a partition slice that is ready for
 // merge with a partition slice coming from the 'install.yaml' file that was
-// created during the `build-installer` command.
+// created during the `build-installer` command. The system partition is
+// always carried over with its read-write volumes marked for initrd mount.
 //
 // Currently only additions of new partitions is supported. More complex logic
 // is not yet needed and needs to be defined once we flesh out the correct deployment
@@ -291,7 +290,9 @@ func prepareDeploymentPartitions(src, add []*deployment.Partition) []*deployment
 	// When this result is merged with the installer partition slice - '[EFI, RECOVERY, SYSTEM]';
 	// we will get the following merged result:
 	// mergedPartitions = [EFI, RECOVERY, add..., SYSTEM]
-	return append(preparedPartitionSlice, src[len(src)-1])
+	system := src[len(src)-1]
+	system.MountRWVolumesInInitrd()
+	return append(preparedPartitionSlice, system)
 }
 
 func writeAutoInstaller(fs vfs.FS, out string, mediaType installer.MediaType) (string, error) {
