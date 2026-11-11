@@ -325,7 +325,7 @@ var _ = Describe("Helm tests", Label("helm"), func() {
 
 			charts, err := h.Configure(context.Background(), conf, rm, config)
 			Expect(err).To(HaveOccurred())
-			Expect(err).To(MatchError("retrieving helm charts: filtering enabled helm charts: adding helm chart 'rancher': helm chart does not exist"))
+			Expect(err).To(MatchError("retrieving helm charts: filtering enabled helm charts: adding helm chart 'rancher': helm chart is not defined in the core platform or solution release manifest"))
 			Expect(charts).To(BeNil())
 			Expect(len(config.Storage.Files)).To(Equal(0))
 		})
@@ -866,7 +866,7 @@ spec:
 		It("Fails to find non-existing enabled Helm chart", func() {
 			charts, repositories, err := enabledHelmCharts(rm, []release.HelmChart{{Name: "rancher"}}, logger)
 			Expect(err).To(HaveOccurred())
-			Expect(err).To(MatchError("adding helm chart 'rancher': helm chart does not exist"))
+			Expect(err).To(MatchError("adding helm chart 'rancher': helm chart is not defined in the core platform or solution release manifest"))
 			Expect(charts).To(BeNil())
 			Expect(repositories).To(BeNil())
 		})
@@ -874,7 +874,7 @@ spec:
 		It("Fails to find non-existing dependency Helm chart", func() {
 			charts, repositories, err := enabledHelmCharts(rm, []release.HelmChart{{Name: "longhorn"}}, logger)
 			Expect(err).To(HaveOccurred())
-			Expect(err).To(MatchError("adding helm chart 'longhorn': adding dependent helm chart 'longhorn-crd': helm chart does not exist"))
+			Expect(err).To(MatchError("adding helm chart 'longhorn': adding dependent helm chart 'longhorn-crd': helm chart is not defined in the core platform or solution release manifest"))
 			Expect(charts).To(BeNil())
 			Expect(repositories).To(BeNil())
 		})

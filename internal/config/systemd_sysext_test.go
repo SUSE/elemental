@@ -77,7 +77,7 @@ var _ = Describe("Systemd extensions", func() {
 			extensions, err := enabledExtensions(rm, conf, logger)
 			Expect(err).To(HaveOccurred())
 			Expect(err).To(MatchError(MatchRegexp("filtering enabled helm charts: adding helm chart 'longhorn': " +
-				"adding dependent helm chart 'longhorn-crd': helm chart does not exist")))
+				"adding dependent helm chart 'longhorn-crd': helm chart is not defined in the core platform or solution release manifest")))
 			Expect(extensions).To(BeEmpty())
 		})
 
