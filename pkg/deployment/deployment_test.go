@@ -39,6 +39,22 @@ func TestDeploymentSuite(t *testing.T) {
 }
 
 var _ = Describe("Deployment", Label("deployment"), func() {
+	Describe("PartitionSizeFor", func() {
+		It("keeps at least 256MiB free and rounds up to 128MiB blocks", func() {
+			Expect(deployment.PartitionSizeFor(0, deployment.Ext4)).To(Equal(deployment.MiB(256)))
+			Expect(deployment.PartitionSizeFor(1, deployment.Ext4)).To(Equal(deployment.MiB(384)))
+			Expect(deployment.PartitionSizeFor(127, deployment.Ext4)).To(Equal(deployment.MiB(512)))
+			Expect(deployment.PartitionSizeFor(2048, deployment.Ext4)).To(Equal(deployment.MiB(2560)))
+		})
+		It("keeps room for filesystem metadata on large content", func() {
+			Expect(deployment.PartitionSizeFor(51200, deployment.Ext4)).To(Equal(deployment.MiB(55552)))
+			Expect(deployment.PartitionSizeFor(51200, deployment.Btrfs)).To(Equal(deployment.MiB(55552)))
+		})
+		It("keeps at least 768MiB free for btrfs chunk allocation", func() {
+			Expect(deployment.PartitionSizeFor(127, deployment.Btrfs)).To(Equal(deployment.MiB(896)))
+			Expect(deployment.PartitionSizeFor(4096, deployment.Btrfs)).To(Equal(deployment.MiB(4864)))
+		})
+	})
 	Describe("Main Deployment tests", func() {
 		var s *sys.System
 		var tfs vfs.FS
@@ -85,7 +101,7 @@ var _ = Describe("Deployment", Label("deployment"), func() {
 			d.SourceOS = deployment.NewDirSrc("/some/dir")
 			Expect(d.Sanitize(s, deployment.CheckDiskDevice)).To(Succeed())
 			Expect(d.Disks[0].Partitions[1].Label).To(Equal(deployment.CombustionLabel))
-			Expect(d.Disks[0].Partitions[1].Size).To(Equal(deployment.MiB(256)))
+			Expect(d.Disks[0].Partitions[1].Size).To(Equal(deployment.MiB(512)))
 			Expect(d.Disks[0].Device).To(Equal(""))
 		})
 		It("does not create a deployment including out of range partitions", func() {
