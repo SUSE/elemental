@@ -534,7 +534,7 @@ func enabledHelmCharts(rm *resolver.ResolvedManifest, enabled []release.HelmChar
 		if !ok {
 			chart, ok = solutionCharts[name]
 			if !ok {
-				return fmt.Errorf("helm chart does not exist")
+				return fmt.Errorf("helm chart is not defined in the core platform or solution release manifest")
 			}
 			source = "solution"
 		}
