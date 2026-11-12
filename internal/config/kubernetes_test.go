@@ -20,6 +20,7 @@ package config
 import (
 	"context"
 	"fmt"
+	"io"
 	"path/filepath"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -230,6 +231,52 @@ var _ = Describe("Kubernetes", func() {
 
 			// k8s configuration script is generated
 			Expect(findFileContentsInConfig(config, filepath.Join("/", image.KubernetesPath(), k8sConfDeployScriptName))).NotTo(BeNil())
+		})
+
+		Describe("Manifests", func() {
+			var manifestsDir string
+			var m *Manager
+
+			writeManifest := func(name, contents string) string {
+				path := filepath.Join(manifestsDir, name)
+				Expect(system.FS().WriteFile(path, []byte(contents), 0o644)).To(Succeed())
+				return path
+			}
+
+			BeforeEach(func() {
+				manifestsDir = GinkgoT().TempDir()
+				m = NewManager(system, nil, WithDownloader(&downloaderMock{}), WithUnpackFunc(defaultUnpack))
+			})
+
+			DescribeTable("Rejects manifests without usable resources",
+				func(contents, expectedErr string) {
+					path := writeManifest("broken.yaml", contents)
+					conf := &image.Configuration{
+						Kubernetes: kubernetes.Kubernetes{LocalManifests: []string{path}},
+					}
+
+					err := m.configureKubernetes(context.Background(), conf, defaultManifest, output, config)
+					Expect(err).To(HaveOccurred())
+					Expect(err.Error()).To(ContainSubstring(fmt.Sprintf("local manifest %q: %s", path, expectedErr)))
+				},
+				Entry("empty file", "", "no Kubernetes resources found"),
+				Entry("only comments and separators", "# nothing here\n---\n---\n", "no Kubernetes resources found"),
+				Entry("invalid YAML", "kind: [\n", "unmarshalling manifest"),
+				Entry("missing kind", "apiVersion: v1\nmetadata:\n  name: foo\n", "resource without 'kind' or 'apiVersion'"),
+			)
+
+			It("Rejects empty remote manifests", func() {
+				m = NewManager(system, nil, WithDownloader(&downloaderMock{
+					urlBodyFunc: func(context.Context, string) (io.ReadCloser, error) { return rcloser{}, nil },
+				}), WithUnpackFunc(defaultUnpack))
+
+				conf := &image.Configuration{
+					Kubernetes: kubernetes.Kubernetes{RemoteManifests: []string{"https://example.com/empty.yaml"}},
+				}
+
+				err := m.configureKubernetes(context.Background(), conf, defaultManifest, output, config)
+				Expect(err).To(MatchError(ContainSubstring(`remote manifest "https://example.com/empty.yaml": no Kubernetes resources found`)))
+			})
 		})
 
 		It("Succeeds to configure RKE2 without additional resources", func() {

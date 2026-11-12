@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -119,8 +120,10 @@ func (d downloaderMock) URLBody(ctx context.Context, url string) (io.ReadCloser,
 	if d.urlBodyFunc != nil {
 		return d.urlBodyFunc(ctx, url)
 	}
-	return rcloser{}, nil
+	return io.NopCloser(strings.NewReader(testManifest)), nil
 }
+
+const testManifest = "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: test\n  namespace: default\n"
 
 var _ = Describe("Manager", func() {
 	var output = Output{
@@ -169,7 +172,7 @@ passwd:
 
 	BeforeEach(func() {
 		fs, cleanup, err = sysmock.TestFS(map[string]any{
-			fmt.Sprintf("%s/local-manifest1.yaml", configDir.KubernetesManifestsDir()): "",
+			fmt.Sprintf("%s/local-manifest1.yaml", configDir.KubernetesManifestsDir()): testManifest,
 			fmt.Sprintf("%s/nmstate1.yaml", configDir.NetworkDir()):                    "",
 		})
 		Expect(err).ToNot(HaveOccurred())

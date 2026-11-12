@@ -174,8 +174,6 @@ func appendK8sResources(butaneCfg *butane.Config, manifestsDir string, helmChart
 func (m *Manager) setupManifests(ctx context.Context, k *kubernetes.Kubernetes, output Output, butaneCfg *butane.Config) (string, error) {
 	fs := m.system.FS()
 
-	relativeManifestsPath := filepath.Join("/", image.KubernetesManifestsPath())
-
 	if len(k.RemoteManifests) > 0 {
 		storeDir := output.RemoteManifestsStoreDir()
 		if err := vfs.MkdirAll(fs, storeDir, vfs.DirPerm); err != nil {
@@ -183,38 +181,25 @@ func (m *Manager) setupManifests(ctx context.Context, k *kubernetes.Kubernetes, 
 		}
 
 		for i, manifest := range k.RemoteManifests {
-			targetPath := filepath.Join(relativeManifestsPath, filepath.Base(manifest))
 			localPath := filepath.Join(storeDir, fmt.Sprintf("manifest-%d.yaml", i))
 
 			if err := m.downloadFile(ctx, manifest, localPath); err != nil {
 				return "", fmt.Errorf("downloading remote Kubernetes manifest '%s': %w", manifest, err)
 			}
 
-			mfst, err := fs.Open(localPath)
-			if err != nil {
-				return "", fmt.Errorf("opening downloaded manifest %q: %w", manifest, err)
-			}
-
-			err = butaneCfg.AddFileInlineFromReader(targetPath, mfst, 0o644)
-			if err != nil {
-				return "", fmt.Errorf("reading contents for manifest %q: %w", manifest, err)
+			if err := addManifest(fs, butaneCfg, localPath, filepath.Base(manifest)); err != nil {
+				return "", fmt.Errorf("remote manifest %q: %w", manifest, err)
 			}
 		}
 	}
 
 	for _, manifest := range k.LocalManifests {
-		targetPath := filepath.Join(relativeManifestsPath, filepath.Base(manifest))
-		mfst, err := fs.Open(manifest)
-		if err != nil {
-			return "", fmt.Errorf("opening local manifest %q: %w", manifest, err)
-		}
-		err = butaneCfg.AddFileInlineFromReader(targetPath, mfst, 0o644)
-		if err != nil {
-			return "", fmt.Errorf("reading local manifest %q: %w", manifest, err)
+		if err := addManifest(fs, butaneCfg, manifest, filepath.Base(manifest)); err != nil {
+			return "", fmt.Errorf("local manifest %q: %w", manifest, err)
 		}
 	}
 
-	return relativeManifestsPath, nil
+	return filepath.Join("/", image.KubernetesManifestsPath()), nil
 }
 
 func appendK8sResDeployScript(butaneCfg *butane.Config, runtimeManifestsDir string, runtimeHelmCharts []string) error {
