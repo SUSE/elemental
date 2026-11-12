@@ -204,11 +204,13 @@ func (m *Manager) setupManifests(ctx context.Context, k *kubernetes.Kubernetes, 
 
 func appendK8sResDeployScript(butaneCfg *butane.Config, runtimeManifestsDir string, runtimeHelmCharts []string) error {
 	values := struct {
-		HelmCharts   []string
-		ManifestsDir string
+		HelmCharts       []string
+		ManifestsDir     string
+		RKE2ManifestsDir string
 	}{
-		HelmCharts:   runtimeHelmCharts,
-		ManifestsDir: runtimeManifestsDir,
+		HelmCharts:       runtimeHelmCharts,
+		ManifestsDir:     runtimeManifestsDir,
+		RKE2ManifestsDir: filepath.Join("/", image.RKE2ServerManifestsPath()),
 	}
 
 	data, err := template.Parse(k8sResDeployScriptName, k8sResDeployScriptTpl, &values)

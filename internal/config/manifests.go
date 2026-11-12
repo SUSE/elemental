@@ -55,9 +55,23 @@ func addManifest(fs vfs.FS, butaneCfg *butane.Config, path, name string) error {
 		}
 	}
 
+	target := filepath.Join("/", image.KubernetesManifestsPath(), name)
+	if onlyHelmChartConfigs(resources) {
+		target = filepath.Join("/", image.RKE2ServerManifestsPath(), "elemental-"+name)
+	}
+
 	content := string(data)
-	butaneCfg.AddFileInline(filepath.Join("/", image.KubernetesManifestsPath(), name), &content, 0o644)
+	butaneCfg.AddFileInline(target, &content, 0o644)
 	return nil
+}
+
+func onlyHelmChartConfigs(resources []map[string]any) bool {
+	for _, resource := range resources {
+		if resource["kind"] != "HelmChartConfig" {
+			return false
+		}
+	}
+	return true
 }
 
 func readManifest(fs vfs.FS, path string) ([]map[string]any, error) {

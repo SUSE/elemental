@@ -58,6 +58,10 @@ func KubernetesManifestsPath() string {
 	return filepath.Join(KubernetesPath(), "manifests")
 }
 
+func RKE2ServerManifestsPath() string {
+	return filepath.Join("var", "lib", "rancher", "rke2", "server", "manifests")
+}
+
 func HelmPath() string {
 	return filepath.Join(KubernetesPath(), "helm")
 }
