@@ -18,15 +18,47 @@ limitations under the License.
 package config
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
+	"path/filepath"
 	"slices"
 
 	"go.yaml.in/yaml/v3"
 
+	"github.com/suse/elemental/v3/internal/butane"
+	"github.com/suse/elemental/v3/internal/image"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
+
+func addManifest(fs vfs.FS, butaneCfg *butane.Config, path, name string) error {
+	data, err := fs.ReadFile(path)
+	if err != nil {
+		return err
+	}
+
+	resources, err := parseManifests(bytes.NewReader(data))
+	if err != nil {
+		return err
+	}
+
+	if len(resources) == 0 {
+		return fmt.Errorf("no Kubernetes resources found")
+	}
+
+	for _, resource := range resources {
+		kind, _ := resource["kind"].(string)
+		apiVersion, _ := resource["apiVersion"].(string)
+		if kind == "" || apiVersion == "" {
+			return fmt.Errorf("resource without 'kind' or 'apiVersion'")
+		}
+	}
+
+	content := string(data)
+	butaneCfg.AddFileInline(filepath.Join("/", image.KubernetesManifestsPath(), name), &content, 0o644)
+	return nil
+}
 
 func readManifest(fs vfs.FS, path string) ([]map[string]any, error) {
 	file, err := fs.Open(path)
