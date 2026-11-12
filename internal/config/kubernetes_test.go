@@ -20,6 +20,7 @@ package config
 import (
 	"context"
 	"fmt"
+	"io"
 	"path/filepath"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -230,6 +231,82 @@ var _ = Describe("Kubernetes", func() {
 
 			// k8s configuration script is generated
 			Expect(findFileContentsInConfig(config, filepath.Join("/", image.KubernetesPath(), k8sConfDeployScriptName))).NotTo(BeNil())
+		})
+
+		Describe("Manifests", func() {
+			var manifestsDir string
+			var m *Manager
+
+			writeManifest := func(name, contents string) string {
+				path := filepath.Join(manifestsDir, name)
+				Expect(system.FS().WriteFile(path, []byte(contents), 0o644)).To(Succeed())
+				return path
+			}
+
+			BeforeEach(func() {
+				manifestsDir = GinkgoT().TempDir()
+				m = NewManager(system, nil, WithDownloader(&downloaderMock{}), WithUnpackFunc(defaultUnpack))
+			})
+
+			It("Places HelmChartConfig manifests in the RKE2 server manifests directory", func() {
+				const chartConfig = "apiVersion: helm.cattle.io/v1\nkind: HelmChartConfig\nmetadata:\n  name: rke2-ingress-nginx\n  namespace: kube-system\nspec:\n  valuesContent: |-\n    controller:\n      replicaCount: 2\n"
+				const mixed = chartConfig + "---\n" + testManifest
+
+				conf := &image.Configuration{
+					Kubernetes: kubernetes.Kubernetes{
+						RemoteManifests: []string{"https://example.com/remote.yaml"},
+						LocalManifests: []string{
+							writeManifest("ingress-config.yaml", chartConfig),
+							writeManifest("mixed.yaml", mixed),
+						},
+					},
+				}
+
+				Expect(m.configureKubernetes(context.Background(), conf, defaultManifest, output, config)).To(Succeed())
+
+				data := findFileContentsInConfig(config, filepath.Join("/", image.RKE2ServerManifestsPath(), "elemental-ingress-config.yaml"))
+				Expect(data).NotTo(BeNil())
+				Expect(*data).To(Equal(chartConfig))
+				Expect(findFileContentsInConfig(config, filepath.Join("/", image.KubernetesManifestsPath(), "ingress-config.yaml"))).To(BeNil())
+
+				data = findFileContentsInConfig(config, filepath.Join("/", image.KubernetesManifestsPath(), "mixed.yaml"))
+				Expect(data).NotTo(BeNil())
+				Expect(*data).To(Equal(mixed))
+
+				data = findFileContentsInConfig(config, filepath.Join("/", image.KubernetesManifestsPath(), "remote.yaml"))
+				Expect(data).NotTo(BeNil())
+				Expect(*data).To(Equal(testManifest))
+			})
+
+			DescribeTable("Rejects manifests without usable resources",
+				func(contents, expectedErr string) {
+					path := writeManifest("broken.yaml", contents)
+					conf := &image.Configuration{
+						Kubernetes: kubernetes.Kubernetes{LocalManifests: []string{path}},
+					}
+
+					err := m.configureKubernetes(context.Background(), conf, defaultManifest, output, config)
+					Expect(err).To(HaveOccurred())
+					Expect(err.Error()).To(ContainSubstring(fmt.Sprintf("local manifest %q: %s", path, expectedErr)))
+				},
+				Entry("empty file", "", "no Kubernetes resources found"),
+				Entry("only comments and separators", "# nothing here\n---\n---\n", "no Kubernetes resources found"),
+				Entry("invalid YAML", "kind: [\n", "unmarshalling manifest"),
+				Entry("missing kind", "apiVersion: v1\nmetadata:\n  name: foo\n", "resource without 'kind' or 'apiVersion'"),
+			)
+
+			It("Rejects empty remote manifests", func() {
+				m = NewManager(system, nil, WithDownloader(&downloaderMock{
+					urlBodyFunc: func(context.Context, string) (io.ReadCloser, error) { return rcloser{}, nil },
+				}), WithUnpackFunc(defaultUnpack))
+
+				conf := &image.Configuration{
+					Kubernetes: kubernetes.Kubernetes{RemoteManifests: []string{"https://example.com/empty.yaml"}},
+				}
+
+				err := m.configureKubernetes(context.Background(), conf, defaultManifest, output, config)
+				Expect(err).To(MatchError(ContainSubstring(`remote manifest "https://example.com/empty.yaml": no Kubernetes resources found`)))
+			})
 		})
 
 		It("Succeeds to configure RKE2 without additional resources", func() {
