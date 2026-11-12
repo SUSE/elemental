@@ -248,6 +248,36 @@ var _ = Describe("Kubernetes", func() {
 				m = NewManager(system, nil, WithDownloader(&downloaderMock{}), WithUnpackFunc(defaultUnpack))
 			})
 
+			It("Places HelmChartConfig manifests in the RKE2 server manifests directory", func() {
+				const chartConfig = "apiVersion: helm.cattle.io/v1\nkind: HelmChartConfig\nmetadata:\n  name: rke2-ingress-nginx\n  namespace: kube-system\nspec:\n  valuesContent: |-\n    controller:\n      replicaCount: 2\n"
+				const mixed = chartConfig + "---\n" + testManifest
+
+				conf := &image.Configuration{
+					Kubernetes: kubernetes.Kubernetes{
+						RemoteManifests: []string{"https://example.com/remote.yaml"},
+						LocalManifests: []string{
+							writeManifest("ingress-config.yaml", chartConfig),
+							writeManifest("mixed.yaml", mixed),
+						},
+					},
+				}
+
+				Expect(m.configureKubernetes(context.Background(), conf, defaultManifest, output, config)).To(Succeed())
+
+				data := findFileContentsInConfig(config, filepath.Join("/", image.RKE2ServerManifestsPath(), "elemental-ingress-config.yaml"))
+				Expect(data).NotTo(BeNil())
+				Expect(*data).To(Equal(chartConfig))
+				Expect(findFileContentsInConfig(config, filepath.Join("/", image.KubernetesManifestsPath(), "ingress-config.yaml"))).To(BeNil())
+
+				data = findFileContentsInConfig(config, filepath.Join("/", image.KubernetesManifestsPath(), "mixed.yaml"))
+				Expect(data).NotTo(BeNil())
+				Expect(*data).To(Equal(mixed))
+
+				data = findFileContentsInConfig(config, filepath.Join("/", image.KubernetesManifestsPath(), "remote.yaml"))
+				Expect(data).NotTo(BeNil())
+				Expect(*data).To(Equal(testManifest))
+			})
+
 			DescribeTable("Rejects manifests without usable resources",
 				func(contents, expectedErr string) {
 					path := writeManifest("broken.yaml", contents)

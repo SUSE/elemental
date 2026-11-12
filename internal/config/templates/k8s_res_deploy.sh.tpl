@@ -106,6 +106,7 @@ deployManifests() {
   local failed=false
   echo "Deploying Kubernetes manifests.."
   for manifest in {{ .ManifestsDir }}/*.yaml; do
+    [[ -e "$manifest" ]] || continue
     [[ "$manifest" == *-priority.yaml ]] && continue
     retryKubectlCreate "$manifest" 6 10
     if [[ $? -ne 0 ]]; then
@@ -144,7 +145,7 @@ waitForCoreRKE2Charts() {
     sleep 10
   done
 
-  local rke2_manifests_dir="/var/lib/rancher/rke2/server/manifests"
+  local rke2_manifests_dir="{{ .RKE2ManifestsDir }}"
   local rke2_chart_names=""
   for rke2_file in $rke2_manifests_dir/*.yaml; do
     # Make sure file is a valid K8s resource
