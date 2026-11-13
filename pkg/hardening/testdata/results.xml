@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Benchmark xmlns="http://checklists.nist.gov/xccdf/1.2" id="xccdf_org.ssgproject.content_benchmark_TEST">
+  <TestResult id="xccdf_org.open-scap_testresult_stig">
+    <set-value idref="xccdf_org.ssgproject.content_value_var_slub_debug_options">FZP</set-value>
+    <rule-result idref="xccdf_org.ssgproject.content_rule_grub2_audit_argument"><result>notselected</result></rule-result>
+    <rule-result idref="xccdf_org.ssgproject.content_rule_sshd_disable_root_login"><result>fixed</result></rule-result>
+    <rule-result idref="xccdf_org.ssgproject.content_rule_partition_for_var_log_audit"><result>fail</result></rule-result>
+  </TestResult>
+</Benchmark>
