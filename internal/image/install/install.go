@@ -27,6 +27,7 @@ import (
 	"github.com/docker/go-units"
 
 	"github.com/suse/elemental/v3/pkg/crypto"
+	"github.com/suse/elemental/v3/pkg/hardening"
 )
 
 type DiskSize string
@@ -59,12 +60,13 @@ func (d DiskSize) ToMiB() (uint64, error) {
 }
 
 type Installation struct {
-	SchemaVersion string        `yaml:"schema"`
-	Bootloader    string        `yaml:"bootloader" validate:"omitempty,oneof=grub none"`
-	KernelCmdLine string        `yaml:"kernelCmdLine"`
-	RAW           RAW           `yaml:"raw"`
-	ISO           ISO           `yaml:"iso"`
-	CryptoPolicy  crypto.Policy `yaml:"cryptoPolicy" validate:"omitempty,oneof=fips default"`
+	SchemaVersion string            `yaml:"schema"`
+	Bootloader    string            `yaml:"bootloader" validate:"omitempty,oneof=grub none"`
+	KernelCmdLine string            `yaml:"kernelCmdLine"`
+	RAW           RAW               `yaml:"raw"`
+	ISO           ISO               `yaml:"iso"`
+	CryptoPolicy  crypto.Policy     `yaml:"cryptoPolicy" validate:"omitempty,oneof=fips default"`
+	Hardening     *hardening.Config `yaml:"hardening,omitempty"`
 }
 
 type RAW struct {

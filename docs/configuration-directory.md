@@ -76,6 +76,58 @@ iso:
 * `iso` - Required for ISO images; Specifies ISO image configurations.
   * `device` - Required; Specifies the disk that will be used as the install device.
   * `netbootURL` - Required for netboot; When set, a netboot directory with the necessary netboot artifacts will be created next to the ISO for network booting. Specifies the URL that the customized ISO is fetched from. Supports `http://`, `https://`, and `nfs://`
+* `cryptoPolicy` - Optional; `default` or `fips`. Enables FIPS mode in the installed system.
+* `hardening` - Optional; Applies a security hardening profile to the installed system. See [Security hardening](#security-hardening).
+
+#### Security hardening
+
+Elemental can harden the operating system against a [SCAP](https://www.open-scap.org/) security profile, such as DISA STIG or
+ANSSI-BP-028, when it is installed:
+
+```yaml
+bootloader: grub
+cryptoPolicy: fips
+hardening:
+  profile: anssi_bp28_high
+  # Optional; path inside the OS image. Defaults to the only datastream found
+  # in /usr/share/xml/scap/ssg/content.
+  datastream: /usr/share/xml/scap/ssg/content/ssg-sle16-ds.xml
+  # Optional; XCCDF tailoring file, relative to the configuration directory.
+  tailoring: hardening/tailoring.xml
+```
+
+* `profile` - Profile ID. Short [ComplianceAsCode](https://github.com/ComplianceAsCode/content) IDs such as `anssi_bp28_high` are expanded to
+  `xccdf_org.ssgproject.content_profile_anssi_bp28_high`. When a tailoring file is given this is a profile defined in that file, and it can be
+  omitted if the file defines only one.
+* `datastream` - Absolute path of the SCAP datastream inside the OS image. It can be omitted only if the image contains a
+  single datastream; SUSE's `scap-security-guide` package ships one per product, so set it, e.g. to `ssg-sle16-ds.xml`.
+* `tailoring` - An XCCDF tailoring file
+  to customize a profile: select or deselect rules and change values such as minimum password length. Tailoring files can be created with
+  SCAP Workbench or `autotailor`. Tailoring cannot add new rules.
+
+The OS image must include the `openscap-utils` and `scap-security-guide` packages. The profile is applied while the new OS snapshot is
+still writable, before it is sealed read-only, and it is applied again to every new snapshot on upgrade. Settings in `/etc` that
+the profile manages are therefore restored on every upgrade; use the tailoring file to make exceptions.
+
+Some rules are handled by Elemental rather than by OpenSCAP:
+
+* Rules requiring kernel arguments (e.g. `audit=1`) are not applied by editing the bootloader configuration. Elemental appends the
+  arguments to `kernelCmdLine` instead and logs a warning listing them. If `kernelCmdLine` already sets one of these arguments to a
+  different value, the installation fails.
+* Rules requiring kernel arguments to be absent (e.g. `nosmap`, `selinux=0`, `systemd.confirm_spawn`) make the installation fail if
+  `kernelCmdLine` sets them.
+* The FIPS rule is not remediated; set `cryptoPolicy: fips` instead. Elemental warns if the profile requires FIPS and it is not enabled.
+* Packages are never installed or removed inside the snapshot, since packages belong in the OS image or a
+  [system extension](systemd-system-extensions.md). Package rules the OS image already satisfies pass as usual; the
+  ones it does not satisfy are reported as warnings, to be fixed in the OS image or deselected in a tailoring file.
+* Other bootloader rules, such as bootloader passwords, are reported as warnings and need a documented exception.
+
+Some rules conflict with workloads such as Kubernetes; deselect them in a tailoring file. The
+[hardening example](../examples/elemental/customize/hardening/) includes a tailoring file for RKE2 nodes.
+
+Rules still failing after remediation, for example partitioning requirements, are logged as warnings but do not fail the installation.
+The scan results and an HTML report are written to `/var/log/elemental/hardening/<timestamp>/` in the installed system.
+A scan is not a guarantee of compliance; review the report.
 
 ### butane.yaml
 

@@ -37,6 +37,9 @@ type InstallFlags struct {
 	Local                bool
 	CryptoPolicy         string
 	Snapshotter          string
+	HardeningProfile     string
+	HardeningDatastream  string
+	HardeningTailoring   string
 }
 
 var InstallArgs InstallFlags
@@ -47,7 +50,7 @@ func NewInstallCommand(appName string, action func(context.Context, *cli.Command
 		Usage:     "Install an OCI image on a target system",
 		UsageText: fmt.Sprintf("%s install [OPTIONS]", appName),
 		Action:    action,
-		Flags: []cli.Flag{
+		Flags: append([]cli.Flag{
 			&cli.StringFlag{
 				Name:        configFlg,
 				Usage:       configDesc,
@@ -115,6 +118,27 @@ func NewInstallCommand(appName string, action func(context.Context, *cli.Command
 				Value:       "snapper",
 				Destination: &InstallArgs.Snapshotter,
 			},
+		}, hardeningFlags()...),
+	}
+}
+
+// hardeningFlags returns the hardening profile flags shared by install and reset.
+func hardeningFlags() []cli.Flag {
+	return []cli.Flag{
+		&cli.StringFlag{
+			Name:        "hardening-profile",
+			Usage:       "SCAP profile to harden the installed system with, e.g. stig, anssi_bp28_high, or a profile from the tailoring file",
+			Destination: &InstallArgs.HardeningProfile,
+		},
+		&cli.StringFlag{
+			Name:        "hardening-datastream",
+			Usage:       "SCAP datastream path inside the OS image (defaults to the only one under /usr/share/xml/scap/ssg/content)",
+			Destination: &InstallArgs.HardeningDatastream,
+		},
+		&cli.StringFlag{
+			Name:        "hardening-tailoring",
+			Usage:       "XCCDF tailoring file customizing the hardening profile",
+			Destination: &InstallArgs.HardeningTailoring,
 		},
 	}
 }

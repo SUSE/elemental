@@ -21,6 +21,7 @@ import (
 	"context"
 	"fmt"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	"github.com/urfave/cli/v3"
@@ -32,6 +33,7 @@ import (
 	"github.com/suse/elemental/v3/pkg/deployment"
 	"github.com/suse/elemental/v3/pkg/fips"
 	"github.com/suse/elemental/v3/pkg/firmware"
+	"github.com/suse/elemental/v3/pkg/hardening"
 	"github.com/suse/elemental/v3/pkg/install"
 	"github.com/suse/elemental/v3/pkg/installer"
 	"github.com/suse/elemental/v3/pkg/sys"
@@ -151,6 +153,32 @@ func setBootloader(s *sys.System, d *deployment.Deployment, bootloaderType, cmdl
 	}
 }
 
+// applyHardeningFlags sets the hardening configuration from the given flags.
+// Flags override the matching fields of any description file.
+func applyHardeningFlags(d *deployment.Deployment, flags *cmdpkg.InstallFlags) error {
+	if flags.HardeningProfile == "" && flags.HardeningDatastream == "" && flags.HardeningTailoring == "" {
+		return nil
+	}
+	if d.Security.Hardening == nil {
+		d.Security.Hardening = &hardening.Config{}
+	}
+	h := d.Security.Hardening
+	if flags.HardeningProfile != "" {
+		h.Profile = flags.HardeningProfile
+	}
+	if flags.HardeningDatastream != "" {
+		h.Datastream = flags.HardeningDatastream
+	}
+	if flags.HardeningTailoring != "" {
+		path, err := filepath.Abs(flags.HardeningTailoring)
+		if err != nil {
+			return fmt.Errorf("resolving hardening tailoring path: %w", err)
+		}
+		h.Tailoring = path
+	}
+	return nil
+}
+
 // digestInstallSetup produces the Deployment object required to describe the installation parameters
 func digestInstallSetup(s *sys.System, flags *cmdpkg.InstallFlags) (*deployment.Deployment, error) {
 	d := deployment.DefaultDeployment()
@@ -209,6 +237,10 @@ func applyInstallFlags(s *sys.System, d *deployment.Deployment, flags *cmdpkg.In
 		if cryptoPolicy.IsValid() {
 			d.Security.CryptoPolicy = cryptoPolicy
 		}
+	}
+
+	if err := applyHardeningFlags(d, flags); err != nil {
+		return err
 	}
 
 	setBootloader(s, d, flags.Bootloader, flags.KernelCmdline, flags.CreateBootEntry)
