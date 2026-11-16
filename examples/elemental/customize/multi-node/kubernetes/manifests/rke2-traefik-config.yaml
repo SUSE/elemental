@@ -1,0 +1,26 @@
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  # Must match the name of the packaged RKE2 add-on
+  name: rke2-traefik
+  namespace: kube-system
+spec:
+  valuesContent: |-
+    providers:
+      kubernetesIngress:
+        publishedService:
+          enabled: true
+    service:
+      spec:
+        type: LoadBalancer
+        externalTrafficPolicy: Local
+
+    # Setting 'insecure: true' trusts headers from any IP. You may want to
+    # replace 'insecure: true' with 'trustedIPs: [ "your-proxy-cidr" ]'
+    ports:
+      web:
+        forwardedHeaders:
+          insecure: true
+      websecure:
+        forwardedHeaders:
+          insecure: true

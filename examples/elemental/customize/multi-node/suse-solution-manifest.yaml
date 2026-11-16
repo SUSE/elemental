@@ -1,26 +1,27 @@
+# This configuration represents a fictional SUSE Solution and is meant for example purposes only.
 metadata:
   name: "suse-solution"
   version: "4.2.0"
-  creationDate: "2025-12-08"
+  creationDate: "2026-11-16"
 corePlatform:
-  # Registry path to the release manifest OCI image of the Core Platform that this SUSE Solution extends
-  image: "registry.suse.com/elemental/rke2/rke2-manifest:1.35"
+  # Release manifest OCI image of the Core Platform that this SUSE Solution extends
+  image: "registry.suse.com/elemental/rke2/rke2-manifest:1.36"
 components:
   systemd:
     extensions:
       - name: "longhorn"
-        image: "registry.suse.com/elemental/longhorn:4.69-4.3"
+        image: "registry.suse.com/elemental/longhorn:6.28-6.51"
   helm:
     charts:
       - chart: "cert-manager"
-        version: "v1.17.2"
+        version: "v1.21.3"
         namespace: "cert-manager"
         repository: "jetstack"
         values:
           crds:
             enabled: true
       - chart: "rancher"
-        version: "2.14.0"
+        version: "2.15.3"
         namespace: "cattle-system"
         repository: "rancher"
         values:
@@ -29,11 +30,11 @@ components:
           - name: "cert-manager"
             type: "helm"
       - chart: "longhorn-crd"
-        version: "107.0.0+up1.9.1"
+        version: "110.1.0+up1.12.1"
         namespace: "longhorn-system"
         repository: "rancher-charts"
       - chart: "longhorn"
-        version: "107.0.0+up1.9.1"
+        version: "110.1.0+up1.12.1"
         namespace: "longhorn-system"
         repository: "rancher-charts"
         dependsOn:
