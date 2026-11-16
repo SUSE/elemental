@@ -12,10 +12,10 @@ Elemental 3 consists of several components, their comprehensive integration and 
 
 | Component | Version | Purpose |
 | :---: |:-------:| :---: |
-| Elemental |  3.0.3  | Customization and installation of OS \+ Kubernetes |
-| SUSE Linux Enterprise Server |  16   | Source for building a containerized OS |
-| RKE2 | 1.35, 1.36  | Certified Kubernetes distribution |
-| MetalLB | 0.15.2  | Load balancing/HA capabilities for multi-node Kubernetes clusters (API and services) |
+| Elemental |  3.1.0  | Customization and installation of OS \+ Kubernetes |
+| SUSE Linux Enterprise Server |  16.1   | Source for building a containerized OS |
+| RKE2 | 1.36, 1.37  | Certified Kubernetes distribution |
+| MetalLB | 0.16.1  | Load balancing/HA capabilities for multi-node Kubernetes clusters (API and services) |
 | Endpoint Copier Operator |  0.3.0  |  |
 
 ## Scope and Audience
@@ -192,7 +192,7 @@ export ELEMENTAL_RUNTIME_CONFIG="${ELEMENTAL_ROOT}/examples/elemental/runtime-co
 Elemental 3 is packaged and delivered in a container image. We will use Podman to fetch the latest version as a final step to the environment setup stage.
 
 ```shell
-export ELEMENTAL_IMAGE="registry.suse.com/elemental/elemental:3.0"
+export ELEMENTAL_IMAGE="registry.suse.com/elemental/elemental:3.1"
 
 sudo podman pull ${ELEMENTAL_IMAGE}
 ```
