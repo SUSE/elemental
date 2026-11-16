@@ -10,4 +10,4 @@ spec:
     priority: 100
     serviceSelectors:
       - matchExpressions:
-          - {key: app.kubernetes.io/name, operator: In, values: [rke2-ingress-nginx]}
+          - {key: app.kubernetes.io/name, operator: In, values: [rke2-traefik]}
