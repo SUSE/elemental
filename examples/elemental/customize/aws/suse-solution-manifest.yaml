@@ -4,9 +4,7 @@ metadata:
   version: "4.2.0"
   creationDate: "2026-11-16"
 corePlatform:
-  # Registry path to the release manifest OCI image of the Core Platform that this SUSE Solution extends
-  # Note: AWS feature is not yet available on registry.suse.com, hence the referral to registry.suse.de
-  image: "registry.suse.de/devel/unifiedcore/main/totest/containers/beta/uc/rke2/rke2-manifest:1.36"
+  image: "registry.suse.com/elemental/rke2/rke2-manifest:1.37"
 components:
   systemd:
     extensions:
@@ -22,7 +20,7 @@ components:
           crds:
             enabled: true
       - chart: "rancher"
-        version: "2.15.3"
+        version: "2.16.0"
         namespace: "cattle-system"
         repository: "rancher"
         values:

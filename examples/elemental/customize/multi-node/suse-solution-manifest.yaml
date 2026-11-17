@@ -5,7 +5,7 @@ metadata:
   creationDate: "2026-11-16"
 corePlatform:
   # Release manifest OCI image of the Core Platform that this SUSE Solution extends
-  image: "registry.suse.com/elemental/rke2/rke2-manifest:1.36"
+  image: "registry.suse.com/elemental/rke2/rke2-manifest:1.37"
 components:
   systemd:
     extensions:
@@ -21,7 +21,7 @@ components:
           crds:
             enabled: true
       - chart: "rancher"
-        version: "2.15.3"
+        version: "2.16.0"
         namespace: "cattle-system"
         repository: "rancher"
         values:
