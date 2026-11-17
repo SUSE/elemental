@@ -14,7 +14,7 @@ Elemental 3 consists of several components, their comprehensive integration and 
 | :---: |:-------:| :---: |
 | Elemental |  3.1.0  | Customization and installation of OS \+ Kubernetes |
 | SUSE Linux Enterprise Server |  16.1   | Source for building a containerized OS |
-| RKE2 | 1.36, 1.37  | Certified Kubernetes distribution |
+| RKE2 | 1.37  | Certified Kubernetes distribution |
 | MetalLB | 0.16.1  | Load balancing/HA capabilities for multi-node Kubernetes clusters (API and services) |
 | Endpoint Copier Operator |  0.3.0  |  |
 
