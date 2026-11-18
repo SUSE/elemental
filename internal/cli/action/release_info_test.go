@@ -3,6 +3,7 @@ package action_test
 import (
 	"bytes"
 	"context"
+	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -101,6 +102,7 @@ components:
 		Expect(err).ToNot(HaveOccurred())
 		Expect(buffer).To(ContainSubstring("CORE PLATFORM"))
 		Expect(buffer).To(ContainSubstring("suse-core-test"))
+		Expect(buffer).To(MatchRegexp(`Elemental Version\s+\S\s+3\.0`))
 		Expect(buffer).To(ContainSubstring("registry.suse.com/elemental/base-os-kernel-default:16.0-2.4"))
 		Expect(buffer).To(ContainSubstring("registry.suse.com/elemental/base-os-kernel-default-iso:16.0-2.7"))
 
@@ -114,5 +116,16 @@ components:
 		Expect(buffer).To(ContainSubstring("CHART NAME"))
 		Expect(buffer).To(ContainSubstring("https://metallb.github.io/metallb"))
 		Expect(buffer).To(ContainSubstring("https://suse-edge.github.io/charts"))
+	})
+	It("prints a core manifest without metadata", func() {
+		_, withoutMetadata, found := strings.Cut(manifest, "components:")
+		Expect(found).To(BeTrue())
+		Expect(tfs.WriteFile("/etc/elemental3/manifest.yaml", []byte("components:"+withoutMetadata), vfs.FilePerm)).To(Succeed())
+
+		manifestPath, err := tfs.RawPath("/etc/elemental3/manifest.yaml")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(cliCmd.Run(ctx, []string{"", "file://" + manifestPath})).To(Succeed())
+		Expect(buffer).To(MatchRegexp(`Elemental Version\s+\S\s+Unknown`))
+		Expect(buffer).To(ContainSubstring("registry.suse.com/elemental/rke2/rke2:1.35.5_rke2r1"))
 	})
 })

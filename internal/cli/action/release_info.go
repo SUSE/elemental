@@ -45,6 +45,7 @@ import (
 const (
 	versionHdr = "Version"
 	sourceHdr  = "Source"
+	unknown    = "Unknown"
 )
 
 // to keep a track if user requested for markdown output
@@ -52,7 +53,6 @@ var markdown bool
 
 type basicInfo struct {
 	Name         string
-	Version      string
 	CreationDate string
 	Source       string
 }
@@ -227,29 +227,33 @@ func printBasicData(cm *core.ReleaseManifest, sm *solution.ReleaseManifest, arg 
 	var cmBasic, smBasic *basicInfo
 	table := newTable(markdown, out)
 
-	cmBasic = &basicInfo{
-		Name:         cm.Metadata.Name,
-		CreationDate: cm.Metadata.CreationDate,
-		Source:       arg,
+	cmBasic = &basicInfo{Source: arg}
+	elementalVersion := unknown
+	if cm.Metadata != nil {
+		cmBasic.Name = cm.Metadata.Name
+		cmBasic.CreationDate = cm.Metadata.CreationDate
+		if cm.Metadata.Elemental != nil {
+			elementalVersion = cm.Metadata.Elemental.Version
+		}
 	}
 	if sm != nil {
 		// we are dealing with a solution manifest
-		smBasic = &basicInfo{
-			Name:         sm.Metadata.Name,
-			CreationDate: sm.Metadata.CreationDate,
-			Source:       arg,
+		smBasic = &basicInfo{Source: arg}
+		if sm.Metadata != nil {
+			smBasic.Name = sm.Metadata.Name
+			smBasic.CreationDate = sm.Metadata.CreationDate
 		}
 		cmBasic.Source = sm.CorePlatform.Image
 
 		table.Header([]string{"Attribute", "Core Platform (Base)", "Solution Manifest (Extension)"})
 		data = append(data, []string{"Name", cmBasic.Name, smBasic.Name})
-		data = append(data, []string{"Release Date", cmBasic.CreationDate, sm.Metadata.CreationDate})
+		data = append(data, []string{"Release Date", cmBasic.CreationDate, smBasic.CreationDate})
 		data = append(data, []string{sourceHdr, cmBasic.Source, smBasic.Source})
 	} else {
 		// we are dealing with a core manifest
 		table.Header([]string{"Attribute", "Core Platform (Base)"})
 		data = append(data, []string{"Name", cmBasic.Name})
-		data = append(data, []string{versionHdr, cmBasic.Version})
+		data = append(data, []string{"Elemental Version", elementalVersion})
 		data = append(data, []string{"Release Date", cmBasic.CreationDate})
 		data = append(data, []string{sourceHdr, cmBasic.Source})
 
@@ -262,7 +266,7 @@ func printInfraData(cm *core.ReleaseManifest, out io.Writer) error {
 	table := newTable(markdown, out)
 	table.Header([]string{"Infrastructure Components", versionHdr, sourceHdr})
 
-	osVersion := "Unknown"
+	osVersion := unknown
 	if cm.Components.OperatingSystem.Image.Base != "" {
 		parts := strings.Split(cm.Components.OperatingSystem.Image.Base, ":")
 		if len(parts) > 1 {
@@ -271,7 +275,7 @@ func printInfraData(cm *core.ReleaseManifest, out io.Writer) error {
 	}
 	data = append(data, []string{"Operating System", osVersion, cm.Components.OperatingSystem.Image.Base})
 
-	installerVersion := "Unknown"
+	installerVersion := unknown
 	if cm.Components.OperatingSystem.Image.ISO != "" {
 		parts := strings.Split(cm.Components.OperatingSystem.Image.ISO, ":")
 		if len(parts) > 1 {
