@@ -20,9 +20,9 @@ Enables consumers to extend a specific `Core Platform` release with additional c
 Consumers who wish to create a release manifest for their solution should refer to the below API reference for information.
 
 ```yaml
+schema: v1
 metadata:
   name: "SUSE Solution"
-  version: "4.2.0"
   creationDate: "2025-07-10"
 corePlatform:
   image: "registry.suse.com/elemental/rke2/rke2-manifest:1.35"
@@ -44,7 +44,8 @@ components:
       values:
         replicas: 1
       dependsOn:
-      - "cert-manager"
+      - name: "cert-manager"
+        type: "helm"
       images:
       - name: "rancher"
         image: "registry.rancher.com/rancher/rancher:v2.11.1"
@@ -55,10 +56,11 @@ components:
       url: "https://charts.jetstack.io"
 ```
 
+* `schema` - Optional; Schema version of the release manifest, `v0` or `v1`. Defaults to `v0`. Manifests using the `v0` schema are still accepted and migrated to `v1` automatically.
 * `metadata` - Optional; General information about the solution version that this manifest describes.
   * `name` - Required; Name of the solution that this manifest describes.
-  * `version` - Required; Version of the solution release that this manifest describes.
   * `creationDate` - Optional; Defines the release date for the specified version.
+  * `version` - Required in `v0` manifests only; Version of the solution release that this manifest describes. Not allowed in `v1` manifests.
 * `corePlatform` - Required; Defines the `Core Platform` release version that this solution wishes to be based upon and extend.
   * `image` - Required; Container image pointing to the desired `Core Platform` release manifest.
 * `components` - Optional; Components with which to extend the `Core Platform`.
@@ -71,6 +73,8 @@ components:
       * `namespace` - Optional; Namespace where the Helm chart will be deployed. Defaults to the `default` namespace.
       * `values` - Optional; Custom Helm chart values.
       * `dependsOn` - Optional; Defines any chart dependencies that this chart has. Any dependency charts will be deployed before the actual chart.
+        * `name` - Required; Name of the dependency.
+        * `type` - Required; Type of the dependency, `helm` or `sysext`.
       * `priorityUpgrade` - Optional; Defines whether the chart, together with its dependencies, is upgraded before the full upgrade workflow runs. Requires manifest schema `v1`.
       * `images` - Optional; Defines images that this chart utilizes.
         * `name` - Required; Reference name for the specified image.
@@ -104,10 +108,13 @@ Defines the set of components that make up a specific `Core Platform` release ve
 ```yaml
 # The values shown in this example are for illustrative purposes only
 # and should not be used directly
+schema: v1
 metadata:
   name: "SUSE Core Platform"
-  version: "0.0.2"
   creationDate: "2025-07-14"
+  elemental:
+    version: "3.1"
+    image: "registry.suse.com/elemental/elemental:3.1"
 components:
   operatingSystem:
     image:
@@ -132,6 +139,10 @@ The manifest's structure is similar to that of the [Solution Release Manifest](#
 
 This reference focuses only on the unique to the Core Platform component APIs. Any components not mentioned here share the same description as those in the `Solution Release Manifest`.
 
+* `metadata` - General information about the Core Platform release.
+  * `elemental` - Optional, `v1` manifests only; Elemental release this Core Platform is built for. `elemental3 customize` refuses Core Platforms whose Elemental version is undefined or incompatible with its own version. `v0` manifests that define `metadata` are treated as Elemental `3.0`.
+    * `version` - Required; Elemental version, e.g. `3.1`.
+    * `image` - Optional; Location of the matching `elemental3` container image.
 * `components` - Components described by the Core Platform release manifest.
   * `operatingSystem` - Operating system related components.
     * `image` - Location to different operating system container images.
