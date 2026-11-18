@@ -213,9 +213,11 @@ func (h *Helm) evaluateLCMDeps(rm *resolver.ResolvedManifest, conf *image.Config
 
 	// check if LCM is defined in core manifest charts.
 	// if release.yaml doesn't list LCM, customize is should fail at validation level and never reach up to this point.
-	lcmChart = api.GetChart(elementalLifecycleManager, rm.CorePlatform.Components.Helm.Charts)
+	if rm.CorePlatform.Components.Helm != nil {
+		lcmChart = api.GetChart(elementalLifecycleManager, rm.CorePlatform.Components.Helm.Charts)
+	}
 	if lcmChart == nil {
-		return fmt.Errorf("\"elemental-lifecycle-manager\" not listed in release.yaml")
+		return fmt.Errorf("chart %q is not defined in the core platform release manifest", elementalLifecycleManager)
 	}
 
 	enabled := conf.Release.Components.HelmCharts

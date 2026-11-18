@@ -1174,4 +1174,20 @@ webhook:
 			})
 		})
 	})
+
+	It("fails when the core platform does not define LCM", func() {
+		conf.Release.Components.HelmCharts = []release.HelmChart{{Name: "elemental-lifecycle-manager"}}
+		rm.CorePlatform.Components.Helm.Charts = rm.CorePlatform.Components.Helm.Charts[1:]
+
+		err := h.evaluateLCMDeps(rm, conf)
+		Expect(err).To(MatchError(`chart "elemental-lifecycle-manager" is not defined in the core platform release manifest`))
+	})
+
+	It("fails when the core platform does not define any Helm charts", func() {
+		conf.Release.Components.HelmCharts = []release.HelmChart{{Name: "elemental-lifecycle-manager"}}
+		rm.CorePlatform.Components.Helm = nil
+
+		err := h.evaluateLCMDeps(rm, conf)
+		Expect(err).To(MatchError(`chart "elemental-lifecycle-manager" is not defined in the core platform release manifest`))
+	})
 })
