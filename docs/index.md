@@ -56,6 +56,7 @@ In practice, `elemental3ctl` runs on target systems and manages their lifecycle 
 ## Documentation
 * [Using Elemental for the first time](cookbook-first-time-use.md) - First use guide for the Elemental 3 project
 * [Image Customization](image-customization.md) - for users and/or consumers interested in customizing images that are based on a specific release.
+* [Air-gapped Deployments](airgapped-deployments.md) - for users and/or consumers interested in building images that deploy Kubernetes clusters without network access.
 * [Release Manifest Guide](release-manifest.md) - for consumers interested in creating a release manifest for their solution.
 * [Configuration Directory Guide](configuration-directory.md) - for users and/or consumers interested in checking configration options.
 * [Filesystem Layout Guide](filesystem.md) - for users and/or consumers interested in knowing the system layout and the nuances of data persistency across updates.

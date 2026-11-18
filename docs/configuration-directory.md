@@ -202,6 +202,8 @@ elementalEmbeddedRegistry:
       * `username` - Required; Defines the username for accessing the specified registry.
       * `password` - Required; Defines the password for accessing the specified registry.
 
+For more information on air-gapped images, refer to the [Air-gapped Deployments](airgapped-deployments.md) guide.
+
 ### Kubernetes Directory
 
 The `kubernetes/` directory enables users to configure custom Helm chart values and/or further extend the Kubernetes cluster with locally defined manifests.

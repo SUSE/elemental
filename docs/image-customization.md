@@ -4,7 +4,7 @@ This section provides an overview of how the `elemental3` command-line interface
 
 For general information about the customization process, refer to the [Customization Process](#customization-process) section.
 
-For information on booting images in air-gapped environments, refer to the [Air-gapped images](#air-gapped-images) section.
+For information on building images for air-gapped environments, refer to the [Air-gapped Deployments](airgapped-deployments.md) guide.
 
 For information on how to boot a customized image, refer to the [Booting a customized image](#booting-a-customized-image) section.
 
@@ -197,7 +197,7 @@ Passing the `--airgap` option to `elemental3 customize` produces an image that c
 deploys its workloads without any network access by embedding all of the necessary artifacts into the image at customization time.
 
 This includes: 
-* **Kubernetes** - the RKE2 container image archives for the core components and the CNI plugins.
+* **Kubernetes** - the RKE2 container images for the core components, the configured CNI plugins, and the configured ingress controller.
 * **Helm charts** - every configured Helm chart is pulled during customization and embedded into the built image.
 * **Container images** - all container images specified and detected during customization time from:
   * templating every Helm chart with the respective settings and values and extracting the container images from the template,
@@ -216,6 +216,8 @@ podman run -it \
   customize --type <raw/iso> \
   --airgap
 ```
+
+For requirements, configuration options, building without network access, and limitations, refer to the [Air-gapped Deployments](airgapped-deployments.md) guide.
 
 ## Booting a customized image
 
