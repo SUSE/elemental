@@ -650,6 +650,8 @@ spec:
 			data := findFileContentsInConfig(config, filepath.Join("/", image.KubernetesManifestsPath(), "apache-auth-priority.yaml"))
 			Expect(data).NotTo(BeNil())
 			Expect(*data).To(Equal(apacheAuthSecret))
+			Expect(findFileModeInConfig(config, filepath.Join("/", image.KubernetesManifestsPath(), "apache-auth-priority.yaml"))).To(HaveValue(Equal(0o600)))
+			Expect(findFileModeInConfig(config, "/helm/apache.yaml")).To(HaveValue(Equal(0o600)))
 
 			data = findFileContentsInConfig(config, filepath.Join("/", image.KubernetesManifestsPath(), "postgres-auth-priority.yaml"))
 			Expect(data).NotTo(BeNil())

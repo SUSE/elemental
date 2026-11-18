@@ -557,6 +557,11 @@ data:
 			data = findFileContentsInConfig(config, filepath.Join("/", image.KubernetesManifestsPath(), "example-auth-priority.yaml"))
 			Expect(data).NotTo(BeNil())
 			Expect(*data).To(ContainSubstring(expectedExampleManifestContents))
+
+			// Files holding the cluster token or credentials are only readable by root
+			for _, name := range []string{"server.yaml", "init.yaml", "agent.yaml"} {
+				Expect(findFileModeInConfig(config, filepath.Join("/", image.KubernetesPath(), name))).To(HaveValue(Equal(0o600)), name)
+			}
 		})
 	})
 

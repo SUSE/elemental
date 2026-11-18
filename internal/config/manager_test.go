@@ -74,6 +74,15 @@ func findFileContentsInConfig(config *butane.Config, name string) *string {
 	return nil
 }
 
+func findFileModeInConfig(config *butane.Config, name string) *int {
+	for _, f := range config.Storage.Files {
+		if f.Path == name {
+			return f.Mode
+		}
+	}
+	return nil
+}
+
 type resolverMock struct {
 	resolveFunc func(uri string) (*resolver.ResolvedManifest, error)
 }

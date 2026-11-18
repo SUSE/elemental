@@ -61,7 +61,7 @@ func addManifest(fs vfs.FS, butaneCfg *butane.Config, path, name string) error {
 	}
 
 	content := string(data)
-	butaneCfg.AddFileInline(target, &content, 0o644)
+	butaneCfg.AddFileInline(target, &content, 0o600)
 	return nil
 }
 
