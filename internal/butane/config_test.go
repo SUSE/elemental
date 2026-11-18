@@ -20,6 +20,8 @@ package butane_test
 import (
 	"bytes"
 	"encoding/json"
+	"io"
+	"strings"
 	"testing"
 
 	"github.com/coreos/butane/base/v0_6"
@@ -98,4 +100,29 @@ var _ = Describe("Ignition configuration", func() {
 		Expect(len(units)).To(Equal(1))
 		Expect(units[0].(map[string]any)["enabled"]).To(BeTrue())
 	})
+
+	It("adds a file with inline contents from a reader", func() {
+		var conf butane.Config
+
+		Expect(conf.AddFileInlineFromReader("/etc/foo", io.NopCloser(strings.NewReader("bar")), 0o644)).To(Succeed())
+		Expect(conf.Storage.Files).To(HaveLen(1))
+		Expect(conf.Storage.Files[0].Path).To(Equal("/etc/foo"))
+		Expect(*conf.Storage.Files[0].Contents.Inline).To(Equal("bar"))
+	})
+
+	It("fails to add a file from a reader exceeding the maximum size", func() {
+		var conf butane.Config
+
+		tooBig := io.NopCloser(io.LimitReader(zeroReader{}, 16*1024*1024+1))
+		err := conf.AddFileInlineFromReader("/etc/foo", tooBig, 0o644)
+		Expect(err).To(MatchError(ContainSubstring("reading contents for file '/etc/foo'")))
+		Expect(conf.Storage.Files).To(BeEmpty())
+	})
 })
+
+type zeroReader struct{}
+
+func (zeroReader) Read(p []byte) (int, error) {
+	clear(p)
+	return len(p), nil
+}

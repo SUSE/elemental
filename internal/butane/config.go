@@ -71,7 +71,7 @@ func (c *Config) AddFileInlineFromReader(filename string, rc io.ReadCloser, mode
 
 	resource, err := resourceFromText(rc, maxResourceSize)
 	if err != nil {
-		return nil
+		return fmt.Errorf("reading contents for file '%s': %w", filename, err)
 	}
 
 	c.Storage.Files = append(c.Storage.Files, base.File{
