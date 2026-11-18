@@ -203,6 +203,7 @@ bootloader:
 - Added documentation for air-gapped images, the artifact cache, and `elementalEmbeddedRegistry` ([#593](https://github.com/SUSE/elemental/pull/593)).
 - Documented the three-way merge of snapshotted directories during upgrades and removed custom partitioning guidance ([#471](https://github.com/SUSE/elemental/pull/471)).
 - Documented the `priorityUpgrade` release manifest property ([#644](https://github.com/SUSE/elemental/pull/644)).
+- Added an air-gapped deployments guide covering requirements, embedded artifacts, building without network access, verification, troubleshooting, and limitations.
 - Documented release manifest schema `v1` and `metadata.elemental`, and fixed the release manifest guide examples so they pass validation.
 - Documented the `elemental-lifecycle-manager` requirement in the `release.yaml` reference ([#652](https://github.com/SUSE/elemental/pull/652)).
 - Rewrote the README and documentation index and dropped the outdated Linux image building guide ([#486](https://github.com/SUSE/elemental/pull/486)).

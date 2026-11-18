@@ -59,7 +59,7 @@ The requirements will vary depending on whether the machine used for customizing
 * **Disk Space:**
   * RAW disk: 50 GB for writing a 35 GB RAW disk
   * ISO media: 10 GB for writing a \~1 GB ISO
-* **Internet Access** for downloading customization artifacts. Offline / air-gapped capabilities are planned for the future (Elemental 3.1+).
+* **Internet Access** for downloading customization artifacts. To build images without network access, refer to the [Air-gapped Deployments](airgapped-deployments.md) guide.
 
 #### Hypervisor Host
 
