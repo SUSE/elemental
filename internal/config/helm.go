@@ -134,7 +134,7 @@ func (h *Helm) writeHelmCharts(butaneCfg *butane.Config, crds []*helm.CRD) ([]st
 		chartName := fmt.Sprintf("%s.yaml", crd.Metadata.Name)
 		relativePath := filepath.Join("/", h.RelativePath, chartName)
 
-		butaneCfg.AddFileInline(relativePath, new(string(data)), 0o644)
+		butaneCfg.AddFileInline(relativePath, new(string(data)), 0o600)
 
 		charts = append(charts, relativePath)
 	}
@@ -151,7 +151,7 @@ func (h *Helm) writeHelmSecrets(secrets []*helm.Secret, butaneCfg *butane.Config
 		}
 
 		secretName := fmt.Sprintf("%s-priority.yaml", secret.Metadata.Name)
-		butaneCfg.AddFileInline(filepath.Join("/", image.KubernetesManifestsPath(), secretName), new(string(data)), 0o644)
+		butaneCfg.AddFileInline(filepath.Join("/", image.KubernetesManifestsPath(), secretName), new(string(data)), 0o600)
 	}
 
 	return nil

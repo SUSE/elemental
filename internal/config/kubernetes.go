@@ -360,7 +360,7 @@ func appendRke2Configuration(s *sys.System, butaneCfg *butane.Config, k *kuberne
 		return fmt.Errorf("failed marshaling server config: %w", err)
 	}
 
-	butaneCfg.AddFileInline(filepath.Join(k8sPath, "server.yaml"), new(string(joiningServerBytes)), 0o644)
+	butaneCfg.AddFileInline(filepath.Join(k8sPath, "server.yaml"), new(string(joiningServerBytes)), 0o600)
 
 	if c.InitServerConfig != nil {
 		initServerBytes, err := marshalConfig(c.InitServerConfig)
@@ -368,7 +368,7 @@ func appendRke2Configuration(s *sys.System, butaneCfg *butane.Config, k *kuberne
 			return fmt.Errorf("failed marshaling init-server config: %w", err)
 		}
 
-		butaneCfg.AddFileInline(filepath.Join(k8sPath, "init.yaml"), new(string(initServerBytes)), 0o644)
+		butaneCfg.AddFileInline(filepath.Join(k8sPath, "init.yaml"), new(string(initServerBytes)), 0o600)
 	}
 
 	if c.AgentConfig != nil {
@@ -377,7 +377,7 @@ func appendRke2Configuration(s *sys.System, butaneCfg *butane.Config, k *kuberne
 			return fmt.Errorf("failed marshaling agent config: %w", err)
 		}
 
-		butaneCfg.AddFileInline(filepath.Join(k8sPath, "agent.yaml"), new(string(agentBytes)), 0o644)
+		butaneCfg.AddFileInline(filepath.Join(k8sPath, "agent.yaml"), new(string(agentBytes)), 0o600)
 	}
 
 	if c.RegistriesConfig != nil {
@@ -386,7 +386,7 @@ func appendRke2Configuration(s *sys.System, butaneCfg *butane.Config, k *kuberne
 			return fmt.Errorf("failed marshaling agent config: %w", err)
 		}
 
-		butaneCfg.AddFileInline(filepath.Join(k8sPath, "registries.yaml"), new(string(registriesBytes)), 0o644)
+		butaneCfg.AddFileInline(filepath.Join(k8sPath, "registries.yaml"), new(string(registriesBytes)), 0o600)
 	}
 
 	if k.Network.IsManagedInternally() {
