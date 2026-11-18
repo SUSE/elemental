@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -89,7 +90,8 @@ func ReconcileDevicePartitions(s *sys.System, d *deployment.Disk) error {
 	return nil
 }
 
-// CreateDiskImage creates a disk image file with the given size and partitions
+// CreateDiskImage creates a disk image file with the given size and partitions. If size is set to zero the
+// disk is created with the minimal required size to include the given partitions.
 func CreateDiskImage(s *sys.System, filename string, size deployment.MiB, partitions []Partition) error {
 	s.Logger().Info("Partitioning image '%s'", filename)
 
@@ -101,6 +103,43 @@ func CreateDiskImage(s *sys.System, filename string, size deployment.MiB, partit
 	}
 	flags := []string{"--empty=create", sizeFlag}
 	return runSystemdRepart(s, filename, partitions, flags...)
+}
+
+// CreateSparseDiskImage creates a disk image file with the given size and partitions. The disk is created with
+// the minimal required size to include the given partitions and then truncated to actual requested size. A size of
+// 0 keeps the disk to the minimal required size.
+func CreateSparseDiskImage(s *sys.System, filename string, size deployment.MiB, partitions []Partition) (err error) {
+	err = CreateDiskImage(s, filename, 0, partitions)
+	if err != nil {
+		return fmt.Errorf("creating raw disk image: %w", err)
+	}
+	if size == 0 {
+		return nil
+	}
+
+	f, err := s.FS().OpenFile(filename, os.O_APPEND|os.O_WRONLY, vfs.FilePerm)
+	if err != nil {
+		return fmt.Errorf("opening %q disk image: %w", filename, err)
+	}
+	defer func() {
+		err = errors.Join(err, f.Close())
+	}()
+	fi, err := f.Stat()
+	if err != nil {
+		return err
+	}
+	if size > math.MaxInt64>>20 {
+		return fmt.Errorf("size %d MiB overflows int64", size)
+	}
+	sizeB := int64(size << 20)
+	if fi.Size() > sizeB {
+		return fmt.Errorf("requested size %d is smaller than the minimum required size %d", sizeB, fi.Size())
+	}
+	err = f.Truncate(sizeB)
+	if err != nil {
+		return fmt.Errorf("truncating the disk image to the desired size (%dMiB): %w", size, err)
+	}
+	return nil
 }
 
 // CreatePartitionConfFile writes a partition configuration for systemd-repart for the given partition into the given file

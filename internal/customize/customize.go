@@ -114,9 +114,6 @@ func (r *Runner) Run(ctx context.Context, def *image.Definition, output config.O
 	}
 	if mediaType == installer.Disk {
 		diskSizeStr := def.Configuration.Installation.RAW.DiskSize
-		if diskSizeStr == "" {
-			diskSizeStr = "12G"
-		}
 		if !diskSizeStr.IsValid() {
 			return fmt.Errorf("invalid disk size definition '%s'", diskSizeStr)
 		}

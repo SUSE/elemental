@@ -530,6 +530,26 @@ disks:
 		Expect(err).To(MatchError(ContainSubstring("only supported for qcow2")))
 	})
 
+	It("accepts an empty RAW disk size and leaves it to auto", func() {
+		customizeRunner.Media = &mediaMock{
+			customizeFunc: func(d *deployment.Deployment) error { return nil },
+		}
+		def := &image.Definition{
+			Image: image.Image{
+				ImageType:       "raw",
+				OutputImageName: "customized.raw",
+			},
+			Configuration: &image.Configuration{
+				Installation: install.Installation{
+					Bootloader: "grub",
+				},
+			},
+		}
+		Expect(def.Configuration.Installation.RAW.DiskSize).To(BeEmpty())
+		Expect(customizeRunner.Run(context.Background(), def, output)).To(Succeed())
+		Expect(def.Configuration.Installation.RAW.DiskSize).To(BeEmpty())
+	})
+
 	It("fails to resize RAW disk", func() {
 		def := &image.Definition{
 			Image: image.Image{

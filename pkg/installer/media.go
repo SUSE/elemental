@@ -876,11 +876,11 @@ func (i Media) extension() string {
 // images the disk is first created as a sparse raw image within tempDir and then converted.
 func (i Media) createDiskImage(tempDir string, size deployment.MiB, parts []repart.Partition) error {
 	if i.diskFormat != FormatQCOW2 {
-		return repart.CreateDiskImage(i.s, i.outputFile, size, parts)
+		return repart.CreateSparseDiskImage(i.s, i.outputFile, size, parts)
 	}
 
 	rawImg := filepath.Join(tempDir, "disk.raw")
-	err := repart.CreateDiskImage(i.s, rawImg, size, parts)
+	err := repart.CreateSparseDiskImage(i.s, rawImg, size, parts)
 	if err != nil {
 		return err
 	}

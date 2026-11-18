@@ -32,11 +32,18 @@ import (
 type DiskSize string
 
 func (d DiskSize) IsValid() bool {
+	if d == "" {
+		return true
+	}
 	return regexp.MustCompile(`^[1-9]\d*[KMGT]$`).MatchString(string(d))
 }
 
 // returns the size in MiB
 func (d DiskSize) ToMiB() (uint64, error) {
+	if d == "" {
+		return uint64(0), nil
+	}
+
 	size := strings.TrimSpace(string(d))
 	dimension := uint64(1)
 	switch unicode.ToUpper(rune(size[len(size)-1])) {
