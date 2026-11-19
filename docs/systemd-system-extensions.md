@@ -143,7 +143,7 @@ mkosi --directory $PWD
 ```
 The resulting system extension will be available in the `mkosi.output/` directory as `tools-1.0_1.0_x86-64.raw`.
 
-Such systemd extensions can be included as an overlay in the Elemental customization process.
-
-Further steps to build the image can be found in the document for
-[Building Linux image](./building-linux-image.md#preparing-the-system-extension-image-as-an-overlay).
+To include such a systemd extension in a customized image, publish it at an HTTP(S) URL or as an OCI image and list it
+under `components.systemd.extensions` of a Solution release manifest, as described in the
+[Release Manifest Guide](release-manifest.md). Then enable it under `components.systemd` in
+[release.yaml](configuration-directory.md#releaseyaml).
