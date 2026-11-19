@@ -24,70 +24,25 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
 	"github.com/suse/elemental/v3/pkg/sys"
-	"github.com/suse/elemental/v3/pkg/sys/platform"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
 
 const (
 	HaulerBinary      = "hauler"
-	HaulerDir         = "/usr/lib/elemental/hauler"
 	registryListening = "listening on"
 	outputLines       = 10
 )
 
 type Hauler struct {
-	s      *sys.System
-	binary string
+	s *sys.System
 }
 
-type Opt func(h *Hauler)
-
-func WithBinary(path string) Opt {
-	return func(h *Hauler) {
-		h.binary = path
-	}
-}
-
-func New(s *sys.System, opts ...Opt) *Hauler {
-	h := &Hauler{s: s, binary: HaulerBinary}
-
-	for _, o := range opts {
-		o(h)
-	}
-
-	return h
-}
-
-func (h *Hauler) HaulerPath(platformRef string) (string, error) {
-	p, err := platform.Parse(platformRef)
-	if err != nil {
-		return "", fmt.Errorf("parsing platform %q: %w", platformRef, err)
-	}
-
-	bundled := filepath.Join(HaulerDir, p.GolangArch, HaulerBinary)
-	exists, err := vfs.Exists(h.s.FS(), bundled)
-	if err != nil {
-		return "", fmt.Errorf("checking bundled hauler binary '%s': %w", bundled, err)
-	}
-	if exists {
-		return bundled, nil
-	}
-
-	if host := h.s.Platform().String(); p.String() != host {
-		return "", fmt.Errorf("no hauler binary available for platform %s on a %s host", p.String(), host)
-	}
-
-	path, err := exec.LookPath(h.binary)
-	if err != nil {
-		return "", fmt.Errorf("locating hauler executable: %w", err)
-	}
-
-	return path, nil
+func New(s *sys.System) *Hauler {
+	return &Hauler{s: s}
 }
 
 func (h *Hauler) Login(ctx context.Context, registry, username, password string) error {
@@ -99,7 +54,7 @@ func (h *Hauler) Login(ctx context.Context, registry, username, password string)
 	}
 
 	err := h.s.Runner().RunContextWithPipe(ctx, writePassword, &out, &out, "", nil,
-		h.binary, "login", registry, "--username", username, "--password-stdin")
+		HaulerBinary, "login", registry, "--username", username, "--password-stdin")
 	if err != nil {
 		return fmt.Errorf("logging into registry %s: %w: %s", registry, err, strings.TrimSpace(out.String()))
 	}
@@ -134,12 +89,12 @@ func (h *Hauler) SaveImage(ctx context.Context, image, platform, archive string)
 	}
 	args = append(args, "--store", storePath)
 
-	out, err := h.s.Runner().RunContext(ctx, h.binary, args...)
+	out, err := h.s.Runner().RunContext(ctx, HaulerBinary, args...)
 	if err != nil {
 		return fmt.Errorf("adding image %s to hauler store: %w: %s", image, err, strings.TrimSpace(string(out)))
 	}
 
-	out, err = h.s.Runner().RunContext(ctx, h.binary, "store", "save", "--filename", archivePath, "--store", storePath)
+	out, err = h.s.Runner().RunContext(ctx, HaulerBinary, "store", "save", "--filename", archivePath, "--store", storePath)
 	if err != nil {
 		return fmt.Errorf("saving hauler store for image %s: %w: %s", image, err, strings.TrimSpace(string(out)))
 	}
@@ -165,7 +120,7 @@ func (h *Hauler) LoadStore(ctx context.Context, store string, archives ...string
 		args = append(args, "--filename", archivePath)
 	}
 
-	out, err := h.s.Runner().RunContext(ctx, h.binary, args...)
+	out, err := h.s.Runner().RunContext(ctx, HaulerBinary, args...)
 	if err != nil {
 		return fmt.Errorf("loading archives into hauler store: %w: %s", err, strings.TrimSpace(string(out)))
 	}
@@ -207,7 +162,7 @@ func (h *Hauler) ExportRegistry(ctx context.Context, store, dir string) error {
 		}
 	}
 
-	err = h.s.Runner().RunContextParseOutput(ctx, onHaulerOutput, onRegistryOutput, h.binary,
+	err = h.s.Runner().RunContextParseOutput(ctx, onHaulerOutput, onRegistryOutput, HaulerBinary,
 		"store", "serve", "registry", "--store", storePath, "--directory", dirPath, "--port", "0")
 	if exported {
 		return nil

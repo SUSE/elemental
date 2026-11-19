@@ -21,7 +21,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"path/filepath"
 	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -75,32 +74,6 @@ var _ = Describe("Hauler", Label("hauler"), func() {
 
 	AfterEach(func() {
 		cleanup()
-	})
-
-	Describe("HaulerPath", func() {
-		It("Prefers the bundled binary for the requested platform", func() {
-			bundled := filepath.Join(hauler.HaulerDir, "arm64", hauler.HaulerBinary)
-			Expect(vfs.MkdirAll(fs, filepath.Dir(bundled), vfs.DirPerm)).To(Succeed())
-			Expect(fs.WriteFile(bundled, []byte{}, vfs.FilePerm)).To(Succeed())
-
-			Expect(h.HaulerPath("linux/arm64")).To(Equal(bundled))
-		})
-
-		It("Falls back to the executable in PATH for the host platform", func() {
-			h = hauler.New(s, hauler.WithBinary("sh"))
-
-			Expect(h.HaulerPath("linux/amd64")).To(HaveSuffix("/sh"))
-		})
-
-		It("Fails for a foreign platform without a bundled binary", func() {
-			_, err := h.HaulerPath("linux/arm64")
-			Expect(err).To(MatchError(ContainSubstring("no hauler binary available for platform linux/arm64")))
-		})
-
-		It("Fails on an invalid platform", func() {
-			_, err := h.HaulerPath("amd64")
-			Expect(err).To(MatchError(ContainSubstring("parsing platform")))
-		})
 	})
 
 	Describe("Login", func() {

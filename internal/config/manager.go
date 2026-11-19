@@ -58,7 +58,6 @@ type imageStore interface {
 	LoadStore(ctx context.Context, store string, archives ...string) error
 	ExportRegistry(ctx context.Context, store, dir string) error
 	WriteEmptyStore(dir string) error
-	HaulerPath(platform string) (string, error)
 }
 
 type Manager struct {
