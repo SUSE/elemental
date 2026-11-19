@@ -23,17 +23,15 @@ Please familiarize yourself with both points before attempting to customize your
 
 For further understanding of the customization process, you can also refer to the following sections:
 
-- [Limitations](#limitations) - for any limitations that the process might have.
+- [Supported platforms](#supported-platforms) - for the platforms that images can be customized for.
 - [Overview](#overview) - for a high-level description of the steps that the customization process goes through.
 - [Execution](#execution) - for supported methods to trigger the customization process.
 
-### Limitations
+### Supported platforms
 
-Currently, the image customization process has the following limitations:
+Images can be customized for `linux/amd64` and `linux/arm64`. The target platform is selected with the `--platform` option, which defaults to the architecture of the customization host, and does not need to match it. For example, `linux/arm64` images can be customized on an `x86_64` host.
 
-1. Supports customizing images only for `x86_64` platforms.
-
-Elemental is in active development, and these limitations **will** be addressed as part of the product roadmap.
+The release manifests must provide the operating system and Kubernetes artifacts for the selected platform.
 
 ### Overview
 
