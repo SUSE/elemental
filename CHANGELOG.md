@@ -194,6 +194,7 @@ bootloader:
 - Fixed `elemental3 release-info` panicking on release manifests without a `metadata` section.
 - Fixed upgrades on systems with the SELinux policy store under `/etc/selinux` (SLES 16.1) by refreshing the policy before relabeling ([#618](https://github.com/SUSE/elemental/pull/618)).
 - Fixed systemd-repart `EBUSY` failures in containers on all architectures by creating loop device nodes whenever running in a container ([#654](https://github.com/SUSE/elemental/pull/654)).
+- Fixed images customized for another architecture than the customization host using the host architecture for the root partition type of RAW and qcow2 images and for the EFI boot file of netboot artifacts.
 - Fixed the "Release Date" label in `elemental3 release-info` output (also in v3.0.2) ([#527](https://github.com/SUSE/elemental/pull/527)).
 - Fixed `make clean` on macOS ([#494](https://github.com/SUSE/elemental/pull/494)).
 

@@ -69,6 +69,23 @@ func Setup(ctx context.Context, cmd *cli.Command) (context.Context, error) {
 	return ctx, nil
 }
 
+// setSystemPlatform sets the platform of the system used by the command run. By default the system
+// targets the host platform, commands accepting a '--platform' option target the given one instead.
+func setSystemPlatform(cmd *cli.Command, platform string) error {
+	s, ok := cmd.Root().Metadata["system"].(*sys.System)
+	if !ok {
+		return fmt.Errorf("system not initialized")
+	}
+
+	target, err := s.ForPlatform(platform)
+	if err != nil {
+		return cli.Exit(fmt.Sprintf("Error: Unsupported --platform option: %s.", err), 1)
+	}
+
+	cmd.Root().Metadata["system"] = target
+	return nil
+}
+
 func Teardown(_ context.Context, _ *cli.Command) error {
 	if logFile != nil {
 		return logFile.Close()

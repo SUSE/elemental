@@ -165,14 +165,14 @@ func setupCustomizeRunner(
 		return nil, fmt.Errorf("setting up cache: %w", err)
 	}
 
-	extr, err := setupFileExtractor(ctx, s, output, c, args.Platform)
+	extr, err := setupFileExtractor(ctx, s, output, c)
 	if err != nil {
 		return nil, fmt.Errorf("setting up file extractor: %w", err)
 	}
 
 	return &customize.Runner{
 		System:        s,
-		ConfigManager: setupConfigManager(s, args.ConfigDir, output, c, args.Platform, args.Airgap),
+		ConfigManager: setupConfigManager(s, args.ConfigDir, output, c, args.Airgap),
 		FileExtractor: extr,
 	}, nil
 }
@@ -214,7 +214,7 @@ func resolveCacheDir(s *sys.System, cacheDir, configDir string, policy cache.Pol
 	return "", fmt.Errorf("cache directory '%s' does not exist, make sure it is mounted", cacheDir)
 }
 
-func setupConfigManager(s *sys.System, configDir string, output config.Output, c *cache.Cache, platform string, airgap bool) *config.Manager {
+func setupConfigManager(s *sys.System, configDir string, output config.Output, c *cache.Cache, airgap bool) *config.Manager {
 	valuesResolver := &helm.ValuesResolver{
 		FS:        s.FS(),
 		ValuesDir: v0.Dir(configDir).HelmValuesDir(),
@@ -231,12 +231,12 @@ func setupConfigManager(s *sys.System, configDir string, output config.Output, c
 		s,
 		helmConfigurator,
 		config.WithCache(c),
-		config.WithPlatform(platform),
+		config.WithPlatform(s.Platform().String()),
 		config.WithAirgap(airgap),
 	)
 }
 
-func setupFileExtractor(ctx context.Context, s *sys.System, outDir config.Output, c *cache.Cache, platform string) (extr *extractor.OCIFileExtractor, err error) {
+func setupFileExtractor(ctx context.Context, s *sys.System, outDir config.Output, c *cache.Cache) (extr *extractor.OCIFileExtractor, err error) {
 	const isoSearchGlob = "/iso/*.iso"
 
 	if err := vfs.MkdirAll(s.FS(), outDir.ISOStoreDir(), vfs.DirPerm); err != nil {
@@ -249,7 +249,7 @@ func setupFileExtractor(ctx context.Context, s *sys.System, outDir config.Output
 		extractor.WithFS(s.FS()),
 		extractor.WithContext(ctx),
 		extractor.WithCache(c),
-		extractor.WithPlatform(platform),
+		extractor.WithPlatform(s.Platform().String()),
 	)
 }
 

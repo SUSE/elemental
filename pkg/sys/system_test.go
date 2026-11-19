@@ -81,6 +81,33 @@ var _ = Describe("System", Label("system"), func() {
 		)
 		Expect(err).To(HaveOccurred())
 	})
+	It("Returns a copy for another platform sharing all other components", func() {
+		s, err := sys.NewSystem(
+			sys.WithFS(fs), sys.WithLogger(logger),
+			sys.WithMounter(mounter), sys.WithPlatform("linux/amd64"),
+			sys.WithRunner(runner), sys.WithSyscall(syscall),
+		)
+		Expect(err).ToNot(HaveOccurred())
+
+		target, err := s.ForPlatform("linux/arm64")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(target.Platform().String()).To(Equal("linux/arm64"))
+		Expect(target.Runner()).To(BeIdenticalTo(runner))
+		Expect(target.Mounter()).To(BeIdenticalTo(mounter))
+		Expect(target.FS()).To(BeIdenticalTo(fs))
+		Expect(target.Logger()).To(BeIdenticalTo(logger))
+		Expect(target.Syscall()).To(BeIdenticalTo(syscall))
+
+		// The original system keeps its platform
+		Expect(s.Platform().String()).To(Equal("linux/amd64"))
+	})
+	It("Fails to return a copy for an invalid platform", func() {
+		s, err := sys.NewSystem(sys.WithFS(fs), sys.WithLogger(logger))
+		Expect(err).ToNot(HaveOccurred())
+
+		_, err = s.ForPlatform("linux/s390")
+		Expect(err).To(HaveOccurred())
+	})
 	It("Checks command existence in path", func() {
 		Expect(sys.CommandExists("true")).To(BeTrue())
 		Expect(sys.CommandExists("non-existing-command")).To(BeFalse())

@@ -42,7 +42,6 @@ func Unpack(ctx context.Context, cmd *cli.Command) error {
 
 	unpacker := unpack.NewOCIUnpacker(s, args.Image,
 		unpack.WithLocalOCI(args.Local),
-		unpack.WithPlatformRefOCI(args.Platform),
 		unpack.WithVerifyOCI(args.Verify))
 
 	ctxSignal, stop := signal.NotifyContext(ctx, syscall.SIGTERM, syscall.SIGINT)

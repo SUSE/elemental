@@ -139,6 +139,18 @@ func (s System) Platform() *platform.Platform {
 	return s.platform
 }
 
+// ForPlatform returns a copy of the system targeting the given platform. All other
+// components are shared with the original system.
+func (s System) ForPlatform(pf string) (*System, error) {
+	p, err := platform.Parse(pf)
+	if err != nil {
+		return nil, err
+	}
+
+	s.platform = p
+	return &s, nil
+}
+
 func (s System) FS() vfs.FS {
 	return s.fs
 }
