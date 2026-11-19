@@ -74,7 +74,7 @@ func NewCustomizeCommand(appName string, action func(context.Context, *cli.Comma
 				return ctx, cli.Exit("Error: --overlay can only be used with '--type qcow2'.", 1)
 			}
 
-			return ctx, nil
+			return ctx, setSystemPlatform(cmd, CustomizeArgs.Platform)
 		},
 		Action: action,
 		Flags: []cli.Flag{

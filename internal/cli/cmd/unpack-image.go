@@ -40,7 +40,10 @@ func NewUnpackImageCommand(appName string, action func(context.Context, *cli.Com
 		Name:      "unpack-image",
 		Usage:     "Unpacks an image to the specified location",
 		UsageText: fmt.Sprintf("%s unpack-image [OPTIONS]", appName),
-		Action:    action,
+		Before: func(ctx context.Context, cmd *cli.Command) (context.Context, error) {
+			return ctx, setSystemPlatform(cmd, UnpackArgs.Platform)
+		},
+		Action: action,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:        "image",
