@@ -212,6 +212,19 @@ var _ = Describe("Snapper", Label("snapper"), func() {
 		Expect(err).To(HaveOccurred())
 		Expect(err).To(MatchError("snapper modify failed"))
 	})
+	It("deletes a snapshot", func() {
+		Expect(snap.DeleteSnapshot("/some/root", "etc", 7)).To(Succeed())
+		Expect(snap.DeleteSnapshot("/", "", 3)).To(Succeed())
+		Expect(runner.CmdsMatch([][]string{
+			{"snapper", "--no-dbus", "--root", "/some/root", "-c", "etc", "delete", "7"},
+			{"snapper", "--no-dbus", "-c", "root", "delete", "3"},
+		})).To(Succeed())
+
+		runner.ReturnValue = []byte("Snapshot '7' not found.\n")
+		runner.ReturnError = fmt.Errorf("snapper delete failed")
+		err := snap.DeleteSnapshot("/some/root", "etc", 7)
+		Expect(err).To(MatchError("deleting snapshot 7 of 'etc': Snapshot '7' not found.: snapper delete failed"))
+	})
 	It("runs snapper status and writes to a file", func() {
 		Expect(snap.Status("/some/root", "", "/status_file", 3, 4)).To(Succeed())
 

@@ -24,6 +24,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"github.com/suse/elemental/v3/pkg/sys/vfs"
 	"github.com/suse/elemental/v3/pkg/transaction"
 )
 
@@ -178,6 +179,11 @@ var _ = Describe("SnapperTransaction", Label("transaction"), func() {
 				})).To(Succeed())
 			})
 		})
+		It("starts from the default snapshot without removing anything if no transaction was interrupted", func() {
+			trans = startUpgradeTransaction()
+			Expect(runner.IncludesCmds([][]string{{"btrfs", "subvolume", "delete"}})).NotTo(Succeed())
+			Expect(runner.IncludesCmds([][]string{{"snapper", "--no-dbus", "--root", "/.snapshots/4/snapshot", "-c", "etc", "delete"}})).NotTo(Succeed())
+		})
 		It("it fails to start a transaction if it does not find previous snapshotted volumes", func() {
 			sideEffects["snapper"] = func(args ...string) ([]byte, error) {
 				if slices.Contains(args, "create") {
@@ -193,6 +199,107 @@ var _ = Describe("SnapperTransaction", Label("transaction"), func() {
 			Expect(runner.MatchMilestones([][]string{
 				{"snapper", "--no-dbus", "--root", "/.snapshots/4/snapshot", "-c", "etc", "--jsonout", "list"},
 			})).To(Succeed())
+		})
+	})
+	Describe("running an upgrade transaction after an interrupted one", func() {
+		// initInterruptedUpgrade initiates the transactioner on a host that runs snapshot 4, the default, and
+		// has the leftovers of a transaction that was interrupted while it was creating snapshot 5.
+		initInterruptedUpgrade := func() {
+			sideEffects["snapper"] = func(args ...string) ([]byte, error) {
+				if slices.Contains(args, "list") && slices.Contains(args, "root") {
+					return []byte(interruptedSnapList), nil
+				}
+				return runner.ReturnValue, runner.ReturnError
+			}
+			Expect(mount.Mount("/dev/sda2", "/", "", []string{"ro", "subvol=@/.snapshots/4/snapshot"})).To(Succeed())
+			sideEffects["lsblk"] = func(args ...string) ([]byte, error) {
+				return []byte(lsblkJson), nil
+			}
+			sn = transaction.NewSnapper(ctx, s)
+			_, err = sn.Init(*d)
+			Expect(err).NotTo(HaveOccurred())
+			runner.ClearCmds()
+
+			sideEffects["snapper"] = func(args ...string) ([]byte, error) {
+				if slices.Contains(args, "create") {
+					return []byte("6\n"), nil
+				}
+				if slices.Contains(args, "etc") && slices.Contains(args, "list") {
+					return []byte(interruptedEtcSnaps), nil
+				}
+				if slices.Contains(args, "home") && slices.Contains(args, "list") {
+					return []byte(homeSnaps), nil
+				}
+				return runner.ReturnValue, runner.ReturnError
+			}
+		}
+
+		It("removes what the interrupted transaction left behind before it creates the new snapshot", func() {
+			initInterruptedUpgrade()
+
+			trans, err := sn.Start()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(trans.ID).To(Equal(6))
+
+			Expect(runner.MatchMilestones([][]string{
+				// the interrupted snapshot, including its nested subvolumes
+				{"btrfs", "property", "set", "-ts", "/.snapshots/5/snapshot", "ro", "false"},
+				{"btrfs", "subvolume", "delete", "-c", "-R", "/.snapshots/5/snapshot"},
+				{"snapper", "--no-dbus", "-c", "root", "create", "--print-number"},
+				// the pre-transaction snapshots of /etc of the interrupted and of two failed transactions
+				{"snapper", "--no-dbus", "--root", "/.snapshots/4/snapshot", "-c", "etc", "delete", "3"},
+				{"snapper", "--no-dbus", "--root", "/.snapshots/4/snapshot", "-c", "etc", "delete", "4"},
+				{"snapper", "--no-dbus", "--root", "/.snapshots/4/snapshot", "-c", "etc", "delete", "5"},
+				{"snapper", "--no-dbus", "--root", "/.snapshots/4/snapshot", "-c", "etc", "create", "--print-number"},
+				{"btrfs", "subvolume", "snapshot"},
+			})).To(Succeed())
+
+			By("removing the metadata of the interrupted snapshot as well")
+			ok, _ := vfs.Exists(tfs, "/.snapshots/5")
+			Expect(ok).To(BeFalse())
+		})
+		It("keeps the snapshots that are not leftovers", func() {
+			initInterruptedUpgrade()
+
+			_, err := sn.Start()
+			Expect(err).NotTo(HaveOccurred())
+
+			for _, kept := range []string{"1", "2", "3", "4"} {
+				path := "/.snapshots/" + kept + "/snapshot"
+				Expect(runner.IncludesCmds([][]string{{"btrfs", "subvolume", "delete", "-c", "-R", path}})).NotTo(Succeed(), path)
+			}
+			// the stock and the post-transaction snapshots of /etc
+			for _, kept := range []string{"1", "2"} {
+				Expect(runner.IncludesCmds([][]string{
+					{"snapper", "--no-dbus", "--root", "/.snapshots/4/snapshot", "-c", "etc", "delete", kept},
+				})).NotTo(Succeed(), kept)
+			}
+			Expect(runner.IncludesCmds([][]string{
+				{"snapper", "--no-dbus", "--root", "/tmp/elemental_generic/.snapshots/4/snapshot", "-c", "home", "delete"},
+			})).NotTo(Succeed())
+		})
+		It("starts the transaction even if the leftovers cannot be removed", func() {
+			initInterruptedUpgrade()
+
+			sideEffects["btrfs"] = func(args ...string) ([]byte, error) {
+				if slices.Contains(args, "delete") {
+					return []byte{}, fmt.Errorf("failed deleting subvolume")
+				}
+				return runner.ReturnValue, runner.ReturnError
+			}
+			snapperEffect := sideEffects["snapper"]
+			sideEffects["snapper"] = func(args ...string) ([]byte, error) {
+				if slices.Contains(args, "delete") {
+					return []byte("Deleting snapshot failed."), fmt.Errorf("failed deleting snapshot")
+				}
+				return snapperEffect(args...)
+			}
+
+			trans, err := sn.Start()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(trans.ID).To(Equal(6))
+			Expect(logBuf.String()).To(ContainSubstring("Could not remove snapshot 5 of an interrupted transaction"))
+			Expect(logBuf.String()).To(ContainSubstring("Could not remove stale pre-transaction snapshot of '/etc'"))
 		})
 	})
 	It("fails to init snapper transactioner if it can't list snapshots", func() {

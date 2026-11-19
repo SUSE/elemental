@@ -42,3 +42,16 @@ To leave the container, just type `exit`. Remember that the container stays in
 the same state as you exit it. If you want a clean environment, you need to
 remove the toolbox container first.
 
+
+## Upgrading after an interrupted upgrade
+
+An upgrade creates a new snapshot of the system and only makes it the default once it is complete. A host that loses
+power or is reset during an upgrade therefore boots the snapshot it was running before. What the interrupted upgrade
+created stays on disk:
+
+* A root snapshot that `snapper list` shows with the user data `update-in-progress=yes`. `snapper delete` refuses to
+  remove it ("Directory not empty"), because it contains the nested subvolume of `/etc`.
+* A snapshot of `/etc` with the description `pre-transaction /etc snapshot`, listed by `snapper -c etc list`.
+
+Nothing has to be cleaned up by hand. The next `elemental3ctl upgrade` removes the snapshot of the interrupted upgrade
+and the stale `/etc` snapshots before it creates its own, and reports this with a warning.

@@ -162,6 +162,92 @@ const upgradeSnapList = `{
   }
 `
 
+// interruptedSnapList is the state of a host that runs snapshot 4 and lost power while a
+// transaction was creating snapshot 5. Snapshot 3 is a committed one that has not been booted.
+const interruptedSnapList = `{
+	"root": [
+	  {
+		"number": 1,
+		"default": false,
+		"active": false,
+		"userdata": null
+	  },{
+		"number": 2,
+		"default": false,
+		"active": false,
+		"userdata": {
+		    "update-in-progress": ""
+		}
+	  },{
+		"number": 3,
+		"default": false,
+		"active": false,
+		"userdata": {
+		    "important": "yes"
+		}
+	  },{
+		"number": 4,
+		"default": true,
+		"active": true,
+		"userdata": {
+		    "update-in-progress": "yes"
+		}
+	  },{
+		"number": 5,
+		"default": false,
+		"active": false,
+		"userdata": {
+		    "update-in-progress": "yes"
+		}
+	  }
+	]
+  }
+`
+
+// interruptedEtcSnaps are the /etc snapshots of a host on which one
+// transaction was interrupted and two more failed afterwards.
+const interruptedEtcSnaps = `{
+	"etc": [
+	  {
+		"number": 1,
+		"default": false,
+		"active": false,
+		"userdata": {
+		    "stock": "true"
+		}
+	  },{
+		"number": 2,
+		"default": false,
+		"active": false,
+		"userdata": {
+		    "post-transaction": "true"
+		}
+	  },{
+		"number": 3,
+		"default": false,
+		"active": false,
+		"userdata": {
+		    "pre-transaction": "true"
+		}
+	  },{
+		"number": 4,
+		"default": false,
+		"active": false,
+		"userdata": {
+		    "pre-transaction": "true"
+		}
+	  },{
+		"number": 5,
+		"default": false,
+		"active": false,
+		"userdata": {
+		    "pre-transaction": "true"
+		}
+	  }
+	]
+  }
+`
+
 const installSnapList = `{
 	"root": [
 	  {
