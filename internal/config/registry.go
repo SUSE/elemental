@@ -49,7 +49,7 @@ const (
 //go:embed templates/elemental-registry.service.tpl
 var registryUnitTpl string
 
-func (m *Manager) configureElementalRegistry(ctx context.Context, conf *image.Configuration, rm *resolver.ResolvedManifest, output Output, butaneCfg *butane.Config) ([]string, error) {
+func (m *Manager) configureEmbeddedRegistry(ctx context.Context, conf *image.Configuration, rm *resolver.ResolvedManifest, output Output, butaneCfg *butane.Config) ([]string, error) {
 	logger := m.system.Logger()
 	fs := m.system.FS()
 
@@ -68,7 +68,7 @@ func (m *Manager) configureElementalRegistry(ctx context.Context, conf *image.Co
 		return nil, fmt.Errorf("creating registry directory: %w", err)
 	}
 
-	if settings := conf.Kubernetes.ElementalEmbeddedRegistry; settings != nil {
+	if settings := conf.Kubernetes.EmbeddedRegistry; settings != nil {
 		for _, registry := range settings.Registries {
 			if registry.Credentials == nil {
 				continue
@@ -243,7 +243,7 @@ func (m *Manager) collectContainerImages(rm *resolver.ResolvedManifest, conf *im
 		}
 	}
 
-	if settings := conf.Kubernetes.ElementalEmbeddedRegistry; settings != nil {
+	if settings := conf.Kubernetes.EmbeddedRegistry; settings != nil {
 		for _, img := range settings.ContainerImages {
 			images[img.Name] = struct{}{}
 		}

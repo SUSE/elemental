@@ -40,10 +40,10 @@ type Kubernetes struct {
 	Network        Network `yaml:"network,omitempty"`
 	Config         Config  `yaml:"-"`
 
-	ElementalEmbeddedRegistry *ElementalEmbeddedRegistry `yaml:"elementalEmbeddedRegistry,omitempty" validate:"omitempty"`
+	EmbeddedRegistry *EmbeddedRegistry `yaml:"embeddedRegistry,omitempty" validate:"omitempty"`
 }
 
-type ElementalEmbeddedRegistry struct {
+type EmbeddedRegistry struct {
 	ContainerImages []ContainerImage `yaml:"containerImages,omitempty" validate:"dive"`
 	Registries      []Registry       `yaml:"registries,omitempty" validate:"dive"`
 }
