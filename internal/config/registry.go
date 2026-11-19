@@ -43,6 +43,7 @@ const (
 	registryStoreDir     = "store"
 	registryBackendDir   = "registry"
 	haulerBinaryName     = "hauler"
+	registryBinary       = "/usr/bin/hauler"
 	dockerHubHost        = "docker.io"
 )
 
@@ -110,24 +111,6 @@ func (m *Manager) configureEmbeddedRegistry(ctx context.Context, conf *image.Con
 		return nil, err
 	}
 
-	haulerBinary, err := m.imageStore.HaulerPath(platform)
-	if err != nil {
-		return nil, err
-	}
-
-	haulerTarget := filepath.Join(output.OverlaysDir(), image.RegistryBinaryPath())
-	if err = vfs.MkdirAll(fs, filepath.Dir(haulerTarget), vfs.DirPerm); err != nil {
-		return nil, fmt.Errorf("creating hauler binary directory: %w", err)
-	}
-
-	if err = vfs.CopyFile(fs, haulerBinary, haulerTarget); err != nil {
-		return nil, fmt.Errorf("copying hauler binary: %w", err)
-	}
-
-	if err = fs.Chmod(haulerTarget, 0o755); err != nil {
-		return nil, fmt.Errorf("setting hauler binary permissions: %w", err)
-	}
-
 	if err = appendRegistryUnit(butaneCfg); err != nil {
 		return nil, err
 	}
@@ -177,7 +160,7 @@ func appendRegistryUnit(butaneCfg *butane.Config) error {
 		Backend  string
 		Port     string
 	}{
-		Hauler:   filepath.Join("/", image.RegistryBinaryPath()),
+		Hauler:   registryBinary,
 		StoreDir: filepath.Join(registryDir, registryStoreDir),
 		Backend:  filepath.Join(registryDir, registryBackendDir),
 		Port:     registryPort,
