@@ -74,7 +74,7 @@ components:
     - chart: elemental-lifecycle-manager
 ```
 
-Air-gapped builds can embed additional images, authenticate to private registries, and provide API versions for Helm chart image discovery ([#593](https://github.com/SUSE/elemental/pull/593)):
+Air-gapped builds can embed additional images, authenticate to private registries, and provide API versions for Helm chart image discovery ([#593](https://github.com/SUSE/elemental/pull/593), [#664](https://github.com/SUSE/elemental/pull/664)):
 
 ```yaml
 # kubernetes/cluster.yaml
@@ -142,7 +142,7 @@ bootloader:
 
 - Added `elemental3 customize --airgap`. It embeds the configured Helm charts as `chartContent` in their HelmChart resources. It also collects container images from templated Helm charts, Kubernetes manifests, release manifest chart image lists, and `embeddedRegistry.containerImages`, and stores them in an embedded registry ([#593](https://github.com/SUSE/elemental/pull/593)).
 - Added RKE2 image embedding for air-gapped builds. Image lists are read from the `rke2-images-<set>.linux-<arch>.txt` files in the Core Platform Kubernetes image. The `core` set is always included, plus the configured CNI plugins and any non-default ingress controller ([#637](https://github.com/SUSE/elemental/pull/637)).
-- Added `elemental-registry.service`, which serves air-gapped images with Hauler on port 6545 before RKE2 starts. The service is configured as the first mirror endpoint in `registries.yaml` for every registry the images come from. Image data lives in `/var/lib/elemental/registry`, and the Hauler binary is shipped in the OS image ([#593](https://github.com/SUSE/elemental/pull/593), [#647](https://github.com/SUSE/elemental/pull/647)).
+- Added `elemental-registry.service`, which serves air-gapped images with Hauler on port 6545 before RKE2 starts. The service is configured as the first mirror endpoint in `registries.yaml` for every registry the images come from. Image data lives in `/var/lib/elemental/registry`, and the Hauler binary is shipped by the OS image, so air-gapped images can also be customized for another architecture ([#593](https://github.com/SUSE/elemental/pull/593), [#647](https://github.com/SUSE/elemental/pull/647), [#663](https://github.com/SUSE/elemental/pull/663)).
 - Added an artifact cache to `elemental3 customize` with the `--cache` (`auto`, `offline`, `refresh`, `off`) and `--cache-dir` options. OCI images are kept in an OCI layout under `<cache>/oci`, and downloaded files under `<cache>/files` ([#593](https://github.com/SUSE/elemental/pull/593)).
 - Added the `qcow2` image type to `elemental3 customize` and `elemental3ctl build-installer`. Added `customize --overlay <name>` to create thin per-node `<name>.qcow2` overlays on top of the customized image ([#653](https://github.com/SUSE/elemental/pull/653)).
 - Added netboot support. When `iso.netbootURL` is set, `customize --type iso` also produces a `<image>-netboot/` directory with the kernel, initrd, and GRUB EFI artifacts that boot the customized ISO from that URL ([#590](https://github.com/SUSE/elemental/pull/590)).
@@ -175,8 +175,8 @@ bootloader:
 - Changed `elemental3 customize` to fail early when the output image already exists ([#532](https://github.com/SUSE/elemental/pull/532)).
 - Changed the error for Helm charts missing from the release manifests to "helm chart is not defined in the core platform or solution release manifest" ([#654](https://github.com/SUSE/elemental/pull/654)).
 - Changed the `elemental3` container image to include `helm`, `hauler`, `cpio`, and `qemu-img` ([#593](https://github.com/SUSE/elemental/pull/593), [#647](https://github.com/SUSE/elemental/pull/647), [#528](https://github.com/SUSE/elemental/pull/528), [#653](https://github.com/SUSE/elemental/pull/653)).
-- Changed Kubernetes files that hold the cluster token or credentials to be readable by root only (`0600`): the RKE2 `server.yaml`, `init.yaml`, `agent.yaml`, and `registries.yaml`, HelmChart resources, Helm authentication secrets, and user manifests.
-- Changed `elemental3 release-info` to show the Elemental version of a Core Platform instead of an empty "Version" row.
+- Changed Kubernetes files that hold the cluster token or credentials to be readable by root only (`0600`): the RKE2 `server.yaml`, `init.yaml`, `agent.yaml`, and `registries.yaml`, HelmChart resources, Helm authentication secrets, and user manifests ([#661](https://github.com/SUSE/elemental/pull/661)).
+- Changed `elemental3 release-info` to show the Elemental version of a Core Platform instead of an empty "Version" row ([#661](https://github.com/SUSE/elemental/pull/661)).
 - Changed the fallback version of untagged builds from `v0.0.1` to `v3.0` and moved version information to the top-level `version` package. Packagers setting ldflags must use `github.com/suse/elemental/v3/version.version` and `github.com/suse/elemental/v3/version.gitCommit` ([#633](https://github.com/SUSE/elemental/pull/633)).
 
 ### Fixes
@@ -190,8 +190,8 @@ bootloader:
 - Fixed OCI Helm chart references when the repository URL ends with a slash. Invalid chart paths are now reported as errors (also in v3.0.3) ([#545](https://github.com/SUSE/elemental/pull/545)).
 - Fixed `--verify=false` not disabling TLS certificate verification when pulling remote OCI images ([#583](https://github.com/SUSE/elemental/pull/583)).
 - Fixed the installer ISO lookup for OS ISO images with non-default kernel flavors ([#640](https://github.com/SUSE/elemental/pull/640)).
-- Fixed `elemental3 customize` panicking when the Core Platform release manifest has no `helm` section. A Core Platform without the `elemental-lifecycle-manager` chart is now reported as such instead of blaming `release.yaml`.
-- Fixed `elemental3 release-info` panicking on release manifests without a `metadata` section.
+- Fixed `elemental3 customize` panicking when the Core Platform release manifest has no `helm` section. A Core Platform without the `elemental-lifecycle-manager` chart is now reported as such instead of blaming `release.yaml` ([#661](https://github.com/SUSE/elemental/pull/661)).
+- Fixed `elemental3 release-info` panicking on release manifests without a `metadata` section ([#661](https://github.com/SUSE/elemental/pull/661)).
 - Fixed upgrades on systems with the SELinux policy store under `/etc/selinux` (SLES 16.1) by refreshing the policy before relabeling ([#618](https://github.com/SUSE/elemental/pull/618)).
 - Fixed systemd-repart `EBUSY` failures in containers on all architectures by creating loop device nodes whenever running in a container ([#654](https://github.com/SUSE/elemental/pull/654)).
 - Fixed the "Release Date" label in `elemental3 release-info` output (also in v3.0.2) ([#527](https://github.com/SUSE/elemental/pull/527)).
@@ -200,13 +200,14 @@ bootloader:
 ### Documentation
 
 - Added cloud enablement documentation and cookbook recipes for single-node and multi-node clusters on AWS, replacing the duplicated examples in the image customization guide ([#602](https://github.com/SUSE/elemental/pull/602)).
-- Added documentation for air-gapped images, the artifact cache, and `embeddedRegistry` ([#593](https://github.com/SUSE/elemental/pull/593)).
+- Added documentation for air-gapped images, the artifact cache, and `embeddedRegistry` ([#593](https://github.com/SUSE/elemental/pull/593), [#664](https://github.com/SUSE/elemental/pull/664)).
 - Documented the three-way merge of snapshotted directories during upgrades and removed custom partitioning guidance ([#471](https://github.com/SUSE/elemental/pull/471)).
 - Documented the `priorityUpgrade` release manifest property ([#644](https://github.com/SUSE/elemental/pull/644)).
-- Added an air-gapped deployments guide covering requirements, embedded artifacts, building without network access, verification, troubleshooting, and limitations.
-- Documented the platforms images can be customized for, replacing the outdated `x86_64`-only limitation.
-- Documented release manifest schema `v1` and `metadata.elemental`, and fixed the release manifest guide examples so they pass validation.
-- Documented the `elemental-lifecycle-manager` requirement in the `release.yaml` reference ([#652](https://github.com/SUSE/elemental/pull/652)).
+- Added an air-gapped deployments guide covering requirements, embedded artifacts, building without network access, verification, troubleshooting, and limitations ([#662](https://github.com/SUSE/elemental/pull/662)).
+- Documented the platforms images can be customized for, replacing the outdated `x86_64`-only limitation ([#662](https://github.com/SUSE/elemental/pull/662)).
+- Fixed the systemd system extensions guide pointing to the removed Linux image guide ([#662](https://github.com/SUSE/elemental/pull/662)).
+- Documented release manifest schema `v1` and `metadata.elemental`, and fixed the release manifest guide examples so they pass validation ([#661](https://github.com/SUSE/elemental/pull/661)).
+- Documented the `elemental-lifecycle-manager` requirement in the `release.yaml` reference ([#652](https://github.com/SUSE/elemental/pull/652), [#661](https://github.com/SUSE/elemental/pull/661)).
 - Rewrote the README and documentation index and dropped the outdated Linux image building guide ([#486](https://github.com/SUSE/elemental/pull/486)).
 - Updated the cookbook and examples for SLES 16.1, RKE2 1.37, and aarch64 hosts. The examples now configure Traefik instead of ingress-nginx and select Elemental Lifecycle Manager ([#651](https://github.com/SUSE/elemental/pull/651), [#660](https://github.com/SUSE/elemental/pull/660)).
 - Fixed the CAPI template in cookbook Recipe 3 and removed the `/home` filesystem workaround from the docs ([#654](https://github.com/SUSE/elemental/pull/654)).
@@ -216,7 +217,7 @@ bootloader:
 
 - Split openQA job groups into development and 16.0 groups, switched to `rancher/distros-test-framework`, added Longhorn and LCM tests, and disabled the Rancher deployment test for RKE2 v1.36 ([#491](https://github.com/SUSE/elemental/pull/491), [#507](https://github.com/SUSE/elemental/pull/507), [#515](https://github.com/SUSE/elemental/pull/515), [#541](https://github.com/SUSE/elemental/pull/541)).
 - Configured Dependabot to propose daily security updates for the `release-3.0` branch ([#488](https://github.com/SUSE/elemental/pull/488), [#533](https://github.com/SUSE/elemental/pull/533), [#565](https://github.com/SUSE/elemental/pull/565)).
-- Added a unit test that validates every example configuration directory and its local release manifest ([#652](https://github.com/SUSE/elemental/pull/652)).
+- Added a unit test that validates every example configuration directory and its local release manifest ([#652](https://github.com/SUSE/elemental/pull/652), [#661](https://github.com/SUSE/elemental/pull/661)).
 - Stopped monitoring the OBS `sysexts` repository and increased OBS wait timeouts (also in v3.0.4) ([#616](https://github.com/SUSE/elemental/pull/616)).
 - Removed leftover `elemental3ctl` system extension references from OBS workflows and test data ([#538](https://github.com/SUSE/elemental/pull/538)).
 - Fixed integration test setup by installing `qemu-system-x86` and pinning the runner to `ubuntu-24.04` ([#638](https://github.com/SUSE/elemental/pull/638)).
@@ -250,7 +251,7 @@ bootloader:
 - Added the `version` and `pkg/semverutil` packages ([#633](https://github.com/SUSE/elemental/pull/633), [#634](https://github.com/SUSE/elemental/pull/634)).
 - Exported Core Platform manifest metadata types ([#543](https://github.com/SUSE/elemental/pull/543)).
 - Suppressed a golangci-lint `errcheck` finding in the runner mock ([#629](https://github.com/SUSE/elemental/pull/629)).
-- Fixed `AddFileInlineFromReader` silently ignoring read errors.
+- Fixed `AddFileInlineFromReader` silently ignoring read errors ([#661](https://github.com/SUSE/elemental/pull/661)).
 
 ## v3.0.4
 
