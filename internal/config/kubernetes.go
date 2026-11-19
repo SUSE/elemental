@@ -108,17 +108,17 @@ func (m *Manager) configureKubernetes(
 		}
 	}
 
-	if conf.Kubernetes.ElementalEmbeddedRegistry != nil && !m.airgap {
-		return fmt.Errorf("elementalEmbeddedRegistry is configured but the --airgap flag is not present")
+	if conf.Kubernetes.EmbeddedRegistry != nil && !m.airgap {
+		return fmt.Errorf("embeddedRegistry is configured but the --airgap flag is not present")
 	}
 
 	var mirrorHosts []string
 	if m.airgap {
-		m.system.Logger().Info("Configuring elemental embedded registry")
+		m.system.Logger().Info("Configuring embedded registry")
 
-		mirrorHosts, err = m.configureElementalRegistry(ctx, conf, manifest, output, butaneCfg)
+		mirrorHosts, err = m.configureEmbeddedRegistry(ctx, conf, manifest, output, butaneCfg)
 		if err != nil {
-			return fmt.Errorf("configuring elemental embedded registry: %w", err)
+			return fmt.Errorf("configuring embedded registry: %w", err)
 		}
 	}
 

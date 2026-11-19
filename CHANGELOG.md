@@ -87,7 +87,7 @@ helm:
       apiVersions:
         - batch/v1
         - apps/v1/Deployment
-elementalEmbeddedRegistry:
+embeddedRegistry:
   containerImages:
     - name: registry.rancher.com/rancher/shell:v0.5.0
   registries:
@@ -140,7 +140,7 @@ bootloader:
 
 ### Features
 
-- Added `elemental3 customize --airgap`. It embeds the configured Helm charts as `chartContent` in their HelmChart resources. It also collects container images from templated Helm charts, Kubernetes manifests, release manifest chart image lists, and `elementalEmbeddedRegistry.containerImages`, and stores them in an embedded registry ([#593](https://github.com/SUSE/elemental/pull/593)).
+- Added `elemental3 customize --airgap`. It embeds the configured Helm charts as `chartContent` in their HelmChart resources. It also collects container images from templated Helm charts, Kubernetes manifests, release manifest chart image lists, and `embeddedRegistry.containerImages`, and stores them in an embedded registry ([#593](https://github.com/SUSE/elemental/pull/593)).
 - Added RKE2 image embedding for air-gapped builds. Image lists are read from the `rke2-images-<set>.linux-<arch>.txt` files in the Core Platform Kubernetes image. The `core` set is always included, plus the configured CNI plugins and any non-default ingress controller ([#637](https://github.com/SUSE/elemental/pull/637)).
 - Added `elemental-registry.service`, which serves air-gapped images with Hauler on port 6545 before RKE2 starts. The service is configured as the first mirror endpoint in `registries.yaml` for every registry the images come from. Image data lives in `/var/lib/elemental/registry`, and the Hauler binary in `/usr/local/libexec/elemental/hauler` ([#593](https://github.com/SUSE/elemental/pull/593), [#647](https://github.com/SUSE/elemental/pull/647)).
 - Added an artifact cache to `elemental3 customize` with the `--cache` (`auto`, `offline`, `refresh`, `off`) and `--cache-dir` options. OCI images are kept in an OCI layout under `<cache>/oci`, and downloaded files under `<cache>/files` ([#593](https://github.com/SUSE/elemental/pull/593)).
@@ -200,7 +200,7 @@ bootloader:
 ### Documentation
 
 - Added cloud enablement documentation and cookbook recipes for single-node and multi-node clusters on AWS, replacing the duplicated examples in the image customization guide ([#602](https://github.com/SUSE/elemental/pull/602)).
-- Added documentation for air-gapped images, the artifact cache, and `elementalEmbeddedRegistry` ([#593](https://github.com/SUSE/elemental/pull/593)).
+- Added documentation for air-gapped images, the artifact cache, and `embeddedRegistry` ([#593](https://github.com/SUSE/elemental/pull/593)).
 - Documented the three-way merge of snapshotted directories during upgrades and removed custom partitioning guidance ([#471](https://github.com/SUSE/elemental/pull/471)).
 - Documented the `priorityUpgrade` release manifest property ([#644](https://github.com/SUSE/elemental/pull/644)).
 - Documented release manifest schema `v1` and `metadata.elemental`, and fixed the release manifest guide examples so they pass validation.

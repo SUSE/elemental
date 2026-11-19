@@ -183,7 +183,7 @@ data:
 		conf = &image.Configuration{
 			Kubernetes: kubernetes.Kubernetes{
 				LocalManifests: []string{localManifest},
-				ElementalEmbeddedRegistry: &kubernetes.ElementalEmbeddedRegistry{
+				EmbeddedRegistry: &kubernetes.EmbeddedRegistry{
 					ContainerImages: []kubernetes.ContainerImage{{Name: "quay.io/app/web:2.0"}, {Name: "quay.io/app/extra:1.0"}},
 					Registries: []kubernetes.Registry{
 						{URI: "quay.io", Credentials: &auth.Credentials{Username: "user", Password: "secret"}},
@@ -207,7 +207,7 @@ data:
 		helm := &helmConfiguratorMock{containerImages: []string{"ghcr.io/helm/rendered:3.0", "quay.io/app/web:2.0"}}
 		m := NewManager(system, helm, WithImageStore(store), WithPlatform("linux/arm64"))
 
-		hosts, err := m.configureElementalRegistry(context.Background(), conf, rm, output, butaneCfg)
+		hosts, err := m.configureEmbeddedRegistry(context.Background(), conf, rm, output, butaneCfg)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(hosts).To(Equal([]string{"docker.io", "ghcr.io", "quay.io", "registry.example.com"}))
 
@@ -252,7 +252,7 @@ data:
 		rm.CorePlatform.Components.Kubernetes = nil
 		m := NewManager(system, &helmConfiguratorMock{}, WithImageStore(store))
 
-		hosts, err := m.configureElementalRegistry(context.Background(), conf, rm, output, butaneCfg)
+		hosts, err := m.configureEmbeddedRegistry(context.Background(), conf, rm, output, butaneCfg)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(hosts).To(BeNil())
 		Expect(store.saved).To(BeEmpty())
@@ -263,7 +263,7 @@ data:
 		store.loginErr = fmt.Errorf("unauthorized")
 		m := NewManager(system, &helmConfiguratorMock{}, WithImageStore(store), WithPlatform("linux/arm64"))
 
-		_, err := m.configureElementalRegistry(context.Background(), conf, rm, output, butaneCfg)
+		_, err := m.configureEmbeddedRegistry(context.Background(), conf, rm, output, butaneCfg)
 		Expect(err).To(MatchError(ContainSubstring("unauthorized")))
 		Expect(store.saved).To(BeEmpty())
 	})
@@ -272,7 +272,7 @@ data:
 		store.saveErr = fmt.Errorf("manifest unknown")
 		m := NewManager(system, &helmConfiguratorMock{}, WithImageStore(store), WithPlatform("linux/arm64"))
 
-		_, err := m.configureElementalRegistry(context.Background(), conf, rm, output, butaneCfg)
+		_, err := m.configureEmbeddedRegistry(context.Background(), conf, rm, output, butaneCfg)
 		Expect(err).To(MatchError(ContainSubstring("embedding image busybox:1.36")))
 		Expect(err).To(MatchError(ContainSubstring("manifest unknown")))
 	})
@@ -281,7 +281,7 @@ data:
 		Expect(fs.WriteFile(localManifest, []byte("kind: [broken"), vfs.FilePerm)).To(Succeed())
 		m := NewManager(system, &helmConfiguratorMock{}, WithImageStore(store), WithPlatform("linux/arm64"))
 
-		_, err := m.configureElementalRegistry(context.Background(), conf, rm, output, butaneCfg)
+		_, err := m.configureEmbeddedRegistry(context.Background(), conf, rm, output, butaneCfg)
 		Expect(err).To(MatchError(ContainSubstring("reading manifest")))
 	})
 

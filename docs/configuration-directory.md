@@ -156,7 +156,7 @@ network:
     apiHost: api.cluster01.example.com
     apiVIP6: fd12:3456:789a::21
     apiVIPMode: managed
-elementalEmbeddedRegistry:
+embeddedRegistry:
   containerImages:
     - name: registry.rancher.com/rancher/shell:v0.5.0
     - name: nginx:stable@sha256:b03c8dfc241047d827e1e14d69533205b387d476d97ef7efce58605a6c3acb84
@@ -193,7 +193,7 @@ elementalEmbeddedRegistry:
   * `apiVIP6` -  Required for multi-node clusters if not using `apiVIP`; Specifies the IPv6 address which will serve as the cluster LoadBalancer.
   * `apiHost` - Optional; Specifies the domain address for accessing the cluster.
   * `apiVIPMode` - Optional; Specifies how the API VIP will be handled. Supported values: `managed` (default), `external`. `managed` uses MetalLB to serve the desired IPv4/IPv6 addresses. `external` expects a user-defined third-party loadbalancing mechanism for IPv4/IPv6 address handling.
-* `elementalEmbeddedRegistry` - Optional; Allows you to specify additional container images to be part of the final air-gapped build.
+* `embeddedRegistry` - Optional; Allows you to specify additional container images to be part of the final air-gapped build.
   * `containerImages` - Optional; Defines list of container images to embed, deduplicated with the ones discovered automatically from Helm charts and Kubernetes manifests.
     * `name` - Required; Specifies the name, with a tag or digest, of a container image to be air-gapped.
   * `registries` - Optional, only required for authenticated registries; Defines a list of registries along with the credentials used to pull container images from them.

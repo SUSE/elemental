@@ -202,7 +202,7 @@ This includes:
 * **Container images** - all container images specified and detected during customization time from:
   * templating every Helm chart with the respective settings and values and extracting the container images from the template,
   * collecting every image from each Kubernetes manifest,
-  * images explicitly listed under `elementalEmbeddedRegistry.containerImages` in `kubernetes/cluster.yaml`.
+  * images explicitly listed under `embeddedRegistry.containerImages` in `kubernetes/cluster.yaml`.
 
 At boot time an embedded registry is started by the `elemental-registry.service` that uses Hauler to serve the container images for the Kubernetes cluster.
 
