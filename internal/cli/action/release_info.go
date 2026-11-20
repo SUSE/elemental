@@ -114,7 +114,7 @@ func resolveManifest(system *sys.System, uri string, local bool) (*resolver.Reso
 		}
 	}()
 
-	res, err := manifestResolver(system.FS(), output, local)
+	res, err := manifestResolver(system, output, local)
 	if err != nil {
 		return nil, err
 	}
@@ -147,7 +147,7 @@ func argSourceType(s *sys.System, arg string) (source.ReleaseManifestSourceType,
 	return source.OCI, nil
 }
 
-func manifestResolver(fs vfs.FS, out config.Output, local bool) (*resolver.Resolver, error) {
+func manifestResolver(s *sys.System, out config.Output, local bool) (*resolver.Resolver, error) {
 	const (
 		globPattern = "release_manifest*.yaml"
 	)
@@ -158,11 +158,11 @@ func manifestResolver(fs vfs.FS, out config.Output, local bool) (*resolver.Resol
 	}
 
 	manifestsDir := out.ReleaseManifestsStoreDir()
-	if err := vfs.MkdirAll(fs, manifestsDir, 0700); err != nil {
+	if err := vfs.MkdirAll(s.FS(), manifestsDir, 0700); err != nil {
 		return nil, fmt.Errorf("creating release manifest store '%s': %w", manifestsDir, err)
 	}
 
-	extr, err := extractor.New(searchPaths, extractor.WithStore(manifestsDir), extractor.WithLocal(local), extractor.WithFS(fs))
+	extr, err := extractor.New(s, searchPaths, extractor.WithStore(manifestsDir), extractor.WithLocal(local))
 	if err != nil {
 		return nil, fmt.Errorf("initializing OCI release manifest extractor: %w", err)
 	}

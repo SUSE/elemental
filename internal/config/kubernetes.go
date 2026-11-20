@@ -36,7 +36,6 @@ import (
 	"github.com/suse/elemental/v3/pkg/manifest/resolver"
 	"github.com/suse/elemental/v3/pkg/semverutil"
 	"github.com/suse/elemental/v3/pkg/sys"
-	"github.com/suse/elemental/v3/pkg/sys/platform"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
 
@@ -453,10 +452,7 @@ func (m *Manager) kubernetesImages(rm *resolver.ResolvedManifest, conf *image.Co
 		return nil, fmt.Errorf("selecting kubernetes image sets: %w", err)
 	}
 
-	platform, err := platform.Parse(m.platform)
-	if err != nil {
-		return nil, fmt.Errorf("parsing platform %q: %w", m.platform, err)
-	}
+	platform := m.system.Platform()
 
 	fs := m.system.FS()
 	installDir := filepath.Join(output.OverlaysDir(), image.KubernetesInstallPath())

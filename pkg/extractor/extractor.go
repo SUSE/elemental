@@ -36,18 +36,12 @@ type OCIUnpacker interface {
 }
 
 type ociUnpacker struct {
-	system   *sys.System
-	cache    *cache.Cache
-	platform string
+	system *sys.System
+	cache  *cache.Cache
 }
 
 func (o *ociUnpacker) Unpack(ctx context.Context, uri, dest string, local bool) (digest string, err error) {
-	opts := []unpack.OCIOpt{unpack.WithLocalOCI(local), unpack.WithCacheOCI(o.cache)}
-	if o.platform != "" {
-		opts = append(opts, unpack.WithPlatformRefOCI(o.platform))
-	}
-
-	unpacker := unpack.NewOCIUnpacker(o.system, uri, opts...)
+	unpacker := unpack.NewOCIUnpacker(o.system, uri, unpack.WithLocalOCI(local), unpack.WithCacheOCI(o.cache))
 	return unpacker.Unpack(ctx, dest)
 }
 
@@ -64,11 +58,10 @@ type OCIFileExtractor struct {
 	// Defaults to the OS temporary directory.
 	store    string
 	unpacker OCIUnpacker
-	fs       vfs.FS
+	system   *sys.System
 	ctx      context.Context
 	local    bool
 	cache    *cache.Cache
-	platform string
 }
 
 type OCIFileExtractorOpts func(o *OCIFileExtractor)
@@ -82,12 +75,6 @@ func WithOCIUnpacker(u OCIUnpacker) OCIFileExtractorOpts {
 func WithStore(store string) OCIFileExtractorOpts {
 	return func(r *OCIFileExtractor) {
 		r.store = store
-	}
-}
-
-func WithFS(fs vfs.FS) OCIFileExtractorOpts {
-	return func(r *OCIFileExtractor) {
-		r.fs = fs
 	}
 }
 
@@ -109,16 +96,12 @@ func WithCache(c *cache.Cache) OCIFileExtractorOpts {
 	}
 }
 
-func WithPlatform(platform string) OCIFileExtractorOpts {
-	return func(r *OCIFileExtractor) {
-		r.platform = platform
-	}
-}
-
-func New(searchPaths []string, opts ...OCIFileExtractorOpts) (*OCIFileExtractor, error) {
+// New creates an OCIFileExtractor using the given system to access the filesystem
+// and to unpack OCI images for the system platform.
+func New(s *sys.System, searchPaths []string, opts ...OCIFileExtractorOpts) (*OCIFileExtractor, error) {
 	extr := &OCIFileExtractor{
+		system:      s,
 		searchPaths: searchPaths,
-		fs:          vfs.New(),
 		ctx:         context.Background(),
 	}
 
@@ -127,11 +110,11 @@ func New(searchPaths []string, opts ...OCIFileExtractorOpts) (*OCIFileExtractor,
 	}
 
 	if extr.store != "" {
-		if _, err := extr.fs.Stat(extr.store); err != nil {
+		if _, err := extr.system.FS().Stat(extr.store); err != nil {
 			return nil, fmt.Errorf("store path '%s' does not exist in provided filesystem: %w", extr.store, err)
 		}
 	} else {
-		store, err := vfs.TempDir(extr.fs, "", "extracted-files-")
+		store, err := vfs.TempDir(extr.system.FS(), "", "extracted-files-")
 		if err != nil {
 			return nil, fmt.Errorf("setting up default store directory: %w", err)
 		}
@@ -140,15 +123,9 @@ func New(searchPaths []string, opts ...OCIFileExtractorOpts) (*OCIFileExtractor,
 	}
 
 	if extr.unpacker == nil {
-		s, err := sys.NewSystem(sys.WithFS(extr.fs))
-		if err != nil {
-			return nil, fmt.Errorf("setting up default system: %w", err)
-		}
-
 		extr.unpacker = &ociUnpacker{
-			system:   s,
-			cache:    extr.cache,
-			platform: extr.platform,
+			system: extr.system,
+			cache:  extr.cache,
 		}
 	}
 
@@ -160,12 +137,14 @@ func New(searchPaths []string, opts ...OCIFileExtractorOpts) (*OCIFileExtractor,
 // and its path will be returned, or an error if the file was not found.
 // The underlying OCI image is not retained.
 func (o *OCIFileExtractor) ExtractFrom(uri string) (path string, err error) {
-	unpackDir, err := vfs.TempDir(o.fs, "", "unpacked-oci-")
+	fs := o.system.FS()
+
+	unpackDir, err := vfs.TempDir(fs, "", "unpacked-oci-")
 	if err != nil {
 		return "", fmt.Errorf("creating oci image unpack directory: %w", err)
 	}
 	defer func() {
-		_ = o.fs.RemoveAll(unpackDir)
+		_ = fs.RemoveAll(unpackDir)
 	}()
 
 	digest, err := o.unpacker.Unpack(o.ctx, uri, unpackDir, o.local)
@@ -173,7 +152,7 @@ func (o *OCIFileExtractor) ExtractFrom(uri string) (path string, err error) {
 		return "", fmt.Errorf("unpacking oci image: %w", err)
 	}
 
-	fileInOCI, err := vfs.FindFile(o.fs, unpackDir, o.searchPaths...)
+	fileInOCI, err := vfs.FindFile(fs, unpackDir, o.searchPaths...)
 	if err != nil {
 		return "", fmt.Errorf("locating file at unpacked OCI filesystem: %w", err)
 	}
@@ -183,12 +162,12 @@ func (o *OCIFileExtractor) ExtractFrom(uri string) (path string, err error) {
 		return "", fmt.Errorf("generating file store based on digest: %w", err)
 	}
 
-	if err := vfs.MkdirAll(o.fs, fileStorePath, 0700); err != nil {
+	if err := vfs.MkdirAll(fs, fileStorePath, 0700); err != nil {
 		return "", fmt.Errorf("creating file store directory '%s': %w", fileStorePath, err)
 	}
 
 	fileInStore := filepath.Join(fileStorePath, filepath.Base(fileInOCI))
-	if err := vfs.CopyFile(o.fs, fileInOCI, fileInStore); err != nil {
+	if err := vfs.CopyFile(fs, fileInOCI, fileInStore); err != nil {
 		return "", fmt.Errorf("copying file to store: %w", err)
 	}
 

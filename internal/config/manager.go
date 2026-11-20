@@ -61,11 +61,10 @@ type imageStore interface {
 }
 
 type Manager struct {
-	system   *sys.System
-	local    bool
-	cache    *cache.Cache
-	platform string
-	airgap   bool
+	system *sys.System
+	local  bool
+	cache  *cache.Cache
+	airgap bool
 
 	rmResolver  releaseManifestResolver
 	downloader  downloader
@@ -97,12 +96,6 @@ func WithUnpackFunc(u unpackFunc) Opts {
 func WithLocal(local bool) Opts {
 	return func(m *Manager) {
 		m.local = local
-	}
-}
-
-func WithPlatform(platform string) Opts {
-	return func(m *Manager) {
-		m.platform = platform
 	}
 }
 
@@ -138,10 +131,6 @@ func NewManager(sys *sys.System, helm helmConfigurator, opts ...Opts) *Manager {
 		m.downloader = &http.Downloader{}
 	}
 
-	if m.platform == "" {
-		m.platform = sys.Platform().String()
-	}
-
 	if m.cache == nil {
 		m.cache = cache.Disabled(sys.FS())
 	}
@@ -156,7 +145,6 @@ func NewManager(sys *sys.System, helm helmConfigurator, opts ...Opts) *Manager {
 				sys, imageRef,
 				unpack.WithLocalOCI(m.local),
 				unpack.WithCacheOCI(m.cache),
-				unpack.WithPlatformRefOCI(m.platform),
 			)
 			_, err := unpacker.Unpack(ctx, destDir)
 			return err
@@ -177,7 +165,7 @@ func (m *Manager) downloadFile(ctx context.Context, url, dest string) error {
 // and returns the resolved release manifest from said configuration.
 func (m *Manager) ConfigureComponents(ctx context.Context, conf *image.Configuration, output Output) (rm *resolver.ResolvedManifest, err error) {
 	if m.rmResolver == nil {
-		defaultResolver, err := defaultManifestResolver(m.system.FS(), output, m.local, m.cache, m.platform)
+		defaultResolver, err := defaultManifestResolver(m.system, output, m.local, m.cache)
 		if err != nil {
 			return nil, fmt.Errorf("using default release manifest resolver: %w", err)
 		}
@@ -219,7 +207,7 @@ func (m *Manager) ConfigureComponents(ctx context.Context, conf *image.Configura
 	return rm, nil
 }
 
-func defaultManifestResolver(fs vfs.FS, out Output, local bool, c *cache.Cache, platform string) (res *resolver.Resolver, err error) {
+func defaultManifestResolver(s *sys.System, out Output, local bool, c *cache.Cache) (res *resolver.Resolver, err error) {
 	const (
 		globPattern = "release_manifest*.yaml"
 	)
@@ -230,11 +218,11 @@ func defaultManifestResolver(fs vfs.FS, out Output, local bool, c *cache.Cache, 
 	}
 
 	manifestsDir := out.ReleaseManifestsStoreDir()
-	if err := vfs.MkdirAll(fs, manifestsDir, 0700); err != nil {
+	if err := vfs.MkdirAll(s.FS(), manifestsDir, 0700); err != nil {
 		return nil, fmt.Errorf("creating release manifest store '%s': %w", manifestsDir, err)
 	}
 
-	extr, err := extractor.New(searchPaths, extractor.WithStore(manifestsDir), extractor.WithLocal(local), extractor.WithCache(c), extractor.WithPlatform(platform))
+	extr, err := extractor.New(s, searchPaths, extractor.WithStore(manifestsDir), extractor.WithLocal(local), extractor.WithCache(c))
 	if err != nil {
 		return nil, fmt.Errorf("initializing OCI release manifest extractor: %w", err)
 	}
