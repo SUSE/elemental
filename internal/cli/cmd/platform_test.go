@@ -56,6 +56,7 @@ var _ = Describe("System platform", Label("platform"), func() {
 		system = nil
 		cmd.CustomizeArgs = cmd.CustomizeFlags{}
 		cmd.UnpackArgs = cmd.UnpackFlags{}
+		cmd.ReleaseInfoArgs = cmd.ReleaseInfoFlags{}
 	})
 
 	It("targets the host platform by default", func() {
@@ -71,6 +72,12 @@ var _ = Describe("System platform", Label("platform"), func() {
 	It("targets the platform given to unpack-image", func() {
 		Expect(run(cmd.NewUnpackImageCommand("elemental3", captureSystem),
 			"unpack-image", "--image", "registry.example.com/os:1.0", "--target", "/tmp/os", "--platform", otherPlatform)).To(Succeed())
+		Expect(system.Platform().String()).To(Equal(otherPlatform))
+	})
+
+	It("targets the platform given to release-info", func() {
+		Expect(run(cmd.NewReleaseInfoCommand("elemental3", captureSystem),
+			"release-info", "--platform", otherPlatform, "oci://registry.example.com/release-manifest:1.0")).To(Succeed())
 		Expect(system.Platform().String()).To(Equal(otherPlatform))
 	})
 

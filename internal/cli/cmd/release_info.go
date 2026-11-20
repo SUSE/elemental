@@ -20,6 +20,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"runtime"
 
 	"github.com/urfave/cli/v3"
 )
@@ -27,6 +28,7 @@ import (
 type ReleaseInfoFlags struct {
 	Local    bool
 	Markdown bool
+	Platform string
 }
 
 var ReleaseInfoArgs ReleaseInfoFlags
@@ -40,7 +42,10 @@ func NewReleaseInfoCommand(appName string, releaseInfoAction func(context.Contex
 		Usage:       "Prints details of components that make up a Core and Solution release manifest file",
 		Description: fmt.Sprintf("%s %s", appName, description),
 		UsageText:   fmt.Sprintf("%s release-info [options] <manifest-file>\n%s release-info [options] oci://registry.com/repo/manifest", appName, appName),
-		Action:      releaseInfoAction,
+		Before: func(ctx context.Context, cmd *cli.Command) (context.Context, error) {
+			return ctx, setSystemPlatform(cmd, ReleaseInfoArgs.Platform)
+		},
+		Action: releaseInfoAction,
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:        localFlg,
@@ -52,6 +57,12 @@ func NewReleaseInfoCommand(appName string, releaseInfoAction func(context.Contex
 				Aliases:     []string{"m"},
 				Usage:       "Generate markdown output that can be copy-paste into a markdown editor",
 				Destination: &ReleaseInfoArgs.Markdown,
+			},
+			&cli.StringFlag{
+				Name:        platformFlg,
+				Usage:       platformDesc,
+				Destination: &ReleaseInfoArgs.Platform,
+				Value:       fmt.Sprintf("linux/%s", runtime.GOARCH),
 			},
 		},
 	}
