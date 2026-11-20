@@ -605,11 +605,9 @@ spec:
 				Expect(crd.Metadata.Name).To(Equal(release))
 				Expect(crd.Spec.Chart).To(Equal("apache"))
 				Expect(crd.Spec.ValuesContent).To(Equal("color: " + color + "\n"))
-				// Both releases share the credentials of the chart
-				Expect(crd.Spec.RepositoryAuthSecret.Name).To(Equal("apache-auth"))
+				Expect(crd.Spec.RepositoryAuthSecret.Name).To(Equal(release + "-auth"))
+				Expect(findFileContentsInConfig(config, filepath.Join("/", image.KubernetesManifestsPath(), release+"-auth-priority.yaml"))).NotTo(BeNil())
 			}
-
-			Expect(findFileContentsInConfig(config, filepath.Join("/", image.KubernetesManifestsPath(), "apache-auth-priority.yaml"))).NotTo(BeNil())
 		})
 
 		DescribeTable("Fails on Helm charts sharing a release name",
