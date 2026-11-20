@@ -172,7 +172,7 @@ embeddedRegistry:
 * `helm` - Optional; Defines a set of Helm charts and their sources.
   * `charts` - Required; Defines a list of Helm charts to be deployed on the cluster.
     * `name` - Required; Name of the Helm chart, as seen in the repository.
-    * `releaseName` - Optional; Helm release name of the chart, also used as the name of its HelmChart resource. Defaults to `name`. Must be unique across all Helm charts, including the ones enabled from the release manifests. This allows deploying the same chart more than once, in the same or in different namespaces, unless the chart creates cluster-wide resources with fixed names, such as CRDs.
+    * `releaseName` - Optional; Helm release name of the chart, also used as the name of its HelmChart resource. Defaults to `name`. Must be unique across all Helm charts, and must differ from the names of all Helm charts defined in the release manifests, whether enabled or not, as the Elemental Lifecycle Manager upgrades any release with such a name to the release manifest chart. This allows deploying the same chart more than once, in the same or in different namespaces, unless the chart creates cluster-wide resources with fixed names, such as CRDs.
     * `version` - Required; Version of the Helm chart, as seen in the repository.
     * `targetNamespace` - Required; Namespace where the Helm chart will be deployed.
     * `repositoryName` - Required; Name of the source repository that this chart can be retrieved from.
