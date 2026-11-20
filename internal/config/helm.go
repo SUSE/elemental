@@ -195,6 +195,7 @@ func (h *Helm) retrieveHelmCharts(ctx context.Context, rm *resolver.ResolvedMani
 		valueFiles = conf.Kubernetes.Helm.ValueFiles()
 
 		for _, chart := range conf.Kubernetes.Helm.Charts {
+			h.Logger.Info("Deploying Helm chart %s version %s from %s", chart.Name, chart.Version, repositories[chart.RepositoryName])
 			if err = h.appendHelmChart(ctx, chart, repositories, valueFiles, &crds, authMap[chart.Name], embed, kubeVersion); err != nil {
 				return nil, nil, fmt.Errorf("collecting user helm charts: %w", err)
 			}
@@ -541,14 +542,14 @@ func enabledHelmCharts(rm *resolver.ResolvedManifest, enabled []release.HelmChar
 			source = "solution"
 		}
 
-		if logger != nil {
-			logger.Info("Using Helm chart %s from %s release", name, source)
-		}
-
 		if slices.ContainsFunc(charts, func(c *api.HelmChart) bool {
 			return c.GetName() == name
 		}) {
 			return nil
+		}
+
+		if logger != nil {
+			logger.Info("Deploying Helm chart %s from %s release", name, source)
 		}
 
 		// Check for dependencies and add them first.

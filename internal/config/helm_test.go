@@ -18,9 +18,11 @@ limitations under the License.
 package config
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -263,7 +265,7 @@ var _ = Describe("Helm tests", Label("helm"), func() {
 				},
 			}
 
-			h := &Helm{ValuesResolver: resolver}
+			h := &Helm{ValuesResolver: resolver, Logger: logger}
 			charts, err := h.Configure(context.Background(), conf, rm, config)
 			Expect(err).To(HaveOccurred())
 			Expect(err).To(MatchError("retrieving helm charts: collecting user helm charts: repository not found for chart: apache"))
@@ -299,7 +301,7 @@ var _ = Describe("Helm tests", Label("helm"), func() {
 				},
 			}
 
-			h := &Helm{ValuesResolver: resolver}
+			h := &Helm{ValuesResolver: resolver, Logger: logger}
 			charts, err := h.Configure(context.Background(), conf, rm, config)
 			Expect(err).To(HaveOccurred())
 			Expect(err).To(MatchError("retrieving helm charts: creating helm chart auth map: helm repository 'apache-repo' defined multiple times"))
@@ -386,14 +388,19 @@ var _ = Describe("Helm tests", Label("helm"), func() {
 				},
 			}
 
+			buffer := &bytes.Buffer{}
 			h := &Helm{
 				ValuesResolver: resolver,
 				RelativePath:   helmPath,
-				Logger:         logger,
+				Logger:         log.New(log.WithBuffer(buffer)),
 			}
 
 			charts, err := h.Configure(context.Background(), conf, rm, config)
 			Expect(err).NotTo(HaveOccurred())
+
+			// User charts are logged with their version and repository
+			Expect(buffer.String()).To(ContainSubstring("Deploying Helm chart apache version 10.7.0 from https://example.com/apache/"))
+			Expect(buffer.String()).To(ContainSubstring("Deploying Helm chart nginx version 1.29.3 from oci://example.com/web/"))
 			Expect(charts).To(ConsistOf(
 				"/helm/metallb.yaml",
 				"/helm/endpoint-copier-operator.yaml",
@@ -845,6 +852,15 @@ spec:
 
 			Expect(repositories["suse-core"]).To(Equal("https://example.com/suse-core"))
 			Expect(repositories["rancher-charts"]).To(Equal("https://charts.rancher.io/"))
+		})
+
+		It("Logs each enabled Helm chart once", func() {
+			buffer := &bytes.Buffer{}
+			// neuvector-crd is enabled both explicitly and as a dependency of neuvector
+			_, _, err := enabledHelmCharts(rm, []release.HelmChart{{Name: "neuvector"}, {Name: "neuvector-crd"}}, log.New(log.WithBuffer(buffer)))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(strings.Count(buffer.String(), "Deploying Helm chart neuvector-crd from solution release")).To(Equal(1))
+			Expect(strings.Count(buffer.String(), "Deploying Helm chart neuvector from solution release")).To(Equal(1))
 		})
 
 		It("Successfully filters enabled Helm chart", func() {
