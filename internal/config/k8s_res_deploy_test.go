@@ -30,8 +30,8 @@ import (
 	"github.com/suse/elemental/v3/internal/image"
 )
 
-// fakeKubectl emulates the kubectl calls of the deployment script. Creating a resource,
-// or waiting for the Job of a HelmChart, fails when the resource file name contains "failing".
+// fakeKubectl emulates the kubectl calls of the deployment script. Creating a resource fails when its
+// file name contains "failing", and the Job of a HelmChart has failed when its name contains "stuck".
 const fakeKubectl = `#!/bin/bash
 case "$1 $2" in
   "get helmcharts")
@@ -41,8 +41,8 @@ case "$1 $2" in
   "create -f")
     if [[ "$3" == *failing* ]]; then echo "error: unauthorized" >&2; exit 1; fi
     echo "$3" >> "$CREATED_LOG"; echo "$3 created" ;;
-  "wait --for=condition=complete")
-    [[ "$*" != *failing* ]] ;;
+  "get job")
+    if [[ "$*" == *stuck* ]]; then echo Failed; else echo Complete; fi ;;
 esac
 `
 
@@ -114,18 +114,22 @@ var _ = Describe("Kubernetes resources deployment script", Label("k8s-res-deploy
 
 	It("deploys the resources independent of a failed one and fails at the end", func() {
 		failing := filepath.Join(dir, "helm", "failing-gpu-operator.yaml")
+		stuck := filepath.Join(dir, "helm", "stuck-rag.yaml")
 		chart := filepath.Join(dir, "helm", "ollama.yaml")
 		writeFile(failing, "kind: HelmChart\n", 0o644)
+		writeFile(stuck, "kind: HelmChart\n", 0o644)
 		writeFile(chart, "kind: HelmChart\n", 0o644)
 		failingManifest := filepath.Join(manifestsDir, "failing-auth-priority.yaml")
 		writeFile(failingManifest, "kind: Secret\n", 0o644)
 
-		out, err := run(failing, chart)
+		out, err := run(failing, stuck, chart)
 		Expect(err).To(HaveOccurred(), out)
-		Expect(created()).To(ConsistOf(chart, filepath.Join(manifestsDir, "local-path-provisioner.yaml")))
+		Expect(out).To(ContainSubstring("Job helm-install-stuck-rag failed, Helm Controller gave up installing stuck-rag HelmChart"))
+		Expect(created()).To(ConsistOf(stuck, chart, filepath.Join(manifestsDir, "local-path-provisioner.yaml")))
 		Expect(out).To(ContainSubstring("ERROR: The following resources failed to deploy:\n" +
 			"  - manifest " + failingManifest + "\n" +
-			"  - HelmChart " + failing + "\n"))
+			"  - HelmChart " + failing + "\n" +
+			"  - HelmChart " + stuck + "\n"))
 	})
 })
 

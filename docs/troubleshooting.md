@@ -45,15 +45,16 @@ remove the toolbox container first.
 
 ## Kubernetes resources were not deployed
 
-The Helm charts and Kubernetes manifests of the configuration are deployed on the initializing node by `k8s-resource-installer.service` at first boot. A resource failing to deploy, e.g. a Helm chart with wrong repository credentials, does not prevent the other resources from being deployed. Once all resources were attempted, the service fails and lists the resources that failed to deploy:
+The Helm charts and Kubernetes manifests of the configuration are deployed on the initializing node by `k8s-resource-installer.service` at first boot. A Helm chart is waited for until the Helm Controller has installed it or given up on it, so a slow chart is not a failed one. A failed resource, e.g. a Helm chart with wrong repository credentials, does not prevent the other resources from being deployed, not even a failing core RKE2 Helm chart. Once all resources were attempted, the service fails and lists the resources that failed to deploy:
 
 ```shell
 journalctl -u k8s-resource-installer.service
 ```
 
-The service is restarted on failure up to five times within an hour. Resources that already exist are kept on each attempt, so after fixing the cause of a failure, the deployment can be retried manually:
+The service is restarted up to five times within an hour, which only helps when the cause was fixed in the meantime: existing resources are kept, and the Helm Controller retries a failed chart only once its HelmChart resource changes. To verify a fix on the node, delete the affected HelmChart resources and retry manually:
 
 ```shell
+kubectl -n kube-system delete helmchart <name>
 systemctl reset-failed k8s-resource-installer.service
 systemctl start k8s-resource-installer.service
 ```

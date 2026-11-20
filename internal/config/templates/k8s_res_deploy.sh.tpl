@@ -47,10 +47,13 @@ retryKubectlCreate() {
   return 1
 }
 
+jobConditions() {
+  kubectl_cmd get job "$1" -n "$2" -o jsonpath='{range .status.conditions[?(@.status=="True")]}{.type}{"\n"}{end}'
+}
+
 waitForHelmChart() {
   local name="$1"
   local namespace="${2:-$KUBE_SYSTEM_NS}"
-  local wait="${3:-900s}"
 
   chart_job=""
   for i in {1..10}; do
@@ -69,12 +72,21 @@ waitForHelmChart() {
   fi
 
   echo "Waiting for $chart_job HelmChart Job.."
-  if ! kubectl_cmd wait --for=condition=complete --timeout="$wait" job/"$chart_job" -n "$namespace"; then
-    echo "Job $chart_job failed to complete on time"
-    return 1
-  fi
-
-  return 0
+  local conditions errors=0
+  while true; do
+    if conditions=$(jobConditions "$chart_job" "$namespace" 2>&1); then
+      errors=0
+      grep -qx Complete <<< "$conditions" && return 0
+      if grep -qx Failed <<< "$conditions"; then
+        echo "Job $chart_job failed, Helm Controller gave up installing $name HelmChart"
+        return 1
+      fi
+    elif (( ++errors >= 10 )); then
+      echo "Could not get Job $chart_job of $name HelmChart: $conditions"
+      return 1
+    fi
+    sleep 10
+  done
 }
 
 {{- if .HelmCharts }}
