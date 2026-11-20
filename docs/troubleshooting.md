@@ -43,6 +43,17 @@ the same state as you exit it. If you want a clean environment, you need to
 remove the toolbox container first.
 
 
+## RKE2 does not start
+
+`k8s-config-installer.service` installs RKE2, writes its configuration and enables its service at first boot. It does not wait for RKE2 to start: nodes joining a cluster can only start once the cluster is reachable, and RKE2 keeps retrying on its own. The service thus succeeds as soon as RKE2 is installed and enabled, also when the RKE2 configuration is broken. Check RKE2 itself when a node does not join the cluster:
+
+```shell
+systemctl status rke2-server.service
+journalctl -u rke2-server.service
+```
+
+The same applies to `rke2-agent.service` on agent nodes. If the RKE2 installation itself fails, `k8s-config-installer.service` is restarted up to five times within three hours before systemd gives up.
+
 ## Kubernetes resources were not deployed
 
 The Helm charts and Kubernetes manifests of the configuration are deployed on the initializing node by `k8s-resource-installer.service` at first boot. A Helm chart is waited for until the Helm Controller has installed it or given up on it, so a slow chart is not a failed one. A failed resource, e.g. a Helm chart with wrong repository credentials, does not prevent the other resources from being deployed, not even a failing core RKE2 Helm chart. Once all resources were attempted, the service fails and lists the resources that failed to deploy:
