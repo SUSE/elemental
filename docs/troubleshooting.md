@@ -42,3 +42,18 @@ To leave the container, just type `exit`. Remember that the container stays in
 the same state as you exit it. If you want a clean environment, you need to
 remove the toolbox container first.
 
+
+## Kubernetes resources were not deployed
+
+The Helm charts and Kubernetes manifests of the configuration are deployed on the initializing node by `k8s-resource-installer.service` at first boot. A resource failing to deploy, e.g. a Helm chart with wrong repository credentials, does not prevent the other resources from being deployed. Once all resources were attempted, the service fails and lists the resources that failed to deploy:
+
+```shell
+journalctl -u k8s-resource-installer.service
+```
+
+The service is restarted on failure up to five times within an hour. Resources that already exist are kept on each attempt, so after fixing the cause of a failure, the deployment can be retried manually:
+
+```shell
+systemctl reset-failed k8s-resource-installer.service
+systemctl start k8s-resource-installer.service
+```
