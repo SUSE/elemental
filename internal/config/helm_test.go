@@ -541,6 +541,110 @@ spec:
 			Expect(*data).To(Equal(contents))
 		})
 
+		It("Deploys the same user Helm chart twice with different release names", func() {
+			fs, cleanup, err := sysmock.TestFS(map[string]string{
+				filepath.Join(overlaysPath, helmPath, "blue-values.yaml"):  "color: blue\n",
+				filepath.Join(overlaysPath, helmPath, "green-values.yaml"): "color: green\n",
+			})
+			Expect(err).NotTo(HaveOccurred())
+			DeferCleanup(cleanup)
+
+			conf := &image.Configuration{
+				Release: release.Release{
+					Components: release.Components{
+						HelmCharts: []release.HelmChart{{Name: "elemental-lifecycle-manager"}},
+					},
+				},
+				Kubernetes: kubernetes.Kubernetes{
+					Helm: &kubernetes.Helm{
+						Charts: []*kubernetes.HelmChart{
+							{
+								Name:            "apache",
+								ReleaseName:     "apache-blue",
+								RepositoryName:  "apache",
+								TargetNamespace: "web",
+								Version:         "10.7.0",
+								ValuesFile:      "blue-values.yaml",
+							},
+							{
+								Name:            "apache",
+								ReleaseName:     "apache-green",
+								RepositoryName:  "apache",
+								TargetNamespace: "web",
+								Version:         "10.7.0",
+								ValuesFile:      "green-values.yaml",
+							},
+						},
+						Repositories: []*kubernetes.HelmRepository{
+							{
+								Name:        "apache",
+								URL:         "https://example.com/apache/",
+								Credentials: &auth.Credentials{Username: "apache-user", Password: "apache-pass"},
+							},
+						},
+					},
+				},
+			}
+
+			h := &Helm{
+				ValuesResolver: &helm.ValuesResolver{ValuesDir: filepath.Join(overlaysPath, helmPath), FS: fs},
+				RelativePath:   helmPath,
+				Logger:         logger,
+			}
+
+			charts, err := h.Configure(context.Background(), conf, rm, config)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(charts).To(ContainElements("/helm/apache-blue.yaml", "/helm/apache-green.yaml"))
+
+			for release, color := range map[string]string{"apache-blue": "blue", "apache-green": "green"} {
+				data := findFileContentsInConfig(config, filepath.Join("/", helmPath, release+".yaml"))
+				Expect(data).NotTo(BeNil())
+
+				var crd helm.CRD
+				Expect(yaml.Unmarshal([]byte(*data), &crd)).To(Succeed())
+				Expect(crd.Metadata.Name).To(Equal(release))
+				Expect(crd.Spec.Chart).To(Equal("apache"))
+				Expect(crd.Spec.ValuesContent).To(Equal("color: " + color + "\n"))
+				// Both releases share the credentials of the chart
+				Expect(crd.Spec.RepositoryAuthSecret.Name).To(Equal("apache-auth"))
+			}
+
+			Expect(findFileContentsInConfig(config, filepath.Join("/", image.KubernetesManifestsPath(), "apache-auth-priority.yaml"))).NotTo(BeNil())
+		})
+
+		DescribeTable("Fails on Helm charts sharing a release name",
+			func(charts []*kubernetes.HelmChart, expected string) {
+				conf := &image.Configuration{
+					Release: release.Release{
+						Components: release.Components{
+							HelmCharts: []release.HelmChart{{Name: "elemental-lifecycle-manager"}},
+						},
+					},
+					Kubernetes: kubernetes.Kubernetes{
+						Helm: &kubernetes.Helm{
+							Charts:       charts,
+							Repositories: []*kubernetes.HelmRepository{{Name: "apache", URL: "https://example.com/apache/"}},
+						},
+					},
+				}
+
+				h := &Helm{ValuesResolver: &valuesResolverMock{}, Logger: logger}
+				_, err := h.Configure(context.Background(), conf, rm, config)
+				Expect(err).To(MatchError(ContainSubstring(expected)))
+			},
+			Entry("the same chart twice without a release name",
+				[]*kubernetes.HelmChart{
+					{Name: "apache", RepositoryName: "apache", TargetNamespace: "blue", Version: "10.7.0"},
+					{Name: "apache", RepositoryName: "apache", TargetNamespace: "green", Version: "10.7.0"},
+				},
+				`release name "apache" of helm chart apache is used by another helm chart, set a unique releaseName in kubernetes/cluster.yaml`),
+			Entry("a release name used by a release manifest chart",
+				[]*kubernetes.HelmChart{
+					{Name: "apache", ReleaseName: "elemental-lifecycle-manager", RepositoryName: "apache", TargetNamespace: "web", Version: "10.7.0"},
+				},
+				`release name "elemental-lifecycle-manager" of helm chart apache is used by another helm chart`),
+		)
+
 		It("Collects and writes core, solution and user Helm charts with auth to the FS", func() {
 			fs, cleanup, err := sysmock.TestFS(map[string]string{})
 			Expect(err).NotTo(HaveOccurred())

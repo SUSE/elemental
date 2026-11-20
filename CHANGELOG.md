@@ -150,6 +150,7 @@ bootloader:
 - Added release manifest schema `v1`, with automatic in-memory migration of `v0` manifests ([#534](https://github.com/SUSE/elemental/pull/534), [#635](https://github.com/SUSE/elemental/pull/635)).
 - Added `priorityUpgrade` for Helm charts in `v1` release manifests ([#644](https://github.com/SUSE/elemental/pull/644)).
 - Added a compatibility check between `elemental3` and the Core Platform's Elemental version. It warns when `elemental3` is older than the Core Platform within the same minor version ([#631](https://github.com/SUSE/elemental/pull/631), [#646](https://github.com/SUSE/elemental/pull/646)).
+- Added `releaseName` to the Helm charts of `kubernetes/cluster.yaml` to set their Helm release name, e.g. to deploy the same chart more than once ([#474](https://github.com/SUSE/elemental/issues/474)).
 - Added `network.apiVIPMode: external` for API VIPs served by third-party load balancers. MetalLB and Endpoint Copier Operator are then not deployed ([#578](https://github.com/SUSE/elemental/pull/578)).
 - Added runtime node role configuration through `/var/lib/elemental/runtime.env`, so a single customized image can boot as an initializing server, joining server, or agent ([#578](https://github.com/SUSE/elemental/pull/578)).
 - Added Terraform automation under `terraform/` to deploy demo single-node and multi-node clusters on AWS with `make -C terraform up` ([#601](https://github.com/SUSE/elemental/pull/601)).

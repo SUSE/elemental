@@ -80,10 +80,11 @@ func (h *Helm) ChartRepositories() map[string]string {
 	return m
 }
 
+// ValueFiles maps the release name of each chart to its values file
 func (h *Helm) ValueFiles() map[string]string {
 	m := map[string]string{}
 	for _, chart := range h.Charts {
-		m[chart.Name] = chart.ValuesFile
+		m[chart.GetReleaseName()] = chart.ValuesFile
 	}
 
 	return m
@@ -96,9 +97,19 @@ type HelmChart struct {
 	TargetNamespace string   `yaml:"targetNamespace" validate:"required"`
 	ValuesFile      string   `yaml:"valuesFile"`
 	APIVersions     []string `yaml:"apiVersions,omitempty"`
+	ReleaseName     string   `yaml:"releaseName,omitempty" validate:"omitempty,helmreleasename"`
 }
 
 func (c *HelmChart) GetName() string {
+	return c.Name
+}
+
+// GetReleaseName returns the Helm release name of the chart, which defaults to the chart name
+func (c *HelmChart) GetReleaseName() string {
+	if c.ReleaseName != "" {
+		return c.ReleaseName
+	}
+
 	return c.Name
 }
 
@@ -119,7 +130,7 @@ func (c *HelmChart) GetRepositoryName() string {
 }
 
 func (c *HelmChart) ToCRD(values []byte, repository string, hasAuth, skipTLSVerify bool) (*helm.CRD, error) {
-	return helm.NewCRD(c.TargetNamespace, c.Name, c.Version, string(values), repository, hasAuth, skipTLSVerify)
+	return helm.NewCRD(c.GetReleaseName(), c.TargetNamespace, c.Name, c.Version, string(values), repository, hasAuth, skipTLSVerify)
 }
 
 type HelmRepository struct {

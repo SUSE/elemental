@@ -59,6 +59,7 @@ type helmValuesResolver interface {
 
 type helmChart interface {
 	GetName() string
+	GetReleaseName() string
 	GetVersion() string
 	GetAPIVersions() []string
 	GetInlineValues() map[string]any
@@ -179,6 +180,10 @@ func (h *Helm) retrieveHelmCharts(ctx context.Context, rm *resolver.ResolvedMani
 		return nil, nil, fmt.Errorf("filtering enabled helm charts: %w", err)
 	}
 
+	if err = checkReleaseNames(charts, conf); err != nil {
+		return nil, nil, err
+	}
+
 	authMap, err := createAuthMap(charts, repositories, conf)
 	if err != nil {
 		return nil, nil, fmt.Errorf("creating helm chart auth map: %w", err)
@@ -203,6 +208,29 @@ func (h *Helm) retrieveHelmCharts(ctx context.Context, rm *resolver.ResolvedMani
 	}
 
 	return crds, generateHelmSecrets(authMap), nil
+}
+
+// checkReleaseNames ensures every Helm chart has its own release name, as all HelmChart resources
+// are created in the same namespace regardless of the namespace their chart is deployed to.
+func checkReleaseNames(releaseCharts []*api.HelmChart, conf *image.Configuration) error {
+	used := map[string]struct{}{}
+	for _, chart := range releaseCharts {
+		used[chart.GetReleaseName()] = struct{}{}
+	}
+
+	if conf.Kubernetes.Helm == nil {
+		return nil
+	}
+
+	for _, chart := range conf.Kubernetes.Helm.Charts {
+		name := chart.GetReleaseName()
+		if _, ok := used[name]; ok {
+			return fmt.Errorf("release name %q of helm chart %s is used by another helm chart, set a unique releaseName in kubernetes/cluster.yaml", name, chart.Name)
+		}
+		used[name] = struct{}{}
+	}
+
+	return nil
 }
 
 // evaluateLCMDeps removes dependencies of LCM if they are satisfied separately, i.e.,
@@ -370,7 +398,7 @@ func (h *Helm) appendHelmChart(ctx context.Context, chart helmChart, repositorie
 		return fmt.Errorf("repository not found for chart: %s", name)
 	}
 
-	source := &helm.ValueSource{Inline: chart.GetInlineValues(), File: valueFiles[name]}
+	source := &helm.ValueSource{Inline: chart.GetInlineValues(), File: valueFiles[chart.GetReleaseName()]}
 	values, err := h.ValuesResolver.Resolve(source)
 	if err != nil {
 		return fmt.Errorf("resolving values for chart %s: %w", name, err)
@@ -393,7 +421,7 @@ func (h *Helm) appendHelmChart(ctx context.Context, chart helmChart, repositorie
 		crd.Spec.Repo = ""
 		crd.Spec.ChartContent = content
 
-		if err = h.collectChartImages(ctx, name, archive, crd.Spec.TargetNamespace, kubeVersion, chart.GetAPIVersions(), values); err != nil {
+		if err = h.collectChartImages(ctx, chart.GetReleaseName(), archive, crd.Spec.TargetNamespace, kubeVersion, chart.GetAPIVersions(), values); err != nil {
 			return fmt.Errorf("discovering images of chart %s: %w", name, err)
 		}
 	}
