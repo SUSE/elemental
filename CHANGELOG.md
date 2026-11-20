@@ -25,6 +25,7 @@ Changes since `v3.0.0`. This includes the changes from the `v3.1.0-alpha.2026090
 - When a Helm chart is defined in both the Core Platform and the Solution release manifest, the Core Platform definition now takes precedence ([#559](https://github.com/SUSE/elemental/pull/559)).
 - `deployment.yaml` is now parsed strictly, and unknown fields cause an error. Files written by Elemental 3.0 remain valid ([#632](https://github.com/SUSE/elemental/pull/632)).
 - When nodes are declared in `kubernetes/cluster.yaml`, Kubernetes configuration now fails on hosts whose hostname matches no declared node instead of silently falling back to the `server` role ([#564](https://github.com/SUSE/elemental/pull/564)).
+- Helm charts in `kubernetes/cluster.yaml` can no longer use the name of a Helm chart defined in the release manifests as release name, even when that chart is not enabled, as the Elemental Lifecycle Manager would upgrade them to the release manifest chart. Set a different `releaseName` for such charts ([#474](https://github.com/SUSE/elemental/issues/474)).
 - Release manifests using `schema: v1` must not set `metadata.version`. Existing `v0` manifests, including manifests without a `schema` field, are still accepted and migrated automatically ([#534](https://github.com/SUSE/elemental/pull/534)).
 
 ### Schema And Definition Changes

@@ -638,11 +638,16 @@ spec:
 					{Name: "apache", RepositoryName: "apache", TargetNamespace: "green", Version: "10.7.0"},
 				},
 				`release name "apache" of helm chart apache is used by another helm chart, set a unique releaseName in kubernetes/cluster.yaml`),
-			Entry("a release name used by a release manifest chart",
+			Entry("a release name used by an enabled release manifest chart",
 				[]*kubernetes.HelmChart{
 					{Name: "apache", ReleaseName: "elemental-lifecycle-manager", RepositoryName: "apache", TargetNamespace: "web", Version: "10.7.0"},
 				},
-				`release name "elemental-lifecycle-manager" of helm chart apache is used by another helm chart`),
+				`release name "elemental-lifecycle-manager" of helm chart apache is reserved for the helm chart of the release manifests, set a different releaseName in kubernetes/cluster.yaml`),
+			Entry("a release name used by a release manifest chart that is not enabled",
+				[]*kubernetes.HelmChart{
+					{Name: "kubevirt", RepositoryName: "apache", TargetNamespace: "kubevirt", Version: "1.0.0"},
+				},
+				`release name "kubevirt" of helm chart kubevirt is reserved for the helm chart of the release manifests`),
 		)
 
 		It("Collects and writes core, solution and user Helm charts with auth to the FS", func() {

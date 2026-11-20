@@ -180,7 +180,7 @@ func (h *Helm) retrieveHelmCharts(ctx context.Context, rm *resolver.ResolvedMani
 		return nil, nil, fmt.Errorf("filtering enabled helm charts: %w", err)
 	}
 
-	if err = checkReleaseNames(charts, conf); err != nil {
+	if err = checkReleaseNames(rm, conf); err != nil {
 		return nil, nil, err
 	}
 
@@ -210,20 +210,31 @@ func (h *Helm) retrieveHelmCharts(ctx context.Context, rm *resolver.ResolvedMani
 	return crds, generateHelmSecrets(authMap), nil
 }
 
-// checkReleaseNames ensures every Helm chart has its own release name, as all HelmChart resources
-// are created in the same namespace regardless of the namespace their chart is deployed to.
-func checkReleaseNames(releaseCharts []*api.HelmChart, conf *image.Configuration) error {
-	used := map[string]struct{}{}
-	for _, chart := range releaseCharts {
-		used[chart.GetReleaseName()] = struct{}{}
-	}
-
+// checkReleaseNames ensures every Helm chart of kubernetes/cluster.yaml has its own release name, as all
+// HelmChart resources are created in the same namespace regardless of the namespace their chart is deployed to.
+// Release names of all charts defined in the release manifests are reserved, whether they are enabled or not:
+// the Elemental Lifecycle Manager upgrades any release named after one of them to the release manifest chart.
+func checkReleaseNames(rm *resolver.ResolvedManifest, conf *image.Configuration) error {
 	if conf.Kubernetes.Helm == nil {
 		return nil
 	}
 
+	reserved := map[string]struct{}{}
+	for _, h := range []*api.Helm{rm.CorePlatform.Components.Helm, solutionHelm(rm)} {
+		if h == nil {
+			continue
+		}
+		for _, chart := range h.Charts {
+			reserved[chart.GetReleaseName()] = struct{}{}
+		}
+	}
+
+	used := map[string]struct{}{}
 	for _, chart := range conf.Kubernetes.Helm.Charts {
 		name := chart.GetReleaseName()
+		if _, ok := reserved[name]; ok {
+			return fmt.Errorf("release name %q of helm chart %s is reserved for the helm chart of the release manifests, set a different releaseName in kubernetes/cluster.yaml", name, chart.Name)
+		}
 		if _, ok := used[name]; ok {
 			return fmt.Errorf("release name %q of helm chart %s is used by another helm chart, set a unique releaseName in kubernetes/cluster.yaml", name, chart.Name)
 		}
@@ -231,6 +242,14 @@ func checkReleaseNames(releaseCharts []*api.HelmChart, conf *image.Configuration
 	}
 
 	return nil
+}
+
+func solutionHelm(rm *resolver.ResolvedManifest) *api.Helm {
+	if rm.SolutionExtension == nil {
+		return nil
+	}
+
+	return rm.SolutionExtension.Components.Helm
 }
 
 // evaluateLCMDeps removes dependencies of LCM if they are satisfied separately, i.e.,
