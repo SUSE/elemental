@@ -4,7 +4,7 @@ After=k8s-config-installer.service
 {{- if .InitNode.Hostname }}
 ConditionHost={{ .InitNode.Hostname }}
 {{- end }}
-StartLimitIntervalSec=1h
+StartLimitIntervalSec=3h
 StartLimitBurst=5
 
 [Service]

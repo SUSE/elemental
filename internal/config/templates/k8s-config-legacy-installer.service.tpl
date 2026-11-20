@@ -7,6 +7,8 @@
 Description=Kubernetes Installation and Configuration
 ConditionFirstBoot=true
 Requires=network-online.target
+StartLimitIntervalSec=3h
+StartLimitBurst=5
 
 [Service]
 Type=oneshot

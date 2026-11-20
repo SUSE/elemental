@@ -745,5 +745,14 @@ mirrors:
 			Expect(err).NotTo(HaveOccurred())
 			Expect(unit).NotTo(ContainSubstring("semodule"))
 		})
+
+		It("limits the restarts of both units", func() {
+			for _, version := range []string{"3.0.0", "3.1.0"} {
+				unit, err := generateK8sConfigUnit("/deploy.sh", parse(version))
+				Expect(err).NotTo(HaveOccurred())
+				Expect(unit).To(ContainSubstring("StartLimitIntervalSec=3h\nStartLimitBurst=5\n"), version)
+				Expect(unit).To(ContainSubstring("Restart=on-failure\nRestartSec=60\n"), version)
+			}
+		})
 	})
 })

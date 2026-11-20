@@ -51,7 +51,7 @@ The Helm charts and Kubernetes manifests of the configuration are deployed on th
 journalctl -u k8s-resource-installer.service
 ```
 
-The service is restarted up to five times within an hour, which only helps when the cause was fixed in the meantime: existing resources are kept, and the Helm Controller retries a failed chart only once its HelmChart resource changes. To verify a fix on the node, delete the affected HelmChart resources and retry manually:
+The service is restarted up to five times within three hours, which only helps when the cause was fixed in the meantime: existing resources are kept, and the Helm Controller retries a failed chart only once its HelmChart resource changes. To verify a fix on the node, delete the affected HelmChart resources and retry manually:
 
 ```shell
 kubectl -n kube-system delete helmchart <name>

@@ -141,4 +141,11 @@ var _ = Describe("Kubernetes resources installer unit", Label("k8s-res-deploy"),
 		Expect(unit).NotTo(ContainSubstring("TimeoutSec="))
 		Expect(unit).To(ContainSubstring("ExecStartPre=/usr/bin/timeout 900 /bin/sh -c 'until"))
 	})
+
+	It("gives up after five failed starts within three hours", func() {
+		unit, err := generateK8sResourcesUnit("/var/lib/elemental/kubernetes/k8s_res_deploy.sh", nil)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(unit).To(ContainSubstring("StartLimitIntervalSec=3h\nStartLimitBurst=5\n"))
+		Expect(unit).To(ContainSubstring("Restart=on-failure\nRestartSec=60\n"))
+	})
 })
