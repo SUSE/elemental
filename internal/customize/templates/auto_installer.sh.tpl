@@ -8,13 +8,25 @@ ExecStart=
 ExecStart=-/sbin/agetty --autologin root --noclear %I $TERM
 EOF
 
+# Show the system journal on the first virtual terminal, so that the installation
+# progress is visible right away, and keep a root shell on the second one.
 mkdir -p /etc/systemd/system/getty@tty1.service.d
 
 cat > /etc/systemd/system/getty@tty1.service.d/override.conf << EOF
 [Service]
 ExecStart=
+ExecStart=-/usr/bin/journalctl --follow --no-pager
+EOF
+
+mkdir -p /etc/systemd/system/getty@tty2.service.d
+
+cat > /etc/systemd/system/getty@tty2.service.d/override.conf << EOF
+[Service]
+ExecStart=
 ExecStart=-/sbin/agetty --autologin root --noclear %I $TERM
 EOF
+
+systemctl enable getty@tty2.service
 
 # Ensure extensions included in ISO's /extensions folder are loaded at boot
 # ISO filesystem is mounted at /run/initramfs/live folder
