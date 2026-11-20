@@ -221,6 +221,7 @@ bootloader:
 - Stopped monitoring the OBS `sysexts` repository and increased OBS wait timeouts (also in v3.0.4) ([#616](https://github.com/SUSE/elemental/pull/616)).
 - Removed leftover `elemental3ctl` system extension references from OBS workflows and test data ([#538](https://github.com/SUSE/elemental/pull/538)).
 - Fixed integration test setup by installing `qemu-system-x86` and pinning the runner to `ubuntu-24.04` ([#638](https://github.com/SUSE/elemental/pull/638)).
+- Skipped the unit tests, integration tests, and lint for pull requests that only change files they do not use, such as documentation, and deployed the documentation site only when it changes ([#338](https://github.com/SUSE/elemental/issues/338)).
 - Updated GitHub Actions `actions/checkout`, `actions/setup-go`, `actions/deploy-pages`, and `golangci/golangci-lint-action` ([#483](https://github.com/SUSE/elemental/pull/483), [#503](https://github.com/SUSE/elemental/pull/503), [#536](https://github.com/SUSE/elemental/pull/536), [#512](https://github.com/SUSE/elemental/pull/512), [#535](https://github.com/SUSE/elemental/pull/535), [#584](https://github.com/SUSE/elemental/pull/584), [#482](https://github.com/SUSE/elemental/pull/482), [#511](https://github.com/SUSE/elemental/pull/511)).
 
 ### Dependencies
