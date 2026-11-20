@@ -116,14 +116,13 @@ func NewCRD(name, namespace, chart, version, valuesContent string, repository st
 	}
 
 	if auth {
-		// The credentials are generated per chart and shared by all of its releases
 		if isOCI {
 			crd.Spec.RegistryAuthSecret = &AuthSecret{
-				Name: fmt.Sprintf("%s-auth", chartName),
+				Name: fmt.Sprintf("%s-auth", name),
 			}
 		} else {
 			crd.Spec.RepositoryAuthSecret = &AuthSecret{
-				Name: fmt.Sprintf("%s-auth", chartName),
+				Name: fmt.Sprintf("%s-auth", name),
 			}
 		}
 	}

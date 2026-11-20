@@ -201,7 +201,7 @@ func (h *Helm) retrieveHelmCharts(ctx context.Context, rm *resolver.ResolvedMani
 
 		for _, chart := range conf.Kubernetes.Helm.Charts {
 			h.Logger.Info("Deploying Helm chart %s version %s from %s", chart.Name, chart.Version, repositories[chart.RepositoryName])
-			if err = h.appendHelmChart(ctx, chart, repositories, valueFiles, &crds, authMap[chart.Name], embed, kubeVersion); err != nil {
+			if err = h.appendHelmChart(ctx, chart, repositories, valueFiles, &crds, authMap[chart.GetReleaseName()], embed, kubeVersion); err != nil {
 				return nil, nil, fmt.Errorf("collecting user helm charts: %w", err)
 			}
 		}
@@ -385,7 +385,7 @@ func createAuthMap(charts []*api.HelmChart, repositories map[string]string, conf
 			if err != nil {
 				return nil, fmt.Errorf("extracting host: %w", err)
 			}
-			authMap[c.Name] = &auth.HelmAuth{
+			authMap[c.GetReleaseName()] = &auth.HelmAuth{
 				RawURL: repoURL,
 				URL:    extractedHost,
 				Credentials: auth.Credentials{
