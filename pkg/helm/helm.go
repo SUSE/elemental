@@ -79,16 +79,18 @@ type SecretData struct {
 	Password         *string `yaml:"password,omitempty"`
 }
 
-func NewCRD(namespace, chart, version, valuesContent string, repository string, auth, skipTLSVerify bool) (crd *CRD, err error) {
-	name := chart
+// NewCRD creates a HelmChart custom resource deploying the given chart with the given name,
+// which is used as the Helm release name.
+func NewCRD(name, namespace, chart, version, valuesContent string, repository string, auth, skipTLSVerify bool) (crd *CRD, err error) {
+	chartName := chart
 	isOCI := strings.HasPrefix(repository, "oci://")
 	if isOCI {
 		// The repository is in fact an OCI registry.
 		// Use the full path for the chart identifier and drop the "repository" value.
 		// The latter is only valid for HTTP(s) repositories.
-		chart, err = url.JoinPath(repository, name)
+		chart, err = url.JoinPath(repository, chartName)
 		if err != nil {
-			return nil, fmt.Errorf("invalid path for chart %s: %w", name, err)
+			return nil, fmt.Errorf("invalid path for chart %s: %w", chartName, err)
 		}
 
 		repository = ""

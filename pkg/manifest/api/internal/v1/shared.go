@@ -58,6 +58,10 @@ func (c *HelmChart) GetName() string {
 	return c.Chart
 }
 
+func (c *HelmChart) GetReleaseName() string {
+	return c.Chart
+}
+
 func (c *HelmChart) GetVersion() string {
 	return c.Version
 }
@@ -75,7 +79,7 @@ func (c *HelmChart) GetRepositoryName() string {
 }
 
 func (c *HelmChart) ToCRD(values []byte, repository string, hasAuth bool, skipTLSVerify bool) (*helm.CRD, error) {
-	return helm.NewCRD(c.Namespace, c.Chart, c.Version, string(values), repository, hasAuth, skipTLSVerify)
+	return helm.NewCRD(c.Chart, c.Namespace, c.Chart, c.Version, string(values), repository, hasAuth, skipTLSVerify)
 }
 
 func (c *HelmChart) ExtensionDependencies() []string {

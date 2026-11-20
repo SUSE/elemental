@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -32,7 +33,13 @@ import (
 	"github.com/suse/elemental/v3/internal/image/release"
 )
 
-const elementalLifecycleManager = "elemental-lifecycle-manager"
+const (
+	elementalLifecycleManager = "elemental-lifecycle-manager"
+	helmReleaseNameMaxLen     = 53
+)
+
+// helmReleaseNameRegex matches the release names accepted by Helm
+var helmReleaseNameRegex = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`)
 
 var (
 	validate *validator.Validate
@@ -45,6 +52,7 @@ func getValidator() *validator.Validate {
 		_ = validate.RegisterValidation("disksize", validateDiskSize)
 		_ = validate.RegisterValidation("netbooturl", validateNetbootURL)
 		_ = validate.RegisterValidation("lcmrequired", validateLifecycleManager)
+		_ = validate.RegisterValidation("helmreleasename", validateHelmReleaseName)
 	})
 	return validate
 }
@@ -61,6 +69,11 @@ func validateNetbootURL(fl validator.FieldLevel) bool {
 	default:
 		return false
 	}
+}
+
+func validateHelmReleaseName(fl validator.FieldLevel) bool {
+	name := fl.Field().String()
+	return len(name) <= helmReleaseNameMaxLen && helmReleaseNameRegex.MatchString(name)
 }
 
 func validateDiskSize(fl validator.FieldLevel) bool {
@@ -115,6 +128,8 @@ func Validate(conf *image.Configuration) error {
 				messages = append(messages, fmt.Sprintf("field %q must be an http, https, or nfs URL, but got %q", vErr.Namespace(), vErr.Value()))
 			case "hostname":
 				messages = append(messages, fmt.Sprintf("field %q must be a valid hostname, but got %q", vErr.Namespace(), vErr.Value()))
+			case "helmreleasename":
+				messages = append(messages, fmt.Sprintf("field %q must be a valid Helm release name of at most %d lowercase letters, digits, '-' or '.', but got %q", vErr.Namespace(), helmReleaseNameMaxLen, vErr.Value()))
 			case "lcmrequired":
 				messages = append(messages, fmt.Sprintf("chart %q must be listed under components.helm in release.yaml when Kubernetes is enabled", elementalLifecycleManager))
 			default:

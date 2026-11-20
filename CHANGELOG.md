@@ -25,6 +25,7 @@ Changes since `v3.0.0`. This includes the changes from the `v3.1.0-alpha.2026090
 - When a Helm chart is defined in both the Core Platform and the Solution release manifest, the Core Platform definition now takes precedence ([#559](https://github.com/SUSE/elemental/pull/559)).
 - `deployment.yaml` is now parsed strictly, and unknown fields cause an error. Files written by Elemental 3.0 remain valid ([#632](https://github.com/SUSE/elemental/pull/632)).
 - When nodes are declared in `kubernetes/cluster.yaml`, Kubernetes configuration now fails on hosts whose hostname matches no declared node instead of silently falling back to the `server` role ([#564](https://github.com/SUSE/elemental/pull/564)).
+- Helm charts in `kubernetes/cluster.yaml` can no longer use the name of a Helm chart defined in the release manifests as release name, even when that chart is not enabled, as the Elemental Lifecycle Manager would upgrade them to the release manifest chart. Set a different `releaseName` for such charts ([#474](https://github.com/SUSE/elemental/issues/474)).
 - Release manifests using `schema: v1` must not set `metadata.version`. Existing `v0` manifests, including manifests without a `schema` field, are still accepted and migrated automatically ([#534](https://github.com/SUSE/elemental/pull/534)).
 
 ### Schema And Definition Changes
@@ -150,6 +151,7 @@ bootloader:
 - Added release manifest schema `v1`, with automatic in-memory migration of `v0` manifests ([#534](https://github.com/SUSE/elemental/pull/534), [#635](https://github.com/SUSE/elemental/pull/635)).
 - Added `priorityUpgrade` for Helm charts in `v1` release manifests ([#644](https://github.com/SUSE/elemental/pull/644)).
 - Added a compatibility check between `elemental3` and the Core Platform's Elemental version. It warns when `elemental3` is older than the Core Platform within the same minor version ([#631](https://github.com/SUSE/elemental/pull/631), [#646](https://github.com/SUSE/elemental/pull/646)).
+- Added `releaseName` to the Helm charts of `kubernetes/cluster.yaml` to set their Helm release name, e.g. to deploy the same chart more than once ([#474](https://github.com/SUSE/elemental/issues/474)).
 - Added `network.apiVIPMode: external` for API VIPs served by third-party load balancers. MetalLB and Endpoint Copier Operator are then not deployed ([#578](https://github.com/SUSE/elemental/pull/578)).
 - Added runtime node role configuration through `/var/lib/elemental/runtime.env`, so a single customized image can boot as an initializing server, joining server, or agent ([#578](https://github.com/SUSE/elemental/pull/578)).
 - Added Terraform automation under `terraform/` to deploy demo single-node and multi-node clusters on AWS with `make -C terraform up` ([#601](https://github.com/SUSE/elemental/pull/601)).
