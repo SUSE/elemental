@@ -125,10 +125,10 @@ helm:
       targetNamespace: "cattle-system"
       repositoryName: "rancher"
       valuesFile: rancher.yaml
-    - name: "cert-manager-fips"
-      releaseName: "cert-manager"
+    - name: "nginx"
+      releaseName: "nginx-public"
       version: "1.19.3"
-      targetNamespace: "cmf-system"
+      targetNamespace: "web"
       repositoryName: "application-collection"
       apiVersions:
         - batch/v1
