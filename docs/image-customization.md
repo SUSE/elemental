@@ -263,3 +263,5 @@ The customized image can be booted as any other regular image. Below you can fin
                 --osinfo detect=on,name=sle-unknown \
                 --virt-type kvm
     ```
+
+   The installation starts automatically once the ISO has booted. The first virtual terminal shows the system journal with the installation progress, and a root shell is available on the second virtual terminal (`Alt+F2`) and on the serial console.
