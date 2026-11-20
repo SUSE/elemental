@@ -31,6 +31,7 @@ import (
 	"github.com/suse/elemental/v3/pkg/deployment"
 	"github.com/suse/elemental/v3/pkg/fips"
 	"github.com/suse/elemental/v3/pkg/firmware"
+	"github.com/suse/elemental/v3/pkg/hardening"
 	"github.com/suse/elemental/v3/pkg/rsync"
 	"github.com/suse/elemental/v3/pkg/selinux"
 	"github.com/suse/elemental/v3/pkg/sys"
@@ -147,6 +148,13 @@ func (u Upgrader) Upgrade(d *deployment.Deployment) (err error) {
 		}
 	}
 
+	if d.IsHardeningEnabled() {
+		err = u.applyHardening(d, trans.Path)
+		if err != nil {
+			return fmt.Errorf("applying hardening profile: %w", err)
+		}
+	}
+
 	err = selinux.ChrootedRefreshPolicy(u.ctx, u.s, trans.Path, selinux.SelinuxTargetedPolicyType)
 	if err != nil {
 		return fmt.Errorf("refreshing SE Linux policy: %w", err)
@@ -236,6 +244,45 @@ func (u Upgrader) Upgrade(d *deployment.Deployment) (err error) {
 		return fmt.Errorf("committing transaction: %w", err)
 	}
 
+	return nil
+}
+
+// applyHardening remediates the snapshot at root against the configured profile
+// and adds the kernel arguments the profile requires to the deployment's boot
+// configuration. It runs before the deployment file is written and before the
+// bootloader is installed, so both pick up the changes. It runs again on every
+// upgrade, which re-applies the profile to the new snapshot.
+func (u Upgrader) applyHardening(d *deployment.Deployment, root string) error {
+	res, err := hardening.Apply(u.ctx, u.s, root, d.Security.Hardening)
+	if err != nil {
+		return err
+	}
+
+	// From now on the tailoring file lives in the image (and is carried over by
+	// the /etc merge on upgrades), not on the build host.
+	if res.Tailoring != "" {
+		d.Security.Hardening.Tailoring = res.Tailoring
+	}
+
+	if res.Plan.RequiresFIPS && !d.IsFipsEnabled() {
+		u.s.Logger().Warn("Hardening profile %s requires FIPS mode, which is not enabled; set 'cryptoPolicy: fips' to comply", res.Profile)
+	}
+
+	if d.BootConfig == nil {
+		d.BootConfig = &deployment.BootConfig{}
+	}
+	if err := hardening.CheckForbiddenKernelArgs(d.BootConfig.KernelCmdline, res.Plan.ForbiddenArgs); err != nil {
+		return err
+	}
+	cmdline, appended, err := hardening.AppendKernelArgs(d.BootConfig.KernelCmdline, res.Plan.KernelArgs)
+	if err != nil {
+		return err
+	}
+	if len(appended) > 0 {
+		u.s.Logger().Warn("Hardening profile %s requires kernel arguments not in the configured command line, appending: %s",
+			res.Profile, strings.Join(appended, " "))
+	}
+	d.BootConfig.KernelCmdline = cmdline
 	return nil
 }
 

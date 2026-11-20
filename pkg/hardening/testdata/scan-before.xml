@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Benchmark xmlns="http://checklists.nist.gov/xccdf/1.2" id="xccdf_org.ssgproject.content_benchmark_TEST">
+  <Rule id="xccdf_org.ssgproject.content_rule_grub2_audit_argument" selected="false"><title>not a result</title></Rule>
+  <TestResult id="xccdf_org.open-scap_testresult_stig">
+    <set-value idref="xccdf_org.ssgproject.content_value_var_slub_debug_options">FZP</set-value>
+    <rule-result idref="xccdf_org.ssgproject.content_rule_grub2_audit_argument"><result>fail</result></rule-result>
+    <rule-result idref="xccdf_org.ssgproject.content_rule_grub2_slub_debug_argument"><result>fail</result></rule-result>
+    <rule-result idref="xccdf_org.ssgproject.content_rule_grub2_pti_argument"><result>notselected</result></rule-result>
+    <rule-result idref="xccdf_org.ssgproject.content_rule_grub2_uefi_password"><result>fail</result></rule-result>
+    <rule-result idref="xccdf_org.ssgproject.content_rule_grub2_enable_fips_mode"><result>fail</result></rule-result>
+    <rule-result idref="xccdf_org.ssgproject.content_rule_package_aide_installed"><result>fail</result></rule-result>
+    <rule-result idref="xccdf_org.ssgproject.content_rule_package_telnet_removed"><result>pass</result></rule-result>
+    <rule-result idref="xccdf_org.ssgproject.content_rule_sshd_disable_root_login"><result>fail</result></rule-result>
+    <rule-result idref="xccdf_org.ssgproject.content_rule_partition_for_var_log_audit"><result>fail</result></rule-result>
+  </TestResult>
+</Benchmark>
