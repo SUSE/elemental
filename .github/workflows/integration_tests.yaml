@@ -1,6 +1,15 @@
 name: Integration Tests
 on:
   pull_request:
+    # Skip changes that the integration tests do not use. They use
+    # examples/elemental/install/config.sh.
+    paths-ignore:
+      - "docs/**"
+      - "**.md"
+      - "terraform/**"
+      - "examples/elemental/customize/**"
+      - "examples/elemental/runtime-configs/**"
+      - "examples/tools-sysext/**"
 
 permissions:
   contents: read

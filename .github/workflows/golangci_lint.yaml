@@ -1,6 +1,12 @@
 name: Lint
 on:
   pull_request:
+    # Skip changes without Go code
+    paths-ignore:
+      - "docs/**"
+      - "**.md"
+      - "terraform/**"
+      - "examples/**"
   push:
     branches:
       - main

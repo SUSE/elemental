@@ -1,6 +1,15 @@
 name: Unit Tests
 on:
   pull_request:
+    # Skip changes that no unit test reads. The examples under
+    # examples/elemental/customize are validated by the unit tests.
+    paths-ignore:
+      - "docs/**"
+      - "**.md"
+      - "terraform/**"
+      - "examples/elemental/install/**"
+      - "examples/elemental/runtime-configs/**"
+      - "examples/tools-sysext/**"
   push:
     branches:
       - main
