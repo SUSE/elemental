@@ -133,6 +133,7 @@ data:
 		system, err = sys.NewSystem(
 			sys.WithFS(fs),
 			sys.WithLogger(log.New(log.WithDiscardAll())),
+			sys.WithPlatform("linux/arm64"),
 		)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -200,7 +201,7 @@ data:
 
 	It("Embeds every collected image and configures the registry", func() {
 		helm := &helmConfiguratorMock{containerImages: []string{"ghcr.io/helm/rendered:3.0", "quay.io/app/web:2.0"}}
-		m := NewManager(system, helm, WithImageStore(store), WithPlatform("linux/arm64"))
+		m := NewManager(system, helm, WithImageStore(store))
 
 		hosts, err := m.configureEmbeddedRegistry(context.Background(), conf, rm, output, butaneCfg)
 		Expect(err).ToNot(HaveOccurred())
@@ -254,7 +255,7 @@ data:
 
 	It("Fails when a registry login fails", func() {
 		store.loginErr = fmt.Errorf("unauthorized")
-		m := NewManager(system, &helmConfiguratorMock{}, WithImageStore(store), WithPlatform("linux/arm64"))
+		m := NewManager(system, &helmConfiguratorMock{}, WithImageStore(store))
 
 		_, err := m.configureEmbeddedRegistry(context.Background(), conf, rm, output, butaneCfg)
 		Expect(err).To(MatchError(ContainSubstring("unauthorized")))
@@ -263,7 +264,7 @@ data:
 
 	It("Fails when an image cannot be saved", func() {
 		store.saveErr = fmt.Errorf("manifest unknown")
-		m := NewManager(system, &helmConfiguratorMock{}, WithImageStore(store), WithPlatform("linux/arm64"))
+		m := NewManager(system, &helmConfiguratorMock{}, WithImageStore(store))
 
 		_, err := m.configureEmbeddedRegistry(context.Background(), conf, rm, output, butaneCfg)
 		Expect(err).To(MatchError(ContainSubstring("embedding image busybox:1.36")))
@@ -272,7 +273,7 @@ data:
 
 	It("Fails on a malformed local manifest", func() {
 		Expect(fs.WriteFile(localManifest, []byte("kind: [broken"), vfs.FilePerm)).To(Succeed())
-		m := NewManager(system, &helmConfiguratorMock{}, WithImageStore(store), WithPlatform("linux/arm64"))
+		m := NewManager(system, &helmConfiguratorMock{}, WithImageStore(store))
 
 		_, err := m.configureEmbeddedRegistry(context.Background(), conf, rm, output, butaneCfg)
 		Expect(err).To(MatchError(ContainSubstring("reading manifest")))

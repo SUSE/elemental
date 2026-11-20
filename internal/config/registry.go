@@ -81,7 +81,7 @@ func (m *Manager) configureEmbeddedRegistry(ctx context.Context, conf *image.Con
 		}
 	}
 
-	platform := m.platform
+	platform := m.system.Platform().String()
 
 	archivesDir := filepath.Join(output.RegistryStoreDir(), "archives")
 	if err = vfs.MkdirAll(fs, archivesDir, vfs.DirPerm); err != nil {

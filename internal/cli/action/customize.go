@@ -231,7 +231,6 @@ func setupConfigManager(s *sys.System, configDir string, output config.Output, c
 		s,
 		helmConfigurator,
 		config.WithCache(c),
-		config.WithPlatform(s.Platform().String()),
 		config.WithAirgap(airgap),
 	)
 }
@@ -244,12 +243,11 @@ func setupFileExtractor(ctx context.Context, s *sys.System, outDir config.Output
 	}
 
 	return extractor.New(
+		s,
 		[]string{isoSearchGlob},
 		extractor.WithStore(outDir.ISOStoreDir()),
-		extractor.WithFS(s.FS()),
 		extractor.WithContext(ctx),
 		extractor.WithCache(c),
-		extractor.WithPlatform(s.Platform().String()),
 	)
 }
 

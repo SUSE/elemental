@@ -77,16 +77,6 @@ func WithVerify(verify bool) Opt {
 	}
 }
 
-func WithPlatformRef(platform string) Opt {
-	return func(srcType deployment.ImageSrcType, o *options) {
-		switch srcType {
-		case deployment.OCI:
-			o.ociOpts = append(o.ociOpts, WithPlatformRefOCI(platform))
-		default:
-		}
-	}
-}
-
 func WithRsyncFlags(flags ...string) Opt {
 	return func(srcType deployment.ImageSrcType, o *options) {
 		switch srcType {

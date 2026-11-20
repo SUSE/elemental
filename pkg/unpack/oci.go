@@ -50,15 +50,14 @@ const (
 )
 
 type OCI struct {
-	s           *sys.System
-	platformRef string
-	local       bool
-	verify      bool
-	imageRef    string
-	rsyncFlags  []string
-	ctrdSock    string
-	ctrd        containerd.Interface
-	cache       *cache.Cache
+	s          *sys.System
+	local      bool
+	verify     bool
+	imageRef   string
+	rsyncFlags []string
+	ctrdSock   string
+	ctrd       containerd.Interface
+	cache      *cache.Cache
 }
 
 type OCIOpt func(*OCI)
@@ -72,12 +71,6 @@ func WithLocalOCI(local bool) OCIOpt {
 func WithVerifyOCI(verify bool) OCIOpt {
 	return func(o *OCI) {
 		o.verify = verify
-	}
-}
-
-func WithPlatformRefOCI(platform string) OCIOpt {
-	return func(o *OCI) {
-		o.platformRef = platform
 	}
 }
 
@@ -101,10 +94,9 @@ func WithCacheOCI(c *cache.Cache) OCIOpt {
 
 func NewOCIUnpacker(s *sys.System, imageRef string, opts ...OCIOpt) *OCI {
 	unpacker := &OCI{
-		s:           s,
-		verify:      true,
-		platformRef: s.Platform().String(),
-		imageRef:    imageRef,
+		s:        s,
+		verify:   true,
+		imageRef: imageRef,
 	}
 
 	for _, o := range opts {
@@ -165,7 +157,7 @@ func (o OCI) synchedUnpack(ctx context.Context, destination string, excludes []s
 }
 
 func (o OCI) unpack(ctx context.Context, destination string, excludes ...string) (string, error) {
-	platform, err := containerregistry.ParsePlatform(o.platformRef)
+	platform, err := containerregistry.ParsePlatform(o.s.Platform().String())
 	if err != nil {
 		return "", err
 	}

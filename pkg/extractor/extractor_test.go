@@ -31,6 +31,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/suse/elemental/v3/pkg/extractor"
+	"github.com/suse/elemental/v3/pkg/sys"
 	sysmock "github.com/suse/elemental/v3/pkg/sys/mock"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
@@ -50,11 +51,15 @@ var _ = Describe("OCIFileExtractor", Label("file-extractor"), func() {
 	var unpacker *unpackerMock
 	var cleanup func()
 	var tfs vfs.FS
+	var system *sys.System
 	var extrOpts []extractor.OCIFileExtractorOpts
 	var defaultSearchPaths []string
 	BeforeEach(func() {
 		var err error
 		tfs, cleanup, err = sysmock.TestFS(nil)
+		Expect(err).NotTo(HaveOccurred())
+
+		system, err = sys.NewSystem(sys.WithFS(tfs), sys.WithPlatform("linux/arm64"))
 		Expect(err).NotTo(HaveOccurred())
 
 		unpacker = &unpackerMock{
@@ -65,7 +70,6 @@ var _ = Describe("OCIFileExtractor", Label("file-extractor"), func() {
 
 		extrOpts = []extractor.OCIFileExtractorOpts{
 			extractor.WithOCIUnpacker(unpacker),
-			extractor.WithFS(tfs),
 		}
 
 		defaultSearchPaths = []string{"file*.yaml"}
@@ -81,7 +85,7 @@ var _ = Describe("OCIFileExtractor", Label("file-extractor"), func() {
 		storePathPrefix := filepath.Join(os.TempDir(), "extracted-files-")
 		expectedStorePath := filepath.Join(storePathPrefix, digestEnc)
 
-		defaultStoreExtr, err := extractor.New(defaultSearchPaths, extrOpts...)
+		defaultStoreExtr, err := extractor.New(system, defaultSearchPaths, extrOpts...)
 		Expect(err).ToNot(HaveOccurred())
 
 		extractedFile, err := defaultStoreExtr.ExtractFrom(dummyOCI)
@@ -101,7 +105,7 @@ var _ = Describe("OCIFileExtractor", Label("file-extractor"), func() {
 		expectedFileStore := filepath.Join(customStoreRoot, fileStoreName)
 
 		extrOpts = append(extrOpts, extractor.WithStore(customStoreRoot))
-		customStoreExtr, err := extractor.New(defaultSearchPaths, extrOpts...)
+		customStoreExtr, err := extractor.New(system, defaultSearchPaths, extrOpts...)
 		Expect(err).ToNot(HaveOccurred())
 
 		extractedFile, err := customStoreExtr.ExtractFrom(dummyOCI)
@@ -120,7 +124,7 @@ var _ = Describe("OCIFileExtractor", Label("file-extractor"), func() {
 		storePathPrefix := filepath.Join(os.TempDir(), "extracted-files-")
 		expectedExtractedFile := filepath.Join(storePathPrefix, digestEnc, "file2.yaml")
 
-		customStoreExtr, err := extractor.New(defaultSearchPaths, extrOpts...)
+		customStoreExtr, err := extractor.New(system, defaultSearchPaths, extrOpts...)
 		Expect(err).ToNot(HaveOccurred())
 
 		extractedFile, err := customStoreExtr.ExtractFrom(dummyOCI)
@@ -133,7 +137,7 @@ var _ = Describe("OCIFileExtractor", Label("file-extractor"), func() {
 		unpacker.fail = true
 		expErr := "unpacking oci image: unpack failure"
 
-		defaultExtr, err := extractor.New(defaultSearchPaths, extrOpts...)
+		defaultExtr, err := extractor.New(system, defaultSearchPaths, extrOpts...)
 		Expect(err).ToNot(HaveOccurred())
 
 		file, err := defaultExtr.ExtractFrom(dummyOCI)
@@ -146,7 +150,7 @@ var _ = Describe("OCIFileExtractor", Label("file-extractor"), func() {
 		customSearchPath := filepath.Join("dummy", "file*.yaml")
 		expErr := "locating file at unpacked OCI filesystem: failed to find file matching [dummy/file*.yaml] in /tmp/unpacked-oci-"
 
-		extr, err := extractor.New([]string{customSearchPath}, extrOpts...)
+		extr, err := extractor.New(system, []string{customSearchPath}, extrOpts...)
 		Expect(err).ToNot(HaveOccurred())
 
 		file, err := extr.ExtractFrom(dummyOCI)
@@ -159,7 +163,7 @@ var _ = Describe("OCIFileExtractor", Label("file-extractor"), func() {
 		unpacker.digest = "d41d8cd98f00b204e9800998ecf8427e"
 		expErr := fmt.Sprintf("generating file store based on digest: invalid digest format '%s', expected '<algorithm>:<hash>'", unpacker.digest)
 
-		extr, err := extractor.New(defaultSearchPaths, extrOpts...)
+		extr, err := extractor.New(system, defaultSearchPaths, extrOpts...)
 		Expect(err).ToNot(HaveOccurred())
 
 		file, err := extr.ExtractFrom(dummyOCI)
@@ -173,7 +177,7 @@ var _ = Describe("OCIFileExtractor", Label("file-extractor"), func() {
 		errSubstring := "store path '/missing' does not exist in provided filesystem"
 
 		extrOpts = append(extrOpts, extractor.WithStore(missing))
-		_, err := extractor.New(defaultSearchPaths, extrOpts...)
+		_, err := extractor.New(system, defaultSearchPaths, extrOpts...)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring(errSubstring))
 	})
