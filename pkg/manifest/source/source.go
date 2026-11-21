@@ -75,15 +75,17 @@ func ParseFromURI(uri string) (*ReleaseManifestSource, error) {
 		return nil, fmt.Errorf("parsing manifest source type: %w", err)
 	}
 
-	source := u.Opaque
-	if source == "" {
-		source = filepath.Join(u.Host, u.Path)
-	}
-
+	var source string
 	switch srcType {
 	case File:
-		source = filepath.Clean(source)
+		if source, err = filePath(uri, u); err != nil {
+			return nil, err
+		}
 	case OCI:
+		source = u.Opaque
+		if source == "" {
+			source = filepath.Join(u.Host, u.Path)
+		}
 		if _, err := name.ParseReference(source); err != nil {
 			return nil, fmt.Errorf("invalid OCI image reference: %w", err)
 		}

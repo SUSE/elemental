@@ -18,6 +18,7 @@ limitations under the License.
 package v0
 
 import (
+	"bytes"
 	"fmt"
 	"path/filepath"
 	"slices"
@@ -32,6 +33,7 @@ import (
 	"github.com/suse/elemental/v3/internal/image/kubernetes"
 	"github.com/suse/elemental/v3/internal/image/release"
 	"github.com/suse/elemental/v3/pkg/crypto"
+	"github.com/suse/elemental/v3/pkg/log"
 	sysmock "github.com/suse/elemental/v3/pkg/sys/mock"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
@@ -124,7 +126,7 @@ var _ = Describe("Configuration", Label("configuration"), func() {
 	})
 
 	It("Is fully parsed", func() {
-		conf, err := Parse(fs, configDir)
+		conf, err := Parse(fs, configDir, log.New(log.WithDiscardAll()))
 		Expect(err).ToNot(HaveOccurred())
 
 		Expect(conf.Installation.Bootloader).To(Equal("grub"))
@@ -178,9 +180,9 @@ var _ = Describe("Configuration", Label("configuration"), func() {
 		}))
 	})
 
-	It("Successfully parses relative release manifest URI", func() {
+	writeRelease := func(manifestURI string) {
 		releaseFile := filepath.Join(string(configDir), "release.yaml")
-		releaseYAML := `manifestURI: file://./release-manifest.yaml
+		releaseYAML := "manifestURI: " + manifestURI + `
 components:
   helm:
     - chart: elemental-lifecycle-manager
@@ -188,17 +190,57 @@ components:
 
 		Expect(fs.Remove(releaseFile)).To(Succeed())
 		Expect(fs.WriteFile(releaseFile, []byte(releaseYAML), 0644)).To(Succeed())
+	}
 
-		conf, err := Parse(fs, configDir)
+	DescribeTable("Resolves release manifest references relative to release.yaml",
+		func(manifestURI, expected string) {
+			writeRelease(manifestURI)
+
+			buf := &bytes.Buffer{}
+			conf, err := Parse(fs, configDir, log.New(log.WithBuffer(buf)))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(conf.Release.ManifestURI).To(Equal(expected))
+			Expect(buf.String()).ToNot(ContainSubstring("deprecated"))
+		},
+		Entry("bare relative reference", "release-manifest.yaml", "file:///tmp/config-dir/release-manifest.yaml"),
+		Entry("dot relative reference", "./sub/release-manifest.yaml", "file:///tmp/config-dir/sub/release-manifest.yaml"),
+		Entry("absolute-path reference", "/opt/release-manifest.yaml", "file:///opt/release-manifest.yaml"),
+		Entry("parent directory reference", "../shared/release-manifest.yaml", "file:///tmp/shared/release-manifest.yaml"),
+		Entry("absolute file URI, not rebased onto the config directory", "file:///opt/manifests/../release-manifest.yaml", "file:///opt/release-manifest.yaml"),
+		Entry("oci URI left unchanged", "oci://registry.foo.bar/release-manifest:0.0.1", "oci://registry.foo.bar/release-manifest:0.0.1"),
+	)
+
+	// legacy-file-dot-uri
+	It("Resolves the deprecated file://./ form with a warning", func() {
+		writeRelease("file://./release-manifest.yaml")
+
+		buf := &bytes.Buffer{}
+		conf, err := Parse(fs, configDir, log.New(log.WithBuffer(buf)))
 		Expect(err).ToNot(HaveOccurred())
-		Expect(conf.Release.ManifestURI).To(Equal("file:/tmp/config-dir/release-manifest.yaml"))
+		Expect(conf.Release.ManifestURI).To(Equal("file:///tmp/config-dir/release-manifest.yaml"))
+		Expect(buf.String()).To(ContainSubstring("deprecated"))
+		Expect(buf.String()).To(ContainSubstring("./release-manifest.yaml"))
 	})
+
+	DescribeTable("Rejects invalid release manifest references",
+		func(manifestURI string) {
+			writeRelease(manifestURI)
+
+			_, err := Parse(fs, configDir, log.New(log.WithDiscardAll()))
+			Expect(err).To(MatchError(ContainSubstring("updating manifest URI")))
+		},
+		Entry("parent directory as host", "file://../release-manifest.yaml"),
+		Entry("file name as host", "file://release-manifest.yaml"),
+		Entry("network-path reference", "//host/release-manifest.yaml"),
+		Entry("unsupported scheme", "https://example.com/release-manifest.yaml"),
+		Entry("invalid OCI reference", "oci://registry.example.com/bar:00|11"),
+	)
 
 	It("Successfully parses apiVIPMode managed internally", func() {
 		clusterYAML := strings.Replace(kubernetesClusterYAML, "  apiVIP: 192.168.120.100.sslip.io", "  apiVIP: 192.168.120.100.sslip.io\n  apiVIPMode: managed", 1)
 		Expect(fs.WriteFile(configDir.ClusterFilepath(), []byte(clusterYAML), 0644)).To(Succeed())
 
-		conf, err := Parse(fs, configDir)
+		conf, err := Parse(fs, configDir, log.New(log.WithDiscardAll()))
 		Expect(err).ToNot(HaveOccurred())
 
 		Expect(containsChart("metallb", conf.Release.Components.HelmCharts)).To(BeTrue())
@@ -209,7 +251,7 @@ components:
 		clusterYAML := strings.Replace(kubernetesClusterYAML, "  apiVIP: 192.168.120.100.sslip.io", "  apiVIP: 192.168.120.100.sslip.io\n  apiVIPMode: external", 1)
 		Expect(fs.WriteFile(configDir.ClusterFilepath(), []byte(clusterYAML), 0644)).To(Succeed())
 
-		conf, err := Parse(fs, configDir)
+		conf, err := Parse(fs, configDir, log.New(log.WithDiscardAll()))
 		Expect(err).ToNot(HaveOccurred())
 
 		Expect(containsChart("metallb", conf.Release.Components.HelmCharts)).To(BeFalse())
@@ -223,7 +265,7 @@ components:
 		_, err := fs.Create(scriptPath)
 		Expect(err).ToNot(HaveOccurred())
 
-		conf, err := Parse(fs, configDir)
+		conf, err := Parse(fs, configDir, log.New(log.WithDiscardAll()))
 		Expect(err).ToNot(HaveOccurred())
 		Expect(conf.Network.ConfigDir).To(BeEmpty())
 		Expect(conf.Network.CustomScript).To(Equal(scriptPath))
@@ -232,7 +274,7 @@ components:
 	It("Fails to parse an empty network directory", func() {
 		Expect(fs.Remove(filepath.Join(configDir.NetworkDir(), "node1.foo.yaml"))).To(Succeed())
 
-		_, err := Parse(fs, configDir)
+		_, err := Parse(fs, configDir, log.New(log.WithDiscardAll()))
 		Expect(err).To(HaveOccurred())
 		Expect(err).To(MatchError("parsing network directory: network directory is empty"))
 	})
@@ -240,7 +282,7 @@ components:
 	It("Skips custom scripts if custom directory is not present", func() {
 		Expect(fs.RemoveAll(filepath.Join(configDir.CustomDir()))).To(Succeed())
 
-		conf, err := Parse(fs, configDir)
+		conf, err := Parse(fs, configDir, log.New(log.WithDiscardAll()))
 		Expect(err).ToNot(HaveOccurred())
 		Expect(conf.Custom.ScriptsDir).To(BeEmpty())
 		Expect(conf.Custom.FilesDir).To(BeEmpty())
@@ -249,7 +291,7 @@ components:
 	It("Doesn't set custom files directory only if not present", func() {
 		Expect(fs.RemoveAll(filepath.Join(configDir.CustomDir(), "files"))).To(Succeed())
 
-		conf, err := Parse(fs, configDir)
+		conf, err := Parse(fs, configDir, log.New(log.WithDiscardAll()))
 		Expect(err).ToNot(HaveOccurred())
 		Expect(conf.Custom.ScriptsDir).To(Equal(filepath.Join(configDir.CustomDir(), "scripts")))
 		Expect(conf.Custom.FilesDir).To(BeEmpty())
@@ -259,7 +301,7 @@ components:
 		Expect(fs.RemoveAll(filepath.Join(configDir.CustomDir(), "scripts"))).To(Succeed())
 		Expect(fs.RemoveAll(filepath.Join(configDir.CustomDir(), "files"))).To(Succeed())
 
-		_, err := Parse(fs, configDir)
+		_, err := Parse(fs, configDir, log.New(log.WithDiscardAll()))
 		Expect(err).To(HaveOccurred())
 		Expect(err).To(MatchError("parsing custom directory: directory \"/tmp/config-dir/custom\" is empty"))
 	})
@@ -267,7 +309,7 @@ components:
 	It("Fails to parse a custom directory without a scripts subdirectory", func() {
 		Expect(fs.RemoveAll(filepath.Join(configDir.CustomDir(), "scripts"))).To(Succeed())
 
-		_, err := Parse(fs, configDir)
+		_, err := Parse(fs, configDir, log.New(log.WithDiscardAll()))
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("parsing custom directory: "))
 		Expect(err.Error()).To(ContainSubstring("/custom/scripts: no such file or directory"))
@@ -277,7 +319,7 @@ components:
 		Expect(fs.RemoveAll(filepath.Join(configDir.CustomDir(), "scripts"))).To(Succeed())
 		Expect(fs.Mkdir(filepath.Join(configDir.CustomDir(), "scripts"), vfs.DirPerm)).To(Succeed())
 
-		_, err := Parse(fs, configDir)
+		_, err := Parse(fs, configDir, log.New(log.WithDiscardAll()))
 		Expect(err).To(HaveOccurred())
 		Expect(err).To(MatchError(ContainSubstring("parsing custom directory: directory \"/tmp/config-dir/custom/scripts\" is empty")))
 	})
@@ -286,7 +328,7 @@ components:
 		Expect(fs.RemoveAll(filepath.Join(configDir.CustomDir(), "files"))).To(Succeed())
 		Expect(fs.Mkdir(filepath.Join(configDir.CustomDir(), "files"), vfs.DirPerm)).To(Succeed())
 
-		_, err := Parse(fs, configDir)
+		_, err := Parse(fs, configDir, log.New(log.WithDiscardAll()))
 		Expect(err).To(HaveOccurred())
 		Expect(err).To(MatchError("parsing custom directory: directory \"/tmp/config-dir/custom/files\" is empty"))
 	})
@@ -295,7 +337,7 @@ components:
 		Expect(fs.RemoveAll(configDir.KubernetesManifestsDir())).To(Succeed())
 		Expect(fs.RemoveAll(configDir.KubernetesRegistriesFilepath())).To(Succeed())
 
-		cfg, err := Parse(fs, configDir)
+		cfg, err := Parse(fs, configDir, log.New(log.WithDiscardAll()))
 		Expect(err).ToNot(HaveOccurred())
 
 		Expect(cfg.Kubernetes.Config.ServerFilePath).To(Equal("/tmp/config-dir/kubernetes/config/server.yaml"))
@@ -315,7 +357,7 @@ iso:
 `
 		Expect(fs.WriteFile(installFile, []byte(invalidInstallYAML), 0644)).To(Succeed())
 
-		_, err := Parse(fs, configDir)
+		_, err := Parse(fs, configDir, log.New(log.WithDiscardAll()))
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("validating configuration"))
 		Expect(err.Error()).To(ContainSubstring("field \"Configuration.Installation.Bootloader\" must be one of [grub none], but got \"invalid\""))
@@ -346,7 +388,7 @@ iso:
 		} {
 			Expect(fs.WriteFile(installFile, []byte(fmt.Sprintf(netbootInstallYAML, tc.url)), vfs.FilePerm)).To(Succeed())
 
-			conf, err := Parse(fs, configDir)
+			conf, err := Parse(fs, configDir, log.New(log.WithDiscardAll()))
 			if tc.valid {
 				Expect(err).NotTo(HaveOccurred(), tc.url)
 				Expect(conf.Installation.ISO.NetbootURL).To(Equal(tc.url))
@@ -362,7 +404,7 @@ iso:
 		releaseFile := filepath.Join(string(configDir), "release.yaml")
 		Expect(fs.Remove(releaseFile)).To(Succeed())
 
-		_, err := Parse(fs, configDir)
+		_, err := Parse(fs, configDir, log.New(log.WithDiscardAll()))
 		Expect(err).To(HaveOccurred())
 		// Parse will fail first on reading the file
 		Expect(err.Error()).To(ContainSubstring("reading config file"))
@@ -373,7 +415,7 @@ iso:
 		releaseYAML := `manifestURI: oci://registry.foo.bar/release-manifest:0.0.1`
 		Expect(fs.WriteFile(releaseFile, []byte(releaseYAML), 0644)).To(Succeed())
 
-		_, err := Parse(fs, configDir)
+		_, err := Parse(fs, configDir, log.New(log.WithDiscardAll()))
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring(`chart "elemental-lifecycle-manager" must be listed under components.helm in release.yaml when Kubernetes is enabled`))
 	})
@@ -382,7 +424,7 @@ iso:
 		clusterYAML := strings.Replace(kubernetesClusterYAML, "  apiVIP: 192.168.120.100.sslip.io", "  apiVIP: 192.168.120.100.sslip.io\n  apiVIPMode: invalid", 1)
 		Expect(fs.WriteFile(configDir.ClusterFilepath(), []byte(clusterYAML), 0644)).To(Succeed())
 
-		_, err := Parse(fs, configDir)
+		_, err := Parse(fs, configDir, log.New(log.WithDiscardAll()))
 
 		Expect(err.Error()).To(ContainSubstring(`validation failed: field "Configuration.Kubernetes.Network.APIVIPMode" must be one of [managed external], but got "invalid"`))
 	})
@@ -555,7 +597,7 @@ var _ = Describe("Write", Label("configuration", "write"), func() {
 		// Remove empty network dir so Parse doesn't reject it
 		Expect(fs.Remove(configDir.NetworkDir())).To(Succeed())
 
-		parsed, err := Parse(fs, configDir)
+		parsed, err := Parse(fs, configDir, log.New(log.WithDiscardAll()))
 		Expect(err).ToNot(HaveOccurred())
 
 		Expect(parsed.Installation.SchemaVersion).To(Equal("v0"))

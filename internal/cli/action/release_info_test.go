@@ -93,6 +93,29 @@ components:
 		Expect(action.ReleaseInfo(ctx, cliCmd)).ToNot(Succeed())
 	})
 
+	// legacy-file-dot-uri
+	It("resolves the deprecated file://./ form against the working directory with a warning", func() {
+		manifestDir, err := tfs.RawPath("/etc/elemental3")
+		Expect(err).ToNot(HaveOccurred())
+		GinkgoT().Chdir(manifestDir)
+
+		Expect(cliCmd.Run(ctx, []string{"", "file://./manifest.yaml"})).To(Succeed())
+		Expect(buffer.String()).To(ContainSubstring("deprecated"))
+		Expect(buffer.String()).To(ContainSubstring("suse-core-test"))
+	})
+
+	It("rejects file URIs naming a host", func() {
+		Expect(cliCmd.Run(ctx, []string{"", "file://manifest.yaml"})).To(MatchError(ContainSubstring("unsupported file uri")))
+	})
+
+	It("rejects unsupported schemes", func() {
+		Expect(cliCmd.Run(ctx, []string{"", "https://example.com/manifest.yaml"})).To(MatchError(ContainSubstring("manifest source type 'https' is not supported")))
+	})
+
+	It("treats bare arguments that are not existing files as OCI references", func() {
+		Expect(cliCmd.Run(ctx, []string{"", "registry.example.com/bar:00|11"})).To(MatchError(ContainSubstring("invalid OCI image reference")))
+	})
+
 	It("tests various options of release-info command", func() {
 		manifestPath, err := tfs.RawPath("/etc/elemental3/manifest.yaml")
 		Expect(err).ToNot(HaveOccurred())
