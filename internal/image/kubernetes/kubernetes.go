@@ -91,7 +91,7 @@ func (h *Helm) ValueFiles() map[string]string {
 }
 
 type HelmChart struct {
-	Name            string   `yaml:"name" validate:"required"`
+	Name            string   `yaml:"name" validate:"required,helmreleasename"`
 	RepositoryName  string   `yaml:"repositoryName" validate:"required"`
 	Version         string   `yaml:"version" validate:"required"`
 	TargetNamespace string   `yaml:"targetNamespace" validate:"required"`

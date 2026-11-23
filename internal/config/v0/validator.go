@@ -71,7 +71,17 @@ func validateNetbootURL(fl validator.FieldLevel) bool {
 	}
 }
 
+// validateHelmReleaseName validates the field holding the release name a Helm chart is
+// deployed with: releaseName when set, the chart name otherwise.
 func validateHelmReleaseName(fl validator.FieldLevel) bool {
+	// The chart name is only used as release name when releaseName is not set
+	if fl.StructFieldName() == "Name" {
+		releaseName, _, _, ok := fl.GetStructFieldOKAdvanced2(fl.Parent(), "ReleaseName")
+		if ok && releaseName.String() != "" {
+			return true
+		}
+	}
+
 	name := fl.Field().String()
 	return len(name) <= helmReleaseNameMaxLen && helmReleaseNameRegex.MatchString(name)
 }
@@ -129,7 +139,12 @@ func Validate(conf *image.Configuration) error {
 			case "hostname":
 				messages = append(messages, fmt.Sprintf("field %q must be a valid hostname, but got %q", vErr.Namespace(), vErr.Value()))
 			case "helmreleasename":
-				messages = append(messages, fmt.Sprintf("field %q must be a valid Helm release name of at most %d lowercase letters, digits, '-' or '.', but got %q", vErr.Namespace(), helmReleaseNameMaxLen, vErr.Value()))
+				switch vErr.StructField() {
+				case "Name":
+					messages = append(messages, fmt.Sprintf("field %q with value %q is invalid as a Helm release name (at most %d lowercase letters, digits, '-' or '.'), set releaseName instead", vErr.Namespace(), vErr.Value(), helmReleaseNameMaxLen))
+				default: // ReleaseName
+					messages = append(messages, fmt.Sprintf("field %q must be a valid Helm release name of at most %d lowercase letters, digits, '-' or '.', but got %q", vErr.Namespace(), helmReleaseNameMaxLen, vErr.Value()))
+				}
 			case "lcmrequired":
 				messages = append(messages, fmt.Sprintf("chart %q must be listed under components.helm in release.yaml when Kubernetes is enabled", elementalLifecycleManager))
 			default:
