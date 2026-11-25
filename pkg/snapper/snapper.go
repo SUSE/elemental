@@ -205,6 +205,26 @@ func (sn Snapper) CreateSnapshot(root string, config string, base int, rw bool, 
 	return newSnap, nil
 }
 
+// DeleteSnapshot deletes the given snapshot of the given configuration by calling "snapper delete"
+func (sn Snapper) DeleteSnapshot(root string, config string, id int) error {
+	args := noDbusArgs()
+
+	if root != "" && root != "/" {
+		args = append(args, "--root", root)
+	}
+	if config == "" {
+		config = rootConfig
+	}
+	args = append(args, "-c", config, "delete", strconv.Itoa(id))
+
+	sn.s.Logger().Info("Deleting snapshot %d of '%s'", id, config)
+	out, err := sn.s.Runner().Run("snapper", args...)
+	if err != nil {
+		return fmt.Errorf("deleting snapshot %d of '%s': %s: %w", id, config, strings.TrimSpace(string(out)), err)
+	}
+	return nil
+}
+
 func (sn Snapper) SetPermissions(root string, id int, rw bool) error {
 	args := noDbusArgs()
 

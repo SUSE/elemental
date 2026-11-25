@@ -38,6 +38,8 @@ import (
 const (
 	snapshotPathTmpl = ".snapshots/%d/snapshot"
 	updateProgress   = "update-in-progress"
+	inProgress       = "yes"
+	preTransaction   = "pre-transaction"
 	maxSnapshots     = 8
 )
 
@@ -64,6 +66,8 @@ type snapperT struct {
 	activeID     int
 	rootDir      string
 	hwPartitions block.PartitionList
+	// interruptedIDs are the root snapshots of transactions that started but neither finished nor rolled back.
+	interruptedIDs []int
 }
 
 func NewSnapper(ctx context.Context, s *sys.System) Interface {
@@ -108,6 +112,8 @@ func (sn snapperT) Start() (trans *Transaction, err error) {
 	if len(sn.hwPartitions) == 0 {
 		return nil, fmt.Errorf("uninitialized snapshotter")
 	}
+
+	sn.removeInterruptedSnapshots()
 
 	sn.s.Logger().Info("Creating new snapshot")
 	trans, err = sn.createNewSnapshot(sn.defaultID)
@@ -176,6 +182,48 @@ func (sn snapperT) Rollback(trans *Transaction, e error) (err error) {
 	return err
 }
 
+// interruptedSnapshots returns the snapshots of transactions that were interrupted, e.g. by a power loss.
+// A transaction marks its snapshot as an update in progress when it creates it and removes the mark when it commits,
+// while a transaction that fails deletes its snapshot. A snapshot that still has the mark, and that is neither
+// the default nor the running one, is what is left of a transaction that could do neither.
+func interruptedSnapshots(snaps snapper.Snapshots) []int {
+	var ids []int
+	for _, snap := range snaps {
+		if snap.UserData[updateProgress] == inProgress && !snap.Default && !snap.Active {
+			ids = append(ids, snap.Number)
+		}
+	}
+	return ids
+}
+
+// removeInterruptedSnapshots deletes the snapshots left behind by interrupted transactions.
+//
+// Such a snapshot is never booted, as it was not made the default, and it cannot be deleted with snapper,
+// because it contains the nested subvolumes of the snapshotted read-write volumes. Only one transaction
+// is expected to run on a host at any time, so a snapshot marked as in progress cannot belong to another
+// transaction that is still running. Failing to delete one does not stop the new transaction.
+func (sn snapperT) removeInterruptedSnapshots() {
+	for _, id := range sn.interruptedIDs {
+		path := filepath.Join(sn.rootDir, fmt.Sprintf(snapshotPathTmpl, id))
+		sn.s.Logger().Warn("Removing snapshot %d left behind by an interrupted transaction", id)
+		if err := sn.snap.DeleteByPath(path); err != nil {
+			sn.s.Logger().Warn("Could not remove snapshot %d of an interrupted transaction: %v", id, err)
+		}
+	}
+}
+
+// removeStalePreTransactionSnapshots deletes the pre-transaction snapshots of the given read-write volume that
+// earlier transactions left in the given root. A transaction takes such a snapshot of the volume as it is
+// customized on the running system, to merge the customizations into the new snapshot, and nothing uses it
+// after that. They are not removed when a transaction fails or is interrupted, so each attempt would add one.
+func (sn snapperT) removeStalePreTransactionSnapshots(root string, rwVol deployment.RWVolume, snaps snapper.Snapshots) {
+	for _, id := range snaps.GetWithUserdata(preTransaction, strconv.FormatBool(true)) {
+		if err := sn.snap.DeleteSnapshot(root, snapper.ConfigName(rwVol.Path), id); err != nil {
+			sn.s.Logger().Warn("Could not remove stale pre-transaction snapshot of '%s': %v", rwVol.Path, err)
+		}
+	}
+}
+
 // isInitiatied checks if the current snapper instance is already initiated.
 // Does nothing if it is already initiated or initiates it if it is not.
 func (sn *snapperT) isInitiated(d deployment.Deployment) (bool, error) {
@@ -231,6 +279,7 @@ func (sn *snapperT) probe(d deployment.Deployment) (err error) {
 		}
 		sn.defaultID = snaps.GetDefault()
 		sn.activeID = snaps.GetActive()
+		sn.interruptedIDs = interruptedSnapshots(snaps)
 	} else {
 		// Assume a freshly formatted partition
 		// setting root over top level volume
@@ -324,9 +373,11 @@ func (sn snapperT) createSnapshottedVolWithMerge(root string, target string, rwV
 	if len(stock) != 1 {
 		return nil, fmt.Errorf("inconsistent number of stock rw snapshots for subvolume '%s': %d", rwVol.Path, len(stock))
 	}
+	sn.removeStalePreTransactionSnapshots(root, rwVol, snaps)
+
 	preID, err := sn.snap.CreateSnapshot(
 		root, snapper.ConfigName(rwVol.Path), 0, false,
-		fmt.Sprintf("pre-transaction %s snapshot", rwVol.Path), map[string]string{"pre-transaction": strconv.FormatBool(true)},
+		fmt.Sprintf("pre-transaction %s snapshot", rwVol.Path), map[string]string{preTransaction: strconv.FormatBool(true)},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("creating the pre-transaction snapshot for volume '%s': %w", rwVol.Path, err)
@@ -440,14 +491,14 @@ func (sn snapperT) createNewSnapshot(baseID int) (*Transaction, error) {
 	var err error
 
 	if baseID == 0 {
-		newID, err = sn.snap.FirstRootSnapshot(sn.rootDir, map[string]string{updateProgress: "yes"})
+		newID, err = sn.snap.FirstRootSnapshot(sn.rootDir, map[string]string{updateProgress: inProgress})
 		if err != nil {
 			return nil, err
 		}
 		path = filepath.Join(sn.rootDir, fmt.Sprintf(snapshotPathTmpl, newID))
 	} else {
 		desc := fmt.Sprintf("snapshot created from parent snapshot %d", baseID)
-		newID, err = sn.snap.CreateSnapshot(sn.rootDir, "", baseID, true, desc, map[string]string{updateProgress: "yes"})
+		newID, err = sn.snap.CreateSnapshot(sn.rootDir, "", baseID, true, desc, map[string]string{updateProgress: inProgress})
 		if err != nil {
 			return nil, err
 		}
