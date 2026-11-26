@@ -9,6 +9,9 @@ In the sections below you will find general information on what is necessary for
 
 For plug-and-play examples, refer to the [single-node](cookbook-first-time-use.md#recipe-4-single-node-kubernetes-cluster-on-aws) and [multi-node](cookbook-first-time-use.md#recipe-5-multi-node-kubernetes-cluster-on-aws) AWS examples in the Cookbook document.
 
+For platform-specific details on top of this document, refer to:
+* [Deploying Elemental on Harvester](cloud-enablement-harvester.md)
+
 ## Infrastructure Resources Preparation
 
 To facilitate the RKE2 cluster load balancing, before building the customized image, ensure you have the following available on your provider:
