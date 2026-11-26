@@ -30,7 +30,7 @@ func NewResetCommand(appName string, action func(context.Context, *cli.Command) 
 		Usage:     "Factory resets the current host",
 		UsageText: fmt.Sprintf("%s reset [OPTIONS]", appName),
 		Action:    action,
-		Flags: []cli.Flag{
+		Flags: append([]cli.Flag{
 			&cli.StringFlag{
 				Name:        configFlg,
 				Usage:       configDesc,
@@ -93,6 +93,6 @@ func NewResetCommand(appName string, action func(context.Context, *cli.Command) 
 				Usage:       localDesc,
 				Destination: &InstallArgs.Local,
 			},
-		},
+		}, hardeningFlags()...),
 	}
 }

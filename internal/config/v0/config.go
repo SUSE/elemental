@@ -31,6 +31,7 @@ import (
 	"github.com/suse/elemental/v3/internal/image"
 	"github.com/suse/elemental/v3/internal/image/kubernetes"
 	"github.com/suse/elemental/v3/internal/image/release"
+	"github.com/suse/elemental/v3/pkg/hardening"
 	"github.com/suse/elemental/v3/pkg/manifest/source"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
@@ -159,6 +160,10 @@ func Parse(f vfs.FS, configDir Dir) (conf *image.Configuration, err error) {
 		return nil, fmt.Errorf("parsing config file %q: %w", configDir.InstallFilepath(), err)
 	}
 
+	if err = sanitizeHardening(f, conf.Installation.Hardening, string(configDir)); err != nil {
+		return nil, fmt.Errorf("parsing hardening configuration: %w", err)
+	}
+
 	data, err = f.ReadFile(configDir.ReleaseFilepath())
 	if err != nil {
 		return nil, fmt.Errorf("reading config file: %w", err)
@@ -198,6 +203,35 @@ func Parse(f vfs.FS, configDir Dir) (conf *image.Configuration, err error) {
 	}
 
 	return conf, nil
+}
+
+// sanitizeHardening resolves a relative tailoring file path against the
+// configuration directory and checks the hardening configuration early, so
+// mistakes surface before an image build starts rather than half way through.
+func sanitizeHardening(f vfs.FS, h *hardening.Config, configDir string) error {
+	if h == nil {
+		return nil
+	}
+
+	if h.Tailoring != "" {
+		if !filepath.IsAbs(h.Tailoring) {
+			absConfDir, err := filepath.Abs(configDir)
+			if err != nil {
+				return fmt.Errorf("calculate absolute directory: %w", err)
+			}
+			h.Tailoring = filepath.Join(absConfDir, h.Tailoring)
+		}
+
+		profiles, err := hardening.TailoringProfilesFile(f, h.Tailoring)
+		if err != nil {
+			return err
+		}
+		if _, err = hardening.ResolveProfile(h.Profile, profiles); err != nil {
+			return err
+		}
+	}
+
+	return h.Validate()
 }
 
 func sanitizeManifestURI(r *release.Release, configDir string) error {

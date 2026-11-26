@@ -28,6 +28,7 @@ import (
 
 	"github.com/suse/elemental/v3/pkg/deployment"
 	"github.com/suse/elemental/v3/pkg/firmware"
+	"github.com/suse/elemental/v3/pkg/hardening"
 	"github.com/suse/elemental/v3/pkg/log"
 	"github.com/suse/elemental/v3/pkg/sys"
 	sysmock "github.com/suse/elemental/v3/pkg/sys/mock"
@@ -100,6 +101,13 @@ var _ = Describe("Upgrade", Label("upgrade"), func() {
 			{"rsync"},
 			{"/etc/elemental/config.sh"},
 		}))
+	})
+	It("runs the hardening step and fails when the image lacks openscap", func() {
+		d.Security.Hardening = &hardening.Config{Profile: "stig"}
+		err := u.Upgrade(d)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("applying hardening profile"))
+		Expect(err.Error()).To(ContainSubstring("openscap"))
 	})
 	It("fails on transaction initialization", func() {
 		t.InitErr = fmt.Errorf("init failed")

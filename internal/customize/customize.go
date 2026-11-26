@@ -239,6 +239,7 @@ func parseDeployment(
 
 	d.Security = &deployment.SecurityConfig{
 		CryptoPolicy: install.CryptoPolicy,
+		Hardening:    install.Hardening,
 	}
 
 	if d.IsFipsEnabled() {

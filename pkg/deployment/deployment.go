@@ -34,6 +34,7 @@ import (
 
 	"github.com/suse/elemental/v3/pkg/crypto"
 	"github.com/suse/elemental/v3/pkg/firmware"
+	"github.com/suse/elemental/v3/pkg/hardening"
 	"github.com/suse/elemental/v3/pkg/sys"
 	"github.com/suse/elemental/v3/pkg/sys/vfs"
 )
@@ -262,7 +263,8 @@ type FirmwareConfig struct {
 }
 
 type SecurityConfig struct {
-	CryptoPolicy crypto.Policy `yaml:"cryptoPolicy" validate:"crypto_policy"`
+	CryptoPolicy crypto.Policy     `yaml:"cryptoPolicy" validate:"crypto_policy"`
+	Hardening    *hardening.Config `yaml:"hardening,omitempty"`
 }
 
 type SnapshotterConfig struct {
@@ -821,6 +823,12 @@ func (d *Deployment) Sanitize(s *sys.System, excludeChecks ...SanitizeDeployment
 		}
 		return err
 	}
+
+	if d.Security.Hardening != nil {
+		if err := d.Security.Hardening.Validate(); err != nil {
+			return fmt.Errorf("invalid hardening configuration: %w", err)
+		}
+	}
 	return nil
 }
 
@@ -904,6 +912,11 @@ var (
 // IsFipsEnabled returns true if FIPS is enabled for the deployment, otherwise false.
 func (d *Deployment) IsFipsEnabled() bool {
 	return d.Security.CryptoPolicy == crypto.FIPSPolicy
+}
+
+// IsHardeningEnabled returns true if a hardening profile is configured for the deployment.
+func (d *Deployment) IsHardeningEnabled() bool {
+	return d.Security != nil && d.Security.Hardening.Enabled()
 }
 
 // DeepCopy returns deep copy of the current Deployment object. Note the deep copy

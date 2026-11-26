@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xccdf:Tailoring xmlns:xccdf="http://checklists.nist.gov/xccdf/1.2" id="xccdf_com.suse_tailoring_elemental_rke2">
+  <xccdf:benchmark href="/usr/share/xml/scap/ssg/content/ssg-sle16-ds.xml"/>
+  <xccdf:version time="2026-11-12T20:29:11">1</xccdf:version>
+  <xccdf:Profile id="xccdf_org.ssgproject.content_profile_base_rke2" extends="xccdf_org.ssgproject.content_profile_base">
+    <xccdf:title>base for Elemental RKE2 nodes</xccdf:title>
+    <!-- RKE2 is installed under /opt/rke2 because /usr is read-only; nosuid prevents its SELinux domain transition -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_mount_option_opt_nosuid" selected="false"/>
+    <!-- RKE2 runs containerd, runc and kubelet from /var/lib/rancher/rke2 -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_mount_option_var_noexec" selected="false"/>
+    <!-- nosuid on /var prevents SELinux domain transitions for the RKE2 binaries under /var/lib/rancher -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_mount_option_var_nosuid" selected="false"/>
+    <!-- Kubernetes pod networking requires IPv4 forwarding -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_sysctl_net_ipv4_ip_forward" selected="false"/>
+    <!-- Deviation from CCE-96367-8: arp_ignore=2 on all interfaces breaks Calico pod networking (/32 pod addresses); arp_ignore=1 is set for all and 2 on the physical interface instead -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_sysctl_net_ipv4_conf_all_arp_ignore" selected="false"/>
+    <!-- Container image layers under /var/lib/rancher contain files owned by UIDs that do not exist on the host -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_no_files_unowned_by_user" selected="false"/>
+    <!-- Container image layers under /var/lib/rancher contain files owned by GIDs that do not exist on the host -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_file_permissions_ungroupowned" selected="false"/>
+    <!-- Nodes are administered through a serial/virtual console (e.g. hvc0); removing serial terminals would lock out console access -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_restrict_serial_port_logins" selected="false"/>
+    <!-- The check looks for the x86 'nx' CPU flag, which does not exist on aarch64; execute-never protection is always present there -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_bios_enable_execution_restrictions" selected="false"/>
+  </xccdf:Profile>
+  <xccdf:Profile id="xccdf_org.ssgproject.content_profile_anssi_bp28_minimal_rke2" extends="xccdf_org.ssgproject.content_profile_anssi_bp28_minimal">
+    <xccdf:title>anssi_bp28_minimal for Elemental RKE2 nodes</xccdf:title>
+    <!-- RKE2 is installed under /opt/rke2 because /usr is read-only; nosuid prevents its SELinux domain transition -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_mount_option_opt_nosuid" selected="false"/>
+    <!-- RKE2 runs containerd, runc and kubelet from /var/lib/rancher/rke2 -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_mount_option_var_noexec" selected="false"/>
+    <!-- nosuid on /var prevents SELinux domain transitions for the RKE2 binaries under /var/lib/rancher -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_mount_option_var_nosuid" selected="false"/>
+    <!-- Kubernetes pod networking requires IPv4 forwarding -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_sysctl_net_ipv4_ip_forward" selected="false"/>
+    <!-- Deviation from CCE-96367-8: arp_ignore=2 on all interfaces breaks Calico pod networking (/32 pod addresses); arp_ignore=1 is set for all and 2 on the physical interface instead -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_sysctl_net_ipv4_conf_all_arp_ignore" selected="false"/>
+    <!-- Container image layers under /var/lib/rancher contain files owned by UIDs that do not exist on the host -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_no_files_unowned_by_user" selected="false"/>
+    <!-- Container image layers under /var/lib/rancher contain files owned by GIDs that do not exist on the host -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_file_permissions_ungroupowned" selected="false"/>
+    <!-- Nodes are administered through a serial/virtual console (e.g. hvc0); removing serial terminals would lock out console access -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_restrict_serial_port_logins" selected="false"/>
+    <!-- The check looks for the x86 'nx' CPU flag, which does not exist on aarch64; execute-never protection is always present there -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_bios_enable_execution_restrictions" selected="false"/>
+  </xccdf:Profile>
+  <xccdf:Profile id="xccdf_org.ssgproject.content_profile_anssi_bp28_intermediary_rke2" extends="xccdf_org.ssgproject.content_profile_anssi_bp28_intermediary">
+    <xccdf:title>anssi_bp28_intermediary for Elemental RKE2 nodes</xccdf:title>
+    <!-- RKE2 is installed under /opt/rke2 because /usr is read-only; nosuid prevents its SELinux domain transition -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_mount_option_opt_nosuid" selected="false"/>
+    <!-- RKE2 runs containerd, runc and kubelet from /var/lib/rancher/rke2 -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_mount_option_var_noexec" selected="false"/>
+    <!-- nosuid on /var prevents SELinux domain transitions for the RKE2 binaries under /var/lib/rancher -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_mount_option_var_nosuid" selected="false"/>
+    <!-- Kubernetes pod networking requires IPv4 forwarding -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_sysctl_net_ipv4_ip_forward" selected="false"/>
+    <!-- Deviation from CCE-96367-8: arp_ignore=2 on all interfaces breaks Calico pod networking (/32 pod addresses); arp_ignore=1 is set for all and 2 on the physical interface instead -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_sysctl_net_ipv4_conf_all_arp_ignore" selected="false"/>
+    <!-- Container image layers under /var/lib/rancher contain files owned by UIDs that do not exist on the host -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_no_files_unowned_by_user" selected="false"/>
+    <!-- Container image layers under /var/lib/rancher contain files owned by GIDs that do not exist on the host -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_file_permissions_ungroupowned" selected="false"/>
+    <!-- Nodes are administered through a serial/virtual console (e.g. hvc0); removing serial terminals would lock out console access -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_restrict_serial_port_logins" selected="false"/>
+    <!-- The check looks for the x86 'nx' CPU flag, which does not exist on aarch64; execute-never protection is always present there -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_bios_enable_execution_restrictions" selected="false"/>
+  </xccdf:Profile>
+  <xccdf:Profile id="xccdf_org.ssgproject.content_profile_anssi_bp28_enhanced_rke2" extends="xccdf_org.ssgproject.content_profile_anssi_bp28_enhanced">
+    <xccdf:title>anssi_bp28_enhanced for Elemental RKE2 nodes</xccdf:title>
+    <!-- RKE2 is installed under /opt/rke2 because /usr is read-only; nosuid prevents its SELinux domain transition -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_mount_option_opt_nosuid" selected="false"/>
+    <!-- RKE2 runs containerd, runc and kubelet from /var/lib/rancher/rke2 -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_mount_option_var_noexec" selected="false"/>
+    <!-- nosuid on /var prevents SELinux domain transitions for the RKE2 binaries under /var/lib/rancher -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_mount_option_var_nosuid" selected="false"/>
+    <!-- Kubernetes pod networking requires IPv4 forwarding -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_sysctl_net_ipv4_ip_forward" selected="false"/>
+    <!-- Deviation from CCE-96367-8: arp_ignore=2 on all interfaces breaks Calico pod networking (/32 pod addresses); arp_ignore=1 is set for all and 2 on the physical interface instead -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_sysctl_net_ipv4_conf_all_arp_ignore" selected="false"/>
+    <!-- Container image layers under /var/lib/rancher contain files owned by UIDs that do not exist on the host -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_no_files_unowned_by_user" selected="false"/>
+    <!-- Container image layers under /var/lib/rancher contain files owned by GIDs that do not exist on the host -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_file_permissions_ungroupowned" selected="false"/>
+    <!-- Nodes are administered through a serial/virtual console (e.g. hvc0); removing serial terminals would lock out console access -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_restrict_serial_port_logins" selected="false"/>
+    <!-- The check looks for the x86 'nx' CPU flag, which does not exist on aarch64; execute-never protection is always present there -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_bios_enable_execution_restrictions" selected="false"/>
+  </xccdf:Profile>
+  <xccdf:Profile id="xccdf_org.ssgproject.content_profile_anssi_bp28_high_rke2" extends="xccdf_org.ssgproject.content_profile_anssi_bp28_high">
+    <xccdf:title>anssi_bp28_high for Elemental RKE2 nodes</xccdf:title>
+    <!-- RKE2 is installed under /opt/rke2 because /usr is read-only; nosuid prevents its SELinux domain transition -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_mount_option_opt_nosuid" selected="false"/>
+    <!-- RKE2 runs containerd, runc and kubelet from /var/lib/rancher/rke2 -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_mount_option_var_noexec" selected="false"/>
+    <!-- nosuid on /var prevents SELinux domain transitions for the RKE2 binaries under /var/lib/rancher -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_mount_option_var_nosuid" selected="false"/>
+    <!-- Kubernetes pod networking requires IPv4 forwarding -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_sysctl_net_ipv4_ip_forward" selected="false"/>
+    <!-- Deviation from CCE-96367-8: arp_ignore=2 on all interfaces breaks Calico pod networking (/32 pod addresses); arp_ignore=1 is set for all and 2 on the physical interface instead -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_sysctl_net_ipv4_conf_all_arp_ignore" selected="false"/>
+    <!-- Container image layers under /var/lib/rancher contain files owned by UIDs that do not exist on the host -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_no_files_unowned_by_user" selected="false"/>
+    <!-- Container image layers under /var/lib/rancher contain files owned by GIDs that do not exist on the host -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_file_permissions_ungroupowned" selected="false"/>
+    <!-- Nodes are administered through a serial/virtual console (e.g. hvc0); removing serial terminals would lock out console access -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_restrict_serial_port_logins" selected="false"/>
+    <!-- The check looks for the x86 'nx' CPU flag, which does not exist on aarch64; execute-never protection is always present there -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_bios_enable_execution_restrictions" selected="false"/>
+  </xccdf:Profile>
+  <xccdf:Profile id="xccdf_org.ssgproject.content_profile_pci-dss-4_rke2" extends="xccdf_org.ssgproject.content_profile_pci-dss-4">
+    <xccdf:title>pci-dss-4 for Elemental RKE2 nodes</xccdf:title>
+    <!-- RKE2 is installed under /opt/rke2 because /usr is read-only; nosuid prevents its SELinux domain transition -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_mount_option_opt_nosuid" selected="false"/>
+    <!-- RKE2 runs containerd, runc and kubelet from /var/lib/rancher/rke2 -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_mount_option_var_noexec" selected="false"/>
+    <!-- nosuid on /var prevents SELinux domain transitions for the RKE2 binaries under /var/lib/rancher -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_mount_option_var_nosuid" selected="false"/>
+    <!-- Kubernetes pod networking requires IPv4 forwarding -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_sysctl_net_ipv4_ip_forward" selected="false"/>
+    <!-- Deviation from CCE-96367-8: arp_ignore=2 on all interfaces breaks Calico pod networking (/32 pod addresses); arp_ignore=1 is set for all and 2 on the physical interface instead -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_sysctl_net_ipv4_conf_all_arp_ignore" selected="false"/>
+    <!-- Container image layers under /var/lib/rancher contain files owned by UIDs that do not exist on the host -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_no_files_unowned_by_user" selected="false"/>
+    <!-- Container image layers under /var/lib/rancher contain files owned by GIDs that do not exist on the host -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_file_permissions_ungroupowned" selected="false"/>
+    <!-- Nodes are administered through a serial/virtual console (e.g. hvc0); removing serial terminals would lock out console access -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_restrict_serial_port_logins" selected="false"/>
+    <!-- The check looks for the x86 'nx' CPU flag, which does not exist on aarch64; execute-never protection is always present there -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_bios_enable_execution_restrictions" selected="false"/>
+  </xccdf:Profile>
+  <xccdf:Profile id="xccdf_org.ssgproject.content_profile_hipaa_rke2" extends="xccdf_org.ssgproject.content_profile_hipaa">
+    <xccdf:title>hipaa for Elemental RKE2 nodes</xccdf:title>
+    <!-- RKE2 is installed under /opt/rke2 because /usr is read-only; nosuid prevents its SELinux domain transition -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_mount_option_opt_nosuid" selected="false"/>
+    <!-- RKE2 runs containerd, runc and kubelet from /var/lib/rancher/rke2 -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_mount_option_var_noexec" selected="false"/>
+    <!-- nosuid on /var prevents SELinux domain transitions for the RKE2 binaries under /var/lib/rancher -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_mount_option_var_nosuid" selected="false"/>
+    <!-- Kubernetes pod networking requires IPv4 forwarding -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_sysctl_net_ipv4_ip_forward" selected="false"/>
+    <!-- Deviation from CCE-96367-8: arp_ignore=2 on all interfaces breaks Calico pod networking (/32 pod addresses); arp_ignore=1 is set for all and 2 on the physical interface instead -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_sysctl_net_ipv4_conf_all_arp_ignore" selected="false"/>
+    <!-- Container image layers under /var/lib/rancher contain files owned by UIDs that do not exist on the host -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_no_files_unowned_by_user" selected="false"/>
+    <!-- Container image layers under /var/lib/rancher contain files owned by GIDs that do not exist on the host -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_file_permissions_ungroupowned" selected="false"/>
+    <!-- Nodes are administered through a serial/virtual console (e.g. hvc0); removing serial terminals would lock out console access -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_restrict_serial_port_logins" selected="false"/>
+    <!-- The check looks for the x86 'nx' CPU flag, which does not exist on aarch64; execute-never protection is always present there -->
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_bios_enable_execution_restrictions" selected="false"/>
+  </xccdf:Profile>
+</xccdf:Tailoring>

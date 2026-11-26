@@ -32,6 +32,7 @@ import (
 	"github.com/suse/elemental/v3/pkg/cleanstack"
 	"github.com/suse/elemental/v3/pkg/deployment"
 	"github.com/suse/elemental/v3/pkg/filesystem"
+	"github.com/suse/elemental/v3/pkg/hardening"
 	"github.com/suse/elemental/v3/pkg/qemuimg"
 	"github.com/suse/elemental/v3/pkg/repart"
 	"github.com/suse/elemental/v3/pkg/rsync"
@@ -49,6 +50,7 @@ const (
 	installCfg     = "install.yaml"
 	isoBootCatalog = "boot.catalog"
 	cfgScript      = "setup.sh"
+	tailoringFile  = "hardening-tailoring.xml"
 	xorriso        = "xorriso"
 
 	LiveMountPoint  = "/run/initramfs/live"
@@ -57,6 +59,9 @@ const (
 	InstallDesc     = LiveMountPoint + "/" + installDir + "/" + installCfg
 	InstallScript   = LiveMountPoint + "/" + installDir + "/" + cfgScript
 )
+
+// HardeningTailoring is where a hardening tailoring file is shipped on installer media.
+const HardeningTailoring = LiveMountPoint + "/" + installDir + "/" + tailoringFile
 
 type MediaType int
 
@@ -704,6 +709,11 @@ func (i Media) addInstallationAssets(root string, d *deployment.Deployment) erro
 		}
 	}
 
+	err = i.copyHardeningTailoring(installPath, d)
+	if err != nil {
+		return err
+	}
+
 	if d.OverlayTree != nil {
 		overlayPath := filepath.Join(installPath, overlayDir)
 		err = vfs.MkdirAll(i.s.FS(), overlayPath, vfs.DirPerm)
@@ -780,6 +790,10 @@ func (i Media) writeInstallDescription(installPath string, d *deployment.Deploym
 
 	if d.CfgScript != "" {
 		d.CfgScript = InstallScript
+	}
+
+	if t := hardeningTailoring(d); t != "" && t != hardening.InImageTailoring {
+		d.Security.Hardening.Tailoring = HardeningTailoring
 	}
 
 	if d.Installer.CfgScript != "" {
@@ -1008,4 +1022,27 @@ func calcFileChecksum(fs vfs.FS, fileName string) (string, error) {
 // reservedPaths returns an array of the paths which can't be overlaid in installer media
 func reservedPaths() []string {
 	return []string{liveDir, installDir, "EFI", "boot"}
+}
+
+// copyHardeningTailoring copies the deployment's hardening tailoring file, if
+// any, into the installer media's install directory. Files already on the
+// media or already inside the installed image are left where they are.
+func (i Media) copyHardeningTailoring(installPath string, d *deployment.Deployment) error {
+	t := hardeningTailoring(d)
+	if t == "" || t == HardeningTailoring || t == hardening.InImageTailoring {
+		return nil
+	}
+	err := vfs.CopyFile(i.s.FS(), t, filepath.Join(installPath, tailoringFile))
+	if err != nil {
+		return fmt.Errorf("failed copying hardening tailoring file %s to install directory: %w", t, err)
+	}
+	return nil
+}
+
+// hardeningTailoring returns the tailoring file path of the deployment, if any.
+func hardeningTailoring(d *deployment.Deployment) string {
+	if d.Security == nil || d.Security.Hardening == nil {
+		return ""
+	}
+	return d.Security.Hardening.Tailoring
 }

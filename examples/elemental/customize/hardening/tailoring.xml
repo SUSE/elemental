@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xccdf:Tailoring xmlns:xccdf="http://checklists.nist.gov/xccdf/1.2" id="xccdf_org.example_tailoring_elemental">
+  <xccdf:benchmark href="/usr/share/xml/scap/ssg/content/ssg-sle16-ds.xml"/>
+  <xccdf:version time="2026-01-01T00:00:00">1</xccdf:version>
+  <xccdf:Profile id="xccdf_org.ssgproject.content_profile_anssi_bp28_high_elemental" extends="xccdf_org.ssgproject.content_profile_anssi_bp28_high">
+    <xccdf:title>ANSSI-BP-028 (high) with site exceptions</xccdf:title>
+    <xccdf:select idref="xccdf_org.ssgproject.content_rule_grub2_password" selected="false"/>
+    <xccdf:refine-value idref="xccdf_org.ssgproject.content_value_var_slub_debug_options" selector="FZP"/>
+  </xccdf:Profile>
+</xccdf:Tailoring>
