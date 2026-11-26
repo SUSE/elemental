@@ -1,5 +1,6 @@
 schema: v0
 bootloader: grub
+# Adapt the kernelCmdLine ignition.platform.id to target platform
 kernelCmdLine: "console=ttyS0 quiet ignition.platform.id=aws"
 # If you are using this configuration outside of the example documentation,
 # ensure that all cluster nodes (both control-plane and worker) are FIPS-ready. Otherwise, remove this property.
