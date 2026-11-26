@@ -19,6 +19,7 @@ package repart_test
 
 import (
 	"bytes"
+	"fmt"
 	"path/filepath"
 	"testing"
 
@@ -159,6 +160,82 @@ var _ = Describe("Systemd-repart tests", Label("systemd-repart"), func() {
 			"systemd-repart", "--json=pretty", "--definitions=/tmp/elemental-repart.d",
 			"--dry-run=no", "--empty=create", "--size=auto", "/temp/dir/image.raw",
 		}}))
+	})
+
+	It("creates a sparse disk image with the given size", func() {
+		diskImg := filepath.Join(tempDir, "sparse.raw")
+		parts := []repart.Partition{
+			{Partition: &deployment.Partition{Label: "EFI", Role: deployment.EFI}},
+			{Partition: &deployment.Partition{Label: "SYSTEM", Role: deployment.System}},
+		}
+		// systemd-repart creates the image with its minimal size (1MiB here)
+		const minSize = 1 << 20
+		runner.SideEffect = func(cmd string, args ...string) ([]byte, error) {
+			if cmd == "systemd-repart" {
+				Expect(fs.WriteFile(diskImg, make([]byte, minSize), vfs.FilePerm)).To(Succeed())
+				return []byte(systemdRepartJson), runner.ReturnError
+			}
+			return []byte{}, runner.ReturnError
+		}
+
+		Expect(repart.CreateSparseDiskImage(s, diskImg, 16, parts)).To(Succeed())
+		// The image is first created with auto size and then truncated
+		Expect(runner.CmdsMatch([][]string{{
+			"systemd-repart", "--json=pretty", "--definitions=/tmp/elemental-repart.d",
+			"--dry-run=no", "--empty=create", "--size=auto", diskImg,
+		}})).To(Succeed())
+		info, err := fs.Stat(diskImg)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(info.Size()).To(Equal(int64(16 << 20)))
+	})
+
+	It("keeps the minimal image size if the requested size is zero", func() {
+		diskImg := filepath.Join(tempDir, "sparse.raw")
+		parts := []repart.Partition{
+			{Partition: &deployment.Partition{Label: "EFI", Role: deployment.EFI}},
+			{Partition: &deployment.Partition{Label: "SYSTEM", Role: deployment.System}},
+		}
+		runner.SideEffect = func(cmd string, args ...string) ([]byte, error) {
+			if cmd == "systemd-repart" {
+				Expect(fs.WriteFile(diskImg, make([]byte, 2<<20), vfs.FilePerm)).To(Succeed())
+			}
+			return []byte(systemdRepartJson), runner.ReturnError
+		}
+
+		Expect(repart.CreateSparseDiskImage(s, diskImg, 0, parts)).To(Succeed())
+		info, err := fs.Stat(diskImg)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(info.Size()).To(Equal(int64(2 << 20)))
+	})
+
+	It("fails to create a sparse disk image smaller than the minimal size", func() {
+		diskImg := filepath.Join(tempDir, "sparse.raw")
+		parts := []repart.Partition{
+			{Partition: &deployment.Partition{Label: "EFI", Role: deployment.EFI}},
+			{Partition: &deployment.Partition{Label: "SYSTEM", Role: deployment.System}},
+		}
+		runner.SideEffect = func(cmd string, args ...string) ([]byte, error) {
+			if cmd == "systemd-repart" {
+				Expect(fs.WriteFile(diskImg, make([]byte, 8<<20), vfs.FilePerm)).To(Succeed())
+			}
+			return []byte(systemdRepartJson), runner.ReturnError
+		}
+
+		err := repart.CreateSparseDiskImage(s, diskImg, 4, parts)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("smaller than the minimum required size"))
+	})
+
+	It("fails to create a sparse disk image if systemd-repart fails", func() {
+		diskImg := filepath.Join(tempDir, "sparse.raw")
+		runner.ReturnError = fmt.Errorf("repart failed")
+		parts := []repart.Partition{
+			{Partition: &deployment.Partition{Label: "EFI", Role: deployment.EFI}},
+			{Partition: &deployment.Partition{Label: "SYSTEM", Role: deployment.System}},
+		}
+		err := repart.CreateSparseDiskImage(s, diskImg, 16, parts)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("creating raw disk image"))
 	})
 
 	It("reparts a disk with force flag and feeds partition UUIDs", func() {

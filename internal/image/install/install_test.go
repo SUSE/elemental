@@ -40,11 +40,16 @@ var _ = Describe("DiskSize", func() {
 		Expect(install.DiskSize("8M").IsValid()).To(BeTrue())
 		Expect(install.DiskSize("-8M").IsValid()).To(BeFalse())
 		Expect(install.DiskSize(" 8M").IsValid()).To(BeFalse())
+		// An empty size is valid and means 0 (auto)
+		Expect(install.DiskSize("").IsValid()).To(BeTrue())
 	})
 
 	It("ToMiB() tests", func() {
 		Expect(install.DiskSize("10G").ToMiB()).To(Equal(uint64(10 * units.GiB / units.MiB)))
 
 		Expect(install.DiskSize("8M").ToMiB()).To(Equal(uint64(8)))
+
+		// An empty size resolves to 0 (auto)
+		Expect(install.DiskSize("").ToMiB()).To(Equal(uint64(0)))
 	})
 })
