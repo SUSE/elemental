@@ -21,6 +21,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os/exec"
 	"path/filepath"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -391,6 +392,9 @@ var _ = Describe("Kubernetes", func() {
 			Expect(*data).To(ContainSubstring(`[[ "${IS_INIT_NODE}" == "true" ]] && CONFIGFILE="${INIT_PATH}"`))
 			// Configuration specific to statically defined init node should not be present when no nodes where defined.
 			Expect(*data).ToNot(ContainSubstring(`[[ "${HOSTNAME}" == "{{ .InitNode.Hostname }}" ]] && is_init_node=true`))
+			// RKE2 is started without waiting for it, as joining nodes only start once the cluster is reachable
+			Expect(*data).To(ContainSubstring("\nsystemctl enable --now --no-block \"rke2-${NODETYPE}.service\"\n"))
+			Expect(exec.Command("bash", "-n", "-c", *data).Run()).To(Succeed())
 
 			data = findFileContentsInConfig(config, filepath.Join("/", image.RuntimeEnvPath()))
 			Expect(data).NotTo(BeNil())
@@ -743,6 +747,15 @@ mirrors:
 			unit, err := generateK8sConfigUnit("/deploy.sh", semverutil.Version{})
 			Expect(err).NotTo(HaveOccurred())
 			Expect(unit).NotTo(ContainSubstring("semodule"))
+		})
+
+		It("limits the restarts of both units", func() {
+			for _, version := range []string{"3.0.0", "3.1.0"} {
+				unit, err := generateK8sConfigUnit("/deploy.sh", parse(version))
+				Expect(err).NotTo(HaveOccurred())
+				Expect(unit).To(ContainSubstring("StartLimitIntervalSec=3h\nStartLimitBurst=5\n"), version)
+				Expect(unit).To(ContainSubstring("Restart=on-failure\nRestartSec=60\n"), version)
+			}
 		})
 	})
 })

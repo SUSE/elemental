@@ -61,4 +61,6 @@ if ! sh "{{ .InstallScript }}"; then
   exit 1
 fi
 
-systemctl enable --now "rke2-${NODETYPE}.service"
+# Do not wait for RKE2 to be up: nodes joining a cluster only start once the cluster is reachable.
+# RKE2 keeps restarting until then, while failing here would install RKE2 all over again.
+systemctl enable --now --no-block "rke2-${NODETYPE}.service"
