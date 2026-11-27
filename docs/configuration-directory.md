@@ -23,7 +23,8 @@ Consumers can use the `release.yaml` file to configure the desired solution that
 ### release.yaml
 
 ```yaml
-manifestURI: file:///path/to/manifest/suse-solution-manifest.yaml
+manifestURI: ./suse-solution-manifest.yaml
+# manifestURI: file:///path/to/manifest/suse-solution-manifest.yaml
 # manifestURI: oci://registry.suse.com/suse-solution/release-manifest:0.0.1
 components:
   kubernetes: {}
@@ -39,7 +40,11 @@ components:
     - extension: bar
 ```
 
-* `manifestURI` - Required; URI to a release manifest for the Core Platform or the Solution that will be used as base. For more information, refer to the [Release Manifest](./release-manifest.md) guide. Supports both local file (file://) and OCI image (oci://) definitions.
+* `manifestURI` - Required; URI to a release manifest for the Core Platform or the Solution that will be used as base. For more information, refer to the [Release Manifest](./release-manifest.md) guide. Accepts a URI reference in the following forms:
+  * A relative reference such as `suse-solution-manifest.yaml` or `./manifests/suse-solution-manifest.yaml` is resolved relative to the directory containing `release.yaml`. References may point outside the configuration directory (e.g. `../shared/suse-solution-manifest.yaml`); when running Elemental in a container, make sure such locations are mounted as well.
+  * An absolute path (`/path/to/manifest.yaml`) or `file` URI (`file:///path/to/manifest.yaml`) refers to that exact location.
+  * OCI images must always use the `oci://` scheme; a reference without a scheme is treated as a local file.
+  * The `file://./relative-path` form is deprecated and logs a warning; use the relative reference `./relative-path` instead.
 * `components` - Optional; Components to explicitly enable from the Core Platform base.
   * `kubernetes` - Optional; If set (even if empty), enables Kubernetes distribution installation. If you also define cluster configuration, Helm charts or Kubernetes manifests, a cluster will be automatically enabled and this field is not required.
   * `helm` - Optional; List of Helm chart components that need to be enabled from the Core Platform base.
